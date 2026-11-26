@@ -599,23 +599,49 @@ function hasWeakMapPrototypeExposure(ast) {
     localFunctionSummaries.set(name,summary);
   }
 
-  // Resolve the complete in-module WeakMap-derived constructor graph before
-  // evaluating any prototype access. A separate pass avoids source-order
-  // dependence in the exposure walk and makes aliases available to all uses.
-  walk(ast,(node,parent)=>{
-    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
-      const parentDepth=weakMapDerivedDepth(node.superClass);
-      if(parentDepth!==undefined) {
+  // Resolve constructor aliases and derived classes before the exposure walk.
+  // This fixed point is intentionally conservative: if any feasible branch
+  // reaches WeakMap, the binding remains a possible native constructor.
+  let derivedBindingsChanged=true;
+  while(derivedBindingsChanged) {
+    derivedBindingsChanged=false;
+    walk(ast,(node,parent)=>{
+      if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier') {
+        const depth=weakMapDerivedDepth(node.init);
+        if(depth===0&&!weakMapConstructors.has(node.id.name)) {
+          weakMapConstructors.add(node.id.name);
+          derivedBindingsChanged=true;
+        } else if(depth!==undefined&&depth>0) {
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.id.name,depth)||derivedBindingsChanged;
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier') {
+        const depth=weakMapDerivedDepth(node.right);
+        if(depth===0&&!weakMapConstructors.has(node.left.name)) {
+          weakMapConstructors.add(node.left.name);
+          derivedBindingsChanged=true;
+        } else if(depth!==undefined&&depth>0) {
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.left.name,depth)||derivedBindingsChanged;
+        }
+      }
+      if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+        const parentDepth=weakMapDerivedDepth(node.superClass);
+        if(parentDepth===undefined)return;
         const derivedDepth=parentDepth+1;
         if(node.id?.type==='Identifier')
-          recordWeakMapDerivedConstructor(node.id.name,derivedDepth);
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.id.name,derivedDepth)||derivedBindingsChanged;
         if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
-          recordWeakMapDerivedConstructor(parent.id.name,derivedDepth);
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(parent.id.name,derivedDepth)||derivedBindingsChanged;
         if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
-          recordWeakMapDerivedConstructor(parent.left.name,derivedDepth);
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(parent.left.name,derivedDepth)||derivedBindingsChanged;
       }
-    }
-  });
+    });
+  }
   let exposed=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='ExportNamedDeclaration') {
@@ -770,29 +796,6 @@ function hasWeakMapPrototypeExposure(ast) {
     }
   });
 
-  // Constructor aliases can be declared after a derived class, and a
-  // conditional base can resolve only after variable initializers are known.
-  // Iterate to a fixed point so declaration order and nested same-name classes
-  // cannot hide a possible native WeakMap parent.
-  let derivedClassBindingsChanged=true;
-  while(derivedClassBindingsChanged) {
-    derivedClassBindingsChanged=false;
-    walk(ast,(node,parent)=>{
-      if(node.type!=='ClassDeclaration'&&node.type!=='ClassExpression')return;
-      const parentDepth=weakMapDerivedDepth(node.superClass);
-      if(parentDepth===undefined)return;
-      const derivedDepth=parentDepth+1;
-      if(node.id?.type==='Identifier')
-        derivedClassBindingsChanged=
-          recordWeakMapDerivedConstructor(node.id.name,derivedDepth)||derivedClassBindingsChanged;
-      if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
-        derivedClassBindingsChanged=
-          recordWeakMapDerivedConstructor(parent.id.name,derivedDepth)||derivedClassBindingsChanged;
-      if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
-        derivedClassBindingsChanged=
-          recordWeakMapDerivedConstructor(parent.left.name,derivedDepth)||derivedClassBindingsChanged;
-    });
-  }
   // Resolve return/yield values after the complete file has contributed its
   // constructor and instance aliases. This handles helpers declared after
   // their callers and generators that yield a WeakMap instance.
@@ -1447,8 +1450,36 @@ function hasWeakMapPrototypeExposure(ast) {
       const tryEnvironment=new Map(environment);
       visitCarrierStatement(statement.block,tryEnvironment,thisValue);
       const catchEnvironment=new Map(environment);
-      if(statement.handler)
+      if(statement.handler) {
+        /** @type {CarrierValue[]} */
+        const thrownValues=[];
+        /** @param {AstNode|null|undefined} node */
+        function collectThrownValues(node) {
+          if(!node||functionTypes.has(node.type)||
+             node.type==='ClassDeclaration'||node.type==='ClassExpression')return;
+          if(node.type==='ThrowStatement') {
+            thrownValues.push(evaluateCarrierValue(node.argument,tryEnvironment,thisValue));
+            return;
+          }
+          for(const value of Object.values(node)) {
+            if(Array.isArray(value)) {
+              for(const child of value) {
+                if(child&&typeof child==='object'&&typeof child.type==='string')
+                  collectThrownValues(child);
+              }
+            } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+              collectThrownValues(value);
+            }
+          }
+        }
+        collectThrownValues(statement.block);
+        const caughtValue=thrownValues.length?
+          thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
+          carrierMaybe;
+        if(statement.handler.param)
+          bindCarrierPattern(statement.handler.param,caughtValue,catchEnvironment);
         visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue);
+      }
       const names=new Set([
         ...environment.keys(),...tryEnvironment.keys(),...catchEnvironment.keys()
       ]);
