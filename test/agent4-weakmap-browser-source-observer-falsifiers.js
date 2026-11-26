@@ -30,7 +30,6 @@ const patchLines = [
 
 const storageModuleSource = [
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
-  'if(!descriptor||typeof descriptor.value!=="function")throw new Error("Storage.setItem descriptor unavailable");',
   'const captured=new WeakMap();',
   'function inspect(){const privateLocal=29;return privateLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
@@ -39,14 +38,13 @@ const storageModuleSource = [
   '    ...descriptor,',
   '    value:function(_key,value){captured.set(this,value);}',
   '  });',
-  '  localStorage.setItem("agent4-weakmap-browser",inspect);',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
 ].join('\n');
 
 const storageClassicSource = [
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
-  'if(!descriptor||typeof descriptor.value!=="function")throw new Error("Storage.setItem descriptor unavailable");',
   'const captured=new WeakMap();',
   'function inspect(){const privateLocal=29;return privateLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
@@ -55,7 +53,7 @@ const storageClassicSource = [
   '    ...descriptor,',
   '    value:function(_key,value){captured.set(this,value);}',
   '  });',
-  '  localStorage.setItem("agent4-weakmap-browser",inspect);',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}',
   'globalThis.sample=sample;'
