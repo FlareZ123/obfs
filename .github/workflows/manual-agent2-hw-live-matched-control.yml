@@ -54,6 +54,16 @@ on:
         required: false
         default: 41342
         type: number
+      version_space_max_cases:
+        description: "Number of prioritized live traces for bounded version-space audit"
+        required: false
+        default: 4
+        type: number
+      version_space_timeout_ms:
+        description: "Per-candidate-size Z3 timeout in milliseconds"
+        required: false
+        default: 10000
+        type: number
 
 permissions:
   contents: read
@@ -255,7 +265,8 @@ jobs:
           python sims/agent2-hw-version-space-audit.py \
             --input live-hw-matched-results.json \
             --output hw-version-space-audit.json \
-            --max-cases 4 --timeout-ms 10000
+            --max-cases "${{ inputs.version_space_max_cases || 4 }}" \
+            --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}"
       - name: Print bounded version-space uncertainty details
         run: |
           python - <<'PY'
