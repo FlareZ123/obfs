@@ -119,7 +119,7 @@ const boundMethodAliasSources=[{
     ' const internal=()=>{const x=owner.secretField;set(\'k\',new.target);return x;};',
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 const callMethodSources=[{
@@ -131,7 +131,7 @@ const callMethodSources=[{
     ' const internal=()=>{const x=owner.secretField;localStorage.setItem.call(localStorage,\'k\',new.target);return x;};',
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 const applyMethodSources=[{
@@ -143,7 +143,7 @@ const applyMethodSources=[{
     " const internal=()=>{const x=owner.secretField;localStorage.setItem.apply(localStorage,['k',new.target]);return x;};",
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 const reflectApplyMethodSources=[{
@@ -155,7 +155,7 @@ const reflectApplyMethodSources=[{
     " const internal=()=>{const x=owner.secretField;Reflect.apply(localStorage.setItem,localStorage,['k',new.target]);return x;};",
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 test('bound Storage method aliases are recognized as source observers',async()=>{
