@@ -54,10 +54,11 @@ function walk(root, visit) {
 }
 
 /**
- * Conservatively reject source graphs with obvious capabilities to replace
- * or indirectly reach Function.prototype.bind. This gates only the narrow
- * private-target proof for native bound functions. It is not a defense against
- * a hostile host preloader: that observer sees the already-rewritten target.
+ * Admit only a tiny source-visible grammar for native-bound targets:
+ * top-level fn.bind(null) calls, no opaque calls, dynamic evaluation, host
+ * capabilities, prototype access, computed member paths, getters, or member
+ * mutation. This gates only the narrow private-target proof. A hostile host
+ * preloader can still observe the already-rewritten target source.
  *
  * @param {AstNode} ast
  * @returns {boolean}
