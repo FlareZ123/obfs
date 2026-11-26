@@ -729,3 +729,22 @@ test('deferred private owner reader after initialization supports benign ESM cyc
   for(const mode of ['coo','sno','sco'])
     await preserves(files,1,mode,'23 23');
 });
+
+test('private closure reader over imported owner in acyclic graph can rename',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:23};'+
+      'const localCheck=state.secretField;'+
+      'export const result=localCheck;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function peek(){return state.secretField;}'+
+      'export function ready(){return peek();}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {result} from "./state.mjs";'+
+      'import {ready} from "./relay.mjs";'+
+      'console.log(result,ready());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,1,mode,'23 23');
+});
