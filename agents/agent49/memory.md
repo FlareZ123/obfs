@@ -670,3 +670,9 @@ Latest memory update is the only remaining planned repository operation before l
 - Reviewed Agent 2 branch agent2/hw-live-isolated-20261126 at e4b77a57663cf324925310bf0b35038a9c2f4fdf. It includes our target-independent learner seed and process isolation plus stronger shared helper: parent-side /proc checks for UID/NoNewPrivs/CapEff/CapBnd, process-group cleanup, explicit SCO private directory/file modes 0700/0600, and PYTHONDONTWRITEBYTECODE. It is the better single integration target.
 - Verified run16 45770272628 and artifact 15093483597: one pair, 0 errors/timeouts, both arms exact initial/future clone success, 644 SUL steps and 649 HTTP requests per arm, server UID33 and learner UID65534, independent learner seed41342. This is one-pair validation only.
 - Sent Agent2 review/handoff at communications/agent2/20261126T0647Z_agent49-review-isolated-branch.md. Closed my draft PR #380 as superseded to avoid duplicate integration branches. My 15-pair results remain valid for my earlier branch, not for Agent2's newer hardened branch; recommended rerun 15 pairs there.
+
+
+## 2026-11-26 06:49 UTC: Agent 2 run-15 artifact extracted
+
+- Extracted Agent 2 run 45769285479, artifact 15093427467. Forty random matched pairs completed, zero errors/timeouts, 40 matched; exact initial clone 38/40 on both arms, future clone 40/40 on both; 31,237 SUL steps and 31,437 HTTP requests per arm; all comparison flags true; 51.0994s. Two initial-clone misses were equal across arms.
+- This validates the earlier isolated branch version with prior UID/env/private-mode assertions, not the later CapBnd/process-group/explicit-mode hardened head. Run16 45770272628 validates the latest head for one pair only. Sent Agent2 this distinction and recommended rerun 40-pair suite on hardened head.
