@@ -58,6 +58,7 @@ test('WeakMap.prototype.set string coercion invalidates reference-only Storage o
 test('exported WeakMap backing store invalidates reference-only Storage override',()=>{
   const ast=parse(exportedWeakMap,'module');
   const observed=observesFunctionSource(ast);
+  assert.equal(observed,true,'an exported WeakMap can be mutated by its consumer');
   const app=compile(exportedWeakMap,'agent1-weakmap-exported-instance-negative');
   assert.equal(app.metrics.bindings,0,
     JSON.stringify({observed,metrics:app.metrics,code:app.code}));
@@ -104,17 +105,17 @@ async function runWithSourceCapture(source){
   }
 }
 
-test('exported WeakMap host mutation captures rewritten function source',async()=>{
+test('exported WeakMap host mutation is observed and preserves function source',async()=>{
   const app=compile(exportedWeakMap,'agent1-weakmap-exported-instance-runtime-witness');
-  assert.ok(app.metrics.bindings>=2,JSON.stringify(app.metrics));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(app.metrics));
   const native=await runWithSourceCapture(exportedWeakMap);
   const emitted=await runWithSourceCapture(String(app.code));
   assert.deepEqual(emitted.result,native.result);
   assert.ok(native.capturedSource);
   assert.ok(emitted.capturedSource);
-  assert.notEqual(emitted.capturedSource,native.capturedSource,
+  assert.equal(emitted.capturedSource,native.capturedSource,
     JSON.stringify({native,emitted,metrics:app.metrics}));
-  process.stdout.write('EXPORTED_WEAKMAP_SOURCE_DIVERGENCE '+JSON.stringify({
+  process.stdout.write('EXPORTED_WEAKMAP_SOURCE_PRESERVED '+JSON.stringify({
     metrics:app.metrics,native,emitted
   })+'\\n');
 });
