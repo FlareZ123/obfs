@@ -212,6 +212,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
       nativeSource:native.capturedSource,
       emittedSource:emitted.capturedSource
     });
+    }
   }
   process.stdout.write('WEAKMAP_PARENT_PROTOTYPE_VARIANTS '+JSON.stringify(evidence)+'\\n');
   assert.ok(evidence.every(item=>
