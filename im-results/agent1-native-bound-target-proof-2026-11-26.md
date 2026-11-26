@@ -118,3 +118,43 @@ the 34-commit code delta through `8eee5ba` touches eight files:
 local-proof call sites; it must not be omitted from any selective port.
 This eight-file delta is distinct from the experiment branch's much larger
 121-ahead/84-behind divergence from current main.
+
+
+## 26 November follow-up: cross-file yield, receiver provenance, and new.target false-safe
+
+The earlier scope note that cross-file owner admission was unproven is superseded for one narrowly specified ESM pattern. The current experiment branch has a reproducible positive witness:
+
+- state.mjs exports a plain object { secretField: 23 }.
+- app.mjs imports that object, defines a private local arrow function reading state.secretField, binds it with internal.bind(null), and exports only the bound wrapper.
+- The external test harness calls the wrapper but does not import or inspect the owner object.
+- test/agent1-bound-target-crossfile-probe.test.js asserts crossFile.properties === 1 in COO, SNO, and SCO; verifies that both modules no longer contain secretField; and compares result, bound wrapper name, and length.
+- Focused workflow 45819017577 passed on Ubuntu, Windows, and macOS.
+- The same fixture with a benign ESM import cycle (unused imported marker, no reentrant call) also passed all three modes/platforms in focused workflow 45820483598.
+- A cross-file imported callable target with one formal parameter was refused (crossFile.properties === 0) while preserving runtime behavior in the same workflow.
+
+These are bounded witnesses, not a general proof for arbitrary cycles, imported targets, re-exports, CommonJS interop, multiple owner importers, or custom loaders. The tested cycle is specifically benign and does not exercise TDZ reads or reentrant initialization.
+
+### Native-bind gate hardening
+
+An AST-only red/green regression exposed that the original graph-wide gate treated any syntactic .bind(null) call as native, including namespace methods, optional calls, inline function expressions, and aliases. The predicate now requires a non-optional direct .bind(null) call on a locally declared function or a const initialized directly with a function/arrow expression.
+
+- Red focused workflow 45821213767 failed on the newly added receiver-provenance cases.
+- Green focused workflow 45821674911 passed on Ubuntu, Windows, and macOS after the gate was tightened.
+- The cross-file owner witness uses a local const internal = (...) => ..., so it remains within the intended admission grammar.
+
+### Newly discovered semantic false-safe: new.target source coercion
+
+Agent 2 independently identified a more serious false-safe in the private bound-target lane. new.target inside a target function is a MetaProperty, not a NewExpression; the prior gate did not reject it, and the source-observer analysis did not recognize that a relational comparison implicitly coerces the target function to source text.
+
+A bound wrapper exported from the graph can be constructed externally. In new hot(), bound-function construction forwards the original target as new.target. Comparing that function with a string (for example new.target < 'function internal(){const x=owner.m') reaches Function.prototype.toString() through implicit primitive conversion. Renaming secretField can therefore change the comparison result and program output.
+
+This was independently reproduced with Node v22.16.0:
+
+- Native source: {"result":0}
+- Manually renamed source: {"result":7}
+
+The regression fixture is now ported as test/agent1-newtarget-bound-source-observer.test.js, with coverage across COO, SNO, and SCO. The experiment branch adds a conservative refusal for MetaProperty new.target in hasUnsafeNativeBindMutationSurface (commit c87d18fe6eba46be4f8f66f99a29c2033614b374). Focused and full CI for this correction are still pending; the native-bound lane must remain provisional until they pass.
+
+### Current validation boundary
+
+The prior full manual gate 45805807618 validates source revision 8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8, before the receiver-provenance and new.target hardening. It does not validate the current source. The focused runs above establish only their exact test files and commits. A fresh full manual validation on the hardened branch is required before any promotion or porting. No security-strength claim follows from these parity/yield tests; hostile runtime extraction of the transformed target remains an acknowledged limitation.
