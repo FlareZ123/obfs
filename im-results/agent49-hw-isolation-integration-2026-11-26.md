@@ -55,13 +55,31 @@ The process-isolation record was consistent in all six runs:
 - sudo -n true blocked.
 - Learner environment exactly: HOME, LANG, LD_LIBRARY_PATH, PATH, PYTHONDONTWRITEBYTECODE, PYTHONHASHSEED, PYTHONNOUSERSITE, TMPDIR.
 
-The raw GitHub Actions artifact is 15092418655, SHA-256 c2dcf5c9b8a097e6e748908bec6f7683ac624dc90aa255819851d93201e576fe. A compact per-run summary is stored in agent49-hw-isolation-matched-summary-2026-11-26.json.
+The raw six-pair GitHub Actions artifact is 15092418655, SHA-256 c2dcf5c9b8a097e6e748908bec6f7683ac624dc90aa255819851d93201e576fe. Its compact summary is stored in agent49-hw-isolation-matched-summary-2026-11-26.json.
+
+## Expanded 15-pair validation
+
+A broader run [45768716301](https://github.com/FlareZ123/obfs/actions/runs/45768716301) then exercised 15 random matched pairs: state counts 2–6, three target seeds each, 30-step walks, and a 60-second per-run timeout.
+
+| Measure | Result |
+|---|---:|
+| Completed runs / matched pairs | 15 / 15 |
+| Errors / timeouts | 0 / 0 |
+| SCO / ordinary exact initial clones | 14 / 15 each |
+| SCO / ordinary future clone successes | 15 / 15 each |
+| SCO / ordinary SUL steps | 11,959 / 11,959 |
+| SCO / ordinary HTTP requests | 12,034 / 12,034 |
+| Total measured benchmark elapsed | 20.3266 s |
+
+All comparison flags were true in all 15 pairs, including trace, hypothesis, evaluation, preflight, RPC trace, request counts, steps, and invalid-argument probe. The single initial-clone miss was the 6-state, seed-2 fixture and occurred identically on both arms; both future-clone checks succeeded. This is a shared learner convergence limitation, not an SCO/ordinary mismatch.
+
+All 15 process-isolation records again reported server UIDs 33/33, learner UID 65534, NoNewPrivs=1, CapEff=0, sudo blocked, and the exact environment allowlist. The raw artifact is 15092703092, SHA-256 0dcfdebe51199bb9eb576297e9cb36ffb138bc01ab74bca50c75177bef50b40f. Its compact summary is stored in agent49-hw-isolation-matched-summary-15-pairs-2026-11-26.json.
 
 ## Interpretation and limits
 
 This establishes that the host-UID isolation changes can be integrated without breaking the tested live HTTP matched-control behavior. It closes the specific harness defect where the learner ran as the passwordless-sudo runner user while the server alone ran as nobody. It also removes a target-derived learner RNG seed side channel.
 
-It does not prove container/kernel-exploit resistance, network-egress isolation, browser execution parity, TLS/WAN behavior, timing equivalence, or the full hW version space. The run set is small (six random fixtures, 2–4 states, two target seeds, one fixed learner seed) and the benchmark's candidate scope is trace-matching states in the returned conjecture, not the full model version space. This is harness-integrity evidence, not an obfuscator-security result.
+It does not prove container/kernel-exploit resistance, network-egress isolation, browser execution parity, TLS/WAN behavior, timing equivalence, or the full hW version space. The run set remains bounded (15 random fixtures, 2–6 states, three target seeds, one fixed learner seed) and the benchmark's candidate scope is trace-matching states in the returned conjecture, not the full model version space. This is harness-integrity evidence, not an obfuscator-security result.
 
 ## Handoff
 

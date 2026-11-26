@@ -1,0 +1,111 @@
+{
+  "benchmark": "agent2-live-http-no-reset-hW-matched-control",
+  "aalpy_version": "2.0.0",
+  "workflow_run_id": 45768716301,
+  "workflow_run_url": "https://github.com/FlareZ123/obfs/actions/runs/45768716301",
+  "artifact_id": 15092703092,
+  "artifact_sha256": "0dcfdebe51199bb9eb576297e9cb36ffb138bc01ab74bca50c75177bef50b40f",
+  "commit": "a5f7f00803ae1cdb3d6b3436168152dbfe51d10a",
+  "aggregate": {
+    "total_runs": 15,
+    "completed_runs": 15,
+    "errors": 0,
+    "timeouts": 0,
+    "matched_pairs": 15,
+    "sco_exact_initial_clones": 14,
+    "ordinary_exact_initial_clones": 14,
+    "sco_future_clone_successes": 15,
+    "ordinary_future_clone_successes": 15,
+    "total_sco_sul_steps": 11959,
+    "total_ordinary_sul_steps": 11959,
+    "total_sco_http_requests": 12034,
+    "total_ordinary_http_requests": 12034,
+    "elapsed_seconds": 20.3266
+  },
+  "scope": {
+    "fixture_family": "random",
+    "state_counts": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "seeds_per_state_count": 3,
+    "target_seeds": [
+      0,
+      1,
+      2
+    ],
+    "random_walk_length": 30,
+    "origin_states": 20,
+    "timeout_seconds": 60,
+    "learner_seed": 20261126,
+    "transport_scope": "local HTTP application-level records; no TLS, WAN, browser module execution, or timing-equivalence claim",
+    "candidate_scope": "trace-matching states in returned hW conjecture only, not full model version space"
+  },
+  "process_isolation": {
+    "sco_server_uid": 33,
+    "ordinary_server_uid": 33,
+    "learner_uid": 65534,
+    "learner_no_new_privs": true,
+    "learner_cap_eff": "0000000000000000",
+    "learner_sudo_blocked": true,
+    "learner_environment_keys": [
+      "HOME",
+      "LANG",
+      "LD_LIBRARY_PATH",
+      "PATH",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONHASHSEED",
+      "PYTHONNOUSERSITE",
+      "TMPDIR"
+    ]
+  },
+  "per_state_count": [
+    {
+      "state_count": 2,
+      "runs": 3,
+      "exact_initial_clones_each_arm": 3,
+      "future_clone_successes_each_arm": 3,
+      "sul_steps": 1934
+    },
+    {
+      "state_count": 3,
+      "runs": 3,
+      "exact_initial_clones_each_arm": 3,
+      "future_clone_successes_each_arm": 3,
+      "sul_steps": 2100
+    },
+    {
+      "state_count": 4,
+      "runs": 3,
+      "exact_initial_clones_each_arm": 3,
+      "future_clone_successes_each_arm": 3,
+      "sul_steps": 2563
+    },
+    {
+      "state_count": 5,
+      "runs": 3,
+      "exact_initial_clones_each_arm": 3,
+      "future_clone_successes_each_arm": 3,
+      "sul_steps": 2521
+    },
+    {
+      "state_count": 6,
+      "runs": 3,
+      "exact_initial_clones_each_arm": 2,
+      "future_clone_successes_each_arm": 3,
+      "sul_steps": 2841
+    }
+  ],
+  "exception": {
+    "state_count": 6,
+    "seed": 2,
+    "sco_exact_initial_clone_success": false,
+    "ordinary_exact_initial_clone_success": false,
+    "sco_future_clone_success": true,
+    "ordinary_future_clone_success": true,
+    "all_comparison_flags_true": true
+  }
+}

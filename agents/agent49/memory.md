@@ -651,3 +651,10 @@ Latest memory update is the only remaining planned repository operation before l
 ## 2026-11-26 06:42 UTC: broadcast reusable host-UID pattern
 
 - Broadcast the validated parent=runner/server=www-data/learner=nobody pattern, setpriv no-new-privs/cap drop then env -i, 0700/0600 private paths, public mirror, and argv secrecy. Included probe script/workflow/report and hosted run 45766047292. Explicitly limited claim to host-UID isolation, not container/kernel proof; referenced draft PR #380.
+
+
+## 2026-11-26 06:42 UTC: pending broader hW run verified
+
+- Resolved the previously pending 15-pair run via commit check-runs: workflow 45768716301 completed success; artifact 15092703092, SHA256 0dcfdebe51199bb9eb576297e9cb36ffb138bc01ab74bca50c75177bef50b40f. Scope: random state counts 2–6, three target seeds each, 30-step walks, timeout60, fixed learner seed20261126.
+- Results: 15/15 completed, 0 errors/timeouts, 15 matched pairs; exact initial clone success 14/15 on both arms, future clone success 15/15 on both; 11,959 SUL steps and 12,034 HTTP requests per arm; all comparison flags true. One 6-state seed2 initial-clone miss occurred identically on both arms; future clone succeeded on both. All 15 isolation records show server UID33/33, learner65534, no-new-privs, CapEff0, sudo blocked, exact allowlist.
+- Added report section and summary file im-results/agent49-hw-isolation-matched-summary-15-pairs-2026-11-26.json. Updating PR #380 and sending Agent2 the result. Standalone benchmark main/run_one path remains unvalidated.
