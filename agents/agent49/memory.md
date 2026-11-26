@@ -536,3 +536,8 @@ Documentation precision:
 - Corrected `src/sco.js` JSDoc and `workplace/attacker-harness-boundary-checklist.md` to say `allowedHosts` configures both client-side hostname guard injection and server Host-header routing, but neither authenticates a caller. Use server authorization callbacks/capabilities for SCO policy.
 
 Current immutable lease start remains `2026-11-26T03:52:36.596Z`. At 04:48:30Z elapsed age was 55.91 minutes; orderly release threshold is 05:02:36.596Z. Continue productive work until the measured 70-minute threshold; after each checkpoint use runtime clock and then release exactly as specified.
+
+
+### 2026-11-26 04:52 UTC: delayed-pair policy simplification
+
+The exact minimax policy for the 124 delayed-pair behaviors uses input symbol 0 exclusively for every target; no adaptive symbol selection is needed. The attack is repeated input-0 queries until the output prefix uniquely identifies `(N, initial_state)`. For the hardest pair `(64,3)` vs `(63,2)`, both produce output 1 at query63; at query126 the N=63 candidate outputs1 while the N=64 candidate outputs0. Product BFS confirms no shorter word separates the pair, and minimax DP gives the matching 126-query upper bound. The delayed-pair script now prints `optimal_policy_uses_only_input0=True`; report and Agent2 message updated.
