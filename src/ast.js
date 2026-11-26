@@ -463,6 +463,393 @@ function hasWeakMapPrototypeExposure(ast) {
       break;
     }
   }
+  // A bounded intra-module points-to pass closes the gap between a WeakMap
+  // constructor and a later prototype-getter call that receives a container
+  // member, destructured alias, spread copy, factory result, or class field.
+  // It intentionally models only statically resolvable object/array keys;
+  // unresolved imported/dynamic values are treated as possibly carrying a
+  // WeakMap when they reach an opaque call.
+  /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierValue */
+  /** @type {CarrierValue} */
+  const carrierWeakMap={kind:'weakmap'};
+  /** @type {CarrierValue} */
+  const carrierMaybe={kind:'maybe'};
+  /** @type {CarrierValue} */
+  const carrierOther={kind:'other'};
+  /** @returns {CarrierValue} */
+  function carrierContainer() {
+    return {kind:'container',properties:new Map(),unknown:false};
+  }
+  /** @param {CarrierValue} value @returns {boolean} */
+  function carrierMayContainWeakMap(value) {
+    if(value.kind==='weakmap'||value.kind==='maybe')return true;
+    if(value.kind==='container') {
+      if(value.unknown)return true;
+      for(const nested of value.properties.values()) {
+        if(carrierMayContainWeakMap(nested))return true;
+      }
+    }
+    return false;
+  }
+  /** @param {CarrierValue} left @param {CarrierValue} right @returns {CarrierValue} */
+  function mergeCarrierValues(left,right) {
+    if(left.kind==='container'&&right.kind==='container') {
+      const merged=carrierContainer();
+      merged.unknown=left.unknown||right.unknown;
+      for(const [key,value] of left.properties)merged.properties.set(key,value);
+      for(const [key,value] of right.properties) {
+        merged.properties.set(key,merged.properties.has(key)?
+          mergeCarrierValues(merged.properties.get(key),value):value);
+      }
+      return merged;
+    }
+    if(left.kind==='weakmap'&&right.kind==='weakmap')return carrierWeakMap;
+    if(left.kind==='other'&&right.kind==='other')return carrierOther;
+    return carrierMayContainWeakMap(left)||carrierMayContainWeakMap(right)?
+      carrierMaybe:carrierOther;
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue]
+   * @returns {CarrierValue}
+   */
+  function evaluateCarrierValue(node,environment,thisValue=carrierOther) {
+    if(!node)return carrierOther;
+    if(node.type==='Identifier') {
+      if(environment.has(node.name))return environment.get(node.name);
+      if(weakMapInstances.has(node.name))return carrierWeakMap;
+      if(importedLocalNames.has(node.name))return carrierMaybe;
+      return carrierOther;
+    }
+    if(node.type==='ThisExpression')return thisValue;
+    if(node.type==='NewExpression') {
+      if(isWeakMapConstructor(node.callee))return carrierWeakMap;
+      if(node.callee.type==='Identifier'&&weakMapContainerOwners.has(node.callee.name)) {
+        const instance=carrierContainer();
+        instance.unknown=true;
+        return instance;
+      }
+      return carrierOther;
+    }
+    if(node.type==='ObjectExpression') {
+      const value=carrierContainer();
+      for(const property of node.properties??[]) {
+        if(property.type==='SpreadElement') {
+          const spread=evaluateCarrierValue(property.argument,environment,thisValue);
+          if(spread.kind==='container') {
+            for(const [key,nested] of spread.properties)value.properties.set(key,nested);
+            value.unknown=value.unknown||spread.unknown;
+          } else if(carrierMayContainWeakMap(spread))value.unknown=true;
+          continue;
+        }
+        if(property.type!=='Property') {
+          value.unknown=true;
+          continue;
+        }
+        const propertyKey=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(propertyKey===null) {
+          value.unknown=true;
+          continue;
+        }
+        value.properties.set(propertyKey,evaluateCarrierValue(property.value,environment,thisValue));
+      }
+      return value;
+    }
+    if(node.type==='ArrayExpression') {
+      const value=carrierContainer();
+      let index=0;
+      for(const element of node.elements??[]) {
+        if(element?.type==='SpreadElement') {
+          const spread=evaluateCarrierValue(element.argument,environment,thisValue);
+          if(spread.kind==='container') {
+            const keys=[...spread.properties.keys()].sort((left,right)=>Number(left)-Number(right));
+            for(const key of keys)value.properties.set(String(index++),spread.properties.get(key));
+            value.unknown=value.unknown||spread.unknown;
+          } else if(carrierMayContainWeakMap(spread))value.unknown=true;
+          continue;
+        }
+        value.properties.set(String(index++),evaluateCarrierValue(element,environment,thisValue));
+      }
+      return value;
+    }
+    if(node.type==='MemberExpression') {
+      const key=memberKey(node);
+      if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name))
+        return carrierMaybe;
+      const base=evaluateCarrierValue(node.object,environment,thisValue);
+      if(base.kind==='container') {
+        if(key!==null&&base.properties.has(key))return base.properties.get(key);
+        return base.unknown?carrierMaybe:carrierOther;
+      }
+      return base.kind==='maybe'?carrierMaybe:carrierOther;
+    }
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
+        return carrierMaybe;
+      if(node.callee.type==='MemberExpression') {
+        const methodOwner=node.callee.object.type==='Identifier'?
+          node.callee.object.name:
+          node.callee.object.type==='NewExpression'&&node.callee.object.callee.type==='Identifier'?
+            node.callee.object.callee.name:null;
+        if(methodOwner&&weakMapFactories.has(methodOwner))return carrierMaybe;
+      }
+      return carrierOther;
+    }
+    if(node.type==='ConditionalExpression')
+      return mergeCarrierValues(
+        evaluateCarrierValue(node.consequent,environment,thisValue),
+        evaluateCarrierValue(node.alternate,environment,thisValue));
+    if(node.type==='LogicalExpression')
+      return mergeCarrierValues(
+        evaluateCarrierValue(node.left,environment,thisValue),
+        evaluateCarrierValue(node.right,environment,thisValue));
+    if(node.type==='SequenceExpression')
+      return evaluateCarrierValue(node.expressions.at(-1),environment,thisValue);
+    if(node.type==='AssignmentExpression')
+      return evaluateCarrierValue(node.right,environment,thisValue);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return evaluateCarrierValue(node.argument,environment,thisValue);
+    if(node.type==='ChainExpression')
+      return evaluateCarrierValue(node.expression,environment,thisValue);
+    if(node.type==='SpreadElement')
+      return evaluateCarrierValue(node.argument,environment,thisValue);
+    return carrierOther;
+  }
+  /**
+   * @param {AstNode} pattern
+   * @param {CarrierValue} value
+   * @param {Map<string,CarrierValue>} environment
+   */
+  function bindCarrierPattern(pattern,value,environment) {
+    if(pattern.type==='Identifier') {
+      environment.set(pattern.name,value);
+      return;
+    }
+    if(pattern.type==='AssignmentPattern') {
+      bindCarrierPattern(pattern.left,value.kind==='other'?
+        evaluateCarrierValue(pattern.right,environment):value,environment);
+      return;
+    }
+    if(pattern.type==='RestElement') {
+      bindCarrierPattern(pattern.argument,carrierMayContainWeakMap(value)?carrierMaybe:carrierOther,environment);
+      return;
+    }
+    if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.type==='RestElement') {
+          bindCarrierPattern(property.argument,
+            value.kind==='container'&&value.unknown?carrierMaybe:carrierOther,environment);
+          continue;
+        }
+        if(property.type!=='Property')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        const nested=value.kind==='container'?
+          key!==null&&value.properties.has(key)?value.properties.get(key):
+            value.unknown?carrierMaybe:carrierOther:
+          value.kind==='maybe'?carrierMaybe:carrierOther;
+        bindCarrierPattern(property.value,nested,environment);
+      }
+      return;
+    }
+    if(pattern.type==='ArrayPattern') {
+      for(let index=0;index<(pattern.elements??[]).length;index++) {
+        const element=pattern.elements[index];
+        if(!element)continue;
+        const nested=value.kind==='container'?
+          value.properties.get(String(index))??(value.unknown?carrierMaybe:carrierOther):
+          value.kind==='maybe'?carrierMaybe:carrierOther;
+        bindCarrierPattern(element,nested,environment);
+      }
+    }
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue]
+   */
+  function visitCarrierExpression(node,environment,thisValue=carrierOther) {
+    if(!node||functionTypes.has(node.type))return;
+    if(node.type==='CallExpression') {
+      for(const argument of node.arguments??[]) {
+        if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
+          exposed=true;
+        visitCarrierExpression(argument,environment,thisValue);
+      }
+      visitCarrierExpression(node.callee,environment,thisValue);
+      return;
+    }
+    if(node.type==='NewExpression') {
+      for(const argument of node.arguments??[]) {
+        if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
+          exposed=true;
+        visitCarrierExpression(argument,environment,thisValue);
+      }
+      return;
+    }
+    if(node.type==='AssignmentExpression') {
+      visitCarrierExpression(node.right,environment,thisValue);
+      const assigned=evaluateCarrierValue(node.right,environment,thisValue);
+      if(node.left.type==='Identifier') {
+        environment.set(node.left.name,assigned);
+      } else if(node.left.type==='MemberExpression') {
+        const base=evaluateCarrierValue(node.left.object,environment,thisValue);
+        const key=memberKey(node.left);
+        if(base.kind==='container') {
+          if(key===null)base.unknown=true;
+          else base.properties.set(key,assigned);
+        } else if(base.kind==='maybe'&&carrierMayContainWeakMap(assigned)) {
+          exposed=true;
+        }
+        visitCarrierExpression(node.left.object,environment,thisValue);
+      }
+      return;
+    }
+    if(node.type==='ObjectExpression') {
+      for(const property of node.properties??[]) {
+        if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
+        else if(property.type==='Property')visitCarrierExpression(property.value,environment,thisValue);
+      }
+      return;
+    }
+    if(node.type==='ArrayExpression') {
+      for(const element of node.elements??[])visitCarrierExpression(element,environment,thisValue);
+      return;
+    }
+    if(node.type==='MemberExpression') {
+      visitCarrierExpression(node.object,environment,thisValue);
+      if(node.computed)visitCarrierExpression(node.property,environment,thisValue);
+      return;
+    }
+    if(node.type==='VariableDeclaration') {
+      for(const declaration of node.declarations??[]) {
+        visitCarrierExpression(declaration.init,environment,thisValue);
+        bindCarrierPattern(declaration.id,
+          evaluateCarrierValue(declaration.init,environment,thisValue),environment);
+      }
+      return;
+    }
+    for(const value of Object.values(node)) {
+      if(Array.isArray(value)) {
+        for(const child of value) {
+          if(child&&typeof child==='object'&&typeof child.type==='string')
+            visitCarrierExpression(child,environment,thisValue);
+        }
+      } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+        visitCarrierExpression(value,environment,thisValue);
+      }
+    }
+  }
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue]
+   */
+  function visitCarrierStatement(statement,environment,thisValue=carrierOther) {
+    if(statement.type==='Program'||statement.type==='BlockStatement') {
+      for(const child of statement.body??[])visitCarrierStatement(child,environment,thisValue);
+      return;
+    }
+    if(statement.type==='ExportNamedDeclaration'||statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration)visitCarrierStatement(statement.declaration,environment,thisValue);
+      return;
+    }
+    if(statement.type==='VariableDeclaration') {
+      visitCarrierExpression(statement,environment,thisValue);
+      return;
+    }
+    if(statement.type==='ExpressionStatement') {
+      visitCarrierExpression(statement.expression,environment,thisValue);
+      return;
+    }
+    if(statement.type==='IfStatement') {
+      visitCarrierExpression(statement.test,environment,thisValue);
+      const consequent=new Map(environment),alternate=new Map(environment);
+      visitCarrierStatement(statement.consequent,consequent,thisValue);
+      if(statement.alternate)visitCarrierStatement(statement.alternate,alternate,thisValue);
+      for(const name of new Set([...consequent.keys(),...alternate.keys()])) {
+        environment.set(name,mergeCarrierValues(
+          consequent.get(name)??carrierOther,alternate.get(name)??carrierOther));
+      }
+      return;
+    }
+    if(statement.type==='ClassDeclaration') {
+      if(statement.id?.type==='Identifier') {
+        for(const element of statement.body.body??[]) {
+          if(element.type==='PropertyDefinition'&&
+             carrierMayContainWeakMap(evaluateCarrierValue(element.value,environment))) {
+            weakMapContainerOwners.add(statement.id.name);
+          }
+        }
+      }
+      return;
+    }
+    if(statement.type==='FunctionDeclaration')return;
+    if(statement.type==='ReturnStatement'||statement.type==='ThrowStatement') {
+      visitCarrierExpression(statement.argument,environment,thisValue);
+      return;
+    }
+    if(statement.type==='TryStatement') {
+      visitCarrierStatement(statement.block,new Map(environment),thisValue);
+      if(statement.handler)visitCarrierStatement(statement.handler.body,new Map(environment),thisValue);
+      if(statement.finalizer)visitCarrierStatement(statement.finalizer,environment,thisValue);
+      return;
+    }
+    if(statement.type==='ForStatement'||statement.type==='ForInStatement'||
+       statement.type==='ForOfStatement'||statement.type==='WhileStatement'||
+       statement.type==='DoWhileStatement') {
+      // Loops can mutate an arbitrary number of container slots. Preserve
+      // statically known values but mark any touched container as unknown.
+      const loopEnv=new Map(environment);
+      for(const value of loopEnv.values())if(value.kind==='container')value.unknown=true;
+      if(statement.init) {
+        if(statement.init.type==='VariableDeclaration')
+          visitCarrierStatement(statement.init,loopEnv,thisValue);
+        else visitCarrierExpression(statement.init,loopEnv,thisValue);
+      }
+      if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
+      if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
+      visitCarrierStatement(statement.body,loopEnv,thisValue);
+      if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
+      for(const [name,value] of loopEnv)environment.set(name,value);
+      return;
+    }
+    if(statement.type==='SwitchStatement') {
+      visitCarrierExpression(statement.discriminant,environment,thisValue);
+      const branches=[];
+      for(const branch of statement.cases??[]) {
+        const branchEnv=new Map(environment);
+        for(const child of branch.consequent??[])visitCarrierStatement(child,branchEnv,thisValue);
+        branches.push(branchEnv);
+      }
+      for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
+        let value=environment.get(name)??carrierOther;
+        for(const branch of branches)value=mergeCarrierValues(value,branch.get(name)??carrierOther);
+        environment.set(name,value);
+      }
+    }
+  }
+
+  // Class constructor/public-field writes are already summarized as owners.
+  // Treat an instance as a container with an unknown slot set so a later
+  // static member read cannot silently hide the WeakMap value.
+  const carrierEnvironment=new Map();
+  visitCarrierStatement(ast,carrierEnvironment);
+
+  // Analyze function bodies with their local declarations as well. Exported
+  // parameters and class/object receivers are unknown carriers; private
+  // local WeakMaps remain ordinary values unless they reach an opaque call.
+  for(const [functionNode,info] of functionInfoByNode) {
+    if(functionNode.body?.type!=='BlockStatement')continue;
+    const localEnvironment=new Map(carrierEnvironment);
+    for(const parameter of functionNode.params??[])
+      bindCarrierPattern(parameter,info.exported?carrierMaybe:carrierOther,localEnvironment);
+    const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
+      (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
+    visitCarrierStatement(functionNode.body,localEnvironment,thisValue);
+  }
   return exposed;
 }
 /**
