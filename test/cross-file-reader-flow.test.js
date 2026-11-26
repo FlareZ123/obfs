@@ -730,7 +730,7 @@ test('cyclic imported-owner closure is conservatively refused despite deferred r
     await preserves(files,0,mode,'23 23');
 });
 
-test('private closure reader over imported owner in acyclic graph can rename',async()=>{
+test('private closure reader over imported owner is conservatively refused',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
       'export const state={secretField:23};'+
@@ -746,5 +746,5 @@ test('private closure reader over imported owner in acyclic graph can rename',as
       'console.log(result,ready());'}
   ];
   for(const mode of ['coo','sno','sco'])
-    await preserves(files,1,mode,'23 23');
+    await preserves(files,0,mode,'23 23');
 });
