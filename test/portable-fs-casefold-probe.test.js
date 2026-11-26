@@ -19,6 +19,9 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
     // candidate's three independent lowercase/uppercase keys do not all
     // match across this compound pair. A native alias would expose a gap.
     {label:'compound sharp-s plus Greek-theta full-fold composition',a:'ßϑ.txt',b:'ẞϴ.txt'},
+    // A default-casefold negative control: the new composite heuristic below
+    // would collapse this pair even though full case folding keeps it distinct.
+    {label:'dotless-I plus sharp-s non-fold-equivalent control',a:'ıß.txt',b:'iẞ.txt'},
     {label:'dotless I',a:'I.txt',b:'ı.txt'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-casefold-'));
@@ -35,6 +38,12 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
         fs.readFile(path.join(directory,pair.a),'utf8'),
         fs.readFile(path.join(directory,pair.b),'utf8')
       ]);
+      const compositeKey=name=>{
+        const normalized=name.normalize('NFC');
+        const lower=normalized.toLowerCase().normalize('NFC');
+        return lower.toUpperCase().normalize('NFC').toLowerCase().normalize('NFC');
+      };
+      const candidateCompositeKeyRejects=compositeKey(pair.a)===compositeKey(pair.b);
       const inventory=createPathInventory();
       registerFilePath(inventory,pair.a);
       let portableInventoryRejects=false;
@@ -42,6 +51,7 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
       rows.push({
         label:pair.label,a:pair.a,b:pair.b,entries,
         filesystemAliases:entries.length===1||a===b,
+        candidateCompositeKeyRejects,
         portableInventoryRejects
       });
     }
