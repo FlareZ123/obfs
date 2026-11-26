@@ -113,3 +113,39 @@ test('Object.getPrototypeOf(shadowed WeakMap.prototype) exposes the shared nativ
     JSON.stringify({localObserver,groupExposure,storageMetrics:storage.metrics,native,emitted})
   );
 });
+
+const namedClassExpressionMutationSource=[
+  'const Parent=class WeakMap extends globalThis.WeakMap {};',
+  'class Child extends Parent {};',
+  'const nativeWeakMapPrototype=Object.getPrototypeOf(Child.prototype);',
+  'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+  'nativeWeakMapPrototype.set=function(key,value){',
+  '  document.title=value;',
+  '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+  '};'
+].join('\\n');
+
+test('named class-expression aliases and subclass chains expose the native WeakMap parent prototype',()=>{
+  const mutationAst=parse(namedClassExpressionMutationSource,'module');
+  const groupExposure=hasWeakMapPrototypeExposure(mutationAst);
+  const sourceFiles=[
+    {path:'entry.mjs',sourceType:'module',code:entrySource},
+    {path:'mutate.mjs',sourceType:'module',code:namedClassExpressionMutationSource},
+    {path:'storage.mjs',sourceType:'module',code:storageSource}
+  ];
+  const compiled=obfuscateFiles(sourceFiles,{
+    mode:'coo',seed:'agent2-named-weakmap-subclass-parent',
+    properties:false,identifiers:true,strings:false,closedWorld:true
+  });
+  const storage=compiled.files.find(file=>file.path==='storage.mjs');
+  assert.ok(storage);
+  const native=run(sourceFiles);
+  const emitted=run(compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  })));
+  assert.deepEqual(emitted.result,native.result);
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  assert.ok(groupExposure&&storage.metrics.bindings===0&&
+    emitted.capturedSource===native.capturedSource,
+    JSON.stringify({groupExposure,storageMetrics:storage.metrics,native,emitted}));
+});
