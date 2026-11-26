@@ -80,7 +80,7 @@ Artifact: `agent2-live-hw-matched-control`, ID `15114732787`, ZIP SHA-256 `3f7fc
 The 16–24-state / 36-target experiment with the same live version-space audit is queued separately as run 45815986225 at the later parameterized-workflow head. Its outcome is not included in this report until completed.
 
 
-## Follow-up: broaden the scan beyond loopback (validation pending)
+## Follow-up: broaden the scan beyond loopback (validated)
 
 A subsequent code review found that the earlier probe still ignored listeners bound exclusively to a specific non-loopback interface address. The learner shares the host network namespace and can inspect `/proc/net/tcp*`, so such a local service could be reachable even though it is not bound to loopback or a wildcard. The earlier successful isolation receipts are therefore scoped to loopback and wildcard listeners only.
 
@@ -92,4 +92,8 @@ The current Agent49 branch revision changes the scanner to enumerate all connect
 
 New tests use a UDP route-selection socket (no application packet is sent) to discover a local source address, bind a TCP listener to that specific address, and assert that the scanner enumerates it. IPv6-specific-address coverage is conditional on the runner having a usable non-loopback IPv6 route. The existing real SSH-banner regression remains in place.
 
-The exact-head hosted validation is queued as [45816638063](https://github.com/FlareZ123/obfs/actions/runs/45816638063). Until it passes, do not claim that the broadened local-address scan is validated. Even after it passes, the probe remains TCP-only and does not establish absence of UDP or Unix-domain-socket oracles.
+Exact-head hosted validation [45816638063](https://github.com/FlareZ123/obfs/actions/runs/45816638063) passed on head `abddbf5bd055f04390afab85c2ac3beb41128e70`. The specific non-loopback IPv4 bind-address test passed; the non-loopback IPv6 test was skipped because the runner had no non-loopback IPv6 route. The real SSH-banner regression, IPv4/IPv6 loopback/wildcard tests, process-isolation checks, sequential single-arm probe, matched-control benchmark, and bounded version-space audit all passed. Its eight 2–5-state pairs produced 8/8 future-behavior clones, 6/8 exact initial clones, zero errors/timeouts, 6,019 SUL steps and 6,059 HTTP requests per arm. Two ambiguous three-state cases were UNSAT for candidate sizes 1–3 (no SAT/UNKNOWN).
+
+A subsequent exact-head run [45817116198](https://github.com/FlareZ123/obfs/actions/runs/45817116198) passed on head `1f82e8dbb80ddb60bc1875f42a16bf6a3d727cb8`, including the new two-state Z3 regression. Its eight 2–5-state pairs produced 8/8 future-behavior clones, 7/8 exact initial clones, zero errors/timeouts, 5,931 SUL steps and 5,971 HTTP requests per arm. One ambiguous three-state trace was UNSAT for candidate sizes 1–3. An immediately preceding run [45816939901](https://github.com/FlareZ123/obfs/actions/runs/45816939901) failed only because the new unit test looked for `candidate_size_search` under the witness rather than the audit result; the assertion was corrected and run 45817116198 passed.
+
+Even after this TCP scan passes, the probe does not establish absence of UDP or Unix-domain-socket oracles. The 36-target 16–24-state experiment with four 20-second-per-size version-space audits remains in progress as run [45815986225](https://github.com/FlareZ123/obfs/actions/runs/45815986225), on the earlier loopback-only scanner revision. Do not include its results until the run completes and its logs/artifact are inspected.
