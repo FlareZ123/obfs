@@ -68,6 +68,16 @@ function walk(root, visit) {
  */
 function hasWeakMapPrototypeExposure(ast) {
   const globalNames=new Set(['globalThis','window','self','global']);
+  /** @type {Map<string,string|null>} */
+  const staticStringAliases=new Map();
+  walk(ast,(node,parent)=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+       parent?.type!=='VariableDeclaration'||parent.kind!=='const')return;
+    const value=staticString(node.init);
+    if(value===null)return;
+    if(!staticStringAliases.has(node.id.name))staticStringAliases.set(node.id.name,value);
+    else if(staticStringAliases.get(node.id.name)!==value)staticStringAliases.set(node.id.name,null);
+  });
   // A top-level class declaration shadows the ambient WeakMap binding
   // throughout this module. Its instance prototype is not the shared native
   // WeakMap.prototype, unless the source explicitly uses globalThis.WeakMap.
@@ -79,6 +89,20 @@ function hasWeakMapPrototypeExposure(ast) {
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
   /** @type {Map<string,number>} */
   const weakMapDerivedConstructors=new Map();
+  /**
+   * Duplicate class names in nested scopes are ambiguous in this bounded
+   * name-indexed analysis. Retain the shallowest possible depth so a nested
+   * declaration cannot hide an outer path to native WeakMap.prototype.
+   * @param {string} name
+   * @param {number} depth
+   * @returns {boolean}
+   */
+  function recordWeakMapDerivedConstructor(name,depth) {
+    const prior=weakMapDerivedConstructors.get(name);
+    if(prior!==undefined&&prior<=depth)return false;
+    recordWeakMapDerivedConstructor(name,depth);
+    return true;
+  }
   /** @type {Map<string,number>} */
   const weakMapPrototypeChainDepths=new Map();
   const weakMapInstances=new Set();
@@ -102,7 +126,12 @@ function hasWeakMapPrototypeExposure(ast) {
   /** @param {AstNode|null|undefined} node @returns {string|null} */
   function memberKey(node) {
     if(node?.type!=='MemberExpression')return null;
-    if(node.computed)return staticString(node.property);
+    if(node.computed) {
+      const direct=staticString(node.property);
+      if(direct!==null)return direct;
+      return node.property.type==='Identifier'?
+        staticStringAliases.get(node.property.name)??null:null;
+    }
     return node.property.type==='Identifier'?node.property.name:null;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -236,6 +265,23 @@ function hasWeakMapPrototypeExposure(ast) {
       const parentDepth=weakMapDerivedDepth(node.superClass);
       return parentDepth===undefined?undefined:parentDepth+1;
     }
+    if(node.type==='ConditionalExpression'||node.type==='LogicalExpression') {
+      const left=weakMapDerivedDepth(node.type==='ConditionalExpression'?
+        node.consequent:node.left);
+      const right=weakMapDerivedDepth(node.type==='ConditionalExpression'?
+        node.alternate:node.right);
+      if(left===undefined)return right;
+      if(right===undefined)return left;
+      return Math.min(left,right);
+    }
+    if(node.type==='SequenceExpression')
+      return weakMapDerivedDepth(node.expressions.at(-1));
+    if(node.type==='AssignmentExpression')
+      return weakMapDerivedDepth(node.right);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return weakMapDerivedDepth(node.argument);
+    if(node.type==='ChainExpression')
+      return weakMapDerivedDepth(node.expression);
     return undefined;
   }
   /**
@@ -255,6 +301,23 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='NewExpression') {
       const derivedDepth=weakMapDerivedDepth(node.callee);
       if(derivedDepth!==undefined)return derivedDepth+1;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isNamespace(node.callee.object,reflectNamespaces)&&memberKey(node.callee)==='get') {
+      const key=staticString(node.arguments[1]) ??
+        (node.arguments[1]?.type==='Identifier'?
+          staticStringAliases.get(node.arguments[1].name)??null:null);
+      if(key==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.arguments[0]);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.arguments[0]))return 0;
+      }
+      if(key==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.arguments[0]))return 0;
+      }
     }
     if(node.type==='MemberExpression') {
       const key=memberKey(node);
@@ -545,11 +608,11 @@ function hasWeakMapPrototypeExposure(ast) {
       if(parentDepth!==undefined) {
         const derivedDepth=parentDepth+1;
         if(node.id?.type==='Identifier')
-          weakMapDerivedConstructors.set(node.id.name,derivedDepth);
+          recordWeakMapDerivedConstructor(node.id.name,derivedDepth);
         if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
-          weakMapDerivedConstructors.set(parent.id.name,derivedDepth);
+          recordWeakMapDerivedConstructor(parent.id.name,derivedDepth);
         if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
-          weakMapDerivedConstructors.set(parent.left.name,derivedDepth);
+          recordWeakMapDerivedConstructor(parent.left.name,derivedDepth);
       }
     }
   });
@@ -617,8 +680,9 @@ function hasWeakMapPrototypeExposure(ast) {
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
         const derivedDepth=weakMapDerivedDepth(init);
-        if(derivedDepth!==undefined&&derivedDepth>0)
-          weakMapDerivedConstructors.set(name,derivedDepth);
+        if(derivedDepth===0)weakMapConstructors.add(name);
+        else if(derivedDepth!==undefined)
+          recordWeakMapDerivedConstructor(name,derivedDepth);
         const prototypeDepth=weakMapPrototypeChainDepth(init);
         if(prototypeDepth===0)exposed=true;
         else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
@@ -644,8 +708,9 @@ function hasWeakMapPrototypeExposure(ast) {
            value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
         if(isWeakMapConstructor(value))weakMapConstructors.add(name);
         const derivedDepth=weakMapDerivedDepth(value);
-        if(derivedDepth!==undefined&&derivedDepth>0)
-          weakMapDerivedConstructors.set(name,derivedDepth);
+        if(derivedDepth===0)weakMapConstructors.add(name);
+        else if(derivedDepth!==undefined)
+          recordWeakMapDerivedConstructor(name,derivedDepth);
         const prototypeDepth=weakMapPrototypeChainDepth(value);
         if(prototypeDepth===0)exposed=true;
         else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
@@ -705,6 +770,29 @@ function hasWeakMapPrototypeExposure(ast) {
     }
   });
 
+  // Constructor aliases can be declared after a derived class, and a
+  // conditional base can resolve only after variable initializers are known.
+  // Iterate to a fixed point so declaration order and nested same-name classes
+  // cannot hide a possible native WeakMap parent.
+  let derivedClassBindingsChanged=true;
+  while(derivedClassBindingsChanged) {
+    derivedClassBindingsChanged=false;
+    walk(ast,(node,parent)=>{
+      if(node.type!=='ClassDeclaration'&&node.type!=='ClassExpression')return;
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      if(parentDepth===undefined)return;
+      const derivedDepth=parentDepth+1;
+      if(node.id?.type==='Identifier')
+        derivedClassBindingsChanged=
+          recordWeakMapDerivedConstructor(node.id.name,derivedDepth)||derivedClassBindingsChanged;
+      if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
+        derivedClassBindingsChanged=
+          recordWeakMapDerivedConstructor(parent.id.name,derivedDepth)||derivedClassBindingsChanged;
+      if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
+        derivedClassBindingsChanged=
+          recordWeakMapDerivedConstructor(parent.left.name,derivedDepth)||derivedClassBindingsChanged;
+    });
+  }
   // Resolve return/yield values after the complete file has contributed its
   // constructor and instance aliases. This handles helpers declared after
   // their callers and generators that yield a WeakMap instance.
@@ -832,14 +920,15 @@ function hasWeakMapPrototypeExposure(ast) {
         [...(info?.returnedFactories??[])].some(name=>weakMapFactories.has(name)));
     }
     if(node.type==='ObjectExpression') {
-      return (node.properties??[]).some(property=>
+      return (node.properties??[]).some((/** @type {AstNode} */ property)=>
         property.type==='SpreadElement'?
           containsExportedWeakMapCapability(property.argument):
         property.type==='Property'?
           containsExportedWeakMapCapability(property.value):false);
     }
     if(node.type==='ArrayExpression')
-      return (node.elements??[]).some(element=>containsExportedWeakMapCapability(element));
+      return (node.elements??[]).some((/** @type {AstNode|null} */ element)=>
+        containsExportedWeakMapCapability(element));
     if(node.type==='CallExpression') {
       if(node.callee.type==='Identifier'&&
          (weakMapFactories.has(node.callee.name)||importedLocalNames.has(node.callee.name)))return true;
@@ -1002,6 +1091,8 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='ThisExpression')return thisValue;
     if(node.type==='NewExpression') {
       if(isWeakMapConstructor(node.callee))return carrierWeakMap;
+      if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
+        return carrierMaybe;
       if(node.callee.type==='Identifier'&&weakMapContainerOwners.has(node.callee.name)) {
         const instance=carrierContainer();
         instance.unknown=true;
@@ -1256,10 +1347,41 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue]
    */
+  function visitScopedCarrierBlock(statement,environment,thisValue=carrierOther,includeVarBindings=true) {
+    const scopedEnvironment=new Map(environment);
+    const blockScopedNames=new Set();
+    const varNames=new Set();
+    for(const child of statement.body??[]) {
+      if(child.type==='VariableDeclaration') {
+        const target=includeVarBindings&&child.kind==='var'?varNames:blockScopedNames;
+        for(const declaration of child.declarations??[]) {
+          const names=new Map();
+          addPatternBindings(declaration.id,names);
+          for(const name of names.keys())target.add(name);
+        }
+      } else if((child.type==='ClassDeclaration'||child.type==='FunctionDeclaration')&&
+                child.id?.type==='Identifier') {
+        blockScopedNames.add(child.id.name);
+      }
+    }
+    for(const child of statement.body??[])
+      visitCarrierStatement(child,scopedEnvironment,thisValue);
+    for(const [name,value] of scopedEnvironment) {
+      if(blockScopedNames.has(name))continue;
+      if(environment.has(name)||varNames.has(name))environment.set(name,value);
+    }
+  }
   function visitCarrierStatement(statement,environment,thisValue=carrierOther) {
-    if(statement.type==='Program'||statement.type==='BlockStatement'||
-       statement.type==='StaticBlock') {
+    if(statement.type==='Program') {
       for(const child of statement.body??[])visitCarrierStatement(child,environment,thisValue);
+      return;
+    }
+    if(statement.type==='BlockStatement') {
+      visitScopedCarrierBlock(statement,environment,thisValue);
+      return;
+    }
+    if(statement.type==='StaticBlock') {
+      visitScopedCarrierBlock(statement,environment,thisValue,false);
       return;
     }
     if(statement.type==='ExportNamedDeclaration'||statement.type==='ExportDefaultDeclaration') {
@@ -1283,6 +1405,10 @@ function hasWeakMapPrototypeExposure(ast) {
         environment.set(name,mergeCarrierValues(
           consequent.get(name)??carrierOther,alternate.get(name)??carrierOther));
       }
+      return;
+    }
+    if(statement.type==='LabeledStatement') {
+      visitCarrierStatement(statement.body,environment,thisValue);
       return;
     }
     if(statement.type==='ClassDeclaration') {
@@ -1318,8 +1444,21 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='TryStatement') {
-      visitCarrierStatement(statement.block,new Map(environment),thisValue);
-      if(statement.handler)visitCarrierStatement(statement.handler.body,new Map(environment),thisValue);
+      const tryEnvironment=new Map(environment);
+      visitCarrierStatement(statement.block,tryEnvironment,thisValue);
+      const catchEnvironment=new Map(environment);
+      if(statement.handler)
+        visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue);
+      const names=new Set([
+        ...environment.keys(),...tryEnvironment.keys(),...catchEnvironment.keys()
+      ]);
+      for(const name of names) {
+        const base=environment.get(name)??carrierOther;
+        const tryValue=tryEnvironment.get(name)??base;
+        const catchValue=statement.handler?
+          catchEnvironment.get(name)??base:base;
+        environment.set(name,mergeCarrierValues(tryValue,catchValue));
+      }
       if(statement.finalizer)visitCarrierStatement(statement.finalizer,environment,thisValue);
       return;
     }
@@ -1345,10 +1484,16 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='SwitchStatement') {
       visitCarrierExpression(statement.discriminant,environment,thisValue);
       const branches=[];
+      let fallthroughEnvironment=new Map(environment);
       for(const branch of statement.cases??[]) {
         const branchEnv=new Map(environment);
+        for(const [name,value] of fallthroughEnvironment) {
+          const base=environment.get(name)??carrierOther;
+          branchEnv.set(name,mergeCarrierValues(base,value));
+        }
         for(const child of branch.consequent??[])visitCarrierStatement(child,branchEnv,thisValue);
         branches.push(branchEnv);
+        fallthroughEnvironment=branchEnv;
       }
       for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
         let value=environment.get(name)??carrierOther;
