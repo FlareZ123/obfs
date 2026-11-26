@@ -181,6 +181,16 @@ const carrierFixtures = [
     name: 'arrow-expression-local-carrier',
     setup: 'const protoCarrier={instance:new WeakMap()}; const get=()=>getPrototype(protoCarrier.instance); get(); const ordinary={};',
     access: 'ordinary'
+  },
+  {
+    name: 'object-destructuring-assignment-carrier',
+    setup: 'let map; const protoCarrier={instance:new WeakMap()}; ({instance:map}=protoCarrier);',
+    access: 'map'
+  },
+  {
+    name: 'array-destructuring-assignment-carrier',
+    setup: 'let map; const protoCarrier=[new WeakMap()]; [map]=protoCarrier;',
+    access: 'map'
   }
 ];
 
