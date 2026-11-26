@@ -104,6 +104,13 @@ function hasUnsafeNativeBindMutationSurface(ast) {
   }
   let unsafe=false;
   walk(ast,(node,parent,key,ancestors)=>{
+    // Constructing an exported bound wrapper forwards the original target as
+    // new.target. Coercing that function (for example in < or +) can invoke
+    // Function#toString without an explicit source-observer call.
+    if(node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target') {
+      unsafe=true;
+      return;
+    }
     if(node.type==='WithStatement'||node.type==='ThisExpression'||
        node.type==='ImportExpression'||node.type==='NewExpression'||
        node.type==='TaggedTemplateExpression'||node.type==='AwaitExpression'||
