@@ -281,7 +281,11 @@ async function main() {
     for (const mode of ['coo', 'sco']) {
       const compiled = obfuscateFiles(scenario.sourceFiles, {
         mode,
-        seed: 'agent4-browser-weakmap-' + scenario.name + '-' + mode,
+        seed: (scenario.name === 'classic-cross-unit-lexical-carrier'
+          ? 'agent7-classic-script-realm'
+          : scenario.name === 'external-esm-derived-class'
+            ? 'agent7-exported-derived'
+            : 'agent7-esm-imported-factory') + '-' + mode,
         properties: false,
         identifiers: true,
         strings: false,
