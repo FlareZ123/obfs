@@ -723,6 +723,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Web Storage stringifies both setItem arguments and the key argument of
+  // getItem/removeItem. Track its global roots and simple aliases separately
+  // from Headers/URLSearchParams so unrelated custom setItem methods are not
+  // treated as Web IDL coercion.
+  const storageNames=new Set(['localStorage','sessionStorage']);
+  const storageInstances=new Set(storageNames);
+  const storageMethodAliases=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -1021,6 +1028,32 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageCollection(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageInstances.has(node.name);
+    return node.type==='MemberExpression' && isGlobal(node.object) &&
+      storageNames.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageMethodReference(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageMethodAliases.has(node.name);
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       memberName(node.callee)==='bind')
+      return isStorageMethodReference(node.callee.object);
+    if(node.type!=='MemberExpression')return false;
+    const method=memberName(node);
+    const possibleMethod=['setItem','getItem','removeItem'].includes(method??'') ||
+      node.computed && method===null;
+    if(!possibleMethod)return false;
+    if(isStorageCollection(node.object))return true;
+    const owner=node.object;
+    if(owner?.type!=='MemberExpression'||memberName(owner)!=='prototype')return false;
+    const root=owner.object;
+    return root.type==='Identifier'&&root.name==='Storage' ||
+      root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='Storage';
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       intlNamespaces.has(node.name) ||
@@ -1244,6 +1277,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
+        }
+        if(isStorageCollection(value)) {
+          changed=add(storageInstances,name)||changed;
+        }
+        if(isStorageMethodReference(value)) {
+          changed=add(storageMethodAliases,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -3139,6 +3178,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
           callee.object.name==='Object' &&
            memberName(callee)==='getOwnPropertyDescriptor')) observed=true;
+      if(node.type==='CallExpression' && callee.type==='Identifier' &&
+         storageMethodAliases.has(callee.name) &&
+         node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+           !isDefinitelyPrimitive(value)))observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
@@ -3161,6 +3204,42 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
+        // Storage methods apply Web IDL DOMString conversion to setItem's
+        // key/value and to getItem/removeItem's key. A function value here
+        // exposes its exact source through localStorage/sessionStorage.
+        if(isStorageCollection(callee.object) &&
+            (['setItem','getItem','removeItem'].includes(method??'') ||
+             callee.computed && method===null)) {
+          const positions=method==='setItem' ? node.arguments.slice(0,2) :
+            method==='getItem'||method==='removeItem' ? node.arguments.slice(0,1) :
+              node.arguments.slice(0,2);
+          if(positions.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+        }
+        // Extracted/bound Storage methods and call/apply forms retain the same
+        // DOMString coercion contract. Conservatively inspect the first two
+        // supplied values; extra inert values do not affect Storage semantics.
+        if(callee.type==='MemberExpression' &&
+           ['call','apply','bind'].includes(memberName(callee)??'') &&
+           isStorageMethodReference(callee.object)) {
+          if(memberName(callee)==='apply') {
+            const values=node.arguments[1];
+            if(values?.type==='ArrayExpression') {
+              if(values.elements.some((/** @type {AstNode|null} */ value)=>
+                value!==null && !isDefinitelyPrimitive(value)))observed=true;
+            } else if(values && !isDefinitelyPrimitive(values))observed=true;
+          } else if(node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+        }
+        if(callee.type==='MemberExpression' && memberName(callee)==='apply' &&
+           isReflectiveReceiver(callee.object) &&
+           isStorageMethodReference(node.arguments[0])) {
+          const values=node.arguments[2];
+          if(values?.type==='ArrayExpression') {
+            if(values.elements.some((/** @type {AstNode|null} */ value)=>
+              value!==null && !isDefinitelyPrimitive(value)))observed=true;
+          } else if(values && !isDefinitelyPrimitive(values))observed=true;
+        }
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
