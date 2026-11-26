@@ -5,7 +5,7 @@ const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./es
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface} = require('./ast');
-const {renameLocalProperties,collectBindings} = require('./properties');
+const {renameLocalProperties,collectBindings,hasUnmodeledNativeBindGlobalReference} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
@@ -1964,6 +1964,7 @@ function obfuscateFiles(files, options = {}) {
       if(file.sourceType==='asset'||typeof file.code!=='string')return false;
       const inputAst=parse(file.code,file.sourceType);
       return !hasUnsafeNativeBindMutationSurface(inputAst)&&
+        !hasUnmodeledNativeBindGlobalReference(inputAst)&&
         !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
         !(file.sourceType==='commonjs'&&
           hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
