@@ -42,7 +42,7 @@ async function main() {
     closedWorld:true
   });
   const emitted=String(protectedFiles.files.find(file=>file.path==='public/client.js')?.code);
-  assert.notEqual(emitted,source,'control: the candidate must actually transform script bytes');
+  assert.equal(emitted,source,'SRI-pinned script bytes must remain unchanged after decoded-path normalization');
 
   /** @type {string[]} */
   const requests=[];
