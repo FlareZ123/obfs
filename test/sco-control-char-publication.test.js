@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const net=require('node:net');
-const {spawn}=require('node:child_process');
+const {spawn,spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{id:number,specifier:string,target:string,decoy:string}} ControlCase */
