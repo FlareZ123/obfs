@@ -259,6 +259,38 @@ for(const fixture of fixtures) {
 }
 
 
+test('WeakMap source-observer differential: cross-file global object property carrier',()=>{
+  const mutationSource=mutation([], 'Object.getPrototypeOf(window.sharedCarrier.instance)');
+  const producerSource='globalThis.window=globalThis;globalThis.sharedCarrier={instance:new WeakMap()};';
+  const globalEntrySource=[
+    "import './producer.mjs';",
+    "import './mutate.mjs';",
+    "export {sample} from './storage.mjs';"
+  ].join('\n');
+  const sourceFiles=[
+    {path:'producer.mjs',sourceType:'module',code:producerSource},
+    {path:'mutate.mjs',sourceType:'module',code:mutationSource},
+    {path:'storage.mjs',sourceType:'module',code:storageSource},
+    {path:'entry.mjs',sourceType:'module',code:globalEntrySource}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(mutationSource,'module'));
+  const native=runEsm(sourceFiles.map(file=>({path:file.path,code:file.code})));
+  assert.ok(analysis,'global object carrier must be treated as an unknown prototype source');
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  for(const mode of ['coo','sno','sco']) {
+    const compiled=obfuscateFiles(sourceFiles,{
+      mode,seed:'agent1-global-property-'+mode,
+      properties:false,identifiers:true,strings:false,closedWorld:true
+    });
+    const storage=compiled.files.find(file=>file.path==='storage.mjs');
+    assert.ok(storage,'missing storage.mjs for '+mode);
+    const emitted=runEsm(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+    assert.equal(storage.metrics.bindings,0,mode+' must preserve the storage owner');
+    assert.equal(emitted.capturedSource,native.capturedSource,mode+' source parity');
+    assert.deepEqual(emitted.result,native.result,mode+' behavioral parity');
+  }
+});
+
 for(const [name,source] of [
   ['object-literal-getter-primitive','const carrier={get instance(){return 7;}};Object.getPrototypeOf(carrier.instance);'],
   ['define-property-getter-primitive','const carrier={};Object.defineProperty(carrier,"instance",{get(){return 7;}});Object.getPrototypeOf(carrier.instance);']

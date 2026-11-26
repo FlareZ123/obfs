@@ -134,6 +134,38 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     return node.property.type==='Identifier'?node.property.name:null;
   }
+  /** @type {Set<string>} */
+  const knownGlobalConstructorNames=new Set([
+    'WeakMap','Map','Set','Object','Reflect','Array','Function','String',
+    'Number','Boolean','Symbol','BigInt','Date','RegExp','Error','Promise',
+    'JSON','Math','Intl','Proxy','WeakRef','FinalizationRegistry','URL',
+    'URLSearchParams','ArrayBuffer','SharedArrayBuffer','DataView',
+    'Uint8Array','Uint8ClampedArray','Int8Array','Uint16Array','Int16Array',
+    'Uint32Array','Int32Array','Float32Array','Float64Array','BigInt64Array',
+    'BigUint64Array','WebAssembly','Atomics'
+  ]);
+  /**
+   * Return the first property below a global root, or "*" when any key is
+   * dynamic. This is used only for prototype-chain/heritage decisions.
+   * @param {AstNode|null|undefined} node
+   * @returns {string|null}
+   */
+  function globalRootProperty(node) {
+    let current=node;
+    let firstKey=null;
+    let hasMember=false;
+    let hasDynamicKey=false;
+    while(current?.type==='MemberExpression') {
+      hasMember=true;
+      const key=memberKey(current);
+      if(key===null)hasDynamicKey=true;
+      else firstKey=key;
+      current=current.object;
+    }
+    if(!hasMember||current?.type!=='Identifier'||!globalNames.has(current.name))
+      return null;
+    return hasDynamicKey?'*':firstKey;
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isRequireCall(node) {
     return Boolean(node?.type==='CallExpression'&&
@@ -255,6 +287,12 @@ function hasWeakMapPrototypeExposure(ast) {
       const depth=weakMapDerivedConstructors.get(node.name);
       if(depth!==undefined)return depth;
     }
+    // Global properties outside the known intrinsic constructor set are
+    // external/ambiguous. Treat them as possible WeakMap-derived constructors
+    // rather than assuming a cross-file or host-provided value is harmless.
+    const globalProperty=globalRootProperty(node);
+    if(globalProperty==='*'||
+       (globalProperty!==null&&!knownGlobalConstructorNames.has(globalProperty)))return 0;
     // Explicit global constructors remain identifiable even when the local
     // class deliberately shadows the bare WeakMap binding.
     if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
@@ -320,6 +358,9 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
     if(node.type==='MemberExpression') {
+      const globalProperty=globalRootProperty(node);
+      if(globalProperty==='*'||
+         (globalProperty!==null&&!knownGlobalConstructorNames.has(globalProperty)))return 0;
       const key=memberKey(node);
       if(key==='prototype') {
         const derivedDepth=weakMapDerivedDepth(node.object);
