@@ -178,9 +178,8 @@ for (const fixture of carrierFixtures) {
 
 test('direct WeakMap instance argument remains a detected positive control', () => {
   const source = [
-    "const getPrototype=Object.prototype.__lookupGetter__('__proto__');",
-    'const weakMapPrototype=getPrototype.call(new WeakMap());',
-    'weakMapPrototype.set=function(){};'
+    'const weakMapPrototype=Object.getPrototypeOf(new WeakMap());',
+    ...commonTail.slice(1)
   ].join('\n');
   assert.equal(observesFunctionSource(parse(source, 'module')), true);
 });
