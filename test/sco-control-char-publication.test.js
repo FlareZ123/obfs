@@ -15,7 +15,7 @@ const {atomicWrite}=require('../src/atomic');
 /** @returns {Promise<number>} */
 async function unusedPort() {
   const server=net.createServer();
-  await new Promise(resolve=>server.listen({port:0,host:'127.0.0.1'},resolve));
+  await new Promise(resolve=>server.listen({port:0,host:'127.0.0.1'},()=>resolve(null)));
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Expected TCP address');
   await new Promise(resolve=>server.close(resolve));
