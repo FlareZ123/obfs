@@ -62,15 +62,20 @@ test('query, fragment, encoded-dot, encoded-separator and trailing-slash paths d
     closedWorld:true,strings:false,identifiers:false};
   assert.equal(obfuscateFiles(ownerGraph('./state.mjs'),options).crossFile.properties,1,
     'canonical control must admit the established proof');
+  /** @type {Array<{specifier:string,decoys?:ModuleFile[],throws?:RegExp}>} */
   const cases=[
     {specifier:'./state.mjs?version=1'},
     {specifier:'./state.mjs#fragment',decoys:[moduleFile('state.mjs#fragment',owner)]},
     {specifier:'./state.mjs/%2e',decoys:[moduleFile('state.mjs/%2e',owner)]},
     {specifier:'./state.mjs%2fchild',decoys:[moduleFile('state.mjs/child',owner)]},
-    {specifier:'./folder/../state.mjs/'}
+    {specifier:'./folder/../state.mjs/',throws:/File conflicts with directory: state\\.mjs/u}
   ];
   for(const candidate of cases) {
-    assert.equal(obfuscateFiles(ownerGraph(candidate.specifier,candidate.decoys),options)
-      .crossFile.properties,0,candidate.specifier);
+    const run=()=>obfuscateFiles(ownerGraph(candidate.specifier,candidate.decoys),options);
+    if(candidate.throws) {
+      assert.throws(run,candidate.throws,candidate.specifier);
+    } else {
+      assert.equal(run().crossFile.properties,0,candidate.specifier);
+    }
   }
 });
