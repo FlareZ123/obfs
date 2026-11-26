@@ -259,3 +259,19 @@ test('direct WeakMap instance argument remains a detected positive control', () 
   ].join('\n');
   assert.equal(observesFunctionSource(parse(source, 'module')), true);
 });
+
+test('unread private defineProperty getter does not count as prototype exposure',()=>{
+  const source=[
+    'const protoCarrier={};',
+    "Object.defineProperty(protoCarrier,'instance',{get(){return new WeakMap();}});",
+    'void protoCarrier;'
+  ].join('\\n');
+  assert.equal(observesFunctionSource(parse(source,'module')),false);
+});
+
+test('defineProperty directly on native WeakMap.prototype remains a positive exposure',()=>{
+  const source=[
+    "Object.defineProperty(WeakMap.prototype,'instance',{get(){return new WeakMap();}});"
+  ].join('\\n');
+  assert.equal(observesFunctionSource(parse(source,'module')),true);
+});
