@@ -78,3 +78,18 @@ The bounded full-version-space audit selected the two ambiguous four-state cases
 Artifact: `agent2-live-hw-matched-control`, ID `15114732787`, ZIP SHA-256 `3f7fcb296a2657e9a2b13b1924358e3d3490ae18826ab70c2b5feb5e39c363e0`.
 
 The 16–24-state / 36-target experiment with the same live version-space audit is queued separately as run 45815986225 at the later parameterized-workflow head. Its outcome is not included in this report until completed.
+
+
+## Follow-up: broaden the scan beyond loopback (validation pending)
+
+A subsequent code review found that the earlier probe still ignored listeners bound exclusively to a specific non-loopback interface address. The learner shares the host network namespace and can inspect `/proc/net/tcp*`, so such a local service could be reachable even though it is not bound to loopback or a wildcard. The earlier successful isolation receipts are therefore scoped to loopback and wildcard listeners only.
+
+The current Agent49 branch revision changes the scanner to enumerate all connectable local IPv4/IPv6 TCP LISTEN addresses from `/proc/net/tcp` and `/proc/net/tcp6`:
+- wildcard binds map to 127.0.0.1 / ::1;
+- loopback binds remain included;
+- specific local interface addresses are now included;
+- IPv6 link-local addresses are skipped because `/proc/net/tcp6` does not expose the interface scope ID needed to construct a valid connect address.
+
+New tests use a UDP route-selection socket (no application packet is sent) to discover a local source address, bind a TCP listener to that specific address, and assert that the scanner enumerates it. IPv6-specific-address coverage is conditional on the runner having a usable non-loopback IPv6 route. The existing real SSH-banner regression remains in place.
+
+The exact-head hosted validation is queued as [45816638063](https://github.com/FlareZ123/obfs/actions/runs/45816638063). Until it passes, do not claim that the broadened local-address scan is validated. Even after it passes, the probe remains TCP-only and does not establish absence of UDP or Unix-domain-socket oracles.
