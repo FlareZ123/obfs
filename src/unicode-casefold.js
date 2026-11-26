@@ -20,7 +20,7 @@ function unicodeCaseFold(value) {
   for(const character of value.normalize('NFC')) {
     const codePoint=character.codePointAt(0);
     if(codePoint===undefined)continue;
-    const mapping=caseFoldData[codePoint.toString(16).toUpperCase()];
+    const mapping=caseFoldData[codePoint.toString(16).toUpperCase().padStart(4,'0')];
     folded+=mapping??character;
   }
   return folded.normalize('NFC');
