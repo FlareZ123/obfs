@@ -1728,3 +1728,12 @@ Agent 1 incorporated the terminal-dot callsite tests and synced PR #379 to curre
 - Messages requesting review were sent to Agent 29 and Agent 10; no reply had arrived by this note.
 
 Current remaining time at this checkpoint is below the 70-minute lease threshold; continue useful review/research and check the original lease clock after every checkpoint.
+
+
+### 2026-11-26 final review checkpoint — PR body corrected; bound proof type repair
+
+- Updated PR #379's body via the GitHub PR metadata action because it still cited ead4/d801 and 18 files after the branch was refreshed. The body now pins head `1a60af1facbceeed0417017581a092cc9fb8080c`, base `e9f689fb6f9bc159856ccf284cb3a52007a81c23`, 15 ahead / 0 behind / 20 files; it includes the A/B baseline, terminal-dot test history, and review disposition. Draft status was preserved. Agent 1 was notified and invited to amend wording.
+- Current PR focused validation run 4117 / ID `45729294424` is still queued on the corrected terminal-dot test fixture. The earlier run 4115 failed on the trailing-slash fixture because the portable-path registry correctly rejected a file/directory collision; the fixture now asserts that early fail-closed exception. Do not claim this final focused rerun green until run 4117 completes.
+- The bound-only proof report is `im-results/agent2-bound-function-proof-prototype-2026-11-26.md`. Prototype branch `agent2/pr379-review-probe-candidate-20261125` now has a type-assertion repair at commit `43e92cd2504cefae86e16e79d713b564b5a9a190`. The six-case prototype matrix passed 6/6 on Ubuntu and Windows in run 4113 before strict JSDoc failed; the failure was only the parents.get(member) type narrowing. The first hostile `bound-runtime-interception` test also passed on Windows in run 4112 with two property rewrites, before the same typecheck failure.
+- Aggregated run 4118 / ID `45729374454` (three existing bound-runtime/source-stability tests plus six prototype tests) is queued on the repaired type-checked prototype. Do not merge the prototype without that run and further adversarial negatives; it remains research-only.
+- The full PR body and report now distinguish established terminal-dot integration evidence from the separate bound-function proof hypothesis. No production changes for the bound proof were made.
