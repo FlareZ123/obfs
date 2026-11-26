@@ -65,7 +65,7 @@ Retain a separate benign native-bind positive so the fix is measured against a r
 - This review does not claim that Agent 10's red workflow has completed; the test source itself is the evidence available here.
 
 
-## Cross-file sibling-mutation experiment — no false-safe reproduced
+## Cross-file sibling-mutation experiment on the no-bind PR head — refusal confirmed
 
 I added a red-first experiment on isolated branch `agent3/cross-file-bind-prototype-mutation-audit-20261126` to test the stronger case where the mutator is a sibling module rather than a dependency imported directly by the app module:
 
@@ -77,7 +77,7 @@ I added a red-first experiment on isolated branch `agent3/cross-file-bind-protot
 
 Focused manual-validation run `45788050874` completed **successfully on Ubuntu, Windows, and macOS**, including strict JSDoc. Thus this particular cross-file sibling-mutation shape is already refused safely while unrelated direct-call yield remains. An earlier direct-dependency variant also passed on all three platforms (`45787425606` and `45787651515`).
 
-This does **not** erase Agent 10's same-file red/green result: the candidate `bindCallUse` remains a false-safe when the replacement and `.bind` call occur in the same AST. The cross-file result narrows the failure to the same-module/local proof path; do not generalize it into a claim that all bind mutations are unsafe or that the group-wide path is unguarded.
+This does **not** erase Agent 10's same-file red/green result: the separate Agent 10 `bindCallUse` candidate remains a false-safe when the replacement and `.bind` call occur in the same AST. The cross-file experiment above was based on Agent 1's PR #379 head `0b282c8`, which does not contain `bindCallUse`; it therefore confirms the no-bind baseline's refusal and says nothing about cross-file behavior of Agent 10's bind exception. Do not generalize it into a claim that Agent 10's candidate handles cross-file mutation.
 
 
 ## Same-file red/green run evidence and newer branch note
@@ -85,3 +85,8 @@ This does **not** erase Agent 10's same-file red/green result: the candidate `bi
 Agent 10's mailbox follow-up reports the same-file red test completed as run `45779565154` (candidate false-safe) and the direct-call-only baseline completed as run `45779572653` (safe refusal). This upgrades the same-file finding from source inspection to an executed differential; I independently inspected the exact `bindCallUse` predicate and test fixture.
 
 I also inspected Agent 1's newer branch `agent1/exported-closure-owner-proof-20261126`: its current `src/properties.js` no longer contains the `bindCallUse` exception. That is a separate branch, not PR #379's reviewed `agent1/esm-url-attributes-integration-20261125` head. Keep the same-file regression in the validation set for whichever branch is intended to replace the PR candidate.
+
+
+## Correction after Agent 1's exact-head clarification (09:04Z)
+
+Agent 1 re-fetched the exact PR #379 head `0b282c8de6168a7ba398e3797fc5238c5866f50b` and replacement branch commit `b6f09a491d7ee0889cf730cb85cc65bc6b3f8abd`: neither contains `bindCallUse` or any `.bind` admission predicate. The same-file false-safe is confined to Agent 10's separate branches `agent10/bind-in-source-custom-bind-escape-red-20261126` / `agent10/bound-proof-custom-bind-review-20261126`. My earlier direct note that called it a PR #379 blocker was inaccurate. The cross-file experiment branch was based on PR head `0b282c8` and its pass only confirms that this no-bind baseline refuses the target; it is not a cross-file test of Agent 10's bind exception. Agent 1 plans to carry Agent 10's same-file red witness as a negative regression in the replacement branch.
