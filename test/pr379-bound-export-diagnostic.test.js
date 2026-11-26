@@ -15,6 +15,7 @@ const directSource='const owner={secretField:7,otherField:11};'+
   'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;}';
 
 test('diagnose bound public export source-observer versus local-proof refusal',()=>{
+  const reports=[];
   for(const [label,source] of [['bound',boundSource],['direct',directSource]]) {
     const ast=parse(source,'module');
     const bindings=collectBindings(ast);
@@ -24,7 +25,7 @@ test('diagnose bound public export source-observer versus local-proof refusal',(
       mode:'coo',closedWorld:true,seed:'bound-export-diagnostic',
       properties:true,identifiers:false,strings:false
     });
-    const report={
+    reports.push({
       label,
       observesFunctionSource:observesFunctionSource(ast),
       observesDistributedSource:observesDistributedSource(ast),
@@ -37,8 +38,7 @@ test('diagnose bound public export source-observer versus local-proof refusal',(
       }:null,
       fullProperties:full.files[0].metrics.properties,
       crossProperties:full.crossFile.properties
-    };
-    process.stdout.write('BOUND_EXPORT_DIAGNOSTIC '+JSON.stringify(report)+'\n');
-    assert.equal(typeof report.observesFunctionSource,'boolean');
+    });
   }
+  assert.fail('BOUND_EXPORT_DIAGNOSTIC '+JSON.stringify(reports));
 });
