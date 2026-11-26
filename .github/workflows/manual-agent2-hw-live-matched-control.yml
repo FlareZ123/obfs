@@ -81,7 +81,7 @@ jobs:
             sims/agent2-hw-no-reset-benchmark.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
-      - name: Probe cross-arm localhost oracle exposure (expected reproduction)
+      - name: Verify sequential single-arm localhost isolation
         run: python sims/agent49-hw-cross-arm-network-probe-runner.py
       - name: Test exact evaluator semantics
         run: python sims/test_agent2_hw_no_reset_evaluator.py
@@ -130,6 +130,7 @@ jobs:
               if row["status"] != "completed":
                   continue
               assert row["comparison"]["matched"], row
+              assert row["comparison"]["session_tokens_distinct"] is True, row
               assert row["server_user_isolated"] is True, row
               assert row["sco"]["server_process"]["uid"] == result["scope"]["server_uid"], row
               assert row["ordinary"]["server_process"]["uid"] == result["scope"]["server_uid"], row
