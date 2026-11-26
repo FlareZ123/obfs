@@ -7,6 +7,11 @@ on:
         description: "Exact candidate commit containing the WeakMap browser fixtures"
         required: true
         type: string
+      weakmap_source_falsifiers:
+        description: "Run the expected-vulnerability browser probe; green means source-capture false-safes were reproduced, not that the candidate is secure"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -14,7 +19,7 @@ permissions:
 jobs:
   chromium:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,5 +41,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/agent10-weakmap-prototype-cross-file-browser.js
+      - name: Reproduce cross-unit and external ESM WeakMap source-capture false-safes in Chromium
+        if: ${{ inputs.weakmap_source_falsifiers }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent4-weakmap-browser-source-observer-falsifiers.js
       - name: Strict-check external browser harness JSDoc
         run: npm run typecheck:external
