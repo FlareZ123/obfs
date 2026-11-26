@@ -178,6 +178,21 @@ const carrierFixtures = [
     access: 'protoCarrier.instance'
   },
   {
+    name: 'object-defineProperty-getter',
+    setup: "const protoCarrier={}; Object.defineProperty(protoCarrier,'instance',{get(){return new WeakMap();}});",
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'object-defineProperties-getter',
+    setup: "const protoCarrier={}; Object.defineProperties(protoCarrier,{instance:{get(){return new WeakMap();}}});",
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'reflect-defineProperty-getter',
+    setup: "const protoCarrier={}; Reflect.defineProperty(protoCarrier,'instance',{get(){return new WeakMap();}});",
+    access: 'protoCarrier.instance'
+  },
+  {
     name: 'object-member',
     setup: 'const protoCarrier={instance:new WeakMap()};',
     access: 'protoCarrier.instance'
