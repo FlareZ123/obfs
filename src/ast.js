@@ -477,7 +477,8 @@ function hasWeakMapPrototypeExposure(ast) {
         }
       }
     }
-    if(fn.async||fn.generator)return {safe:false,returnMaybe:false};
+    if(fn.async||fn.generator)
+      return {safe:false,returnMaybe:false,returnsParameter:false,returnsPrototype:false};
     const returnExpression=fn.body?.type==='BlockStatement'&&fn.body.body?.length===1&&
       fn.body.body[0]?.type==='ReturnStatement'?
         fn.body.body[0].argument:fn.body?.type==='BlockStatement'?null:fn.body;
