@@ -28,7 +28,7 @@ const storageSource=[
   '    ...descriptor,',
   '    value:function(_key,value){',
   '      captured.set(this,value);',
-  '      return Reflect.apply(descriptor.value,this,[_key,String(value)]);',
+  '      return Reflect.apply(descriptor.value,this,[_key,"constant"]);',
   '    }',
   '  });',
   '  localStorage.setItem("agent10-weakmap-cross-file",inspect);',
