@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const {hasTerminalUrlDotSegment,hasPathnameControlCharacter}=require('./esm-url-paths');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
@@ -58,7 +58,7 @@ function completeGuardedModuleGraph(files) {
       const specifier=statement.source.value;
       if(typeof specifier!=='string' ||
           (!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-          /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasPathnameControlCharacter(specifier) || hasTerminalUrlDotSegment(specifier))return false;
+          /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
       const target=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
       if(!known.has(target))return false;
     }
@@ -160,7 +160,7 @@ function staticallyImportedEsmTargets(files) {
       if(!source||source.type!=='Literal'||typeof source.value!=='string')continue;
       const specifier=source.value;
       if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-         /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasPathnameControlCharacter(specifier) || hasTerminalUrlDotSegment(specifier))continue;
+         /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))continue;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
@@ -191,7 +191,7 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
     if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-       /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasPathnameControlCharacter(specifier) || hasTerminalUrlDotSegment(specifier))return false;
+       /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
     const target=path.posix.normalize(
       path.posix.join(path.posix.dirname(filename),specifier));
     return knownJavaScript.has(target);
