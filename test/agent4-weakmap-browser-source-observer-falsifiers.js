@@ -305,6 +305,7 @@ async function main() {
     timeout: 15000
   });
   assert.match(version.stdout, /(Chrome|Chromium)\s+\d+\./u);
+  const expectSafe = process.env.WEAKMAP_EXPECT_SAFE === '1';
 
   /** @type {Map<string,string>} */
   const resources = new Map();
@@ -346,7 +347,7 @@ async function main() {
       }));
       const storage = compiled.files.find(file => file.path === scenario.storagePath);
       assert.ok(storage, scenario.name + ' missing ' + scenario.storagePath + ' for ' + mode);
-      if (scenario.expectedVulnerable) {
+      if (scenario.expectedVulnerable && !expectSafe) {
         assert.ok(storage.metrics.bindings > 0,
           scenario.name + ' did not transform a storage binding in ' + mode + ': ' +
           JSON.stringify(storage.metrics));
@@ -406,7 +407,7 @@ async function main() {
     }
 
     let falseSafes = 0;
-    let positiveControls = 0;
+    let protectedCases = 0;
     for (const job of jobs) {
       if (job.kind === 'native') continue;
       const native = nativeResults.get(job.scenario.name);
@@ -424,7 +425,7 @@ async function main() {
         native,
         emitted
       };
-      if (job.scenario.expectedVulnerable) {
+      if (job.scenario.expectedVulnerable && !expectSafe) {
         assert.notEqual(emitted.capturedSource, native.capturedSource,
           JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
         assert.ok(!emitted.capturedSource.includes('privateLocal'),
@@ -441,21 +442,24 @@ async function main() {
           JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
         assert.equal(storage.metrics.bindings, 0,
           JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
-        process.stdout.write('WEAKMAP_BROWSER_EXPORTED_FACTORY_POSITIVE_CONTROL_PASSED ' +
+        process.stdout.write((expectSafe
+          ? 'WEAKMAP_BROWSER_PROTECTED_CASE_PASSED '
+          : 'WEAKMAP_BROWSER_EXPORTED_FACTORY_POSITIVE_CONTROL_PASSED ') +
           JSON.stringify(evidence) + '\n');
-        positiveControls++;
+        protectedCases++;
       }
     }
 
-    assert.equal(falseSafes, 3 * 2);
-    assert.equal(positiveControls, 1 * 2);
+    assert.equal(falseSafes, expectSafe ? 0 : 3 * 2);
+    assert.equal(protectedCases, expectSafe ? scenarios.length * 2 : 1 * 2);
     process.stdout.write('WEAKMAP_BROWSER_FALSE_SAFE_AND_POSITIVE_CONTROL_MATRIX_CONFIRMED ' +
       JSON.stringify({
         browser: version.stdout.trim(),
         scenarios: scenarios.map(scenario => scenario.name),
         clientModes: ['coo', 'sco'],
+        expectSafe,
         falseSafes,
-        positiveControls
+        protectedCases
       }) + '\n');
   } finally {
     await new Promise((resolve, reject) => {
