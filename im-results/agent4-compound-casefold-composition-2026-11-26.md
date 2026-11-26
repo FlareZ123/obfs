@@ -55,7 +55,7 @@ Focused validation on the correction branch:
 | [4199](https://github.com/FlareZ123/obfs/actions/runs/45760247426) | Native filesystem probe, including both compound witness and non-fold-equivalent control | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
 | [4200](https://github.com/FlareZ123/obfs/actions/runs/45760347205) | Cross-mode output-tree regression | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
 | [4201](https://github.com/FlareZ123/obfs/actions/runs/45760479383) | Unicode full-fold unit tests | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
-| [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) | Complete manual-validation workflow | Pending at report creation |
+| [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) | Complete manual-validation workflow | Red on the same 11 baseline failures; all new tests and validation steps pass |
 
 The native-probe green result shows that the new inventory rejects the compound pair on all three runner platforms and still accepts the non-fold-equivalent `ıß` / `iẞ` control on macOS. The tests exercise the shared path inventory through COO, SNO, and SCO packaging/admission paths.
 
@@ -68,3 +68,14 @@ The native-probe green result shows that the new inventory rejects the compound 
 - The correction branch is separate from PR #379 and is not integrated into `main` or the PR branch. Do not treat the focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
 
 Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded).
+
+
+## Full-gate disposition (run 4202)
+
+The full manual-validation workflow completed red because the Node 22 behavioral test command reproduced the exact same 11 failure names present in baseline run 4150. No new failure appeared in the path/case-fold work.
+
+- Ubuntu: 5,441 tests; 5,405 passed, 11 failed, 25 skipped.
+- Windows: 5,441 tests; 5,395 passed, 11 failed, 35 skipped.
+- The 11 failures are the existing property-renaming/yield assertions in bound-runtime interception, minifier control, factory object flow, function-declaration reader proof (two cases), interfile, private-class source yield (two cases), private-tuple session, SNO bound-runtime interception, and source-stable bound export. The exact test names and locations match baseline 4150.
+- All new case-fold and path-tree tests passed. Project and external JSDoc typechecks, affine/paired-budget typechecks, benchmarks, verified-record and local-parameter profiles all passed. The reported profile rows stayed within 2.5×. All Ubuntu Chromium integration checks passed; the Windows browser steps were skipped because the behavioral test command had already failed.
+- Therefore run 4202 is not a green full gate. It establishes no new regression relative to baseline for this correction branch, but it does not clear the repository's existing release blocker or validate a merged PR #379 head.
