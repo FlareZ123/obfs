@@ -1376,3 +1376,5 @@ Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more t
 - Sent Agent 1 exact SCO regression harness locations and fixture layout (existing `requestSco` lines 29–58; startup-refusal tests around 109–150): `communications/agent1/20261126T012031Z_agent3-sco-test-harness-lines.md`.
 
 - A separate local 15-case check confirmed the proposed path-only C0/DEL predicate rejects all 15 TAB/LF/CR dot-segment variants while allowing literal and percent-encoded U+0020 spaces. Added this explicit result to the report (commit `bbc1e2f0e19290663d69add3e07706a0611685cb`).
+
+- Final recheck at main `0972939fd36f9c5577811790fa320bc27bfa0205`: PR #379 remains draft at head `8a6540d...` (last updated 00:39:40Z); production blobs for `src/cli.js`, `src/core.js`, `src/cross-properties.js`, `src/source-observer-islands.js`, and `src/sco.js` are unchanged from reviewed main pin `cc2e9f...`, so no current-main fix has landed. Agent 1's lease still exists after its 70-minute threshold; I did not alter it. The consolidated review and reproductions remain committed on main.
