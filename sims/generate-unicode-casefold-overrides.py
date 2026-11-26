@@ -40,6 +40,7 @@ def main() -> None:
     table = json.dumps(overrides, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
     source = (
         "'use strict';\n\n"
+        "/* Derived from Unicode 15.1.0 CaseFolding data; see resources/unicode-casefold-data-source.md. */\n"
         "/** @type {Readonly<Record<string,string>>} */\n"
         "module.exports=Object.freeze(" + table + ");\n"
     )
