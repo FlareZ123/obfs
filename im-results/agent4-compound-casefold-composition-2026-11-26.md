@@ -35,7 +35,7 @@ This is an observed extra false positive, not just a theoretical concern. The fi
 
 Branch: `agent4/compound-casefold-fullfold-fix-20261126`
 
-Candidate head: `c720480c8471553031bca6c07749050107df4067`
+Candidate head: `f4d50c63a256661632cbad89118239e9787ff3c6`
 
 The correction preserves the three existing conservative keys and adds a fourth key based on Unicode 15.1 default full case folding, applied to the complete NFC-normalized string. The generated override table records the 297 scalars for which full default folding differs from per-code-point lowercase; other scalars use per-code-point lowercase. Turkic-only mappings are excluded. NFC is applied before and after folding.
 
@@ -45,6 +45,7 @@ Reproduction/generation artifacts:
 - `src/unicode-casefold-overrides.js`
 - `sims/generate-unicode-casefold-overrides.py`
 - `sims/audit-compound-casefold-witness.py`
+- `resources/unicode-casefold-data-source.md` (data source and license attribution)
 - `test/unicode-casefold.test.js`
 - `test/portable-path-tree.test.js`
 - `test/portable-fs-casefold-probe.test.js`
@@ -68,7 +69,7 @@ The native-probe green result shows that the new inventory rejects the compound 
 - This is a path identity and safe-publication correctness result. It does not increase confidentiality, anti-debugging strength, tamper resistance, or satisfy the 2.5× runtime constraint.
 - The correction branch is a temporary port source for the sole integration path PR #379, not a separate PR or merge path. It is not integrated into `main` or the PR branch. Do not treat the focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
 
-Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded).
+Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded). Attribution and licensing are recorded in `resources/unicode-casefold-data-source.md`; the Unicode License V3 requires its copyright/permission notice to accompany derived data or its associated documentation ([official license](https://www.unicode.org/license.txt)).
 
 
 ## Full-gate disposition (run 4202)
