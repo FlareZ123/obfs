@@ -103,10 +103,10 @@ test('same-file custom bind replacement refuses target while preserving unrelate
       'const direct=()=>safeOwner.safeField;',
       'const safeValue=direct();',
       'process.stdout.write(JSON.stringify([globalThis.__capturedSource,hot(),safeValue]));'
-    ].join('\\n')
+    ].join('\n')
   }];
   const native=await run(sameFile);
-  assert.match(native[0],/owner\\.secretField/u);
+  assert.match(native[0],/owner\.secretField/u);
   const compiled=obfuscateFiles(sameFile,{
     mode:'coo',closedWorld:true,seed:'same-file-bind-mutation-refusal',
     properties:true,identifiers:false,strings:false
@@ -117,7 +117,7 @@ test('same-file custom bind replacement refuses target while preserving unrelate
     path:file.path,code:String(file.code)
   })));
   assert.deepEqual(emitted,native);
-  assert.match(emitted[0],/owner\\.secretField/u,
+  assert.match(emitted[0],/owner\.secretField/u,
     'the in-graph custom bind observer must retain the original target source');
   assert.doesNotMatch(String(compiled.files[0].code),/safeField/u,
     'the unrelated direct-call owner should still be transformed');
