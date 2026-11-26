@@ -72,9 +72,9 @@ test('exported WeakMap backing store invalidates reference-only Storage override
  * @param {string} source
  * @returns {Promise<{result:unknown,capturedSource:string|null}>}
  */
+let sourceCaptureSequence=0;
 async function runWithSourceCapture(source){
   class TestStorage {
-    /** @param {string} key @param {string} value */
     constructor(){this.data=new Map();}
     /** @param {string} key @param {unknown} value */
     setItem(key,value){this.data.set(String(key),String(value));}
@@ -87,7 +87,7 @@ async function runWithSourceCapture(source){
   Object.defineProperty(globalThis,'localStorage',{configurable:true,writable:true,value:new TestStorage()});
   let capturedSource=null;
   try{
-    const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64')+'#'+String(++runWithSourceCapture.sequence);
+    const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64')+'#'+String(++sourceCaptureSequence);
     const module=await import(url);
     const nativeSet=module.captured.set;
     module.captured.set=function(key,value){
@@ -98,13 +98,11 @@ async function runWithSourceCapture(source){
     return {result,capturedSource};
   }finally{
     if(previousStorage)Object.defineProperty(globalThis,'Storage',previousStorage);
-    else delete globalThis.Storage;
+    else Reflect.deleteProperty(globalThis,'Storage');
     if(previousLocalStorage)Object.defineProperty(globalThis,'localStorage',previousLocalStorage);
-    else delete globalThis.localStorage;
+    else Reflect.deleteProperty(globalThis,'localStorage');
   }
 }
-/** @type {number} */
-runWithSourceCapture.sequence=0;
 
 test('exported WeakMap host mutation captures rewritten function source',async()=>{
   const app=compile(exportedWeakMap,'agent1-weakmap-exported-instance-runtime-witness');
