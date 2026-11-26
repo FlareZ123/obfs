@@ -142,3 +142,52 @@ test('bound-only arrow cannot hide owner escape through object spread',()=>{
   const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>({...owner});export const hot=internal.bind(null);';
   assert.equal(propertyCount(source),0);
 });
+
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+
+function runModulePair(root,entryCode,runnerCode){
+  fs.mkdirSync(root,{recursive:true});
+  fs.writeFileSync(path.join(root,'entry.mjs'),entryCode);
+  fs.writeFileSync(path.join(root,'runner.mjs'),runnerCode);
+  const child=spawnSync(process.execPath,[path.join(root,'runner.mjs')],{cwd:root,encoding:'utf8'});
+  assert.equal(child.status,0,child.stderr);
+  return JSON.parse(child.stdout.trim());
+}
+
+test('hostile pre-load bind getter captures the bound target after property obfuscation',()=>{
+  const entry='const owner={secretField:7,otherField:11};'+
+    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
+    'export const hot=internal.bind(null);';
+  const runner='const nativeBind=Function.prototype.bind;'+
+    'Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'get(){if(this.name==="internal")globalThis.leaked=this;return nativeBind;}});'+
+    'const {hot}=await import("./entry.mjs");'+
+    'const leaked=globalThis.leaked;'+
+    'const leakedSource=Function.prototype.toString.call(leaked);'+
+    'Object.defineProperty(Function.prototype,"bind",{value:nativeBind,writable:true,configurable:true});'+
+    'process.stdout.write(JSON.stringify({leakedType:typeof leaked,leakedSource,hot:hot(1,2),leakedCall:leaked(1,2)})+"\\n");';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:entry}],{
+    mode:'coo',closedWorld:true,seed:'agent7-bind-preload-capture',
+    properties:true,identifiers:false,strings:false
+  });
+  const emitted=output.files[0].code;
+  assert.equal(output.files[0].metrics.properties,2);
+  const nativeRoot=fs.mkdtempSync(path.join(os.tmpdir(),'agent7-bind-preload-native-'));
+  const emittedRoot=fs.mkdtempSync(path.join(os.tmpdir(),'agent7-bind-preload-emitted-'));
+  try{
+    const nativeResult=runModulePair(nativeRoot,entry,runner);
+    const emittedResult=runModulePair(emittedRoot,emitted,runner);
+    assert.equal(nativeResult.leakedType,'function');
+    assert.equal(emittedResult.leakedType,'function');
+    assert.equal(nativeResult.hot,emittedResult.hot);
+    assert.equal(nativeResult.leakedCall,emittedResult.leakedCall);
+    assert.match(nativeResult.leakedSource,/secretField/u);
+    assert.doesNotMatch(emittedResult.leakedSource,/secretField|otherField/u);
+  }finally{
+    fs.rmSync(nativeRoot,{recursive:true,force:true});
+    fs.rmSync(emittedRoot,{recursive:true,force:true});
+  }
+});
