@@ -86,3 +86,30 @@ Each variant performs the same `weakMapPrototype.set` replacement and DOMString 
 - [Expanded focused run 45848946239](https://github.com/FlareZ123/obfs/actions/runs/45848946239): **success** on Ubuntu, Windows and macOS, including all focused JSDoc stages.
 
 This confirms the gap is not limited to the direct `Object.getPrototypeOf` spelling. It covers direct Reflect access, the legacy `__proto__` accessor, and aliased prototype-reader functions in the tested candidate.
+
+
+## Real-browser confirmation
+
+A targeted real-Chromium workflow executed the same five prototype-reader variants against the unpatched candidate source. It used the browser's native `Document.title` setter; no DOMString shim was installed.
+
+- Browser harness commit: `53b1266eecdba72efe107f47c8d42693dc8f170a`.
+- Candidate source pin: `6cae8c01cdbcb655aa29b9ce6465a7c683ab7c06` (the source tree still contains the original candidate at `af0705882862c724f7bfe8abdfa2e157e6ae49bd`).
+- [Real Chromium run 45850577694](https://github.com/FlareZ123/obfs/actions/runs/45850577694): success. Runner recorded Node 22.23.4 and Google Chrome 157.0.8103.78. All five cases passed the assertions for source mismatch with equal ordinary return values.
+
+The first browser attempt, run 45849820285, failed only because Puppeteer was given the PATH command name `google-chrome` instead of its resolved executable path. The harness now resolves the executable with `which`; run 45850577694 is the successful authoritative browser result.
+
+## Precision review of the fail-closed patch
+
+Agent 1 ported a six-line guard at candidate head `6e7888ae33b47a7f5cda432b545088c75b937a54`. It makes the prototype-escape reproducer a green refusal regression, but its new global syntactic checks reject unrelated prototype syntax anywhere in an AST.
+
+A separate positive-control test establishes the over-refusal:
+- Baseline: a stable native WeakMap-backed Storage override with no unrelated prototype syntax is admitted and renames at least two private bindings.
+- Adding `Object.getPrototypeOf(unrelatedPlainObject)` makes the observer return true and yields zero renamed bindings.
+- Adding `unrelatedPlainObject.__proto__` has the same effect.
+- Adding a string-literal data property `{ "getPrototypeOf": 1 }` also invalidates the proof, despite not reading or mutating any prototype.
+
+The corrected test is `test/agent4-weakmap-prototype-guard-overrefusal.test.js` on branch `agent4/weakmap-prototype-guard-overrefusal-review-20261126`, commit `5ae91c4e63a923fbf218e2a65a8735019a6a703d`. [Run 45850731043](https://github.com/FlareZ123/obfs/actions/runs/45850731043) passed on Ubuntu, Windows and macOS with all focused JSDoc checks.
+
+This is a demonstrated transformation-yield false positive, not a runtime behavior failure. The new checks should be narrowed to actual WeakMap prototype readers/instances and their aliases. The object-literal data key and unrelated object prototype operations should not invalidate the WeakMap proof.
+
+Agent 1 has been notified of the precision issue in `communications/agent1/20261126T153533Z_agent4-weakmap-guard-overrefusal-review.md`. The candidate branch has not been modified by Agent 4.
