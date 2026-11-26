@@ -77,6 +77,10 @@ function hasWeakMapPrototypeExposure(ast) {
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
   });
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
+  /** @type {Map<string,number>} */
+  const weakMapDerivedConstructors=new Map();
+  /** @type {Map<string,number>} */
+  const weakMapPrototypeChainDepths=new Map();
   const weakMapInstances=new Set();
   const weakMapFactories=new Set();
   const objectNamespaces=new Set(['Object']);
@@ -205,17 +209,68 @@ function hasWeakMapPrototypeExposure(ast) {
       isPrototypeGetterMember(node.callee)
     ));
   }
-  /** @param {AstNode|null|undefined} node @returns {boolean} */
-  function isWeakMapPrototypeExpression(node) {
-    if(!node)return false;
-    if(node.type==='Identifier')return prototypeAliases.has(node.name);
+  /**
+   * Return the prototype-chain distance from a WeakMap-derived constructor's
+   * own prototype to native WeakMap.prototype. Native WeakMap has depth zero.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapDerivedDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      const depth=weakMapDerivedConstructors.get(node.name);
+      if(depth!==undefined)return depth;
+    }
+    if(isWeakMapConstructor(node))return 0;
+    if(node.type==='ClassExpression'||node.type==='ClassDeclaration') {
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      return parentDepth===undefined?undefined:parentDepth+1;
+    }
+    return undefined;
+  }
+  /**
+   * Return the remaining prototype-chain distance for a WeakMap instance,
+   * derived-class prototype, or an alias of either. Zero is the shared native
+   * WeakMap.prototype; positive values are intermediate prototypes.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapPrototypeChainDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      if(prototypeAliases.has(node.name))return 0;
+      const aliasDepth=weakMapPrototypeChainDepths.get(node.name);
+      if(aliasDepth!==undefined)return aliasDepth;
+    }
+    if(node.type==='NewExpression') {
+      const derivedDepth=weakMapDerivedDepth(node.callee);
+      if(derivedDepth!==undefined)return derivedDepth+1;
+    }
     if(node.type==='MemberExpression') {
       const key=memberKey(node);
-      return key==='prototype'&&isWeakMapConstructor(node.object)||
-        key==='__proto__'&&isWeakMapInstance(node.object);
+      if(key==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.object);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.object))return 0;
+      }
+      if(key==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.object);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.object))return 0;
+      }
     }
-    return node.type==='CallExpression'&&isPrototypeGetterCall(node)&&
-      isWeakMapInstance(node.arguments[0]);
+    if(node.type==='CallExpression'&&isPrototypeGetterCall(node)) {
+      const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+      if(parentDepth===1)return 0;
+      if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+      if(isWeakMapInstance(node.arguments[0]))return 0;
+    }
+    return undefined;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapPrototypeExpression(node) {
+    return weakMapPrototypeChainDepth(node)===0;
   }
   /**
    * @param {AstNode} pattern
@@ -236,8 +291,16 @@ function hasWeakMapPrototypeExposure(ast) {
         if(key==='Object')objectNamespaces.add(property.value.name);
         if(key==='Reflect')reflectNamespaces.add(property.value.name);
       }
-      if(key==='prototype'&&isWeakMapConstructor(init)) {
-        prototypeAliases.add(property.value.name);
+      if(key==='prototype') {
+        const depth=weakMapDerivedDepth(init);
+        if(depth===0)prototypeAliases.add(property.value.name);
+        else if(depth!==undefined)weakMapPrototypeChainDepths.set(property.value.name,depth);
+      }
+      if(key==='__proto__') {
+        const depth=weakMapPrototypeChainDepth(init);
+        if(depth===1)exposed=true;
+        else if(depth!==undefined&&depth>1)
+          weakMapPrototypeChainDepths.set(property.value.name,depth-1);
       }
     }
   }
@@ -264,8 +327,194 @@ function hasWeakMapPrototypeExposure(ast) {
     return false;
   }
 
+  // A direct call to a unique, private local reader does not publish its
+  // WeakMap argument. Keep this proof deliberately narrow: only functions
+  // with unique, unreassigned bindings and parameters used solely as receivers
+  // of native get/has/delete calls qualify. Returned get() values remain
+  // maybe-carriers if a caller later exposes them.
+  /** @type {Map<string,AstNode>} */
+  const localFunctionNodes=new Map();
+  /** @type {Set<string>} */
+  const exportedFunctionNames=new Set();
+  for(const statement of ast.body??[]) {
+    if(statement.type==='ExportNamedDeclaration') {
+      for(const specifier of statement.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')exportedFunctionNames.add(specifier.local.name);
+      }
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier')
+        exportedFunctionNames.add(declaration.id.name);
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations??[])
+          if(item.id?.type==='Identifier')exportedFunctionNames.add(item.id.name);
+      }
+    } else if(statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration?.type==='Identifier')
+        exportedFunctionNames.add(statement.declaration.name);
+      if(statement.declaration?.type==='FunctionDeclaration'&&statement.declaration.id?.type==='Identifier')
+        exportedFunctionNames.add(statement.declaration.id.name);
+    }
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement.type==='ExportDefaultDeclaration'?
+        statement.declaration:statement;
+    if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier')
+      localFunctionNodes.set(declaration.id.name,declaration);
+    if(declaration?.type==='VariableDeclaration') {
+      for(const item of declaration.declarations??[]) {
+        if(item.id?.type==='Identifier'&&item.init&&functionTypes.has(item.init.type))
+          localFunctionNodes.set(item.id.name,item.init);
+      }
+    }
+  }
+  /**
+   * @param {AstNode|null|undefined} pattern
+   * @param {Map<string,number>} counts
+   */
+  function addPatternBindings(pattern,counts) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier')counts.set(pattern.name,(counts.get(pattern.name)??0)+1);
+    else if(pattern.type==='AssignmentPattern')addPatternBindings(pattern.left,counts);
+    else if(pattern.type==='RestElement')addPatternBindings(pattern.argument,counts);
+    else if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[])addPatternBindings(element,counts);
+    } else if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.type==='RestElement')addPatternBindings(property.argument,counts);
+        else if(property.type==='Property')addPatternBindings(property.value,counts);
+      }
+    }
+  }
+  /** @type {Map<string,number>} */
+  const localBindingCounts=new Map();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator')addPatternBindings(node.id,localBindingCounts);
+    if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression') {
+      if(node.id?.type==='Identifier')
+        localBindingCounts.set(node.id.name,(localBindingCounts.get(node.id.name)??0)+1);
+      for(const parameter of node.params??[])addPatternBindings(parameter,localBindingCounts);
+    }
+    if(node.type==='ArrowFunctionExpression') {
+      for(const parameter of node.params??[])addPatternBindings(parameter,localBindingCounts);
+    }
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+      if(node.id?.type==='Identifier')
+        localBindingCounts.set(node.id.name,(localBindingCounts.get(node.id.name)??0)+1);
+    }
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')
+          localBindingCounts.set(specifier.local.name,(localBindingCounts.get(specifier.local.name)??0)+1);
+      }
+    }
+    if(node.type==='CatchClause')addPatternBindings(node.param,localBindingCounts);
+  });
+  /** @type {Set<string>} */
+  const reassignedLocalFunctions=new Set();
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier')
+      reassignedLocalFunctions.add(node.left.name);
+    if(node.type==='UpdateExpression'&&node.argument?.type==='Identifier')
+      reassignedLocalFunctions.add(node.argument.name);
+  });
+  /**
+   * @param {AstNode|null|undefined} root
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function containsIdentifier(root,name) {
+    let found=false;
+    if(root)walk(root,node=>{if(node.type==='Identifier'&&node.name===name)found=true;});
+    return found;
+  }
+  /**
+   * @param {AstNode} fn
+   * @param {string} paramName
+   * @returns {{safe:boolean,returnMaybe:boolean}}
+   */
+  function localReaderParameter(fn,paramName) {
+    let safe=true;
+    let returnMaybe=false;
+    /**
+     * @param {AstNode|null|undefined} node
+     * @param {AstNode|null|undefined} parent
+     * @param {AstNode|null|undefined} grand
+     */
+    function inspect(node,parent,grand) {
+      if(!node||typeof node!=='object'||typeof node.type!=='string')return;
+      if(functionTypes.has(node.type)) {
+        safe=false;
+        return;
+      }
+      if(node.type==='WithStatement')safe=false;
+      if(node.type==='CallExpression'&&node.callee?.type==='Identifier'&&
+         (node.callee.name==='eval'||node.callee.name==='Function'))safe=false;
+      if(node.type==='VariableDeclarator'&&node.id&&containsIdentifier(node.id,paramName))
+        safe=false;
+      if(node.type==='CatchClause'&&node.param&&containsIdentifier(node.param,paramName))
+        safe=false;
+      if(node.type==='ClassDeclaration'&&node.id?.name===paramName)safe=false;
+      if(node.type==='Identifier'&&node.name===paramName) {
+        const allowed=parent?.type==='MemberExpression'&&parent.object===node&&
+          ['get','has','delete'].includes(memberKey(parent)??'')&&
+          grand?.type==='CallExpression'&&grand.callee===parent&&
+          !parent.optional&&!grand.optional;
+        if(!allowed)safe=false;
+      }
+      if(node.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&
+         node.callee.object?.type==='Identifier'&&node.callee.object.name===paramName&&
+         memberKey(node.callee)==='get'&&
+         !['ReturnStatement','ExpressionStatement'].includes(parent?.type??''))safe=false;
+      if(node.type==='ReturnStatement'&&node.argument&&containsIdentifier(node.argument,paramName))
+        returnMaybe=true;
+      for(const value of Object.values(node)) {
+        if(Array.isArray(value)) {
+          for(const child of value) {
+            if(child&&typeof child==='object'&&typeof child.type==='string')
+              inspect(child,node,parent);
+          }
+        } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+          inspect(value,node,parent);
+        }
+      }
+    }
+    if(fn.async||fn.generator)return {safe:false,returnMaybe:false};
+    if(fn.body?.type==='BlockStatement')inspect(fn.body,null,null);
+    else {
+      inspect(fn.body,null,null);
+      if(containsIdentifier(fn.body,paramName))returnMaybe=true;
+    }
+    return {safe,returnMaybe:safe&&returnMaybe};
+  }
+  /** @type {Map<string,{safeParameters:Set<number>,returnMaybeParameters:Set<number>}>} */
+  const localFunctionSummaries=new Map();
+  for(const [name,fn] of localFunctionNodes) {
+    if(exportedFunctionNames.has(name)||localBindingCounts.get(name)!==1||
+       reassignedLocalFunctions.has(name))continue;
+    const summary={safeParameters:new Set(),returnMaybeParameters:new Set()};
+    for(let index=0;index<(fn.params??[]).length;index++) {
+      const parameter=fn.params[index];
+      if(parameter?.type!=='Identifier')continue;
+      const result=localReaderParameter(fn,parameter.name);
+      if(result.safe)summary.safeParameters.add(index);
+      if(result.safe&&result.returnMaybe)summary.returnMaybeParameters.add(index);
+    }
+    localFunctionSummaries.set(name,summary);
+  }
+
   let exposed=false;
   walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      if(parentDepth!==undefined) {
+        const derivedDepth=parentDepth+1;
+        if(node.id?.type==='Identifier')
+          weakMapDerivedConstructors.set(node.id.name,derivedDepth);
+        if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
+          weakMapDerivedConstructors.set(parent.id.name,derivedDepth);
+        if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
+          weakMapDerivedConstructors.set(parent.left.name,derivedDepth);
+      }
+    }
     if(node.type==='ExportNamedDeclaration') {
       for(const specifier of node.specifiers??[]) {
         if(specifier.type==='ExportSpecifier'&&specifier.local?.type==='Identifier')
@@ -324,6 +573,12 @@ function hasWeakMapPrototypeExposure(ast) {
         if(isGlobalRoot(init)||
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
+        const derivedDepth=weakMapDerivedDepth(init);
+        if(derivedDepth!==undefined&&derivedDepth>0)
+          weakMapDerivedConstructors.set(name,derivedDepth);
+        const prototypeDepth=weakMapPrototypeChainDepth(init);
+        if(prototypeDepth===0)exposed=true;
+        else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
         if(isWeakMapInstance(init))weakMapInstances.add(name);
         if(init&&containsWeakMapInstanceValue(init))weakMapContainerInstances.add(name);
         if(isNamespace(init,objectNamespaces))objectNamespaces.add(name);
@@ -345,6 +600,12 @@ function hasWeakMapPrototypeExposure(ast) {
         if(isGlobalRoot(value)||
            value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
         if(isWeakMapConstructor(value))weakMapConstructors.add(name);
+        const derivedDepth=weakMapDerivedDepth(value);
+        if(derivedDepth!==undefined&&derivedDepth>0)
+          weakMapDerivedConstructors.set(name,derivedDepth);
+        const prototypeDepth=weakMapPrototypeChainDepth(value);
+        if(prototypeDepth===0)exposed=true;
+        else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
         if(isWeakMapInstance(value))weakMapInstances.add(name);
         if(containsWeakMapInstanceValue(value))weakMapContainerInstances.add(name);
         if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
@@ -375,17 +636,30 @@ function hasWeakMapPrototypeExposure(ast) {
       if(info&&node.argument)info.returnValues.push(node.argument);
     }
     if(isWeakMapPrototypeExpression(node))exposed=true;
-    // Passing any concrete WeakMap instance to a call can let an opaque
-    // callee obtain and mutate the shared prototype through that instance.
-    if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
-      exposed=true;
+    // Direct arguments to opaque calls escape. A unique private local reader
+    // is exempt only for parameters whose complete body proves a native
+    // get/has/delete receiver-only use.
+    if(node.type==='CallExpression') {
+      const summary=node.callee.type==='Identifier'?
+        localFunctionSummaries.get(node.callee.name):undefined;
+      if(node.arguments.some((argument,index)=>
+        isWeakMapInstance(argument)&&!summary?.safeParameters.has(index)))exposed=true;
+    }
     // Also cover a WeakMap nested in an array/object/factory expression passed
     // as a call argument, without treating unrelated prototype reads as escapes.
-    if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)&&
-       ancestors.some(ancestor=>ancestor.type==='CallExpression'&&
-         ancestor.arguments.some((/** @type {AstNode} */ argument)=>
-           argument.start<=node.start&&argument.end>=node.end)))
-      exposed=true;
+    if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)) {
+      const enclosingCall=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='CallExpression'&&ancestor.arguments.some((/** @type {AstNode} */ argument)=>
+          argument.start<=node.start&&argument.end>=node.end));
+      if(enclosingCall) {
+        const argumentIndex=enclosingCall.arguments.findIndex((/** @type {AstNode} */ argument)=>
+          argument.start<=node.start&&argument.end>=node.end);
+        const summary=enclosingCall.callee.type==='Identifier'?
+          localFunctionSummaries.get(enclosingCall.callee.name):undefined;
+        const directArgument=enclosingCall.arguments[argumentIndex]===node;
+        if(!(directArgument&&summary?.safeParameters.has(argumentIndex)))exposed=true;
+      }
+    }
   });
 
   // Resolve return/yield values after the complete file has contributed its
@@ -549,6 +823,24 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     return false;
   }
+  /**
+   * Join all statically represented slots for a dynamic key. A missing key is
+   * not safe when another possible slot contains a WeakMap.
+   * @param {CarrierValue} container
+   * @param {string|null} key
+   * @returns {CarrierValue}
+   */
+  function carrierLookupValue(container,key) {
+    if(key!==null) {
+      if(container.properties.has(key))return container.properties.get(key)??carrierOther;
+      return container.unknown?carrierMaybe:carrierOther;
+    }
+    let value=carrierOther;
+    for(const nested of container.properties.values())
+      value=mergeCarrierValues(value,nested);
+    if(container.unknown)value=mergeCarrierValues(value,carrierMaybe);
+    return value;
+  }
   /** @param {CarrierValue} left @param {CarrierValue} right @returns {CarrierValue} */
   function mergeCarrierValues(left,right) {
     if(left.kind==='container'&&right.kind==='container') {
@@ -633,16 +925,22 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='MemberExpression') {
       const key=carrierStaticKey(node.property,node.computed);
-      if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name))
-        return carrierMaybe;
+      if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name)&&
+         !environment.has(node.object.name))return carrierMaybe;
       const base=evaluateCarrierValue(node.object,environment,thisValue);
-      if(base.kind==='container') {
-        if(key!==null&&base.properties.has(key))return base.properties.get(key)??carrierOther;
-        return base.unknown?carrierMaybe:carrierOther;
-      }
+      if(base.kind==='container')return carrierLookupValue(base,key);
       return base.kind==='maybe'?carrierMaybe:carrierOther;
     }
     if(node.type==='CallExpression') {
+      if(node.callee.type==='Identifier') {
+        const summary=localFunctionSummaries.get(node.callee.name);
+        if(summary) {
+          for(const index of summary.returnMaybeParameters) {
+            if(carrierMayContainWeakMap(evaluateCarrierValue(node.arguments[index],environment,thisValue)))
+              return carrierMaybe;
+          }
+        }
+      }
       if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
         return carrierMaybe;
       if(node.callee.type==='MemberExpression') {
@@ -703,8 +1001,7 @@ function hasWeakMapPrototypeExposure(ast) {
         if(property.type!=='Property')continue;
         const key=carrierStaticKey(property.key,property.computed);
         const nested=value.kind==='container'?
-          key!==null&&value.properties.has(key)?value.properties.get(key)??carrierOther:
-            value.unknown?carrierMaybe:carrierOther:
+          carrierLookupValue(value,key):
           value.kind==='maybe'?carrierMaybe:carrierOther;
         bindCarrierPattern(property.value,nested,environment);
       }
@@ -729,9 +1026,13 @@ function hasWeakMapPrototypeExposure(ast) {
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node||functionTypes.has(node.type))return;
     if(node.type==='CallExpression') {
-      for(const argument of node.arguments??[]) {
-        if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
-          exposed=true;
+      const summary=node.callee.type==='Identifier'?
+        localFunctionSummaries.get(node.callee.name):undefined;
+      for(let index=0;index<(node.arguments??[]).length;index++) {
+        const argument=node.arguments[index];
+        const value=evaluateCarrierValue(argument,environment,thisValue);
+        const provenPrivateReader=summary?.safeParameters.has(index)&&value.kind==='weakmap';
+        if(carrierMayContainWeakMap(value)&&!provenPrivateReader)exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
       }
       visitCarrierExpression(node.callee,environment,thisValue);
@@ -835,20 +1136,30 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ClassDeclaration') {
-      if(statement.id?.type==='Identifier') {
-        for(const element of statement.body.body??[]) {
-          if(element.type==='PropertyDefinition') {
-            visitCarrierExpression(element.value,environment);
-            if(carrierMayContainWeakMap(evaluateCarrierValue(element.value,environment)))
-              weakMapContainerOwners.add(statement.id.name);
-          } else if(element.type==='StaticBlock') {
-            const staticEnvironment=new Map(environment);
-            const staticThis=carrierContainer();
-            staticThis.unknown=true;
-            visitCarrierStatement(element,staticEnvironment,staticThis);
+      const staticValue=carrierContainer();
+      if(statement.id?.type==='Identifier')
+        environment.set(statement.id.name,staticValue);
+      for(const element of statement.body.body??[]) {
+        if(element.type==='PropertyDefinition') {
+          const thisValue=element.static?staticValue:carrierOther;
+          visitCarrierExpression(element.value,environment,thisValue);
+          const fieldValue=evaluateCarrierValue(element.value,environment,thisValue);
+          if(element.static) {
+            const fieldKey=carrierStaticKey(element.key,element.computed);
+            if(fieldKey===null)staticValue.unknown=true;
+            else staticValue.properties.set(fieldKey,fieldValue);
+          } else if(carrierMayContainWeakMap(fieldValue)&&statement.id?.type==='Identifier') {
+            weakMapContainerOwners.add(statement.id.name);
           }
+        } else if(element.type==='StaticBlock') {
+          const staticEnvironment=new Map(environment);
+          visitCarrierStatement(element,staticEnvironment,staticValue);
         }
       }
+      if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
+        weakMapContainerOwners.add(statement.id.name);
+      if(statement.id?.type==='Identifier'&&exportedLocalNames.has(statement.id.name)&&
+         carrierMayContainWeakMap(staticValue))exposed=true;
       return;
     }
     if(statement.type==='FunctionDeclaration')return;
