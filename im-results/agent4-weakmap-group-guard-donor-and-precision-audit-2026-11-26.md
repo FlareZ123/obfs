@@ -106,3 +106,44 @@ The cited runs are focused compiler-correctness tests, principally COO. They do 
 - Agent 3's cross-file COO/SCO/SNO matrix on source head \`c55f1d105f5899604659eee3649b4629bbc9216d\`, run [45867090458](https://github.com/FlareZ123/obfs/actions/runs/45867090458), passed 3/3 on all three platforms. Storage-file bindings were zero in each mode; COO runtime preserved ordinary values and captured source. SCO/SNO were compile-metric checks, not end-to-end server-runtime tests. This is a positive result for that earlier candidate snapshot, not a substitute for the latest carrier matrix.
 - Agent 6's exact replay against Agent 10 donor head \`0b119c540a903cc786be74f29c2d63e6b6c2e903\`, run [45866696379](https://github.com/FlareZ123/obfs/actions/runs/45866696379), failed on Ubuntu, Windows, and macOS: group exposure false, four bindings, and changed captured function source. The subclass-parent-prototype false-safe persists after the donor's later commits.
 - **PR #382 scope correction:** I verified PR #382 directly. It is open/draft, head \`1bab0360e356c6174339111919ce07c124aa0491\`, base \`3fd4bd298750cdc3287ddce1542abc0569d5c0e9\`; its body describes Agent 2's narrower Web Storage DOMString source-observer patch. GitHub compare from PR head to Agent 10 donor head \`0b119c\` reports merge base exactly equal to the PR head, 65 commits ahead, and 0 behind. Therefore these WeakMap group-guard findings apply to the downstream Agent 10 donor/reference-only Storage optimization and integrations that include it; they do **not** by themselves invalidate PR #382's standalone patch. An earlier Agent 4 message phrased the integration boundary too broadly; explicit corrections were sent to Agents 1, 2, 3, and 10.
+
+
+## Addendum — latest Agent 1 candidate positive and negative controls (17:34Z)
+
+### Getter/container aliases: 11/11 pass
+
+- Exact Agent 1 source base: \`dd9f5783abb3df607c615dd08fe6646ce4264006\`
+- Test: \`test/agent4-weakmap-agent1-carrier-alias-audit.test.js\`
+- Test commit: \`1a1da6e20f66f66199071163d19c94519944eb0c\`
+- Run: [45868621647](https://github.com/FlareZ123/obfs/actions/runs/45868621647)
+
+All 11 tests passed on Ubuntu, Windows, and macOS, with strict project/external JSDoc. The suite asserts exposure is detected, Storage bindings remain zero, ordinary results match, and captured source is unchanged. It covers five getter-extraction forms, object-property instance, object-carried identifier, array carrier, local factory return, function-returned object carrier, and class instance-field carrier. This is a meaningful improvement over the Agent 10 donor, where four of the overlapping carrier cases were false-safe.
+
+### Cross-file mode matrix: 3/3 pass
+
+- Exact Agent 1 source base: \`dd9f5783abb3df607c615dd08fe6646ce4264006\`
+- Test: \`test/agent4-weakmap-agent1-dd9f-crossfile-modes.test.js\`
+- Test commit: \`f385fa840f4bdd8d2b2e0f919a6fa9a8faa1c889\`
+- Run: [45868497810](https://github.com/FlareZ123/obfs/actions/runs/45868497810)
+
+The cross-file container exposure case passed under COO, SCO, and SNO mode flags on all three platforms. Storage bindings were zero in every mode. COO native/emitted values and captured source matched. SCO/SNO were compile-mode/metric checks, not full server deployment/runtime tests.
+
+### Parent-prototype extraction: 45/45 combinations false-safe
+
+- Test: \`test/agent4-weakmap-agent1-subclass-parent-variants.test.js\`
+- Test commit: \`1a1da6e20f66f66199071163d19c94519944eb0c\`
+- Run: [45868603409](https://github.com/FlareZ123/obfs/actions/runs/45868603409)
+
+Five forms (non-shadowing subclass via \`Object.getPrototypeOf\`, shadowed subclass via \`__proto__\`, aliased \`Reflect.getPrototypeOf\`, aliased \`Object.getPrototypeOf\`, and two-level subclass chain) were tested under COO/SCO/SNO flags. All 15 mode/variant combinations failed on each of Ubuntu, Windows, and macOS: **45/45 false-safe combinations**. Every combination reported group exposure false, four Storage identifier bindings, and native/emitted captured-source mismatch. Agent 6 independently reports the same 45-combination result against Agent 10 donor head \`0b119c\` in run [45867880661](https://github.com/FlareZ123/obfs/actions/runs/45867880661).
+
+### Current candidate acceptance snapshot
+
+For Agent 1 source head \`dd9f5783\`:
+
+- 11 getter/container alias tests: **11/11 pass**.
+- 17 expanded local carrier tests: **14/17 pass**; remaining false-safes are dynamic array index, class static field initializer, and class static block.
+- Cross-file COO/SCO/SNO container case: **3/3 pass** (compile-mode checks for SCO/SNO).
+- Five parent-prototype variants × three mode flags: **0/15 safe detections** (45/45 platform/mode/variant failures).
+- Known-local identity helper: still over-refused (\`observed=true\`, \`bindings=0\`), run [45867337001](https://github.com/FlareZ123/obfs/actions/runs/45867337001).
+
+The result is not "the guard works" or "the guard fails" globally: it has specific validated coverage and specific remaining unsoundness/precision defects. Preserve this separation in integration decisions.
