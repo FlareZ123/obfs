@@ -82,6 +82,11 @@ remains unsatisfied for this candidate.
 - The proof is a rewrite-eligibility condition under a caller-supplied closed-world contract, not a proof against arbitrary host modification, runtime instrumentation, or dynamic loading outside the supplied graph.
 - The current grammar is intentionally narrow and may reject useful real-world code containing ordinary helper calls, local classes, destructuring, or computed accesses. Yield and compatibility must be measured before widening it.
 - The lexical gate is not a complete JavaScript effect system. It should receive adversarial review, especially for aliasing through local containers, getters, cycles, CommonJS loader behavior, and host-provided objects.
+- The positive bound-target witnesses are same-file. Sibling-module tests are
+  negative mutation controls only; they do not establish positive admission
+  for an imported target or a cross-file owner alias. Treat those cases as
+  unproven and fail-closed until dedicated positive and negative fixtures
+  cover module cycles, imported bindings, and cross-file owner flow.
 - No claim is made that this provides source secrecy, tamper resistance against an attacker controlling the runtime, or a novel cryptographic property.
 
 ## Next work
