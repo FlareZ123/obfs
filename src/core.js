@@ -2008,9 +2008,9 @@ function obfuscateFiles(files, options = {}) {
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
   assertReviewedOpaqueAssets(prepared,options.reviewedOpaqueAssets);
-  // A function declared in one ESM/classic-script file may have its source
-  // observed by another supplied file. File-local proofs cannot see that
-  // consumer, so preserve all original source spellings across the file group.
+  // Function source can be observed locally or by another supplied file.
+  // Analyze every file, seeding cross-file import provenance where available,
+  // before any source-coordinate or identifier rewrite is permitted.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
   const importedPrimitiveProof=prepared.length>1 && options.closedWorld ?
@@ -2030,7 +2030,7 @@ function obfuscateFiles(files, options = {}) {
     prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
-      prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
+      observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
         importedUrlStaticProof.get(file.path),
