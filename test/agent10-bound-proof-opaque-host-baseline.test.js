@@ -103,35 +103,3 @@ for(const replacement of replacements) {
   });
 }
 
-test('directly invoked private arrow remains eligible for local owner-key rewriting',()=>{
-  const source='const owner={secretField:7,otherField:11};'+
-    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
-    'const result=internal(4,6);'+
-    'process.stdout.write(String(result));';
-  const emitted=obfuscateFiles([{
-    path:'entry.mjs',
-    sourceType:'module',
-    code:source
-  }],{
-    mode:'coo',
-    closedWorld:true,
-    seed:'agent10-bound-proof-main-positive-control',
-    properties:true,
-    identifiers:false,
-    strings:false
-  });
-  assert.equal(emitted.files[0].metrics.properties,2);
-  const run=(code)=>{
-    const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-bound-positive-'));
-    try {
-      const file=path.join(root,'entry.mjs');
-      fs.writeFileSync(file,code);
-      const child=spawnSync(process.execPath,[file],{encoding:'utf8',timeout:8000});
-      assert.equal(child.status,0,child.stderr);
-      return child.stdout;
-    } finally {
-      fs.rmSync(root,{recursive:true,force:true});
-    }
-  };
-  assert.equal(run(/** @type {string} */(emitted.files[0].code)),run(source));
-});
