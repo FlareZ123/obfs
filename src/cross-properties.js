@@ -373,8 +373,8 @@ function collectImportedStorageMethodAliases(files,parseFile=parseModule) {
       if(!fromStorage&&!fromDescriptor)return;
       for(const property of pattern.properties) {
         if(property.type!=='Property')continue;
-        const name=memberName({type:'MemberExpression',object:pattern,
-          property:property.key,computed:property.computed});
+        const name=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:null;
         const binding=property.value.type==='AssignmentPattern'?
           property.value.left:property.value;
         if(binding.type!=='Identifier')continue;
@@ -390,6 +390,7 @@ function collectImportedStorageMethodAliases(files,parseFile=parseModule) {
     let changed;
     do {
       changed=false;
+      /** @param {Set<string>} set @param {string} name @returns {boolean} */
       const add=(set,name)=>{
         if(set.has(name))return false;
         set.add(name);
@@ -514,6 +515,19 @@ function collectImportedStorageMethodAliases(files,parseFile=parseModule) {
   return imported;
 }
 
+/**
+ * Find named ESM imports that resolve to exported const arrays which
+ * syntactically contain a function or nested function-valued array.
+ * An imported array is opaque to a consumer's local source-observation
+ * analysis; preserving the producer's function source requires this graph
+ * provenance before a consumer invokes sorting or stringification.
+ *
+ * This is a positive, conservative may-contain proof. Unknown factories,
+ * mutable imported arrays, and indirect reexports need separate handling.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
 function collectImportedFunctionArrays(files,parseFile=parseModule) {
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
