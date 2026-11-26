@@ -7,6 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
+const {parse,hasUnsafeNativeBindMutationSurface}=require('../src/ast');
 
 const sources=[
   {
@@ -85,6 +86,12 @@ async function run(files){
     await fs.rm(root,{recursive:true,force:true});
   }
 }
+
+test('native-bind mutation gate rejects dynamically computed prototype paths',()=>{
+  const source="const key=String.fromCharCode(95,95,112,114,111,116,111,95,95);"+
+    "const proto=(()=>{})[key];proto.bind=function(){};";
+  assert.equal(hasUnsafeNativeBindMutationSurface(parse(source,'module')),true);
+});
 
 test('same-file custom bind replacement refuses target while preserving unrelated direct yield',async()=>{
   const sameFile=[{
