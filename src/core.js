@@ -4,7 +4,7 @@ const path = require('node:path');
 const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface,hasWeakMapPrototypeEscape} = require('./ast');
 const {renameLocalProperties,collectBindings,hasUnmodeledNativeBindGlobalReference} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -2026,6 +2026,11 @@ function obfuscateFiles(files, options = {}) {
   // Declared HTML script/modulepreload SRI metadata also observes the exact
   // served JavaScript bytes. If the HTML asset is preserved, every emitted
   // integrity-pinned script must retain its source hash.
+  const groupWeakMapPrototypeEscape=prepared.some(file=>{
+    if(file.sourceType==='asset'||typeof file.code!=='string')return false;
+    const ast=parse(file.code,file.sourceType);
+    return hasWeakMapPrototypeEscape(ast,collectBindings(ast));
+  });
   const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
     prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
@@ -2034,7 +2039,7 @@ function obfuscateFiles(files, options = {}) {
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
         importedUrlStaticProof.get(file.path),
-        importedStorageMethodAliases.get(file.path))));
+        importedStorageMethodAliases.get(file.path),groupWeakMapPrototypeEscape)));
   // A single-file host lock is still a source-coordinate rewrite. Local AST
   // transforms can independently decline Function/source observers, but the
   // wrapper itself has no later per-transform guard. Reuse the same broad
@@ -2046,7 +2051,7 @@ function obfuscateFiles(files, options = {}) {
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
         importedUrlStaticProof.get(file.path),
-        importedStorageMethodAliases.get(file.path)));
+        importedStorageMethodAliases.get(file.path),groupWeakMapPrototypeEscape));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
