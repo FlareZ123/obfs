@@ -8,20 +8,20 @@ const path=require('node:path');
 const {unicodeCaseFold}=require('../src/unicode-casefold');
 const {createPathInventory,registerFilePath}=require('../src/portable-paths');
 
-test('Unicode 15.1 casefold fallback must not inherit later Node lowercase mappings',()=>{
+test('pinned Unicode 17 full folding includes the Unicode 16 Cyrillic Tje mapping',()=>{
   const source=String.fromCodePoint(0x1C89);
-  const expected15_1=source;
+  const expected=String.fromCodePoint(0x1C8A);
   const actual=unicodeCaseFold(source);
-  console.log('CASEFOLD_RUNTIME_DRIFT '+JSON.stringify({
+  console.log('CASEFOLD_PINNED_VERSION '+JSON.stringify({
     node:process.version,
     unicode:process.versions.unicode,
     sourceCodePoint:'1C89',
-    nodeLower:[...source.toLowerCase()].map(value=>value.codePointAt(0)?.toString(16)),
-    expectedUnicode15_1:[...expected15_1].map(value=>value.codePointAt(0)?.toString(16)),
+    runtimeLower:[...source.toLowerCase()].map(value=>value.codePointAt(0)?.toString(16)),
+    expectedUnicode17:[...expected].map(value=>value.codePointAt(0)?.toString(16)),
     actual:[...actual].map(value=>value.codePointAt(0)?.toString(16))
   }));
-  assert.equal(actual,expected15_1,
-    'U+1C89 was unassigned in Unicode 15.1 and must remain unchanged in a pinned 15.1 full-fold implementation');
+  assert.equal(actual,expected,
+    'The pinned Unicode 17 C/F table must include U+1C89 -> U+1C8A');
 });
 
 test('portable path inventory conservatively rejects the Unicode 16 Cyrillic Tje pair',async()=>{
