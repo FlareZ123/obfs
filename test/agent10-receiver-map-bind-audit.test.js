@@ -27,7 +27,7 @@ function named(result,name) {
  * @returns {string}
  */
 function sourceFor(includeBoundResultEscape) {
-  return 'const owner={secretField:7};'+
+  return '(function run(){'+\n    'const owner={secretField:7};'+
     'const nativeBind=Function.prototype.bind;'+
     'Function.prototype.bind=function(){'+
     'external(this);const target=this;'+
