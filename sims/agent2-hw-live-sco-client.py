@@ -276,6 +276,24 @@ def main():
             })
 
         latencies = sorted(sul.latencies_ms)
+        normalized_rpc_records = [
+            {
+                "request": {
+                    key: value
+                    for key, value in record["request"].items()
+                    if key != "cookie_sha256"
+                },
+                "response": record["response"],
+            }
+            for record in sul.rpc_records
+        ]
+        rpc_trace_sha256 = hashlib.sha256(
+            json.dumps(normalized_rpc_records, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        rpc_trace_full_sha256 = hashlib.sha256(
+            json.dumps(sul.rpc_records, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+
         result = {
             **process_metadata,
             "status": "completed",
@@ -286,9 +304,8 @@ def main():
             "client_module_source_disclosed": module_disclosed,
             "client_module_trace": module_trace,
             "rpc_record_count": len(sul.rpc_records),
-            "rpc_trace_sha256": hashlib.sha256(
-                json.dumps(sul.rpc_records, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            ).hexdigest(),
+            "rpc_trace_sha256": rpc_trace_sha256,
+            "rpc_trace_full_sha256": rpc_trace_full_sha256,
             "trace": sul.trace,
             "hypothesis_states": serialized_states,
             "pre_calls": sul.counters["pre_calls"],
