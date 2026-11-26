@@ -75,7 +75,7 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
       - name: Install pinned hW implementation
-        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6
+        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6 z3-solver==5.4.1.0
       - name: Check server and harness syntax
         run: |
           node --check sims/agent2-hw-live-sco-server.js
@@ -88,7 +88,8 @@ jobs:
             sims/agent49-process-isolation-probe.py \
             sims/agent49-hw-single-arm-network-probe.py \
             sims/test_agent49-hw-single-arm-network-probe.py \
-            sims/agent2-hw-no-reset-benchmark.py
+            sims/agent2-hw-no-reset-benchmark.py \
+            sims/agent2-hw-version-space-audit.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
       - name: Test IPv4/IPv6 loopback listener discovery
@@ -96,7 +97,9 @@ jobs:
       - name: Verify sequential single-arm localhost isolation
         run: python sims/agent49-hw-cross-arm-network-probe-runner.py
       - name: Test exact evaluator semantics
-        run: python sims/test_agent2_hw_no_reset_evaluator.py
+        run: |
+          python sims/test_agent2_hw_no_reset_evaluator.py
+          python sims/test_agent2_hw_version_space.py
       - name: Run paired live HTTP hW benchmark
         env:
           FIXTURE_FAMILY: ${{ inputs.fixture_family || 'random' }}
@@ -247,6 +250,12 @@ jobs:
                   summary_file.write(json.dumps(summary, indent=2, sort_keys=True))
                   summary_file.write("\n~~~\n")
           PY
+      - name: Audit bounded full Mealy version space from evaluator-only live traces
+        run: |
+          python sims/agent2-hw-version-space-audit.py \
+            --input live-hw-matched-results.json \
+            --output hw-version-space-audit.json \
+            --max-cases 4 --timeout-ms 10000
       - name: Preserve matched-control evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -255,3 +264,4 @@ jobs:
           path: |
             live-hw-matched-results.json
             agent49-cross-arm-probe-result.json
+            hw-version-space-audit.json
