@@ -73,3 +73,73 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     assert.deepEqual(actual,native);
   });
 }
+
+
+const importedTargetSources=[
+  {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+  {path:'reader.mjs',sourceType:'module',code:[
+    'import {state} from "./state.mjs";',
+    'export const internal=(input)=>state.secretField+input;'
+  ].join('\n')},
+  {path:'app.mjs',sourceType:'module',code:[
+    'import {internal} from "./reader.mjs";',
+    'export const hot=internal.bind(null);'
+  ].join('\n')}
+];
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+  test(mode+' imported callable target with an object-independent parameter remains unrenamed',async()=>{
+    const native=await run(importedTargetSources);
+    const compiled=obfuscateFiles(importedTargetSources,{
+      mode,closedWorld:true,seed:'imported-bound-target-'+mode,
+      properties:true,identifiers:true,strings:false
+    });
+    const state=compiled.files.find(file=>file.path==='state.mjs');
+    const reader=compiled.files.find(file=>file.path==='reader.mjs');
+    assert.ok(state);
+    assert.ok(reader);
+    assert.equal(compiled.crossFile.properties,0,
+      JSON.stringify({mode,crossFile:compiled.crossFile,state:state.code,reader:reader.code}));
+    assert.match(String(state.code),/secretField/u);
+    assert.match(String(reader.code),/secretField/u);
+    const actual=await run(compiled.files.map(file=>({
+      path:file.path,sourceType:'module',code:String(file.code)
+    })));
+    assert.deepEqual(actual,native);
+  });
+}
+
+const cyclicOwnerSources=[
+  {path:'state.mjs',sourceType:'module',code:[
+    'import {marker} from "./app.mjs";',
+    'export const state={secretField:23};'
+  ].join('\n')},
+  {path:'app.mjs',sourceType:'module',code:[
+    'import {state} from "./state.mjs";',
+    'const internal=(input)=>state.secretField+input;',
+    'export const hot=internal.bind(null);',
+    'export const marker=1;'
+  ].join('\n')}
+];
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+  test(mode+' cross-file bound owner proof preserves a benign ESM import cycle',async()=>{
+    const native=await run(cyclicOwnerSources);
+    const compiled=obfuscateFiles(cyclicOwnerSources,{
+      mode,closedWorld:true,seed:'cyclic-bound-owner-'+mode,
+      properties:true,identifiers:true,strings:false
+    });
+    const state=compiled.files.find(file=>file.path==='state.mjs');
+    const app=compiled.files.find(file=>file.path==='app.mjs');
+    assert.ok(state);
+    assert.ok(app);
+    assert.equal(compiled.crossFile.properties,1,
+      JSON.stringify({mode,crossFile:compiled.crossFile,state:state.code,app:app.code}));
+    assert.doesNotMatch(String(state.code),/secretField/u);
+    assert.doesNotMatch(String(app.code),/secretField/u);
+    const actual=await run(compiled.files.map(file=>({
+      path:file.path,sourceType:'module',code:String(file.code)
+    })));
+    assert.deepEqual(actual,native);
+  });
+}
