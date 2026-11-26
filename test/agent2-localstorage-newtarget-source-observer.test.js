@@ -63,7 +63,7 @@ const windowAliasSources=[{
     " const internal=()=>{const x=owner.secretField;storage.setItem('k',new.target);return x;};",
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 const sessionAliasSources=[{
@@ -76,7 +76,7 @@ const sessionAliasSources=[{
     " const internal=()=>{const x=owner.secretField;storage.setItem('k',new.target);return x;};",
     ' return {result:internal()};',
     '}'
-  ].join('\\n')
+  ].join('\n')
 }];
 
 async function assertStorageSourcePreserved(files,seed){
@@ -94,7 +94,7 @@ async function assertStorageSourcePreserved(files,seed){
   const actual=await run(emitted);
   process.stdout.write('WEB_STORAGE_SOURCE_OBSERVER '+JSON.stringify({
     original:native,emitted:actual,propertyRenames:app.metrics.properties,source:app.code
-  })+'\\n');
+  })+'\n');
   assert.equal(app.metrics.properties,0,
     JSON.stringify({native,actual,propertyRenames:app.metrics.properties,source:app.code}));
   assert.deepEqual(actual,native);
