@@ -2017,7 +2017,7 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * @param {string} seed
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
-function renameCrossFileProperties(files,seed) {
+function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
   // style/image/font assets are served with non-JavaScript MIME types and
@@ -2700,7 +2700,7 @@ function renameCrossFileProperties(files,seed) {
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,
           importedIdentities.get(exporterName),new Map(),new Map(),
           verifiedStrings.get(exporterName),verifiedPrimitives.get(exporterName),
-          allowDirectReflection,[],true);
+          allowDirectReflection,[],true,allowBoundFunctionTargets);
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
         const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
@@ -2797,7 +2797,7 @@ function renameCrossFileProperties(files,seed) {
             const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection,additional,true);
+              allowDirectReflection,additional,true,allowBoundFunctionTargets);
             if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             readerProof=proof;
@@ -3024,7 +3024,7 @@ function renameCrossFileProperties(files,seed) {
         const proof=proveLocalObject(importer.ast,alias,importer.bindings,
           importedIdentities.get(importerName),undefined,importedKeys,
           verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-          allowDirectReflection,[],true);
+          allowDirectReflection,[],true,allowBoundFunctionTargets);
         if(!proof) {
           failed=true;
           break;
