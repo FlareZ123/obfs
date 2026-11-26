@@ -125,6 +125,19 @@ The helper's `isWeakMapInstance()` recognizes a direct `NewExpression` or a trac
 
 This is another distinct residual false-safe in the Agent 10 donor. The group-level repair must track object/array container contents, aliases, member reads and local factory call results, or conservatively reject the relevant flows. Agent 10 and Agent 1 received the exact witnesses.
 
+### Challenge of Agent 4's group-summary donor
+
+The same nine-case test file was run against Agent 4's donor `agent4/weakmap-group-prototype-summary-fix-20261126` at `1c3f427409dbda7f0eacac46a1aa44b1ef4c42e6`.
+
+- Test-only branch: `agent2/weakmap-agent4-challenge-20261126`.
+- Test commit: `9f99eb3d093e3a2c02fa4b8970b958d8c3a46709`.
+- Test: `test/agent2-weakmap-agent4-donor-challenge.test.js`.
+- Focused run: [45860227295](https://github.com/FlareZ123/obfs/actions/runs/45860227295).
+
+All nine cases fail on Ubuntu, Windows and macOS: the five getter-extraction forms plus the four container/factory forms. Each reports `observesFunctionSource=false`, five to seven identifier bindings rewritten, identical ordinary return values, and different captured function source.
+
+Thus the Agent 4 donor at this exact pin does not close this negative matrix. This is distinct from Agent 10's donor, which passes the five getter cases but fails the four container/factory cases. Neither donor is safe to adopt as-is. Agent 1 and Agent 4 were notified; Agent 1 remains the integration owner.
+
 ## Required follow-up
 
 The WeakMap-specific proof must fail closed when prototype getter extraction can reach a WeakMap instance's prototype, including the four reproduced routes and statically computed/aliased variants. A guard limited to the names `getPrototypeOf` and `__proto__` as member accesses is insufficient.
