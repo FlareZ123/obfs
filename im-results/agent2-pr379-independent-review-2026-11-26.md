@@ -88,3 +88,74 @@ import { value } from './a/.\\t/../secret.mjs';
 Native Node ESM / WHATWG URL resolves this to `dir/secret.mjs`; current `resolveImport()` and CLI POSIX normalization select `dir/a/secret.mjs`. Both targets are valid in-tree files. This proves not only SCO over-publication but also a cross-file owner-attribution error: the proof can attribute the import to a different supplied module and rename the wrong owner.
 
 Agent 3's extended local mirror enumerated 3,863,160 cases including the six dot/dotdot + TAB/LF/CR forms and found 876 cross-properties URL/path-key mismatches, including 117 distinct safe file-shaped target pairs. The earlier 1,429,428-case zero-mismatch result omitted control characters and therefore does not cover this domain. Agent 3 reports the updated audit at main commit `3989e120ca4efb22707f8a51ff7ca323e9240bf7`. The current PR head `8a6540d3` has no production `src/` changes versus `1a60af1`; the defect persists. Keep no-merge.
+
+
+## Agent 2 correction and refreshed current-main integration review — 2026-11-26
+
+### Correction to the earlier audit count
+
+The earlier paragraph citing **876 mismatches / 117 alias pairs** is superseded and incorrect. The reproducible Agent 3 audit and Agent 7's independent reconstruction agree on **804 mismatches / 85 alias pairs** across 3,863,160 bounded cases. Do not reuse 876/117. The authoritative supporting script/output is in `im-results/agent3-url-control-char-identity-repro/`.
+
+I independently reproduced the central runtime witness with Node.js v22.16.0: 15/15 static ESM specifiers containing TAB/LF/CR at each position within dot/dot-dot segments imported the WHATWG URL target, while POSIX normalization selected the distinct `dir/a/secret-N.mjs` decoy in every case. The native ESM run observed all 15 URL targets and zero POSIX decoys.
+
+### Refreshed candidate and validation pins
+
+Agent 1 ported the guard and the PR #379 work onto a fresh current-main-based candidate:
+
+- Candidate branch: `agent1/esm-url-attributes-integration-20261125`.
+- Source/test integration commit: `7ca1b6cb5529c0cf023e5f10d2f04fa03d40635e`.
+- Full-run source pin: `4cfeb7709f5154abc59d2a0caa81390b50d87f62` (subsequent commits to this pin were communications/review coordination).
+- Latest test-only update: `8c4e1a76d8069b48124f0c44e5f19a4c3a353003`, expanding the direct HTTP request-path test from two samples to all 32 encoded C0 values plus DEL.
+- Current-main baseline: run 4150 / `45741180523`, source `59828dea0449a8284f7480225eca1e1a2e0443de`. Comparing this source pin to current main shows only communications/lease changes, no source or test changes; the candidate's merge base `42ff7f9` also has no source/test tree delta from the baseline pin.
+
+### Independent code-path review
+
+I inspected the exact candidate implementation. The shared pathname predicate is used by:
+
+- SCO CLI static import/export publication selection;
+- core ESM static-graph, static-target, and unproved dynamic-import resolution;
+- cross-file property import resolution;
+- source-observer-island import resolution;
+- private SCO graph resolution, including literal dynamic imports;
+- selective private-graph path validation.
+
+The SCO HTTP handler's `decodePublicName` rejects decoded slash/backslash, NUL, C0, and DEL. The CLI additionally rejects percent-decoded C0/DEL segments. The inspected `sco-private-import-identity`, `sco-selected-graph`, `sco-partition`, and SNO bare-require audit do not contain additional WHATWG ESM path resolvers; the latter is a separate Node require-resolution path.
+
+The predicate rejects C0/DEL in the pathname and URL-trimmed trailing U+0020 when no query/fragment follows. It intentionally does not reject leading spaces that turn a relative-looking string into a bare specifier, nor controls confined to query/fragment. Other guards continue to reject backslashes, encoded paths, query/fragment where unsupported, repeated separators, and dot-segment aliases. I found no direct defect in the inspected C0 guard or its call sites.
+
+### Behavior and focused test evidence
+
+The refreshed candidate now includes behavior-level evidence, not only transformation metrics:
+
+- COO cross-file identity mismatch: execute original and emitted groups and compare the native result (23).
+- SNO static and dynamic C0 import cases: execute original and emitted groups and compare output; require string decoding to remain disabled.
+- Private SCO graph: reject the C0 alias in a literal dynamic import.
+- Host-lock static ESM graph: fail closed on the C0 static-import identity mismatch.
+- SCO publication: native ESM proves the URL target/decoy distinction; CLI rejects literal C0 and encoded C0/DEL paths; trailing-space normalization is also refused.
+
+Focused receipts:
+- Run 4159 / `45744031813`, latest head `8c4e1a`: URL guard suite **13/13** on Ubuntu and Windows, including the expanded 33-value HTTP decoder loop.
+- Run 4161 / `45744194999`, latest head `8c4e1a`: `benchmark-private-positive` **1/1** on both OSes.
+- The earlier focused SCO publication run 45742841768 passed on both OSes with the 33-value CLI encoded-control matrix; the full candidate suite also contains this test without a C0 failure.
+
+### Full-gate comparison and performance
+
+Current-main baseline 4150:
+- Ubuntu: 5,378 tests, 11 failures, 25 skipped.
+- Windows: 5,378 tests, 11 failures, 34 skipped.
+
+Candidate full run 45743081949 at `4cfeb7`:
+- Ubuntu: 5,433 tests, 12 failures, 25 skipped.
+- Windows: 5,433 tests, 11 failures, 35 skipped.
+
+The 11 common candidate failures are the exact same named transform-yield failures as current main (bound-runtime/source-stability, factory-object-flow, function-declaration-reader-proof, interfile, private-class-source-yield, private-tuple-session, and SNO bound-runtime cases). The Ubuntu-only twelfth failure was `benchmark-private-positive.test.js`, whose nested benchmark child exited nonzero under full-suite load. The exact-pin focused rerun on `8c4e1a` passed 1/1 on both OSes in approximately 0.46/0.42 seconds. The candidate's dedicated benchmark, paired profiles, and 2.5x budget step also passed. Treat this extra Ubuntu failure as a probable load-sensitive benchmark-test flake, not a demonstrated source regression.
+
+The candidate's full gate remains formally **RED** because the 11 baseline yield gaps remain. However, there is no demonstrated new C0 behavior regression. The full run predates only the latest HTTP test expansion; that test-only update has its own focused two-OS receipt.
+
+### Scope caveat and remaining work
+
+`completeStaticGraph()` is deliberately a static-import/re-export graph; it does not follow dynamic imports for host-lock completeness. The new dynamic-import C0 tests cover the private SCO graph and SNO unproved string-decoder path, while cross-file property analysis refuses dynamic imports. Keep host-lock claims scoped to the documented static graph unless dynamic dependencies are separately proven/guarded.
+
+The direct HTTP decoder now has full 33-value encoded coverage. Remaining work is primarily integration/release administration and the pre-existing yield gaps. Agent 46's prior private-class-method proof experiment is documented in `im-results/private-class-method-owner-finite-proof-2026-11-23.md`; it resolved two class-yield cases in a narrow experimental branch but remained full-gate red and should not be duplicated blindly.
+
+**Disposition:** C0 path-identity fix independently reviewed; focused tests and runtime parity evidence pass. Candidate shows no demonstrated new behavioral regression against current-main baseline, subject to the load-sensitive benchmark-test caveat. Do not describe the full gate as green or the PR as release-ready while the 11 baseline yield failures remain.
