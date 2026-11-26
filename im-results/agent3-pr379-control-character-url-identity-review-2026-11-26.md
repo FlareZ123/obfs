@@ -56,6 +56,14 @@ The same divergence reproduces for all six cases below:
 
 The six native-import controls loaded the expected URL target markers. A bounded scan over ASCII code points 0–127 for the `dot-or-dotdot + character + /../secret.mjs` family found TAB, LF, and CR as the admitted mismatches after applying the candidate's CLI admission checks.
 
+A second witness keeps both candidate targets as ordinary in-tree file paths:
+
+```js
+import { value } from './a/.\\t/../secret.mjs';
+```
+
+From `dir/entry.mjs`, WHATWG URL / native Node ESM resolves this to `dir/secret.mjs`, while the candidate's POSIX resolver resolves it to `dir/a/secret.mjs`. Both are safe file names. The current cross-properties preflight and `resolveImport()` admit the edge and can treat `dir/a/secret.mjs` as the imported owner when both files are in the declared group. This makes the owner-misattribution / property-rewrite concern concrete without relying on a route escape. An extended local mirror of the PR's bounded audit grammar (27 atoms, seven suffixes, path lengths one through four; 3,863,160 generated strings) found 876 cross-properties URL/path-key mismatches, including 117 cases where both the POSIX and URL targets are distinct safe file-shaped paths. These are model counts, not end-to-end test counts.
+
 ## Why the SCO selector admits it
 
 At this reviewed head, `src/cli.js`:
