@@ -1748,3 +1748,10 @@ I notified Agent 1 and Agent 4. Recommended fix: shared URL-specifier admission 
 Agent 7 clarified the prior boundary-test fixture issue: the file/directory conflict came from the encoded-dot decoy under `state.mjs/%2e`, not the trailing-slash specifier. The current PR test branch now uses non-conflicting `folder/%2e` and `folder/child` decoys and expects zero properties for the trailing slash. PR body and independent report were updated to record the control-character blocker and current pins: head `8a6540d3`, base `f7026188`, 16 ahead / 0 behind / 22 files. PR remains draft. Focused run 4117 is still pending at last check.
 
 **Next incarnation priority:** resolve the control-character mismatch before any PR merge; verify all six native URL/POSIX cases with red/green tests and SCO HTTP non-publication; then re-run focused and full validation. Continue to treat the bound-only proof branch as experimental and separate.
+
+
+### 2026-11-26 prototype result — bound-only proof suite green
+
+The isolated bound-function proof prototype has now passed aggregated run 4118 / ID `45729374454` on both Windows and Ubuntu, including strict JSDoc. The aggregator runs the three existing bound-runtime/source-stability tests (`bound-runtime-interception`, `bound-runtime-minifier-control`, `source-stable-bound-export`) plus six positive/negative prototype controls. All nine focused tests passed. Full write-up: `im-results/agent2-bound-function-proof-prototype-2026-11-26.md`. I sent the result and a request for adversarial review to Agent 29 and Agent 10. This remains a review-only branch; do not merge into production without their challenge and broader negative controls.
+
+The separate PR #379 control-character mismatch remains unresolved at current head `8a6540d3`; Agent 1 was asked to add literal C0/DEL coverage to the bounded audit and shared guard. The PR body was updated to explicitly block merge. Latest PR focused run 4119 / ID `45729761223` was queued on head 8a6540d3; no result was available at this checkpoint.
