@@ -695,6 +695,109 @@ test('CommonJS exported WeakMap-derived class is a group escape',()=>{
   assert.equal(hasWeakMapPrototypeExposure(parse(source,'script')),true);
 });
 
+
+/**
+ * Execute the supplied CommonJS group with an external bare-specifier package
+ * that is deliberately not part of the obfuscator input.
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function runCjsWithExternalRequireFactory(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent7-weakmap-cjs-import-'));
+  const externalRunner=[
+    'class Storage {',
+    '  constructor(){this.data=new Map();}',
+    '  setItem(key,value){this.data.set(String(key),String(value));}',
+    '}',
+    'globalThis.Storage=Storage;',
+    'globalThis.localStorage=new Storage();',
+    'let documentTitle="";',
+    'globalThis.document={};',
+    'Object.defineProperty(globalThis.document,"title",{',
+    '  get(){return documentTitle;},',
+    '  set(value){documentTitle=String(value);}',
+    '});',
+    "const {sample}=require('./entry.cjs');",
+    'const result=sample();',
+    'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+  ].join('\n');
+  try {
+    for(const file of files) {
+      fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    }
+    const packageDirectory=path.join(directory,'node_modules','opaque-runtime');
+    fs.mkdirSync(packageDirectory,{recursive:true});
+    fs.writeFileSync(path.join(packageDirectory,'package.json'),
+      JSON.stringify({main:'index.cjs'}),'utf8');
+    fs.writeFileSync(path.join(packageDirectory,'index.cjs'),
+      'module.exports={make:function(){return new WeakMap();}};','utf8');
+    fs.writeFileSync(path.join(directory,'external-runner.cjs'),externalRunner,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'external-runner.cjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+test('unresolved CommonJS require factory external source-capture fails closed',()=>{
+  const mutateSource=[
+    "const {make}=require('opaque-runtime');",
+    'const nativePrototype=Object.getPrototypeOf(make());',
+    ...patchLines
+  ].join('\n');
+  const storageSourceCjs=[
+    'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+    'const captured=new WeakMap();',
+    'function inspect(){const privateLocal=29;return privateLocal;}',
+    'function independent(){const independentLocal=7;return independentLocal;}',
+    'function sample(){',
+    '  Object.defineProperty(Storage.prototype,"setItem",{',
+    '    ...descriptor,',
+    '    value:function(_key,value){captured.set(this,value);}',
+    '  });',
+    '  localStorage.setItem("storage-prototype-override",inspect);',
+    '  return {value:inspect(),independent:independent()};',
+    '}',
+    'module.exports={sample};'
+  ].join('\n');
+  const sourceFiles=[
+    {path:'mutate.cjs',sourceType:'commonjs',code:mutateSource},
+    {path:'entry.cjs',sourceType:'commonjs',code:"require('./mutate.cjs'); module.exports=require('./storage.cjs');"},
+    {path:'storage.cjs',sourceType:'commonjs',code:storageSourceCjs}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(mutateSource,'script'));
+  const native=runCjsWithExternalRequireFactory(
+    sourceFiles.map(file=>({path:file.path,code:file.code}))
+  );
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  const failures=[];
+  const refusals=[];
+  for(const mode of ['coo','sno','sco']) {
+    try {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent7-cjs-required-factory-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.cjs');
+      assert.ok(storage,'missing storage.cjs for '+mode);
+      const emitted=runCjsWithExternalRequireFactory(
+        compiled.files.map(file=>({path:file.path,code:String(file.code)}))
+      );
+      if(storage.metrics.bindings!==0 ||
+         emitted.capturedSource!==native.capturedSource ||
+         JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
+        failures.push({mode,analysis,storageMetrics:storage.metrics,native,emitted});
+      }
+    } catch(error) {
+      refusals.push({mode,error:String(error)});
+    }
+  }
+  assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures,refusals}));
+});
+
 test('CommonJS unresolved require factory result is not a definite non-WeakMap value',()=>{
   const source=[
     'const {make}=require("opaque-runtime");',
