@@ -7,7 +7,6 @@ const {obfuscateFiles}=require('../src');
 /**
  * @param {string} source
  * @param {string} seed
- * @returns {import('../src/core').ObfuscatedFile}
  */
 function compile(source,seed){
   const result=obfuscateFiles([{
@@ -30,14 +29,14 @@ const tail=[
   '  };',
   '  return internal();',
   '}'
-].join('\\n');
+].join('\n');
 
 test('private unmodified WeakMap-backed Storage override is a reference-only positive control',()=>{
   const source=[
     'const values=new WeakMap();',
     'Storage.prototype.setItem=function(key,value){values.set(this,value);};',
     tail
-  ].join('\\n');
+  ].join('\n');
   const app=compile(source,'agent1-weakmap-reference-only-positive');
   assert.equal(app.metrics.properties,1,
     JSON.stringify({metrics:app.metrics,code:app.code}));
@@ -50,7 +49,7 @@ test('WeakMap.prototype.set string coercion invalidates reference-only Storage o
     'WeakMap.prototype.set=function(key,value){return nativeSet.call(this,key,String(value));};',
     'Storage.prototype.setItem=function(key,value){values.set(this,value);};',
     tail
-  ].join('\\n');
+  ].join('\n');
   const app=compile(source,'agent1-weakmap-prototype-set-negative');
   assert.equal(app.metrics.properties,0,
     JSON.stringify({metrics:app.metrics,code:app.code}));
@@ -61,7 +60,7 @@ test('exported WeakMap backing store invalidates reference-only Storage override
     'export const values=new WeakMap();',
     'Storage.prototype.setItem=function(key,value){values.set(this,value);};',
     tail
-  ].join('\\n');
+  ].join('\n');
   const app=compile(source,'agent1-weakmap-exported-instance-negative');
   assert.equal(app.metrics.properties,0,
     JSON.stringify({metrics:app.metrics,code:app.code}));
