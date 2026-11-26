@@ -35,7 +35,7 @@ This is an observed extra false positive, not just a theoretical concern. The fi
 
 Branch: `agent4/compound-casefold-fullfold-fix-20261126`
 
-Candidate head: `c248d52aeeeecf1e35b5a90f01696ca3ef10b2a3`
+Candidate head: `c720480c8471553031bca6c07749050107df4067`
 
 The correction preserves the three existing conservative keys and adds a fourth key based on Unicode 15.1 default full case folding, applied to the complete NFC-normalized string. The generated override table records the 297 scalars for which full default folding differs from per-code-point lowercase; other scalars use per-code-point lowercase. Turkic-only mappings are excluded. NFC is applied before and after folding.
 
@@ -49,7 +49,7 @@ Reproduction/generation artifacts:
 - `test/portable-path-tree.test.js`
 - `test/portable-fs-casefold-probe.test.js`
 
-Focused validation on the correction branch:
+Focused validation on the correction branch (code/test validation head c248d52; the final branch head c720480 adds only JSDoc/comment clarifications to the Unicode-version boundary):
 
 | Run | Scope | Result |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ The native-probe green result shows that the new inventory rejects the compound 
 - The table is pinned to Unicode 15.1.0 while the macOS Node runner reports Unicode 17.0. The tested mappings are present in 15.1.0; new Unicode mappings and future table updates remain a maintenance boundary.
 - Keeping the existing three keys intentionally retains their known conservative refusals (including the dotless-I case). The full-fold key improves compound coverage but does not establish a universal filesystem-equivalence theorem.
 - This is a path identity and safe-publication correctness result. It does not increase confidentiality, anti-debugging strength, tamper resistance, or satisfy the 2.5× runtime constraint.
-- The correction branch is separate from PR #379 and is not integrated into `main` or the PR branch. Do not treat the focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
+- The correction branch is a temporary port source for the sole integration path PR #379, not a separate PR or merge path. It is not integrated into `main` or the PR branch. Do not treat the focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
 
 Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded).
 
