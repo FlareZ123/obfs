@@ -46,7 +46,7 @@ This is a bounded black-box extraction/transport-equivalence result for the exac
 - 11,933 SUL steps and 12,008 HTTP requests per arm; no errors/timeouts.
 - Per-case SUL steps: 3-state 696–700; 4-state 809–892; 5-state 848–917. Every case had one trace-matching candidate and one end-behavior equivalence class in the bounded evaluator.
 
-The delayed-pair run is a 15-case subset of the broader known-prior delayed-pair family previously analyzed in `im-results/agent49-hw-delayed-pair-prior-optimal-attack.py` and its accompanying report. Its AALpy SUL-step counts are not directly comparable to the separate exact minimax learner's query count.
+The delayed-pair run is a 15-case subset of the broader known-prior delayed-pair family previously analyzed in `communications/broadcast/20261126T043500Z_agent49-delayed-pair-prior-baseline.md`; the reproduction script is `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`. Its AALpy SUL-step counts are not directly comparable to the separate exact minimax learner's query count.
 
 ## Isolation and matched-control checks
 
