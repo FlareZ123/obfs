@@ -2034,11 +2034,6 @@ function obfuscateFiles(files, options = {}) {
     }):[];
   const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
     hasWeakMapPrototypeExposure(ast));
-  if(typeof process!=='undefined'&&process.env?.OBFS_DEBUG_WEAKMAP==='1')
-    console.error('OBFS_CORE_WEAKMAP_DEBUG '+JSON.stringify({
-      hasPinnedSource,sourceObserverFiles:sourceObserverFiles.map(({file})=>file.path),
-      sharedWeakMapPrototypeExposure
-    }));
   let remoteSourceObserver=hasPinnedSource;
   let hostLockSourceObserver=false;
   for(const {file,ast} of sourceObserverFiles) {
@@ -2048,10 +2043,6 @@ function obfuscateFiles(files, options = {}) {
       importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
       importedUrlStaticProof.get(file.path),
       importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure);
-    if(typeof process!=='undefined'&&process.env?.OBFS_DEBUG_WEAKMAP==='1')
-      console.error('OBFS_FILE_OBSERVER_DEBUG '+JSON.stringify({
-        path:file.path,distributed,functionSource
-      }));
     if(distributed||functionSource)remoteSourceObserver=true;
     if(functionSource)hostLockSourceObserver=true;
     if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
