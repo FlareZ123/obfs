@@ -482,7 +482,13 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
       if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
-      return pathname.slice(1);
+      // Some static servers decode encoded separators before normalizing the
+      // filesystem path. Compare the post-decode POSIX identity as well as the
+      // raw URL spelling above so SRI pins cannot be missed through %2F/.. .
+      const normalized=path.posix.normalize(pathname.slice(1));
+      if(normalized==='.'||normalized==='..'||normalized.startsWith('../')||
+         path.posix.isAbsolute(normalized))return null;
+      return normalized;
     }catch(error){return null;}
   }
 
