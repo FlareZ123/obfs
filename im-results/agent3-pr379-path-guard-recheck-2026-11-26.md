@@ -104,3 +104,5 @@ This is a compatibility/fail-early issue, not a demonstrated disclosure. Given t
 
 
 A minimal regression belongs in the existing `test/sco-public-file-paths.test.js`: add `'del\u007f.mjs'` to its `invalid` path array and require `createScoHandler` to reject it during construction. That test currently covers C0 indirectly via the shared path policy only where exercised, but has no DEL case. The direct SCO API is enough to expose the mismatch without needing an HTTP fixture.
+
+A minimal Node HTTP server also accepted `GET /del%7f.mjs` (status 200), preserved `url.pathname === '/del%7f.mjs'`, and decoded the segment to U+007F. Thus the unreachable-file behavior is not caused by Node's HTTP parser rejecting the request; it is specifically the SCO decoder's policy mismatch with `safePath` admission.
