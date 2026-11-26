@@ -7,8 +7,10 @@ import importlib.metadata
 import hashlib
 import importlib.util
 import json
+import os
 import selectors
 import secrets
+import signal
 import shutil
 import subprocess
 import sys
@@ -18,6 +20,13 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
+
+from agent2_hw_process_isolation import (
+    assert_process_uid,
+    command_as,
+    isolation_accounts,
+    safe_environment,
+)
 
 MODULE_PATH = Path(__file__).with_name("agent2-hw-no-reset-benchmark.py")
 SPEC = importlib.util.spec_from_file_location("agent2_hw_no_reset_benchmark", MODULE_PATH)
@@ -42,28 +51,55 @@ def read_line_with_timeout(stream, timeout_seconds: float) -> str:
         selector.close()
 
 
+def terminate_process_group(process):
+    """Terminate the sudo/setpriv/child process group, including grandchildren."""
+    if process.poll() is not None:
+        return
+    sudo = shutil.which("sudo")
+    for sig in ("TERM", "KILL"):
+        try:
+            if os.geteuid() == 0:
+                os.killpg(process.pid, getattr(signal, "SIG" + sig))
+            elif sudo:
+                subprocess.run(
+                    [sudo, "-n", "/bin/kill", "-" + sig, "--", f"-{process.pid}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+            else:
+                process.terminate() if sig == "TERM" else process.kill()
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            if sudo:
+                subprocess.run(
+                    [sudo, "-n", "/bin/kill", "-" + sig, "--", f"-{process.pid}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    check=False,
+                )
+        try:
+            process.wait(timeout=5)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+    process.wait(timeout=5)
+
+
 def start_server(fixture, seed: int):
     node_path = shutil.which("node")
-    sudo_path = shutil.which("sudo")
-    if not node_path or not sudo_path:
-        raise RuntimeError("node and sudo are required for isolated live SCO server")
-    identity = subprocess.run(
-        [sudo_path, "-n", "-u", "nobody", "--", "/usr/bin/id", "-u"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-    )
-    if identity.returncode != 0 or identity.stdout.strip() != "65534":
-        raise RuntimeError(
-            "could not launch the SCO server as uid nobody: "
-            + identity.stderr.strip()
-        )
+    if not node_path:
+        raise RuntimeError("node is required for isolated live SCO server")
+    server_user, learner_user = isolation_accounts()
+    if server_user.pw_uid == learner_user.pw_uid:
+        raise RuntimeError("SCO server and learner must have distinct UIDs")
+    child_env = safe_environment()
 
-    # GitHub-hosted runners keep /home/runner/work non-traversable to
-    # unprivileged users. Mirror only public compiler/runtime code into a
-    # world-readable tree so uid nobody can load the server entry. The private
-    # application module remains in the server's separate 0700 temp root.
+    # Mirror only public compiler/runtime/client code into a world-readable tree.
+    # The private application module is created later in a separate 0700 root.
     repository_root = Path(__file__).resolve().parents[1]
     mirror_root = Path(tempfile.mkdtemp(prefix="obfs-agent2-live-server-"))
     mirror_root.chmod(0o755)
@@ -73,14 +109,19 @@ def start_server(fixture, seed: int):
         shutil.copytree(repository_root / "node_modules", mirror_root / "node_modules")
         mirrored_sims = mirror_root / "sims"
         mirrored_sims.mkdir()
-        shutil.copy2(
-            Path(__file__).with_name("agent2-hw-live-sco-server.js"),
-            mirrored_sims / "agent2-hw-live-sco-server.js",
-        )
+        for name in (
+            "agent2-hw-live-sco-server.js",
+            "agent2-hw-live-sco-client.py",
+            "agent2-hw-no-reset-benchmark.py",
+        ):
+            shutil.copy2(Path(__file__).with_name(name), mirrored_sims / name)
         server_script = mirrored_sims / "agent2-hw-live-sco-server.js"
-        command = [
-            sudo_path, "-n", "-u", "nobody", "--", node_path, str(server_script)
-        ]
+        command = command_as(
+            server_user.pw_uid,
+            server_user.pw_gid,
+            [node_path, str(server_script)],
+            child_env,
+        )
         process = subprocess.Popen(
             command,
             stdin=subprocess.PIPE,
@@ -89,6 +130,8 @@ def start_server(fixture, seed: int):
             text=True,
             bufsize=1,
             cwd=mirror_root,
+            env=child_env,
+            start_new_session=True,
         )
         machine = {
             "next": [list(row) for row in fixture.transitions],
@@ -103,50 +146,89 @@ def start_server(fixture, seed: int):
             "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
             "session_token": session_token,
         }
-        try:
-            process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-            process.stdin.flush()
-            line = read_line_with_timeout(process.stdout, 30)
-        except Exception as error:
-            if process.poll() is None:
-                process.kill()
-            process.wait(timeout=10)
-            stderr = process.stderr.read() if process.stderr else ""
-            raise RuntimeError(
-                f"Node SCO server failed before readiness: {error}; "
-                f"stderr={stderr[-4000:]}"
-            ) from error
-
+        process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
+        process.stdin.flush()
+        line = read_line_with_timeout(process.stdout, 30)
         if line.startswith("ERROR "):
-            process.wait(timeout=10)
-            stderr = process.stderr.read() if process.stderr else ""
-            raise RuntimeError(
-                "Node SCO server initialization failed: "
-                + line[6:]
-                + "\n"
-                + stderr[-4000:]
-            )
+            raise RuntimeError("Node SCO server initialization failed: " + line[6:])
         if not line.startswith("READY "):
-            process.kill()
-            process.wait(timeout=10)
-            stderr = process.stderr.read() if process.stderr else ""
-            raise RuntimeError(
-                "unexpected Node SCO server readiness line: "
-                + line
-                + "\n"
-                + stderr[-4000:]
-            )
+            raise RuntimeError("unexpected Node SCO server readiness line: " + line)
         ready = json.loads(line[6:])
         if ready.get("partition_names") != ["step"]:
             raise AssertionError(f"unexpected public SCO methods: {ready!r}")
+        if ready.get("uid") != server_user.pw_uid:
+            raise AssertionError(f"SCO server UID mismatch: {ready!r}")
+        if set(ready.get("environment_keys", [])) != set(child_env):
+            raise AssertionError(f"SCO server environment was not scrubbed: {ready!r}")
+        assert_process_uid(ready["pid"], server_user.pw_uid, "SCO server")
+        if int(ready.get("private_root_mode", "0"), 8) != 0o700:
+            raise AssertionError(f"SCO private root is not mode 0700: {ready!r}")
+        if int(ready.get("private_file_mode", "0"), 8) != 0o600:
+            raise AssertionError(f"SCO private file is not mode 0600: {ready!r}")
         return process, ready, canary, session_token, mirror_root
     except Exception:
         if process is not None:
-            if process.poll() is None:
-                process.kill()
-            process.wait(timeout=10)
+            terminate_process_group(process)
+            if process.stderr:
+                process.stderr.read()
         shutil.rmtree(mirror_root, ignore_errors=True)
         raise
+
+
+def run_client(origin: str, learner_seed: int, args, mirror_root: Path):
+    """Run the hW learner as nobody with an independent, public RNG seed."""
+    _server_user, learner_user = isolation_accounts()
+    child_env = safe_environment()
+    client_script = mirror_root / "sims" / "agent2-hw-live-sco-client.py"
+    command = command_as(
+        learner_user.pw_uid,
+        learner_user.pw_gid,
+        [
+            sys.executable,
+            str(client_script),
+            "--origin", origin,
+            "--learner-seed", str(learner_seed),
+            "--random-walk-length", str(args.random_walk_length),
+            "--origin-states", str(args.origin_states),
+        ],
+        child_env,
+    )
+    process = subprocess.Popen(
+        command,
+        cwd=mirror_root,
+        env=child_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=args.timeout_seconds + 10)
+    except subprocess.TimeoutExpired:
+        terminate_process_group(process)
+        stdout, stderr = process.communicate()
+        return {
+            "status": "timeout",
+            "partial_stdout": (stdout or "")[-2000:],
+            "partial_stderr": (stderr or "")[-2000:],
+        }
+    if not stdout.strip():
+        raise RuntimeError("HTTP hW client returned no JSON; stderr=" + (stderr or "")[-3000:])
+    result = json.loads(stdout.strip().splitlines()[-1])
+    if process.returncode != 0 or result.get("status") != "completed":
+        raise RuntimeError(
+            "HTTP hW client failed: " + json.dumps(result, sort_keys=True)
+            + "\n" + (stderr or "")[-3000:]
+        )
+    if result.get("uid") != learner_user.pw_uid or result.get("euid") != learner_user.pw_uid:
+        raise AssertionError(f"learner did not run as nobody: {result!r}")
+    if set(result.get("environment_keys", [])) != set(child_env):
+        raise AssertionError(f"learner environment was not scrubbed: {result!r}")
+    result["process_isolated"] = True
+    result["learner_seed"] = learner_seed
+    return result
+
+def preflight(
 
 def preflight(
     origin: str,
@@ -233,8 +315,7 @@ def stop_server(process):
         stderr = process.stderr.read() if process.stderr else ""
         return stats, stderr
     except Exception:
-        process.kill()
-        process.wait(timeout=10)
+        terminate_process_group(process)
         stderr = process.stderr.read() if process.stderr else ""
         raise RuntimeError("failed to stop Node SCO server: " + stderr)
 
@@ -273,9 +354,7 @@ def verify_target_trace(fixture, trace):
 def run_one(state_count: int, seed: int, args):
     started = time.perf_counter()
     fixture = BENCHMARK.generate_fixture(state_count, seed)
-    oracle_seed = (
-        seed * 0x9E3779B1 + state_count * 0x85EBCA77
-    ) & 0xFFFFFFFF
+    learner_seed = args.learner_seed
     server_process = None
     server_root = None
     server_stats = None
@@ -290,48 +369,19 @@ def run_one(state_count: int, seed: int, args):
             session_token,
             ready["method_name"],
         )
-        client_script = Path(__file__).with_name("agent2-hw-live-sco-client.py")
-        command = [
-            sys.executable,
-            str(client_script),
-            "--origin", ready["origin"],
-            "--oracle-seed", str(oracle_seed),
-            "--random-walk-length", str(args.random_walk_length),
-            "--origin-states", str(args.origin_states),
-        ]
-        try:
-            client_process = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                timeout=args.timeout_seconds + 10,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as error:
+        client_result = run_client(ready["origin"], learner_seed, args, server_root)
+        if client_result.get("status") == "timeout":
             return {
                 "state_count": state_count,
                 "seed": seed,
-                "oracle_seed": oracle_seed,
+                "learner_seed": learner_seed,
                 "status": "timeout",
                 "timeout_seconds": args.timeout_seconds,
-                "partial_stdout": (error.stdout or "")[-2000:],
-                "partial_stderr": (error.stderr or "")[-2000:],
+                "partial_stdout": client_result.get("partial_stdout", ""),
+                "partial_stderr": client_result.get("partial_stderr", ""),
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
-        if not client_process.stdout.strip():
-            raise RuntimeError(
-                "HTTP hW client returned no JSON; stderr="
-                + client_process.stderr[-3000:]
-            )
-        client_result = json.loads(client_process.stdout.strip().splitlines()[-1])
-        if client_process.returncode != 0 or client_result.get("status") != "completed":
-            raise RuntimeError(
-                "HTTP hW client failed: "
-                + json.dumps(client_result, sort_keys=True)
-                + "\n"
-                + client_process.stderr[-3000:]
-            )
 
         trace = client_result["trace"]
         target_post_state = verify_target_trace(fixture, trace)
@@ -376,7 +426,7 @@ def run_one(state_count: int, seed: int, args):
         result = {
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "status": "completed",
             "target_initial_state": fixture.initial_state,
             "target_post_trace_state": target_post_state,
@@ -397,7 +447,7 @@ def run_one(state_count: int, seed: int, args):
             "unauthorized_status": preflight_result["unauthorized_status"],
             "reset_status": preflight_result["reset_status"],
             "partition_names": ready["partition_names"],
-            "server_user_isolated": True,
+            "server_user_isolated": ready.get("uid") != learner_user.pw_uid and client_result.get("process_isolated") is True,
             "server_stats": server_stats,
             "server_stderr": server_stderr[-1000:],
             "pre_calls": client_result["pre_calls"],
@@ -442,7 +492,7 @@ def run_one(state_count: int, seed: int, args):
         return {
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "status": "error",
             "error": repr(error),
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
@@ -466,6 +516,7 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=30)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
+    parser.add_argument("--learner-seed", type=int, default=41342)
     args = parser.parse_args()
     if not (2 <= args.min_states <= args.max_states <= 12):
         raise ValueError("state range must satisfy 2 <= min <= max <= 12")
@@ -490,9 +541,9 @@ def main():
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
             "timeout_seconds": args.timeout_seconds,
-            "learner_process": "separate Python subprocess; receives only HTTP origin, fetches the public module, and obtains its RPC method identifier and session cookie from response headers",
-            "server_process": "Node SCO process run as uid nobody; private fixture and per-run session token supplied over stdin and held in server memory/private temp directory",
-            "evaluator": "parent process only; target fixture is not passed to learner subprocess",
+            "learner_process": "Python subprocess runs as uid nobody with setpriv no-new-privs, empty capability bounding set, and an env -i allowlist; receives only HTTP origin and an independent learner RNG seed",
+            "server_process": "Node SCO process runs as uid www-data with setpriv no-new-privs, empty capability bounding set, and an env -i allowlist; private fixture and per-run session token are supplied over stdin and held in server memory/private mode-0700 temp root",
+            "evaluator": "trusted parent only; target fixture/seed are never passed in learner argv or environment; learner RNG seed is independent of target seed and state count",
             "candidate_scope": "trace-matching states in the returned conjecture only, not the full model version space",
         },
         "total_runs": len(results),
