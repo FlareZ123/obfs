@@ -1,7 +1,7 @@
 'use strict';
 
 /** @type {Record<string,string>} */
-const overrides=require('./unicode-casefold-overrides.json');
+const overrides=require('./unicode-casefold-overrides');
 
 /**
  * Apply Unicode 15.1 default full case folding.
