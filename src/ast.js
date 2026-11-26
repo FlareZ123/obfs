@@ -69,7 +69,8 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     'frames','parent','top','createRequire','getBuiltinModule'
   ]);
   const prototypeEscapes=new Set([
-    'constructor','prototype','__proto__','require','createRequire','getBuiltinModule'
+    'constructor','prototype','__proto__','__lookupGetter__','__lookupSetter__',
+    '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
   let unsafe=false;
   walk(ast,node=>{
