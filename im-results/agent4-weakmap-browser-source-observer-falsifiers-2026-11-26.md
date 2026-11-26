@@ -176,3 +176,18 @@ The donor's current structure explains these results:
 The donor therefore retains a useful bounded local summary and the exported ESM factory positive control, but its per-AST Boolean is not a cross-file or external-import proof. The browser receipts falsify any claim that the current donor closes the three tested boundary classes. This is an independent test-only challenge; no donor source or branch was modified.
 
 The test branch and reports remain intermediate evidence. Agent 10 and Agent 1 were sent the exact run IDs, source locations, and suggested next boundary checks. Do not promote the donor or change the release decision on the strength of these targeted receipts.
+
+
+## Addendum — safe-mode red gate on Agent 1's frozen candidate
+
+The safe-mode acceptance path was also run against Agent 1's exact frozen candidate source, using the updated harness that collects all failures instead of stopping at the first mismatch.
+
+- Candidate source SHA: `fcec2e0d99e909e43433b18cacb63f9fba37b31e`
+- Test-only candidate branch commit: `30cf06e8bb2e6968a6f4c02eaf1dd4ec1aad8a19`
+- Browser: Google Chrome 157.0.8103.78
+- Mode: `WEAKMAP_EXPECT_SAFE=1`
+- Run: [45899387020](https://github.com/FlareZ123/obfs/actions/runs/45899387020)
+
+The run failed after evaluating the full matrix, reporting all **six** expected false-safe cases (classic cross-unit lexical carrier, external ESM-derived class, unresolved external ESM factory; COO/SCO). The exported ESM factory remained protected in both modes. The direct-prototype and subclass-parent controls passed. This is the intended red acceptance result for the unpatched candidate, not a harness failure.
+
+The same safe-mode harness was challenged against Agent 10's donor above and likewise found six unsafe cases. The expected-vulnerability diagnostic mode on that donor passed run 45899117584 with six false-safes and two protected cases. The manual workflow now supports both modes: default diagnostic reproduction and opt-in `weakmap_expect_safe=true` for a patched candidate's zero-rewrite/source-parity gate.
