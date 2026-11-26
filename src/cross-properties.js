@@ -1510,34 +1510,207 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     }while(returnChanged);
+    // A wrapper may return an object/array containing a function that will
+    // itself acquire an opaque host capability when invoked. The wrapper is
+    // not an ambient callable directly; track its result as a holder, not
+    // as a direct invocation of a host function.
+    /** @type {Set<string>} */
+    const returnedHostCarriers=new Set();
+    let carrierChanged;
+    do {
+      carrierChanged=false;
+      for(const [name,expressions] of factoryReturnExpressions) {
+        if(returnedHostCarriers.has(name))continue;
+        let carries=false;
+        for(const expression of expressions) {
+          walk(expression,node=>{
+            if(node.type==='Identifier' &&
+               returnedHostFactories.has(node.name))carries=true;
+            if(node.type==='CallExpression' &&
+               node.callee.type==='Identifier' &&
+               returnedHostCarriers.has(node.callee.name))carries=true;
+          });
+          if(carries)break;
+        }
+        if(carries) {
+          returnedHostCarriers.add(name);
+          carrierChanged=true;
+        }
+      }
+    }while(carrierChanged);
     /**
      * A call-result alias can be used directly as a constructor or callable,
      * via its member, or as an opaque callback argument. A named import of
      * the factory is recognized across declared ESM module boundaries.
-     * @param {string} factory
+     * @param {Set<string>} factories
+     * @param {Set<string>} carriers
      * @returns {boolean}
      */
-    function invokesFactoryResult(factory) {
+    function invokesFactoryResult(factories,carriers) {
       for(const caller of modules.values()) {
-        const callableNames=new Set([factory]);
+        const callableNames=new Set(factories);
+        const holderReturnNames=new Set(carriers);
         /** @type {Set<string>} */
         const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
-             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.imported.type==='Identifier' && factories.has(node.imported.name) &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
+          if(node.type==='ImportSpecifier' &&
+             node.imported.type==='Identifier' && carriers.has(node.imported.name) &&
+             node.local.type==='Identifier')holderReturnNames.add(node.local.name);
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
         });
+        // A first-class host-returning factory can be held in ordinary
+        // object/array literals, extracted, and passed as a callback without
+        // appearing as a direct identifier at the invocation callsite.
+        /** @type {Set<string>} */
+        const callbackHolders=new Set();
+        /**
+         * A spread may be a dynamic capability edge: accessors, iterators
+         * and proxies can execute arbitrary code. For object spread only,
+         * the own-data payload of a strictly inert primitive literal tree
+         * may be excluded from that uncertainty. Array spread remains
+         * effectful because Symbol.iterator can be supplied at runtime.
+         *
+         * @param {AstNode|null|undefined} value
+         * @param {number} depth
+         * @returns {boolean}
+         */
+        function inertSpreadLiteral(value,depth) {
+          if(!value||depth>16)return false;
+          if(value.type==='Literal')
+            return value.value===null ||
+              ['number','string','boolean','bigint'].includes(typeof value.value);
+          if(value.type==='ArrayExpression')
+            return value.elements.every((/** @type {AstNode|null} */ element)=>
+              element!==null && element.type!=='SpreadElement' &&
+              inertSpreadLiteral(element,depth+1));
+          if(value.type==='ObjectExpression')
+            return value.properties.every((/** @type {AstNode} */ property)=>
+              property.type==='Property' && property.kind==='init' &&
+              !property.method && !property.computed &&
+              inertSpreadLiteral(property.value,depth+1));
+          return false;
+        }
+        /**
+         * @param {AstNode|null|undefined} value
+         * @param {number} depth
+         * @returns {boolean}
+         */
+        function holdsFactoryValue(value,depth) {
+          if(!value)return false;
+          // Refuse unproved deep nesting, rather than silently assuming
+          // that a recursively held callable cannot escape.
+          if(depth>24)return true;
+          if(value.type==='Identifier')return callableNames.has(value.name) ||
+            callbackHolders.has(value.name) || holderReturnNames.has(value.name);
+          if(value.type==='CallExpression') {
+            if(value.callee.type==='Identifier' &&
+               holderReturnNames.has(value.callee.name))return true;
+            if(value.callee.type==='MemberExpression') {
+              const method=value.callee.computed?
+                staticString(value.callee.property):
+                staticName(value.callee.property);
+              // A namespace export or a known object-held container
+              // factory can return a callback-bearing object/array.
+              if(value.callee.object.type==='Identifier' &&
+                 namespaceNames.has(value.callee.object.name) &&
+                 method!==null && holderReturnNames.has(method))return true;
+              return holdsFactoryValue(value.callee.object,depth+1);
+            }
+          }
+          if(value.type==='MemberExpression') {
+            // A named ESM namespace export can itself be passed as the
+            // callback, rather than being directly invoked in source.
+            const selected=value.computed?staticString(value.property):
+              staticName(value.property);
+            if(value.object.type==='Identifier' &&
+               namespaceNames.has(value.object.name) && selected!==null && factories.has(selected))
+              return true;
+            // Nested holder.member.member forms retain the same potential
+            // host callback even when the outer member is not a name.
+            return holdsFactoryValue(value.object,depth+1);
+          }
+          // Array spread invokes @@iterator and is not bounded merely
+          // by its literal elements when the runtime's iterator can change.
+          // Object spread of a strictly inert own-data literal has a
+          // narrower CopyDataProperties contract (handled below).
+          if(value.type==='SpreadElement')
+            return true;
+          if(value.type==='ArrayExpression')
+            return value.elements.some((/** @type {AstNode|null} */ item)=>
+              holdsFactoryValue(item,depth+1));
+          if(value.type==='ObjectExpression')
+            return value.properties.some((/** @type {AstNode} */ property)=>
+              property.type==='Property'?
+                property.kind!=='init' || property.computed || property.method ||
+                holdsFactoryValue(property.value,depth+1):
+              property.type==='SpreadElement'?
+                !inertSpreadLiteral(property.argument,0):true);
+          return false;
+        }
+        /**
+         * A nested mutable member has the same root binding as its holder.
+         * When a callback may be installed at any depth, conservatively
+         * mark the owning root as a possible carrier.
+         * @param {AstNode|null|undefined} expression
+         * @returns {string|null}
+         */
+        function rootHolderName(expression) {
+          let part=expression;
+          while(part?.type==='MemberExpression')part=part.object;
+          return part?.type==='Identifier'?part.name:null;
+        }
         let aliasChanged;
         do {
           aliasChanged=false;
           walk(caller.ast,node=>{
+            // Ordinary property/index writes may install a host-returning
+            // factory into a previously inert holder, including nested
+            // carrier.holder.callback and carrier.inner[0] paths.
+            if(node.type==='AssignmentExpression' && node.operator==='=' &&
+               node.left.type==='MemberExpression') {
+              const holderName=rootHolderName(node.left.object);
+              if(holderName && holdsFactoryValue(node.right,0) &&
+                 !callbackHolders.has(holderName)) {
+                callbackHolders.add(holderName);
+                aliasChanged=true;
+              }
+            }
             const binding=node.type==='VariableDeclarator'?node.id:
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
-            if(binding?.type!=='Identifier'||!value)return;
+            if(!binding||!value)return;
+            if((binding.type==='ObjectPattern'||binding.type==='ArrayPattern') &&
+               value.type==='Identifier' && callbackHolders.has(value.name)) {
+              // Unknown holder keys may select any source-stored callback.
+              // Join all simple destructuring targets conservatively.
+              const targets=binding.type==='ObjectPattern'?
+                binding.properties.map((/** @type {AstNode} */ prop)=>
+                  prop.type==='Property'?prop.value:null):
+                binding.elements;
+              for(const target of targets) {
+                if(target?.type==='Identifier' && !callableNames.has(target.name)) {
+                  callableNames.add(target.name);
+                  aliasChanged=true;
+                }
+              }
+            }
+            if(binding.type!=='Identifier')return;
+            // An ordinary local alias of a mutable holder shares its
+            // object identity. A write through the alias can affect reads
+            // through the original binding, so join host-carrier taint in
+            // both directions rather than only source-to-target.
+            const aliasRoot=value.type==='Identifier' ||
+              value.type==='MemberExpression'?rootHolderName(value):null;
+            if(aliasRoot && callbackHolders.has(binding.name) &&
+               !callbackHolders.has(aliasRoot)) {
+              callbackHolders.add(aliasRoot);
+              aliasChanged=true;
+            }
             const ordinaryAlias=value.type==='Identifier' &&
               callableNames.has(value.name);
             // Calling a known host-bearing factory after .bind still
@@ -1549,8 +1722,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               callableNames.has(value.callee.object.name) &&
               (value.callee.computed?staticString(value.callee.property):
                 staticName(value.callee.property))==='bind';
-            if((ordinaryAlias||boundAlias) && !callableNames.has(binding.name)) {
+            const extractedAlias=value.type==='MemberExpression' &&
+              holdsFactoryValue(value.object,0);
+            if((ordinaryAlias||boundAlias||extractedAlias) &&
+               !callableNames.has(binding.name)) {
               callableNames.add(binding.name);
+              aliasChanged=true;
+            }
+            const contained=(value.type==='ObjectExpression' ||
+              value.type==='ArrayExpression' || value.type==='CallExpression') &&
+                holdsFactoryValue(value,0) ||
+              value.type==='Identifier' && callbackHolders.has(value.name);
+            if(contained && !callbackHolders.has(binding.name)) {
+              callbackHolders.add(binding.name);
               aliasChanged=true;
             }
           });
@@ -1573,7 +1757,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
              callee.object.type!=='Identifier')return false;
           const selected=callee.computed?staticString(callee.property):
             staticName(callee.property);
-          if(namespaceNames.has(callee.object.name) && selected===factory)return true;
+          if(namespaceNames.has(callee.object.name) && selected!==null && factories.has(selected))return true;
           // Native adapters preserve the factory's return value even when
           // the invocation is not a syntactically direct named call.
           if(callableNames.has(callee.object.name) &&
@@ -1621,6 +1805,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         let invoked=false;
         walk(caller.ast,node=>{
           if(node.type!=='CallExpression'&&node.type!=='NewExpression')return;
+          // A named host-returning factory passed to an opaque callback
+          // consumer may have its return value surfaced asynchronously.
+          // Tracking direct invocation results alone misses Promise.then.
+          if(node.arguments.some((/** @type {AstNode} */ argument)=>
+            holdsFactoryValue(argument,0)))invoked=true;
           if(node.callee.type==='Identifier' &&
              returnedNames.has(node.callee.name) ||
              node.callee.type==='MemberExpression' &&
@@ -1637,9 +1826,12 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
       return false;
     }
-    for(const factory of returnedHostFactories) {
-      if(invokesFactoryResult(factory))changedIntrinsic=true;
-    }
+    // A single union-provenance pass is monotone in possible factory roots:
+    // replacing N repeated scans with a fixed-point scan over the union
+    // cannot hide a candidate detected by any individual factory pass.
+    if(returnedHostFactories.size &&
+       invokesFactoryResult(returnedHostFactories,returnedHostCarriers))
+      changedIntrinsic=true;
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
       // a Reflect mutation or distributed module import in the declared ESM.
@@ -1768,8 +1960,21 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
        * @returns {boolean}
        */
       function passesHostCallable(argument) {
-        return readsHostCallable(argument) ||
-          argument.type==='Identifier' && hostCallAliases.has(argument.name);
+        if(readsHostCallable(argument) ||
+           argument.type==='Identifier' && hostCallAliases.has(argument.name))return true;
+        // A function passed to an opaque higher-order caller can return an
+        // ambient Function capability without exposing that value at the
+        // syntactic argument position. Promise.then callbacks are a concrete
+        // dynamic-import channel into an otherwise closed ESM graph.
+        if(argument.type!=='ArrowFunctionExpression' &&
+           argument.type!=='FunctionExpression')return false;
+        let exposed=false;
+        walk(argument.body,child=>{
+          if(readsHostCallable(child) ||
+             child.type==='Identifier' && hostCallAliases.has(child.name))
+            exposed=true;
+        });
+        return exposed;
       }
       // A host callable used as an argument may be invoked or retained by
       // any otherwise unproved call/constructor. This includes Reflect.apply,
