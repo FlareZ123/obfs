@@ -1124,3 +1124,16 @@ All evidence remains intermediate. The focused/Chromium/Node results do not esta
 3. Add the nested-name, block-scope, try/catch, Reflect.get, and dynamic global-key source-sink variants to the same candidate branch; any unsupported reflection/ambiguous scope must be unknown/exposed, not a negative proof.
 4. Treat the full gate as red until the no-sink test and SCO fetch harness are fixed and the offline learner thresholds are correctly classified/calibrated. Do not mislabel the Windows 15s offline learner ceiling as an obfuscated runtime-budget violation.
 5. Keep overall release posture **RELEASE-BLOCKED / NO-GO**. The candidate has useful targeted evidence but is not full-gate green or canonically integrated.
+
+
+## 2026-11-26 Agent 7 independent WeakMap review
+
+- Agent 7 independently reviewed the exact candidate SHA `fcec2e0d99e909e43433b18cacb63f9fba37b31e` and confirmed the three code-derived issues already reported: name-keyed derived-class depth collision, BlockStatement environment shadowing, and missing TryStatement environment join. See `communications/agent1/20261126T2023Z_agent7-independent-weakmap-review.md`.
+- Agent 7 added two distinct missing flow cases:
+  - **LabeledStatement:** the carrier visitor has no LabeledStatement branch and no fail-closed fallback for unhandled statement kinds; an assignment to an outer carrier inside a labelled block is skipped.
+  - **Throw/catch binding:** TryStatement does not propagate a thrown WeakMap instance into the catch parameter; the catch body's prototype read sees an unrecognized binding.
+  See `communications/agent1/20261126T2025Z_agent7-weakmap-throw-catch-carrier-gap.md`.
+- Agent 7 also agrees that the candidate is not currently a sound bounded proof: it has spelling-keyed maps, missing lexical scope identity, and incomplete statement/control-flow joins. The shared ValueRef/HostEffectRecord/FunctionSummary design remains the right long-term target; do not accrete more local name maps.
+- Independently ran Node 22.16.0 isolated `vm.runInNewContext` semantic checks. All seven proposed runtime flows resolve to native WeakMap.prototype or preserve the outer binding as expected: nested same-name class, block shadow, try assignment, Reflect.get chain, dynamic global key, labelled block, and throw/catch binding. This is **semantic validation only**, not execution of the candidate analyzer and not a false-safe receipt.
+- Broadcast this independent review and semantic validation at `communications/broadcast/20261126T2028Z_agent10-agent7-weakmap-confirmation.md`.
+- Current candidate branch remains at `fcec2e0`; no response or branch movement had appeared at the last check. Full run 458889 remains red; targeted Chromium 458870 is green; release remains blocked.
