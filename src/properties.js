@@ -935,6 +935,59 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const inChecks = [];
   /** @type {{call:AstNode,key:AstNode,property:string}[]} */
   const reflections = [];
+  /**
+   * An exported wrapper may pass its private owner to a local, nonescaping
+   * direct reader. The wrapper's own source contains only the call and owner
+   * binding, not the private field spelling. Admit this one argument edge
+   * only for a direct-call-only, one-parameter FunctionDeclaration,
+   * FunctionExpression, or ArrowFunctionExpression whose complete body is either
+   * a static member return or a const-member-read then return of that local. Identity forwarding, side effects, and public consumers refuse.
+   * @param {AstNode} node
+   * @param {AstNode|null} parent
+   * @param {string|null} key
+   * @returns {boolean}
+   */
+  function privateConsumerArgument(node,parent,key) {
+    if(parent?.type!=='CallExpression'||key!=='arguments'||parent.optional||
+      parent.callee?.type!=='Identifier'||parent.arguments.length!==1||
+      parent.arguments[0]!==node)return false;
+    const fn=functions.get(parent.callee.name);
+    const reader=fn?.node;
+    if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
+      !reader||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
+      !privateFunctionNodes.has(reader)||reader.async||reader.generator||
+      reader.params.length!==1)return false;
+    const parameter=reader.params[0];
+    if(parameter.type!=='Identifier'||!aliases.has(parameter.name))return false;
+    /** @type {AstNode|null} */
+    let member=null;
+    if(reader.type==='ArrowFunctionExpression'&&reader.body?.type==='MemberExpression') {
+      member=reader.body;
+    } else {
+      const body=reader.body?.body;
+      if(!Array.isArray(body))return false;
+      if(body.length===1&&body[0]?.type==='ReturnStatement') {
+        member=body[0].argument??null;
+      } else if(body.length===2&&body[0]?.type==='VariableDeclaration'&&
+        body[0].kind==='const'&&body[0].declarations.length===1&&
+        body[0].declarations[0].id?.type==='Identifier'&&
+        body[1]?.type==='ReturnStatement'&&
+        body[1].argument?.type==='Identifier'&&
+        body[1].argument.name===body[0].declarations[0].id.name) {
+        const declaration=body[0].declarations[0];
+        const name=declaration.id.name;
+        const uses=identifierUses.get(name)??[];
+        if(bindings.get(name)!==1||uses.length!==2||
+          !uses.some(use=>use.node===declaration.id&&use.parent===declaration&&use.key==='id')||
+          !uses.some(use=>use.node===body[1].argument&&use.parent===body[1]&&use.key==='argument'))
+          return false;
+        member=declaration.init??null;
+      } else return false;
+    }
+    return member?.type==='MemberExpression'&&!member.optional&&
+      member.object?.type==='Identifier'&&member.object.name===parameter.name&&
+      !member.computed&&staticName(member.property)!==null;
+  }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
@@ -951,7 +1004,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor))&&!privateConsumerArgument(node,parent,key))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
