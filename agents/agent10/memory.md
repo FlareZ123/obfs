@@ -1006,3 +1006,40 @@ Focused run 45833983836 passed all five new tests on Ubuntu/Windows/macOS with s
 3. Consider adding red-first cases for assignment-pattern destructuring, descriptor alias chains, and aliased Reflect readers only if they materially improve coverage and can be tested without broad over-refusal.
 4. Keep the evidence labeled intermediate. The current tests are focused COO plus Chromium Storage controls, not complete SCO/COO/SNO, compute-budget, dynamic-analysis, or release acceptance.
 5. Overall repository posture remains RELEASE-BLOCKED.
+
+
+## 2026-11-26 continuation: cross-file provenance and SNO Storage parity
+
+Candidate branch advanced beyond the earlier d1e61fd/4bf2 snapshots:
+
+- Branch: `agent10/storage-source-observer-destructure-reflect-20261126`
+- Latest recorded head at this note: `b6c33f142a1d45d2c7834b4db09071e20c6f4d9b`
+
+### Cross-file Storage provenance
+
+A red-first ESM fixture exports a destructured `localStorage.setItem` from one module and imports/invokes it from another. PR-head-derived commit `f65cd90c41e636f0e0c4890f5dca421673126ea1`, run 45836148589, allowed a property rename and changed the stored source. The candidate adds `collectImportedStorageMethodAliases` in `src/cross-properties.js`, passes the per-file import proof through `src/core.js`, and seeds `observesFunctionSource` in the importer. Explicit named reexports are also propagated.
+
+- Focused run 45837148262 passed 13 tests on Ubuntu/Windows/macOS with strict JSDoc, including the direct cross-file import.
+- The next test revision adds named reexport and getItem/removeItem cases.
+- Real Chromium run 45837523283 passed the full browser workflow, including a cross-file ESM import scenario and nine Storage extraction variants.
+
+### SNO single-file gap
+
+Full Node run 45835473467 on earlier candidate head 4bf2 failed four SNO Storage parity tests. Inspection showed `core.js` applied `observesFunctionSource` to `remoteSourceObserver` only when `prepared.length>1`; single-file SNO could still rewrite a function whose source was observed by native `localStorage`/ `sessionStorage` DOMString conversion. The candidate removes that gate so function-source observation applies in single-file modes too.
+
+A positive control showed that native bound functions stringify to the fixed `[native code]` placeholder rather than exposing their target source. The candidate now tracks direct, unmodified bound-function aliases and exempts them from the Storage-specific source observer. SNO tests were updated to require source parity for direct Storage, sessionStorage, and cross-file factory-return cases, while preserving the bound-function and primitive-value positive controls.
+
+- Focused SNO run 45838407376: Windows and Ubuntu succeeded; macOS was queued at the time of this note.
+- Full Node validation run 45838633117: running on Ubuntu/Windows.
+- Full Chromium run 45838666175: running with the single-file observer and bound-function changes.
+- Full browser run 45837523283 (before SNO gating/bound changes): success.
+
+### Next actions
+
+1. Check final results for runs 45838407376, 45838633117, and 45838666175. If the full Node suite fails, inspect only failed jobs and fix actual regressions.
+2. Re-run the latest 14-case focused Storage suite if needed; the named-reexport test was added after the 13-case green run.
+3. Update `im-results/agent10-storage-source-observer-extraction-2026-11-26.md` with cross-file and SNO evidence.
+4. Send Agent 2 the final candidate head and full receipts. Keep this as a review branch attached to PR #382; do not create a competing PR.
+5. Before the 70-minute lease threshold, checkpoint all useful work and follow the orderly release procedure only when the measured threshold is reached.
+
+All evidence remains intermediate. The focused/Chromium/Node results do not establish full SCO/COO/SNO acceptance, dynamic-analysis resistance, 2.5× runtime compliance for all workloads, or release readiness. Overall posture remains RELEASE-BLOCKED.
