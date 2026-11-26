@@ -80,6 +80,8 @@ function hasWeakMapPrototypeExposure(ast) {
   const weakMapSubclasses=new Set();
   const weakMapInstances=new Set();
   const weakMapFactories=new Set();
+  /** @type {AstNode[]} */
+  const weakMapArgumentCalls=[];
   const objectNamespaces=new Set(['Object']);
   const reflectNamespaces=new Set(['Reflect']);
   const prototypeGetters=new Set();
@@ -399,7 +401,7 @@ function hasWeakMapPrototypeExposure(ast) {
     // Passing any concrete WeakMap instance to a call can let an opaque
     // callee obtain and mutate the shared prototype through that instance.
     if(node.type==='CallExpression'&&node.arguments.some(isWeakMapInstance))
-      exposed=true;
+      weakMapArgumentCalls.push(node);
     // Also cover a WeakMap nested in an array/object/factory expression passed
     // as a call argument, without treating unrelated prototype reads as escapes.
     if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)&&
@@ -408,6 +410,69 @@ function hasWeakMapPrototypeExposure(ast) {
            argument.start<=node.start&&argument.end>=node.end)))
       exposed=true;
   });
+
+  // A single, top-level local reader that only returns map.get(literal) does
+  // not publish the WeakMap instance or invoke an opaque callback. Admit this
+  // narrow case only when the map is a top-level const, its sole use is this
+  // direct call, and the reader binding itself is not reassigned or aliased.
+  /** @type {Set<AstNode>} */
+  const safeLocalWeakMapReaderCalls=new Set();
+  /** @type {Map<string,AstNode>} */
+  const localWeakMapReaders=new Map();
+  for(const [functionNode,info] of functionInfoByNode) {
+    if(functionNode.type!=='FunctionDeclaration'||!ast.body.includes(functionNode)||
+       !info.name||info.exported||exportedLocalNames.has(info.name)||
+       functionNode.async||functionNode.generator||
+       functionNode.params.length!==1||functionNode.params[0].type!=='Identifier'||
+       functionNode.body.type!=='BlockStatement'||functionNode.body.body.length!==1)
+      continue;
+    const statement=functionNode.body.body[0];
+    const read=statement.type==='ReturnStatement'?statement.argument:null;
+    if(read?.type!=='CallExpression'||read.optional||
+       read.callee?.type!=='MemberExpression'||read.callee.optional||
+       read.callee.computed||read.callee.object?.type!=='Identifier'||
+       read.callee.object.name!==functionNode.params[0].name||
+       read.callee.property?.type!=='Identifier'||read.callee.property.name!=='get'||
+       read.arguments.length!==1||read.arguments[0].type!=='Literal')
+      continue;
+    let functionBindingSafe=true;
+    walk(ast,(candidate,parent)=>{
+      if(candidate.type==='Identifier'&&candidate.name===info.name&&candidate!==functionNode.id&&
+         !(parent?.type==='CallExpression'&&parent.callee===candidate))
+        functionBindingSafe=false;
+      if(candidate.type==='AssignmentExpression'&&candidate.left.type==='Identifier'&&
+         candidate.left.name===info.name)functionBindingSafe=false;
+    });
+    if(functionBindingSafe)localWeakMapReaders.set(info.name,functionNode);
+  }
+  for(const call of weakMapArgumentCalls) {
+    if(call.callee.type!=='Identifier'||call.arguments.length!==1||
+       call.arguments[0].type!=='Identifier'||
+       !localWeakMapReaders.has(call.callee.name))continue;
+    const mapName=call.arguments[0].name;
+    if(!weakMapInstances.has(mapName)||exportedLocalNames.has(mapName)||
+       importedLocalNames.has(mapName)||
+       !ast.body.some(statement=>statement.type==='ExpressionStatement'&&
+         statement.expression===call)||
+       !ast.body.some(statement=>statement.type==='VariableDeclaration'&&
+         statement.kind==='const'&&statement.declarations.some(declaration=>
+           declaration.id.type==='Identifier'&&declaration.id.name===mapName&&
+           declaration.init?.type==='NewExpression'&&
+           isWeakMapConstructor(declaration.init.callee))))
+      continue;
+    let otherMapUse=false,argumentUseCount=0;
+    walk(ast,(candidate,parent)=>{
+      if(candidate.type==='Identifier'&&candidate.name===mapName) {
+        if(parent?.type==='VariableDeclarator'&&parent.id===candidate)return;
+        if(candidate===call.arguments[0]) {argumentUseCount++;return;}
+        otherMapUse=true;
+      }
+    });
+    if(!otherMapUse&&argumentUseCount===1)safeLocalWeakMapReaderCalls.add(call);
+  }
+  for(const call of weakMapArgumentCalls) {
+    if(!safeLocalWeakMapReaderCalls.has(call))exposed=true;
+  }
 
   // Resolve return/yield values after the complete file has contributed its
   // constructor and instance aliases. This handles helpers declared after
@@ -752,7 +817,8 @@ function hasWeakMapPrototypeExposure(ast) {
     if(!node||functionTypes.has(node.type))return;
     if(node.type==='CallExpression') {
       for(const argument of node.arguments??[]) {
-        if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
+        if(!safeLocalWeakMapReaderCalls.has(node)&&
+           carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
       }
