@@ -703,3 +703,14 @@ prevent an attacker with SNO filesystem/runtime/memory access from
 modifying a library after publication. Build against the final
 deployment tree and independently pin external dependencies whenever
 source integrity matters.
+
+
+The 26 November experimental property-proof lane permits a non-exported
+target to receive property rewrites only under a strict closed-world grammar:
+all target uses must be top-level `target.bind(null)` calls, and the supplied
+graph must exclude opaque calls, dynamic/prototype/reflection paths, unresolved
+ambient references, and unproved imports. This improves rewrite coverage; it
+does not change the hostile-runtime extraction boundary. The preloader still
+captures the transformed target source. See the
+[native-bound private-target report](../im-results/agent1-native-bound-target-proof-2026-11-26.md)
+for the exact conditions, regression fixtures and validation status.
