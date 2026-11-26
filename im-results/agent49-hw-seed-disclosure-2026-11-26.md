@@ -203,6 +203,7 @@ Results:
 - candidate behaviors: **124**;
 - exact minimax worst-case: **126 queries**;
 - mean under uniform behavior prior: **65.459677**;
+- mean under the actual 20-seed schedule: **65.502419** (the seed PRNG selects the two pair members 11/9 times);
 - memoized belief states: **6,287**;
 - maximum within-machine state-pair distinguishing-word length: **63**;
 - every candidate is identified by the exact policy.
