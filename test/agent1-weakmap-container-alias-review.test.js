@@ -10,7 +10,7 @@ const { obfuscateFiles } = require('../src');
 const { observesFunctionSource, parse } = require('../src/ast');
 
 const commonTail = [
-  'const weakMapPrototype=getPrototype.call(WEAK_MAP_VALUE);',
+  'const weakMapPrototype=getPrototype(WEAK_MAP_VALUE);',
   'const nativeWeakMapSet=weakMapPrototype.set;',
   'weakMapPrototype.set=function(key,value){',
   '  document.title=value;',
@@ -76,7 +76,7 @@ function run(moduleSource) {
  */
 function verifyCarrierRefusal(fixture) {
   const lines = [
-    "const getPrototype=Object.prototype.__lookupGetter__('__proto__');",
+    "function getPrototype(value){return value.__proto__;}",
     fixture.setup,
     ...commonTail.map(line => line.replace('WEAK_MAP_VALUE', fixture.access))
   ];
@@ -106,8 +106,7 @@ function verifyCarrierRefusal(fixture) {
     source: app.code
   };
 
-  // The direct observer detector may independently recognize some getter aliases;
-  // the group summary must refuse the unsafe rewrite regardless of that result.
+  assert.equal(observed,false, JSON.stringify(evidence));
   assert.equal(app.metrics.bindings,0, JSON.stringify(evidence));
   assert.deepEqual(emitted.result, native.result);
   assert.ok(native.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
