@@ -221,7 +221,8 @@ test('private local WeakMap storage and non-exported factories do not disable th
     '  set(key,value){privateStore.set(this,new Map([[key,value]]));}',
     '  get(key){return privateStore.get(this).get(key);}',
     '}',
-    'export {Cache};'
+    'export {Cache};',
+    'export function echo(value){return String(value);}'
   ].join('\n');
   const mutateSource=[
     "import {Cache} from './factory.mjs';",
