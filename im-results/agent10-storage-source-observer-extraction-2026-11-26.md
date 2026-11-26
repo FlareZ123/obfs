@@ -92,3 +92,36 @@ The candidate now propagates descriptor-reader and Reflect.get aliases, descript
 - Full Node validation [45835473467](https://github.com/FlareZ123/obfs/actions/runs/45835473467): full Node 22 behavioral/adversarial suites running on Ubuntu and Windows.
 
 The candidate is still an intermediate review branch attached to PR #382, not an integrated release. It does not establish full mode-specific, runtime-budget, dynamic-analysis, or deobfuscation acceptance.
+
+
+## Cross-file and SNO follow-up (14:28Z)
+
+### Cross-file ESM import provenance
+
+A red-first module fixture showed that a native Storage method exported from one ESM module and imported into another lost its Storage provenance. On pre-fix candidate commit `f65cd90c41e636f0e0c4890f5dca421673126ea1`, run [45836148589](https://github.com/FlareZ123/obfs/actions/runs/45836148589) allowed one property rename and changed the stored source.
+
+The candidate adds `collectImportedStorageMethodAliases` to `src/cross-properties.js`, passes each module's imported method proof through `src/core.js`, and seeds the importer source observer. Explicit named reexports are propagated too.
+
+- Run [45837148262](https://github.com/FlareZ123/obfs/actions/runs/45837148262): 13 focused tests passed on Ubuntu/Windows/macOS with strict project JSDoc, including the direct cross-file import.
+- Run [45837473884](https://github.com/FlareZ123/obfs/actions/runs/45837473884): 14 focused tests passed on Ubuntu/Windows/macOS, adding named reexports and destructured `getItem`/`removeItem` conversion cases.
+- Run [45837523283](https://github.com/FlareZ123/obfs/actions/runs/45837523283): full Chromium workflow passed with the cross-file ESM import scenario.
+- Run [45838666175](https://github.com/FlareZ123/obfs/actions/runs/45838666175): full Chromium workflow passed again after the SNO single-file observer and bound-function changes.
+
+### SNO single-file source observation
+
+Full Node run [45835473467](https://github.com/FlareZ123/obfs/actions/runs/45835473467) on earlier candidate head `4bf2b766` exposed four SNO parity tests that documented a source leak. Root cause: `src/core.js` only applied `observesFunctionSource` to `remoteSourceObserver` when `prepared.length>1`, leaving single-file SNO unprotected.
+
+The candidate removes that gate so local and cross-file function-source observations both block unsafe rewriting. It also narrowly recognizes direct, unmodified bound functions as safe for Storage conversion: native bound-function stringification yields a fixed native-code placeholder rather than the target's source. Bound aliases with mutation are not exempted.
+
+The SNO parity tests now require source preservation for direct `localStorage`, `sessionStorage`, and a CommonJS cross-file factory-return case, while retaining the bound-function and primitive-value positive controls.
+
+- Focused SNO run [45838407376](https://github.com/FlareZ123/obfs/actions/runs/45838407376): passed on Ubuntu, Windows, and macOS.
+- Full Node 22 validation [45838633117](https://github.com/FlareZ123/obfs/actions/runs/45838633117): still running on Ubuntu/Windows at the time of this update; it includes the full behavioral/adversarial suite, 14 Storage tests, and updated SNO parity expectations.
+
+**Current candidate head:** `b6c33f142a1d45d2c7834b4db09071e20c6f4d9b`.
+
+### Remaining boundaries
+
+The imported-method collector currently covers named ESM imports, default imports, explicit named reexports, and `export *` propagation. Namespace imports, opaque/indirect reexports, CommonJS method imports, and method aliases returned from arbitrary factories are not established by this work. The CommonJS SNO factory-return test is protected conservatively because the entry file's direct Storage source observation disables rewriting across the supplied file group; it is not a general interprocedural return-provenance solution.
+
+This remains an intermediate source-observer correctness contribution, not proof of complete SCO/COO/SNO acceptance, dynamic-analysis resistance, 2.5× runtime compliance across workloads, or release readiness. Overall posture remains RELEASE-BLOCKED.
