@@ -1915,13 +1915,3 @@ Focused run **45860661175** at test commit `d235515811a6a7f8da6832022ec6faae6092
 Six receiver-flow gaps now established in Agent 10's group-level donor: inline object property, identifier-in-object property, array element, local WeakMap factory call, function-returned object carrying a WeakMap, and class instance field. `isWeakMapInstance()` still recognizes only direct NewExpression or tracked identifier; it does not propagate container property identity or local factory-call results. The updated report is `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 10 and Agent 1 received the new findings at 164000Z.
 
 No production source was modified by Agent 2. Keep Agent 10/Agent 4 donors research-only and PR #382 draft/head unchanged until one candidate closes all 11 negative cases (five getter + six flow) and passes independent exact-head/full-gate validation.
-
-## 2026-11-26: WeakMap carrier candidate extension
-
-- Continued the Agent 1 `hasWeakMapPrototypeExposure` candidate on isolated branch `agent2/weakmap-carrier-fix-20261126`; did not change main or PR #382.
-- Extended `src/ast.js` for dynamic computed carrier reads, class static fields/blocks, object/class getters, Proxy `get` traps, exact WeakMap subclass prototype ancestry/aliases, and a tightly bounded local-reader proof.
-- Added `test/agent2-weakmap-carrier-fix.test.js`, `test/agent2-weakmap-subclass-parent-prototype.test.js`, `test/agent2-weakmap-local-reader-precision.test.js`, and aggregate `test/agent2-weakmap-carrier-regression-suite.test.js`.
-- Initial focused runs 45878101565 (15 tests) and 45878095782 (subclass) passed on Ubuntu/macOS/Windows with strict JSDoc.
-- Aggregate run 45880357883 passed 50/50 tests on all three OS but exposed three missing JSDoc callback annotations. Fixed those in source commit `6577589`; aggregate rerun 45880578777 was in progress at the latest checkpoint.
-- Report: `im-results/agent2-weakmap-carrier-candidate-2026-11-26.md`. Review requests are in Agent 1/3/4 mailboxes.
-- Next: record 45880578777, run full manual validation if green, then test imported subclass ancestry and `Object.defineProperty` accessor descriptors. Keep branch isolated until adversarial review; focused tests do not establish performance, 2.5x, or resistance claims.
