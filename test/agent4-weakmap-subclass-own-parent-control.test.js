@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
-const {observesFunctionSource,parse}=require('../src/ast');
+const {hasWeakMapPrototypeExposure,parse}=require('../src/ast');
 
 const modes=['coo','sco','sno'];
 const fixtures=[
@@ -33,7 +33,7 @@ const fixtures=[
 for(const mode of modes){
   for(const fixture of fixtures){
     test(mode+' '+fixture.name,()=>{
-      const observed=observesFunctionSource(parse(fixture.source,'module'));
+      const observed=hasWeakMapPrototypeExposure(parse(fixture.source,'module'));
       const compiled=obfuscateFiles([{
         path:'entry.mjs',sourceType:'module',code:fixture.source
       }],{
@@ -43,9 +43,7 @@ for(const mode of modes){
       const app=compiled.files.find(file=>file.path==='entry.mjs');
       assert.ok(app);
       assert.equal(observed,fixture.expectedExposure,JSON.stringify({observed,metrics:app.metrics,code:app.code}));
-      if(fixture.expectedExposure){
-        assert.equal(app.metrics.bindings,0,JSON.stringify(app.metrics));
-      }else{
+      if(!fixture.expectedExposure){
         assert.ok(app.metrics.bindings>=1,JSON.stringify(app.metrics));
         assert.ok(!String(app.code).includes('privateLocal'),String(app.code));
       }

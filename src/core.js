@@ -2035,8 +2035,19 @@ function obfuscateFiles(files, options = {}) {
   // A different module can publish a WeakMap instance or a factory that
   // the source-observer module later imports. Summarize the complete supplied
   // graph, not only modules that independently look like source observers.
-  const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
-    hasWeakMapPrototypeExposure(ast));
+  const classicScriptAsts=sourceObserverFiles.filter(({file})=>
+    file.sourceType==='script').map(({ast})=>ast);
+  // Browser classic scripts in one output group share one realm and one
+  // global lexical environment. Analyze their ordered top-level statements
+  // together so a carrier declared in one file cannot disappear at the
+  // boundary before a sibling reads or mutates WeakMap.prototype.
+  const sharedClassicScriptWeakMapExposure=classicScriptAsts.length>1?
+    hasWeakMapPrototypeExposure({
+      type:'Program',start:0,end:0,
+      body:classicScriptAsts.flatMap(ast=>ast.body??[])
+    }):false;
+  const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
+    sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
   let remoteSourceObserver=hasPinnedSource;
   let hostLockSourceObserver=false;
   for(const {file,ast} of sourceObserverFiles) {

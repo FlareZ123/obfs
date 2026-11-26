@@ -106,6 +106,11 @@ function hasWeakMapPrototypeExposure(ast) {
     return node.property.type==='Identifier'?node.property.name:null;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isRequireCall(node) {
+    return Boolean(node?.type==='CallExpression'&&
+      node.callee.type==='Identifier'&&node.callee.name==='require');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isGlobalRoot(node) {
     return node?.type==='Identifier'&&globalNames.has(node.name);
   }
@@ -567,6 +572,9 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ExportDefaultDeclaration') {
       if(node.declaration?.type==='Identifier')exportedLocalNames.add(node.declaration.name);
+      else if((node.declaration?.type==='ClassDeclaration'||
+               node.declaration?.type==='ClassExpression')&&
+              weakMapDerivedDepth(node.declaration)!==undefined)exposed=true;
       else if(containsWeakMapInstanceValue(node.declaration))exposed=true;
     }
     if(node.type==='ImportDeclaration') {
@@ -797,9 +805,92 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
+  /**
+   * CommonJS publication points are reachable by consumers outside the
+   * supplied module graph. Treat exported WeakMap instances, derived
+   * constructors, factories, and unresolved imported capabilities as escapes.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function containsExportedWeakMapCapability(node) {
+    if(!node)return false;
+    if(node.type==='Identifier') {
+      return weakMapInstances.has(node.name)||
+        weakMapContainerInstances.has(node.name)||
+        weakMapContainerOwners.has(node.name)||
+        weakMapFactories.has(node.name)||
+        weakMapConstructors.has(node.name)||
+        weakMapDerivedConstructors.has(node.name)||
+        prototypeAliases.has(node.name)||
+        importedLocalNames.has(node.name);
+    }
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression')
+      return weakMapDerivedDepth(node)!==undefined||containsWeakMapInstanceValue(node);
+    if(functionTypes.has(node.type)) {
+      const info=functionInfoByNode.get(node);
+      return Boolean(info?.returnsWeakMap||
+        [...(info?.returnedFactories??[])].some(name=>weakMapFactories.has(name)));
+    }
+    if(node.type==='ObjectExpression') {
+      return (node.properties??[]).some(property=>
+        property.type==='SpreadElement'?
+          containsExportedWeakMapCapability(property.argument):
+        property.type==='Property'?
+          containsExportedWeakMapCapability(property.value):false);
+    }
+    if(node.type==='ArrayExpression')
+      return (node.elements??[]).some(element=>containsExportedWeakMapCapability(element));
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='Identifier'&&
+         (weakMapFactories.has(node.callee.name)||importedLocalNames.has(node.callee.name)))return true;
+      if(isRequireCall(node.callee))return true;
+      if(node.callee.type==='MemberExpression'&&
+         (isRequireCall(node.callee.object)||
+          Boolean(rootIdentifier(node.callee.object)&&
+            importedLocalNames.has(rootIdentifier(node.callee.object)??''))))return true;
+      return containsWeakMapInstanceValue(node);
+    }
+    if(node.type==='AssignmentExpression')return containsExportedWeakMapCapability(node.right);
+    if(node.type==='ConditionalExpression')
+      return containsExportedWeakMapCapability(node.consequent)||
+        containsExportedWeakMapCapability(node.alternate);
+    if(node.type==='LogicalExpression')
+      return containsExportedWeakMapCapability(node.left)||
+        containsExportedWeakMapCapability(node.right);
+    if(node.type==='SequenceExpression')
+      return containsExportedWeakMapCapability(node.expressions.at(-1));
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return containsExportedWeakMapCapability(node.argument);
+    if(node.type==='ChainExpression')
+      return containsExportedWeakMapCapability(node.expression);
+    if(node.type==='MemberExpression') {
+      const root=rootIdentifier(node);
+      return Boolean(root&&importedLocalNames.has(root))||
+        isRequireCall(node.object)||containsWeakMapInstanceValue(node);
+    }
+    return containsWeakMapInstanceValue(node);
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportTarget(node) {
+    if(node?.type!=='MemberExpression')return false;
+    if(node.object?.type==='Identifier'&&node.object.name==='exports')return true;
+    if(node.object?.type==='Identifier'&&node.object.name==='module'&&
+       memberKey(node)==='exports')return true;
+    return node.object?.type==='MemberExpression'&&
+      node.object.object?.type==='Identifier'&&node.object.object.name==='module'&&
+      memberKey(node.object)==='exports';
+  }
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left)&&
+       containsExportedWeakMapCapability(node.right))exposed=true;
+  });
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
-       weakMapConstructors.has(name)||prototypeAliases.has(name)) {
+       weakMapConstructors.has(name)||weakMapDerivedConstructors.has(name)||
+       prototypeAliases.has(name)) {
       exposed=true;
       break;
     }
@@ -968,7 +1059,14 @@ function hasWeakMapPrototypeExposure(ast) {
       return base.kind==='maybe'?carrierMaybe:carrierOther;
     }
     if(node.type==='CallExpression') {
+      // An imported binding or unresolved CommonJS module can return a
+      // WeakMap even when its implementation is outside this compilation.
+      // Preserve that uncertainty through calls and member-call receivers.
+      if(isRequireCall(node))return carrierMaybe;
       if(node.callee.type==='Identifier') {
+        const calledValue=environment.get(node.callee.name);
+        if(importedLocalNames.has(node.callee.name)||calledValue?.kind==='maybe')
+          return carrierMaybe;
         const summary=localFunctionSummaries.get(node.callee.name);
         if(summary) {
           for(const index of summary.returnParameterIndices)
@@ -986,6 +1084,8 @@ function hasWeakMapPrototypeExposure(ast) {
       if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
         return carrierMaybe;
       if(node.callee.type==='MemberExpression') {
+        const receiver=evaluateCarrierValue(node.callee.object,environment,thisValue);
+        if(carrierMayContainWeakMap(receiver))return carrierMaybe;
         const methodOwner=node.callee.object.type==='Identifier'?
           node.callee.object.name:
           node.callee.object.type==='NewExpression'&&node.callee.object.callee.type==='Identifier'?
