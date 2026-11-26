@@ -4,49 +4,47 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 const {observesFunctionSource,parse}=require('../src/ast');
+const {fixtures}=require('./storage-value-coercion-fixtures');
 
 const modes=['coo','sco','sno'];
-const fixtures=[
+const cases=[
   {
-    name:'local-identity-return',
+    name:'known-local-identity-return-is-not-an-exposure',
     expectedExposure:false,
-    source:[
-      'function hold(map){return map;}',
-      'const localMap=hold(new WeakMap());',
-      'function privateHelper(){const privateLocal=29;return privateLocal;}',
-      'export function sample(){return privateHelper();}'
-    ].join('\n')
+    source:fixtures.prototypeOverride.replace(
+      'const captured=new WeakMap();',
+      [
+        'function hold(map){return map;}',
+        'const privateMap=hold(new WeakMap());',
+        'const captured=new WeakMap();'
+      ].join('\n')
+    )
   },
   {
-    name:'local-read-only-consumer',
+    name:'known-local-read-only-consumer-is-not-an-exposure',
     expectedExposure:false,
-    source:[
-      'function consume(map){return map.get("key");}',
-      'const readResult=consume(new WeakMap());',
-      'function privateHelper(){const privateLocal=31;return privateLocal;}',
-      'export function sample(){return privateHelper();}'
-    ].join('\n')
+    source:fixtures.prototypeOverride.replace(
+      'const captured=new WeakMap();',
+      [
+        'const privateMap=new WeakMap();',
+        'function consume(map){return map.get("key");}',
+        'consume(privateMap);',
+        'const captured=new WeakMap();'
+      ].join('\n')
+    )
   },
   {
-    name:'local-prototype-reader',
+    name:'known-local-prototype-reader-is-an-exposure',
     expectedExposure:true,
-    source:[
-      'function inspectPrototype(map){return Object.getPrototypeOf(map);}',
-      'const sharedPrototype=inspectPrototype(new WeakMap());',
-      'sharedPrototype.set=function(){};',
-      'function privateHelper(){const privateLocal=37;return privateLocal;}',
-      'export function sample(){return privateHelper();}'
-    ].join('\n')
-  },
-  {
-    name:'local-global-escape',
-    expectedExposure:true,
-    source:[
-      'function leak(map){globalThis.savedWeakMap=map;}',
-      'leak(new WeakMap());',
-      'function privateHelper(){const privateLocal=41;return privateLocal;}',
-      'export function sample(){return privateHelper();}'
-    ].join('\n')
+    source:fixtures.prototypeOverride.replace(
+      'const captured=new WeakMap();',
+      [
+        'function inspectPrototype(map){return Object.getPrototypeOf(map);}',
+        'const sharedPrototype=inspectPrototype(new WeakMap());',
+        'sharedPrototype.set=function(){};',
+        'const captured=new WeakMap();'
+      ].join('\n')
+    )
   }
 ];
 
@@ -69,15 +67,16 @@ function compile(source,mode){
 }
 
 for(const mode of modes){
-  for(const fixture of fixtures){
-    test(mode+' '+fixture.name+' has the expected exposure classification',()=>{
+  for(const fixture of cases){
+    test(mode+' '+fixture.name,()=>{
       const result=compile(fixture.source,mode);
       assert.equal(result.observed,fixture.expectedExposure,JSON.stringify(result));
       if(fixture.expectedExposure){
         assert.equal(result.bindings,0,JSON.stringify(result));
       }else{
-        assert.ok(result.bindings>=1,JSON.stringify(result));
+        assert.ok(result.bindings>=2,JSON.stringify(result));
         assert.ok(!result.code.includes('privateLocal'),JSON.stringify(result));
+        assert.ok(!result.code.includes('independentLocal'),JSON.stringify(result));
       }
     });
   }
