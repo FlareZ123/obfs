@@ -262,18 +262,43 @@ function hasWeakMapPrototypeExposure(ast) {
     return false;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isObjectPrototypeValue(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      isNamespace(node.object,objectNamespaces)&&memberKey(node)==='prototype');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isLegacyPrototypeParentGetterValue(node) {
+    if(node?.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberKey(node.callee)==='__lookupGetter__'&&
+       isObjectPrototypeValue(node.callee.object)&&
+       staticString(node.arguments[0])==='__proto__')return true;
+    return Boolean(node?.type==='MemberExpression'&&memberKey(node)==='get'&&
+      node.object?.type==='CallExpression'&&
+      node.object.callee.type==='MemberExpression'&&
+      isNamespace(node.object.callee.object,objectNamespaces)&&
+      memberKey(node.object.callee)==='getOwnPropertyDescriptor'&&
+      isObjectPrototypeValue(node.object.arguments[0])&&
+      staticString(node.object.arguments[1])==='__proto__');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isPrototypeGetterMember(node) {
     return Boolean(node?.type==='MemberExpression'&&
       memberKey(node)==='getPrototypeOf'&&
       (isNamespace(node.object,objectNamespaces)||
-       isNamespace(node.object,reflectNamespaces)));
+       isNamespace(node.object,reflectNamespaces)))||
+      isLegacyPrototypeParentGetterValue(node);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isPrototypeGetterCall(node) {
-    return Boolean(node?.type==='CallExpression'&&(
-      node.callee.type==='Identifier'&&prototypeGetters.has(node.callee.name)||
-      isPrototypeGetterMember(node.callee)
-    ));
+    if(node?.type!=='CallExpression')return false;
+    if(node.callee.type==='Identifier'&&prototypeGetters.has(node.callee.name))return true;
+    if(node.callee.type==='MemberExpression'&&
+       ['call','apply'].includes(memberKey(node.callee)??'')) {
+      if(node.callee.object.type==='Identifier'&&
+         prototypeGetters.has(node.callee.object.name))return true;
+      if(isPrototypeGetterMember(node.callee.object))return true;
+    }
+    return isPrototypeGetterMember(node.callee);
   }
   /**
    * Return the prototype-chain distance from a WeakMap-derived constructor's
