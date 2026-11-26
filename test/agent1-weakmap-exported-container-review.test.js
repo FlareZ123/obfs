@@ -21,7 +21,7 @@ const storageSource=[
   '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 const runnerSource=[
   'class Storage {',
@@ -39,7 +39,7 @@ const runnerSource=[
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
   'process.stdout.write(JSON.stringify({result,capturedSource:document.title}));'
-].join('\\n');
+].join('\n');
 
 /**
  * @param {Array<{path:string,code:string}>} files
@@ -67,35 +67,35 @@ const mutation=[
   '  document.title=value;',
   '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
   '};'
-].join('\\n');
+].join('\n');
 
 /** @type {Array<{name:string,factorySource:string,mutatePrefix:string,probe:string,seed:string}>} */
 const fixtures=[
   {
     name:'an exported object literal containing a WeakMap must invalidate the group proof',
     factorySource:'export const holder={map:new WeakMap()};',
-    mutatePrefix:"import {holder} from './factory.mjs';\\nconst probe=holder.map;",
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
     probe:'probe',
     seed:'agent1-exported-object-literal-weakmap'
   },
   {
     name:'an exported class method returning a WeakMap through a later export must invalidate the group proof',
-    factorySource:'class Factory { makeMap(){return new WeakMap();} }\\nexport {Factory};',
-    mutatePrefix:"import {Factory} from './factory.mjs';\\nconst probe=new Factory().makeMap();",
+    factorySource:'class Factory { makeMap(){return new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().makeMap();",
     probe:'probe',
     seed:'agent1-exported-class-method-weakmap'
   },
   {
     name:'an exported object method returning a WeakMap through a later export must invalidate the group proof',
-    factorySource:'const factory={makeMap(){return new WeakMap();}};\\nexport {factory};',
-    mutatePrefix:"import {factory} from './factory.mjs';\\nconst probe=factory.makeMap();",
+    factorySource:'const factory={makeMap(){return new WeakMap();}};\nexport {factory};',
+    mutatePrefix:"import {factory} from './factory.mjs';\nconst probe=factory.makeMap();",
     probe:'probe',
     seed:'agent1-exported-object-method-weakmap'
   },
   {
     name:'a WeakMap assigned to an exported object after initialization must invalidate the group proof',
-    factorySource:'const holder={};\\nholder.map=new WeakMap();\\nexport {holder};',
-    mutatePrefix:"import {holder} from './factory.mjs';\\nconst probe=holder.map;",
+    factorySource:'const holder={};\nholder.map=new WeakMap();\nexport {holder};',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
     probe:'probe',
     seed:'agent1-exported-object-property-weakmap'
   },
@@ -109,14 +109,14 @@ const fixtures=[
   {
     name:'an exported generator yielding a WeakMap must invalidate the group proof',
     factorySource:'export function* makeMap(){yield new WeakMap();}',
-    mutatePrefix:"import {makeMap} from './factory.mjs';\\nconst probe=makeMap().next().value;",
+    mutatePrefix:"import {makeMap} from './factory.mjs';\nconst probe=makeMap().next().value;",
     probe:'probe',
     seed:'agent1-exported-generator-weakmap'
   },
   {
     name:'an exported class getter returning a WeakMap through a later export must invalidate the group proof',
-    factorySource:'class Factory { get map(){return new WeakMap();} }\\nexport {Factory};',
-    mutatePrefix:"import {Factory} from './factory.mjs';\\nconst probe=new Factory().map;",
+    factorySource:'class Factory { get map(){return new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
     probe:'probe',
     seed:'agent1-exported-class-getter-weakmap'
   }
@@ -128,8 +128,8 @@ for(const fixture of fixtures) {
       "import './factory.mjs';",
       "import './mutate.mjs';",
       "export {sample} from './storage.mjs';"
-    ].join('\\n');
-    const mutateSource=fixture.mutatePrefix+'\\n'+mutation.replace('PROBE',fixture.probe);
+    ].join('\n');
+    const mutateSource=fixture.mutatePrefix+'\n'+mutation.replace('PROBE',fixture.probe);
     const files=[
       {path:'entry.mjs',code:entrySource},
       {path:'factory.mjs',code:fixture.factorySource},
