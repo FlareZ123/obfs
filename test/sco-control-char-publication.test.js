@@ -138,7 +138,7 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
 });
 
 
-test('SCO publishes a POSIX trailing-space decoy instead of the WHATWG-trimmed URL target', {
+test('SCO fails closed on a trailing-space ESM dependency that URL resolution trims', {
   skip:process.platform==='win32'?'Win32 does not preserve trailing-space filenames':false
 },async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-trailing-space-red-'));
@@ -163,13 +163,9 @@ test('SCO publishes a POSIX trailing-space decoy instead of the WHATWG-trimmed U
       urlTargets:['url-target'],posixDecoys:[]
     });
 
-    const probe=await probeSco(root,['index.mjs','secret.mjs','secret.mjs ']);
-    assert.equal(probe.listening,true,probe.stderr);
-    assert.deepEqual({
-      actual:probe.results?.get('secret.mjs')?.status,
-      decoy:probe.results?.get('secret.mjs ')?.status
-    },{actual:200,decoy:404},
-    'SCO must serve the URL-resolved target and withhold the POSIX trailing-space decoy');
+    const probe=await probeSco(root,[]);
+    assert.equal(probe.listening,false,'SCO must fail closed on the unsupported trailing-space dependency');
+    assert.match(probe.stderr,/SCO dependency requires --asset: secret\.mjs |SCO noncanonical ESM import path unsupported/u);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
