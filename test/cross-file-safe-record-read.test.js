@@ -407,3 +407,78 @@ test('non-host primitive adapter preserves proven private-field rewrite',async()
     'Benign primitive return must not globally disable private-property renaming');
   assert.equal(await execute(compiled.files),native);
 });
+
+
+test('getter-returned Reflect alias cannot expose renamed cross-file owner keys',async()=>{
+  const files=graph([
+    'const ambient={get reflect(){return globalThis.Reflect;}};',
+    'const reflector=ambient.reflect;',
+    'const originalOwnKeys=reflector.ownKeys;',
+    'let observed=[];',
+    'reflector.ownKeys=function(value){',
+    '  const keys=originalOwnKeys.call(this,value);',
+    '  observed=originalOwnKeys.call(reflector,state).sort();',
+    '  return keys;',
+    '};',
+    "const result=[inspectRecord('externalFormat'),observed];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},["secretField"]]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'getter-returned-reflect-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'A getter-returned host Reflect alias can observe owner property names');
+  assert.equal(await execute(compiled.files),native,
+    'A getter-returned Reflect alias must not observe renamed cross-file owner keys');
+});
+
+
+test('getter-returned Object descriptor alias cannot expose renamed cross-file owner keys',async()=>{
+  const files=graph([
+    'const ambient={get object(){return globalThis.Object;}};',
+    'const object=ambient.object;',
+    'const originalDescriptor=object.getOwnPropertyDescriptor;',
+    'let observed;',
+    'object.getOwnPropertyDescriptor=function(target,key){',
+    '  observed=originalDescriptor.call(object,state,"secretField")?.value;',
+    '  return originalDescriptor.call(this,target,key);',
+    '};',
+    "const result=[inspectRecord('externalFormat'),observed];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},41]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'getter-returned-object-descriptor-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'A getter-returned host Object alias can observe owner property descriptors');
+  assert.equal(await execute(compiled.files),native,
+    'A getter-returned Object descriptor alias must not observe renamed cross-file owner keys');
+});
+
+
+test('a Proxy get trap cannot observe renamed cross-file property keys',async()=>{
+  const files=graph([
+    'const observed=[];',
+    'const proxied=new Proxy(state,{',
+    '  get(target,key,receiver){',
+    '    observed.push(String(key));',
+    '    return Reflect.get(target,key,receiver);',
+    '  }',
+    '});',
+    "const result=[inspectRecord('externalFormat'),proxied.secretField,observed];"
+  ].join('\n'));
+  const native=await execute(files);
+  assert.equal(native,'[41,[{"keys":["auditCount","externalFormat"],"value":"audit-v1","enumerable":true},41,["secretField"]]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'proxy-get-trap-source-observer',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'A Proxy get trap can observe the property key even when the read returns the same value');
+  assert.equal(await execute(compiled.files),native,
+    'A Proxy get trap must not observe renamed cross-file property keys');
+});
