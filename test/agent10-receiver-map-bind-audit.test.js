@@ -65,3 +65,15 @@ test('control: explicit escape of the bind result resolves back to the target',(
   assert.equal(summary.hostHeldCallable,true);
   assert.equal(summary.safe,false);
 });
+
+test('native bind with no receiver escape remains eligible in the ambient summary',()=>{
+  const source='(function run(){'+
+    'const owner={secretField:7};'+
+    'const internal=()=>owner.secretField;'+
+    'const hot=internal.bind(null);'+
+    'const result=hot();'+
+    '})();';
+  const summary=named(analyze(source),'internal')[0];
+  assert.ok(summary,'internal must have an ambient-call summary');
+  assert.equal(summary.safe,true);
+});
