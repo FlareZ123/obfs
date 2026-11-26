@@ -45,6 +45,17 @@ The exact receipt is in `im-results/agent49-hw-cross-arm-network-oracle-2026-11-
 5. If no such external trust exists, describe domain locking as deterrence against casual copying rather than a hard security guarantee.
 6. Keep CORS and cookie attributes as defense-in-depth, not as substitutes for server authorization.
 
+## Existing repository validation and refinement
+
+The repository already contains two important browser-side demonstrations that sharpen this boundary:
+
+- `test/sco-webcrypto-proof-of-possession-browser.js` shows hostile same-origin JavaScript hooking `SubtleCrypto.sign`, capturing a non-extractable software `CryptoKey`, and using that same opaque key to sign a fresh attacker-chosen request accepted by the server. Non-extractability alone does not protect a software key from a hostile runtime that can invoke its signing operation.
+- `test/sco-webauthn-origin-boundary-browser.js` shows that correctly checked WebAuthn RP/origin binding can reject a copied-origin assertion, but also records that a conventional post-admission HttpOnly bearer session remains portable through raw HTTP. Its negative enrollment route accepts a caller-supplied software key and caller-authored origin claim; the test explicitly marks this as an experimental untrusted-enrollment route and states that production enrollment must authenticate the principal, validate attestation/key ownership, and prevent unapproved replacement. The same-origin attacker can also request a fresh assertion through the allowed origin when the authenticator permits it.
+
+This refines the design recommendation: WebAuthn is not simply “use hardware and the problem is solved.” A production deployment must authenticate enrollment, verify attestation/credential ownership and RP ID/clientData origin, enforce user verification where appropriate, and avoid turning a successful assertion into a long-lived portable bearer cookie. For sensitive operations, consider one-use operation proofs bound to method, arguments, session, and challenge, with replay prevention and server-side policy. A same-origin attacker may still attempt to invoke the authenticator, so user presence/verification and operation-level authorization matter.
+
+These tests are existing repository evidence, not new results from this invocation.
+
 ## Limitations
 
 This is a conditional protocol argument based on the stated hostile-client capabilities. It does not evaluate any particular production authentication provider, hardware attestation scheme, TLS client-certificate deployment, or authenticated user flow. The hW harness is a toy finite-state API and its session cookie is a test mechanism, not a production credential.
