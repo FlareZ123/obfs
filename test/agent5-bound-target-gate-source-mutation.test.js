@@ -124,10 +124,14 @@ const siblingMutator=[
   '};'
 ].join('\n');
 
+const siblingState=[
+  'export const state={secretField:23};'
+].join('\n');
+
 const siblingEntry=[
   "import {marker} from './mutator.mjs';",
-  'const owner={secretField:7};',
-  'const internal=()=>owner.secretField;',
+  "import {state} from './state.mjs';",
+  'const internal=(input)=>state.secretField+input;',
   'export const hot=internal.bind(null);',
   'export const markerValue=marker;'
 ].join('\n');
@@ -135,16 +139,21 @@ const siblingEntry=[
 for(const mode of /** @type {const} */ (['coo','sno','sco'])){
   test(mode+' applies the bind-mutation veto across the supplied module group',()=>{
     const compiled=obfuscateFiles([
+      {path:'state.mjs',sourceType:'module',code:siblingState},
       {path:'mutator.mjs',sourceType:'module',code:siblingMutator},
-      {path:'entry.mjs',sourceType:'module',code:siblingEntry}
+      {path:'app.mjs',sourceType:'module',code:siblingEntry}
     ],{
       mode,closedWorld:true,seed:'agent5-group-bind-mutation-'+mode,
       properties:true,identifiers:false,strings:false
     });
-    const entry=compiled.files.find(file=>file.path==='entry.mjs');
-    assert.ok(entry);
-    assert.equal(entry.metrics.properties,0,
-      JSON.stringify({mode,metrics:entry.metrics,code:entry.code}));
+    const state=compiled.files.find(file=>file.path==='state.mjs');
+    const app=compiled.files.find(file=>file.path==='app.mjs');
+    assert.ok(state);
+    assert.ok(app);
+    assert.equal(compiled.crossFile.properties,0,
+      JSON.stringify({mode,crossFile:compiled.crossFile,state:state.code,app:app.code}));
+    assert.match(String(state.code),/secretField/u);
+    assert.match(String(app.code),/secretField/u);
   });
 }
 
