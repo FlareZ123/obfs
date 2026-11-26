@@ -76,6 +76,33 @@ for(const {name,setup:methodSetup} of sourceObserverCases) {
   bodies.set('/compiled-source-'+name+'.mjs',String(file.code));
   metrics['sourceObserver/'+name]=file.metrics;
 }
+const crossFileStorageSource='const {setItem}=localStorage; export {setItem};';
+const crossFileAppSource=[
+  "import {setItem} from './storage.mjs';",
+  'const owner={secretField:7};',
+  'export function outer(){',
+  " const internal=()=>{const x=owner.secretField;setItem.call(localStorage,'agent10-cross-file',new.target);return x;};",
+  ' return {result:internal()};',
+  '}'
+].join('\n');
+const crossFileResult=obfuscateFiles([
+  {path:'storage.mjs',sourceType:'module',code:crossFileStorageSource},
+  {path:'app.mjs',sourceType:'module',code:crossFileAppSource}
+],{
+  mode:'coo',closedWorld:true,seed:'storage-source-observer/cross-file',
+  properties:true,identifiers:false,strings:false
+});
+const crossStorageFile=crossFileResult.files.find(file=>file.path==='storage.mjs');
+const crossAppFile=crossFileResult.files.find(file=>file.path==='app.mjs');
+if(!crossStorageFile||!crossAppFile)throw Error('Expected emitted cross-file Storage modules');
+assert.equal(crossAppFile.metrics.properties,0,
+  'cross-file imported Storage method must block property renaming');
+bodies.set('/native-cross/storage.mjs',crossFileStorageSource);
+bodies.set('/native-cross/app.mjs',crossFileAppSource);
+bodies.set('/compiled-cross/storage.mjs',String(crossStorageFile.code));
+bodies.set('/compiled-cross/app.mjs',String(crossAppFile.code));
+metrics['sourceObserver/crossFile']=crossAppFile.metrics;
+
 async function main() {
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
@@ -106,6 +133,20 @@ async function main() {
     '      nativeHasOriginal:nativeStored.includes("secretField"),compiledHasOriginal:compiledStored.includes("secretField"),equal};',
     '    if(!equal)throw Error("Storage source-observer mismatch "+name+" "+JSON.stringify(report.sourceObservers[name]));',
     '  }',
+    '  localStorage.clear();',
+    '  const nativeCrossModule=await import("/native-cross/app.mjs");',
+    '  const nativeCrossResult=new nativeCrossModule.outer();',
+    '  const nativeCrossStored=localStorage.getItem("agent10-cross-file");',
+    '  localStorage.clear();',
+    '  const compiledCrossModule=await import("/compiled-cross/app.mjs");',
+    '  const compiledCrossResult=new compiledCrossModule.outer();',
+    '  const compiledCrossStored=localStorage.getItem("agent10-cross-file");',
+    '  const crossEqual=nativeCrossResult.result===7&&compiledCrossResult.result===7&&',
+    '    nativeCrossStored===compiledCrossStored&&nativeCrossStored.includes("secretField")&&',
+    '    compiledCrossStored.includes("secretField");',
+    '  report.sourceObservers.crossFile={nativeResult:nativeCrossResult.result,compiledResult:compiledCrossResult.result,',
+    '    nativeHasOriginal:nativeCrossStored.includes("secretField"),compiledHasOriginal:compiledCrossStored.includes("secretField"),equal:crossEqual};',
+    '  if(!crossEqual)throw Error("Cross-file Storage source-observer mismatch "+JSON.stringify(report.sourceObservers.crossFile));',
     '  for(const name of names){',
     '    const nativeModule=await import("/native-"+name+".mjs");',
     '    const compiledModule=await import("/compiled-"+name+".mjs");',
