@@ -1137,3 +1137,29 @@ All evidence remains intermediate. The focused/Chromium/Node results do not esta
 - Independently ran Node 22.16.0 isolated `vm.runInNewContext` semantic checks. All seven proposed runtime flows resolve to native WeakMap.prototype or preserve the outer binding as expected: nested same-name class, block shadow, try assignment, Reflect.get chain, dynamic global key, labelled block, and throw/catch binding. This is **semantic validation only**, not execution of the candidate analyzer and not a false-safe receipt.
 - Broadcast this independent review and semantic validation at `communications/broadcast/20261126T2028Z_agent10-agent7-weakmap-confirmation.md`.
 - Current candidate branch remains at `fcec2e0`; no response or branch movement had appeared at the last check. Full run 458889 remains red; targeted Chromium 458870 is green; release remains blocked.
+
+
+## 2026-11-26 Agent 10 continuation: exact-head WeakMap follow-through
+
+### Identity and candidate state
+- Continued Agent 10 after confirming the previous lease (`2026-11-26T19:42:01.246Z`) was more than 100 minutes old. New lease was committed and verified at `6d8ab1217a963b19ff8d135ddae765089de4baff`, with run ID `agent10-20261126T230601Z-gpt6-weakmap-independent-followthrough` and claimed_at `2026-11-26T23:06:01.961554Z`.
+- Agent 1's single candidate branch remains `agent1/weakmap-exported-container-review-20261126`, exact head `070bc11594fc44e41e496302cf5458152b33538a`. It includes the block-shadow/try-join and expanded Agent 7 tests.
+- Do not treat run **45905444702** as full validation: the three OS jobs were `focused`, and `node22` was skipped.
+- Exact-head browser safe-mode run **45909349979** succeeded with `candidate_sha=070bc11594fc44e41e496302cf5458152b33538a`, `weakmap_source_falsifiers=true`, and `weakmap_expect_safe=true`. It ran the existing manual Chromium workflow, including the cross-boundary matrix and positive controls.
+- Dispatched the full `.github/workflows/manual-validation.yml` workflow on the exact candidate head. Run **45909023258** was in progress at the last check, with Ubuntu and Windows Node 22 jobs running the behavioral/adversarial suite. Check final job status before making any full-gate claim.
+
+### New code-derived falsifier hypotheses (not runtime receipts)
+1. **Extracted Reflect.get alias:** `const reflectGet=Reflect.get; const nativePrototype=reflectGet(globalThis.WeakMap,'prototype');` or `const {get:reflectGet}=Reflect`. `weakMapPrototypeChainDepth` recognizes a direct `Reflect.get` MemberExpression, while the identifier-callee route only recognizes aliases in `prototypeGetters` (for `getPrototypeOf`); alias collectors do not appear to register `Reflect.get`. A separate possible path is extracting `Object.prototype.__proto__`'s getter via `Object.getOwnPropertyDescriptor(...).get.call(Derived.prototype)`.
+2. **For-of target not bound:** `for (const instance of [new WeakMap()]) { Object.getPrototypeOf(instance) ... }`. The loop visitor analyzes `statement.right` and `statement.body` but does not bind `statement.left`; the generic VariableDeclarator pass sees no initializer. The array visitor traverses its `NewExpression` but does not associate the element with the iteration binding.
+3. **ClassDeclaration method closure environment:** inside a function, define `const carrier={instance:new WeakMap()}` and a local `class Mutator { patch(){ Object.getPrototypeOf(carrier.instance) ... } }`. The ClassDeclaration visitor handles `PropertyDefinition` and `StaticBlock`, but does not capture `MethodDefinition.value` environments. The later function-body pass can fall back to module `carrierEnvironment`; `evaluateCarrierValue(Identifier)` consults `weakMapInstances` and imported names, not `weakMapContainerInstances`. Use the object-container property form, because a direct local `const instance=new WeakMap()` is masked by the global name set.
+- These hypotheses were sent to Agent 1 in:
+  - `communications/agent1/20261126T2309Z_agent10-weakmap-reflection-alias-falsifiers.md`
+  - `communications/agent1/20261126T2311Z_agent10-weakmap-forof-carrier-falsifier.md`
+  - `communications/agent1/20261126T2312Z_agent10-class-method-closure-carrier-falsifier.md`
+- Agent 10 has not modified the candidate branch or created a parallel implementation branch/workflow. Continue using the single candidate funnel; wait for the full run before touching its source/test tree.
+
+### Next actions
+1. Poll full run **45909023258**. If it fails, use GitHub Actions MCP logs for failed jobs only, initially a 100–200 line tail; classify each failure as candidate regression, baseline/harness issue, or intended red witness.
+2. Ask Agent 1 to add/replay the three hypotheses on the same candidate branch, retaining existing positive controls. If no response and the branch remains stable after full validation, add red-first tests to that same branch (not a new branch) and run the existing focused and Chromium workflows.
+3. Require exact candidate SHA in every run. A focused workflow success is not a full manual gate; a Chromium safe-mode pass is browser evidence only.
+4. Preserve **RELEASE-BLOCKED / NO-GO** until scope, CFG, reflection aliases, external module boundaries, browser/Node behavior, and performance gates are all supported. The current pass remains a bounded local WeakMap veto, not canonical ValueRef/HostEffectRecord/FunctionSummary integration or a general source observer.
