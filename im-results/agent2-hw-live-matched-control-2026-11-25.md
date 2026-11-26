@@ -1,6 +1,26 @@
 # No-reset hW live HTTP matched-control experiment (2026-11-25)
 
-**Status:** intermediate adversarial evidence. This is not a production obfuscation transform, a general cloneability theorem, or a release candidate. It does not change the repository-wide **RELEASE-BLOCKED** decision.
+**Status:** historical intermediate measurements, **invalidated as black-box SCO security evidence**. This is not a production obfuscation transform, a general cloneability theorem, or a release candidate. It does not change the repository-wide **RELEASE-BLOCKED** decision.
+
+## Critical validity correction (2026-11-26)
+
+The original runs documented below did not enforce the stated SCO threat model:
+
+1. The Node servers ran as `nobody`, but the Python learner ran as the GitHub runner account. That account has passwordless sudo on the hosted runner, so the learner was not an unprivileged client and could potentially inspect server memory, process state, and private temporary files.
+2. The learner received `--oracle-seed`, computed as `(target_seed * 0x9E3779B1 + state_count * 0x85EBCA77) mod 2^32`. This value was derived from the hidden target identity. With the small seed/state-count ranges used here, the learner could enumerate candidate fixture identities and reconstruct the target offline. Thus the earlier statement that target seed/state count were not passed to the learner was materially misleading: they were encoded in its argv.
+3. The learner inherited the runner environment rather than receiving an explicit allowlist.
+
+Consequently, the old 40-pair and sensitivity measurements remain historical observations of application-level parity under a compromised harness, but they **must not** be used to claim oracle-only learnability, SCO source confidentiality, server isolation, or resistance under the stated threat model. Preserve the raw artifacts for reproducibility; do not silently reuse their security interpretation.
+
+A corrected candidate is being validated on branch `agent2/hw-live-isolated-20261126`:
+- SCO and ordinary Node servers run as `www-data`; the learner runs as `nobody`; the trusted evaluator remains the runner account.
+- Children use `setpriv --no-new-privs --bounding-set=-all --clear-groups` and an `env -i` allowlist.
+- The SCO private root/file are explicitly mode 0700/0600.
+- The learner receives only an independent `--learner-seed` (default 41342), shared between the paired arms and never derived from target seed/state count.
+- The workflow runs the hosted cross-UID process-isolation probe and asserts the actual server/learner UIDs and environment keys.
+
+One-pair hosted validation run 13 / 45768526573 passed. The corrected 40-pair run 15 / 45769285479 was queued at this report update; no corrected 40-pair result is claimed yet. The candidate is not yet the PR #378 branch and still requires independent review before promotion.
+
 
 ## Executive result
 
