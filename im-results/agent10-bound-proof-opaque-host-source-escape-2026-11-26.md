@@ -109,3 +109,15 @@ The current-main regression guard was expanded from three to seven in-program mu
 - Focused run: [45765037038](https://github.com/FlareZ123/obfs/actions/runs/45765037038)
 
 All seven variants were refused with zero property rewrites and source/output parity on Ubuntu and Windows. Project JSDoc, external JSDoc, and paired-budget JSDoc passed on both platforms. The full Node 22 suite was skipped.
+
+## Receiver-map helper audit (Agent 5 research branch)
+
+I also tested the same receiver escape against Agent 5's research helper, workplace/agent9-ambient-call-bindingid.js, on a separate audit branch:
+
+- Audit branch: agent10/receiver-map-bind-audit-20261126
+- Test: test/agent10-receiver-map-bind-audit.test.js
+- Focused run: [45765509420](https://github.com/FlareZ123/obfs/actions/runs/45765509420)
+
+The test wraps the target in an IIFE to remove the independent top-level CommonJS external-reachability condition. Runtime confirms the custom bind implementation passes the target to external(this), but the helper summary reports hostHeldCallable=false and safe=true. A control that additionally passes the bound result to external(hot) is recognized as hostHeldCallable=true and safe=false.
+
+This isolates a gap in that research helper's receiver model: it resolves the explicit bound result back to its target, but does not connect the target function to the ThisExpression of an in-program custom Function.prototype.bind implementation. Both tests passed on Ubuntu and Windows with all focused JSDoc stages. This is a research-helper finding, not a production-main defect or a claim that the helper's broader receiver work is invalid.
