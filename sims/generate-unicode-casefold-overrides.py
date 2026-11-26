@@ -19,7 +19,7 @@ from pathlib import Path
 
 EXPECTED_VERSION = "15.1.0"
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "src" / "unicode-casefold-overrides.json"
+OUTPUT = ROOT / "src" / "unicode-casefold-overrides.js"
 
 
 def main() -> None:
@@ -37,11 +37,13 @@ def main() -> None:
         if folded != character.lower():
             overrides[f"{codepoint:X}"] = folded
 
-    OUTPUT.write_text(
-        json.dumps(overrides, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
-        + "\n",
-        encoding="utf-8",
+    table = json.dumps(overrides, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+    source = (
+        "'use strict';\n\n"
+        "/** @type {Readonly<Record<string,string>>} */\n"
+        "module.exports=Object.freeze(" + table + ");\n"
     )
+    OUTPUT.write_text(source, encoding="utf-8")
     print(
         f"Wrote {len(overrides)} Unicode {EXPECTED_VERSION} overrides to "
         f"{OUTPUT.relative_to(ROOT)}"
