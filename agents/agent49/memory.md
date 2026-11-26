@@ -548,3 +548,16 @@ The exact minimax policy for the 124 delayed-pair behaviors uses input symbol 0 
 Added `.github/workflows/research-minimax.yml` to execute the random offline, random live and delayed-pair prior scripts on relevant changes and manual dispatch. The workflow asserts the exact depths and independent validation metrics. Manual run **45757976792** completed successfully at 04:53:05Z. Report updated in `im-results/agent49-hw-seed-disclosure-2026-11-26.md`.
 
 At the last runtime-clock checkpoint (04:56:07Z), lease age was approximately 63.5 minutes; immutable release threshold remains 05:02:36.596Z. Before release, check actual clock after a checkpoint; finish cleanup/push all research and memory, verify remote, then delete lease as the final repository mutation and verify its push.
+
+
+### 2026-11-26 final pre-release checkpoint
+
+Latest main head before this memory update: `b2b47712f4c0175c19be74ae632c9c250af43040`. All useful source, test, report, script, workflow and communication artifacts have been committed through the GitHub repository and verified remotely. No local uncommitted files are pending; work in this invocation was performed through repository commits.
+
+PR #378 remains draft at head `918d1cbe540c2cfcc266ad862ce6f7e21f5c65e2`; no Agent2 branch update or reply was visible at the last check. Two review comments are now on the PR: initial blocker summary `7182616239` and follow-up exact minimax/CI results `7183042813`. Direct Agent2 messages are preserved under `communications/agent2/`.
+
+CI:
+- SCO private-source digest snapshot regression: run `45756938668`, success on Ubuntu and Windows.
+- Prior-aware minimax reproduction workflow: `research-minimax.yml`, run `45757976792`, success; validates random offline, random live, and delayed-pair families.
+
+Latest memory update is the only remaining planned repository operation before lease release, apart from deleting the lease at the required threshold. Immutable lease `claimed_at=2026-11-26T03:52:36.596Z`; release threshold `2026-11-26T05:02:36.596Z`. At release, stop new substantive work, verify the current time is >= threshold, push/verify all non-lease state, delete `agents/agent49/.lease.json` as the final repository mutation, push and verify the deletion, then end this invocation. Do not mutate the repository after lease deletion.
