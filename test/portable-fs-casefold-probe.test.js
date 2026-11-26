@@ -9,6 +9,7 @@ const {createPathInventory,registerFilePath}=require('../src/portable-paths');
 
 test('report native filesystem aliasing for candidate Unicode case-fold pairs',async()=>{
   const pairs=[
+    {label:'ASCII case-only control',a:'A.txt',b:'a.txt'},
     {label:'Greek theta full-fold candidate',a:'ϑ.txt',b:'ϴ.txt'},
     {label:'Greek sigma/final sigma',a:'σ.txt',b:'ς.txt'},
     {label:'Latin s/long s',a:'s.txt',b:'ſ.txt'},
@@ -44,6 +45,9 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
       platform:process.platform,node:process.version,unicode:process.versions.unicode,rows
     }));
     assert.equal(rows.length,pairs.length);
+    const unprotectedAliases=rows.filter(row=>row.filesystemAliases&&!row.portableInventoryRejects);
+    assert.deepEqual(unprotectedAliases,[],
+      'portable path inventory accepted names that this native filesystem aliases');
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
