@@ -78,7 +78,7 @@ function run(files) {
   }
 }
 
-test('a separate imported module can mutate WeakMap.prototype before the Storage proof file executes',()=>{
+test('a separate imported module mutation blocks the Storage reference-only exception across the file group',()=>{
   assert.equal(observesFunctionSource(parse(mutateSource,'module')),false);
   assert.equal(observesFunctionSource(parse(storageSource,'module')),false);
   const sourceFiles=[
@@ -92,15 +92,15 @@ test('a separate imported module can mutate WeakMap.prototype before the Storage
   });
   const storage=compiled.files.find(file=>file.path==='storage.mjs');
   assert.ok(storage);
-  assert.ok(storage.metrics.bindings>=2,
+  assert.equal(storage.metrics.bindings,0,
     JSON.stringify({metrics:storage.metrics,files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))}));
   const native=run(sourceFiles.map(file=>({path:file.path,code:file.code})));
   const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
   assert.deepEqual(emitted.result,native.result);
   assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
-  assert.ok(!emitted.capturedSource.includes('privateLocal'),
+  assert.equal(emitted.capturedSource,native.capturedSource,
     JSON.stringify({native,emitted,storageMetrics:storage.metrics}));
-  process.stdout.write('CROSS_FILE_WEAKMAP_PROTOTYPE_ESCAPE_FALSE_SAFE '+JSON.stringify({
+  process.stdout.write('CROSS_FILE_WEAKMAP_PROTOTYPE_EXPOSURE_REFUSED '+JSON.stringify({
     storageMetrics:storage.metrics,native,emitted
-  })+'\n');
+  })+'\\n');
 });
