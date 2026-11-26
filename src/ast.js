@@ -730,6 +730,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const storageNames=new Set(['localStorage','sessionStorage']);
   const storageInstances=new Set(storageNames);
   const storageMethodAliases=new Set();
+  const storageMethodDescriptorAliases=new Set();
+  const storageReflectGetAliases=new Set();
+  const storageDescriptorReaderAliases=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -1049,19 +1052,41 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isStorageMethodName(name) {
     return name===null||['setItem','getItem','removeItem'].includes(name);
   }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageReflectGetMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageReflectGetAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isStorageReflectGetMethod(node.callee.object);
+    return node.type==='MemberExpression'&&memberName(node)==='get'&&
+      isReflectiveReceiver(node.object);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageDescriptorReader(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageDescriptorReaderAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isStorageDescriptorReader(node.callee.object);
+    return node.type==='MemberExpression'&&
+      memberName(node)==='getOwnPropertyDescriptor'&&
+      isReflectiveReceiver(node.object);
+  }
   /**
-   * Object.getOwnPropertyDescriptor(Storage.prototype, method).value recovers
-   * the same Web IDL method as a direct Storage.prototype member reference.
+   * Object.getOwnPropertyDescriptor(Storage.prototype, method) recovers the
+   * same Web IDL method as a direct Storage.prototype member reference.
+   * Descriptor aliases are propagated through simple identifier bindings.
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
   function isStorageMethodDescriptor(node) {
-    return Boolean(node?.type==='CallExpression' &&
-      node.callee.type==='MemberExpression' &&
-      memberName(node.callee)==='getOwnPropertyDescriptor' &&
-      isReflectiveReceiver(node.callee.object) &&
-      isStoragePrototype(node.arguments[0]) &&
-      isStorageMethodName(sourceStringKey(node.arguments[1])));
+    if(!node)return false;
+    if(node.type==='Identifier')return storageMethodDescriptorAliases.has(node.name);
+    if(node.type!=='CallExpression'||
+       !isStorageDescriptorReader(node.callee))return false;
+    return isStoragePrototype(node.arguments[0])&&
+      isStorageMethodName(sourceStringKey(node.arguments[1]));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStorageMethodReference(node) {
@@ -1072,11 +1097,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          memberName(node.callee)==='bind')
         return isStorageMethodReference(node.callee.object);
       // Reflect.get can detach a native Storage method without leaving a
-      // MemberExpression at the eventual invocation site.
-      if(node.callee.type==='MemberExpression' &&
-         memberName(node.callee)==='get' &&
-         isReflectiveReceiver(node.callee.object) &&
-         isStorageMethodOwner(node.arguments[0]) &&
+      // MemberExpression at the eventual invocation site. Aliased readers are
+      // propagated by the same fixed-point pass as the method references.
+      if(isStorageReflectGetMethod(node.callee)&&
+         isStorageMethodOwner(node.arguments[0])&&
          isStorageMethodName(sourceStringKey(node.arguments[1])))return true;
       return false;
     }
@@ -1312,6 +1336,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isStorageCollection(value)) {
           changed=add(storageInstances,name)||changed;
         }
+        if(isStorageReflectGetMethod(value)) {
+          changed=add(storageReflectGetAliases,name)||changed;
+        }
+        if(isStorageDescriptorReader(value)) {
+          changed=add(storageDescriptorReaderAliases,name)||changed;
+        }
+        if(isStorageMethodDescriptor(value)) {
+          changed=add(storageMethodDescriptorAliases,name)||changed;
+        }
         if(isStorageMethodReference(value)) {
           changed=add(storageMethodAliases,name)||changed;
         }
@@ -1456,12 +1489,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
         }
       }
-      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         node.init) {
-        const target=node.init;
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init || node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='ObjectPattern') {
+        const pattern=node.type==='VariableDeclarator'?node.id:node.left;
+        const target=node.type==='VariableDeclarator'?node.init:node.right;
         const fromStorage=isStorageMethodOwner(target);
         const fromDescriptor=isStorageMethodDescriptor(target);
-        if(fromStorage||fromDescriptor)for(const property of node.id.properties) {
+        if(fromStorage||fromDescriptor)for(const property of pattern.properties) {
           if(property.type!=='Property')continue;
           const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
