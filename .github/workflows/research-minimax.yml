@@ -1,0 +1,50 @@
+name: Research minimax prior validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'sims/agent49-hw-public-prior-optimal-attack.py'
+      - 'sims/agent49-hw-delayed-pair-prior-optimal-attack.py'
+      - '.github/workflows/research-minimax.yml'
+  pull_request:
+    paths:
+      - 'sims/agent49-hw-public-prior-optimal-attack.py'
+      - 'sims/agent49-hw-delayed-pair-prior-optimal-attack.py'
+      - '.github/workflows/research-minimax.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-prior-attacks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate random offline prior (70 candidates)
+        shell: bash
+        run: |
+          python sims/agent49-hw-public-prior-optimal-attack.py | tee random-offline.out
+          grep -q 'candidate_count=70' random-offline.out
+          grep -q 'minimax_worst_case_queries=9' random-offline.out
+          grep -q 'iterative_reachable_beliefs=12906' random-offline.out
+      - name: Validate random live prior (8 candidates)
+        shell: bash
+        run: |
+          python sims/agent49-hw-public-prior-optimal-attack.py \
+            --min-states 2 --max-states 5 --seeds 2 --show-target 2:0 | tee random-live.out
+          grep -q 'candidate_count=8' random-live.out
+          grep -q 'minimax_worst_case_queries=4' random-live.out
+      - name: Validate delayed-pair prior (124 behaviors)
+        shell: bash
+        run: |
+          python sims/agent49-hw-delayed-pair-prior-optimal-attack.py | tee delayed-pair.out
+          grep -q 'candidate_count=124' delayed-pair.out
+          grep -q 'minimax_worst_case_queries=126' delayed-pair.out
+          grep -q 'iterative_reachable_beliefs=10441' delayed-pair.out
+          grep -q 'pair_lower_bound_queries=126' delayed-pair.out
+          grep -q 'optimal_policy_uses_only_input0=True' delayed-pair.out
