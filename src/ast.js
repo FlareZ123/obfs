@@ -81,11 +81,11 @@ function hasUnsafeNativeBindMutationSurface(ast) {
   // supply unrelated methods or unproved receivers.
   const localCallableBindings=new Set();
   walk(ast,(node,parent)=>{
-    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
-      localCallableBindings.add(node.id.name);
+    // Only arrows are admitted as bound targets. A constructible ordinary
+    // function exposes its target through new hot() and prototype.constructor.
     if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
        parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
-       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type))
+       node.init?.type==='ArrowFunctionExpression')
       localCallableBindings.add(node.id.name);
   });
   /**
@@ -107,7 +107,11 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     // Constructing an exported bound wrapper forwards the original target as
     // new.target. Coercing that function (for example in < or +) can invoke
     // Function#toString without an explicit source-observer call.
-    if(node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target') {
+    if(node.type==='MetaProperty'&&
+       (node.meta?.name==='new'&&node.property?.name==='target' ||
+        node.meta?.name==='import'&&node.property?.name==='meta')) {
+      // new.target can expose the current function source through coercion;
+      // import.meta is host-provided and may execute getters before bind.
       unsafe=true;
       return;
     }
