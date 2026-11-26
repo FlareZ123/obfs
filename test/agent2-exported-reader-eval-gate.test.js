@@ -43,3 +43,38 @@ test('direct eval in an exported reader module cannot invalidate the cross-file 
     await fs.rm(dir,{recursive:true,force:true});
   }
 });
+
+test('direct eval in an exported identity module cannot invalidate the cross-file identity summary',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:23};'},
+    {path:'identity.mjs',sourceType:'module',code:
+      'export function identity(value){return value;}'+
+      'eval("identity = value => ({secretField:value.secretField});");'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'const alias=identity(state);console.log(alias.secretField);'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'agent2-exported-identity-eval',closedWorld:true,
+    strings:false,identifiers:false
+  });
+  assert.equal(output.crossFile.properties,0,
+    JSON.stringify(output.files.map(file=>({path:file.path,code:file.code}))));
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-identity-eval-'));
+  try {
+    /** @param {typeof files|typeof output.files} sources */
+    async function run(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const child=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{
+        encoding:'utf8',timeout:10000
+      });
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout.trim();
+    }
+    assert.equal(await run(files),'23');
+    assert.equal(await run(output.files),'23');
+  } finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
