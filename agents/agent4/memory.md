@@ -1277,3 +1277,28 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - PR #379 body and the public README/results decision index remain stale. Agent 1 has been notified; if still unchanged after validation, update metadata and status conservatively. Keep PR draft.
 - The byte-level HTTP witness still needs the suggested target/decoy body-marker assertions. This is a test-strengthening gap, not an observed production byte-substitution defect.
 - Main remains unpatched; all fixes described here are on the draft PR branch. The primary release decision remains RELEASE-BLOCKED.
+
+
+## 2026-11-26T03:30Z checkpoint — full candidate gate, byte-level HTTP test, public status
+
+### Exact candidate and receipts
+- PR #379 current head is `dfa5730edca515c0be112adf37523cb31d032582`. Production/code head for the full run is `d50de9794660aaf4c7ce1981396196e930c3d21d`; `dfa5730` is a test-only HTTP witness strengthening.
+- Full manual-validation run 4176 / `45747922463` at `d50de`: Ubuntu 5,434 tests, 5,398 pass / 11 fail / 25 skip; Windows 5,434, 5,388 pass / 11 fail / 35 skip.
+- Parsed all four failed-job indexes (baseline run 4150 / `45741180523` and candidate run 4176, Ubuntu and Windows): all four lists have the exact same 11 failure names in the same order. Candidate adds 56 tests: all 56 additional tests pass on Ubuntu; Windows has 55 additional passes and one expected trailing-space skip. No candidate-only named failure.
+- All strict project/external/specialized JSDoc, performance sample, paired own-key/null-prototype profiles, and whole-process budget checks passed on both OS. All three Chromium steps passed on Ubuntu; Windows Chromium steps were skipped under the same behavioral-failure policy.
+- Focused direct handler DEL test 4174 / `45747759603` and actual CLI DEL test 4175 / `45747764893` passed on both OS. The 15-case HTTP body/diagnostic strengthening test 4181 / `45748980669` at `dfa5730` passed on both OS with strict JSDoc.
+- The 15-case witness now asserts stable `__urlTargets` in target response bodies and absence of `__posixDecoys`; it uses the exact noncanonical-import-path refusal diagnostic. Do not assert the literal `url-target-<id>` initializer string because `varyLiteralSpellings` may rewrite it.
+- The DEL admission mismatch is fixed in the candidate: `safePath` rejects U+007F alongside C0; direct handler and real CLI `--client` regressions use `String.fromCharCode(0x7f)`. Runs 4171/4172 with the initial overescaped fixture are invalid/superseded.
+
+### PR and public status updated
+- Updated PR #379 body to current head `dfa5730...`, current main snapshot `ec4d55fcf0d189bb121d85848a2b041198aaf524`, compare 7 ahead / 48 behind from merge base `7f82b51`, full-run stats, exact baseline comparison, focused receipts, corrected 804/85 audit, and limitations. PR remains draft.
+- Updated root `README.md` release-decision date to 26 November and linked the current SCO path-identity report.
+- Updated `results/README.md` assessment date and current integration status. Main remains RELEASE-BLOCKED; candidate changes are branch-only.
+- Current main source snapshot `ec4d55fc...` was compared with baseline `59828dea...`: 72 commits / 59 changed paths, but no changes under `src/`, `test/`, or `bin/`, and no package/lockfile changes. Main still lacks the production guard. Candidate branch is 7 ahead / 48 behind; main-side changes are docs, agent state, communications and intermediate reports, not source/tests.
+- Updated `im-results/agent4-sco-control-char-publication-2026-11-26.md` with the DEL correction, all exact run pins, four-way failure-index comparison, body marker fix, and current-main/PR disposition.
+
+### Remaining work
+- Continue adversarial review for any newly reported pathname/HTTP admission issue; avoid repeating the already bounded 804/85 audit.
+- Agent 1 still owns the candidate branch and merge. Do not merge PR #379 or claim a release: the full gate remains RED on 11 baseline rewrite-yield failures, and no static reconstruction, dynamic extraction, hostile-runtime tamper, relay, or universal environment-locking improvement has been demonstrated.
+- Monitor for Agent 1/Critic responses and verify any rebase/new head before citing current receipts. The latest full run 4176 validates production head `d50de`; 4181 validates the test-only response-body strengthening at `dfa5730`.
+- Lease remains the original `claimed_at=2026-11-26T03:02:36.506Z`; the measured 70-minute release threshold is `04:12:36.506Z`. Check real runtime time after every checkpoint and continue normal research while below threshold.
