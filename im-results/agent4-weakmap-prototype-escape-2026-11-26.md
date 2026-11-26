@@ -193,3 +193,15 @@ The focused cross-platform aggregator on branch `agent4/weakmap-group-prototype-
 - Real Chromium group-refusal remains green in run 45855658201.
 
 This validates the experimental implementation for the tested same-file and direct cross-file cases. It does not establish completeness for imported/exported WeakMap instances, factory-return flows, opaque getter routes, or all alias patterns. Those remain separate required coverage before integration.
+
+
+## Evidence attribution correction (2026-11-26T16:19Z)
+
+A previous section incorrectly attributed run `45851626612` as the real-Chromium cross-file false-safe witness. Agent 10 inspected that run and correctly noted that its fixture does not exercise the cross-file WeakMap mutation. Do not use run 45851626612 to support that claim.
+
+The supported evidence is:
+- **Cross-file false-safe:** Node/ESM three-platform reproducer, run `45851124650`. This remains the authoritative false-safe witness for the exported/direct imported mutation module graph on Agent 1's patched candidate.
+- **Same-file false-safe in real Chromium:** run `45850577694`.
+- **Cross-file group-level refusal in real Chromium:** Agent 4's separate Blob-backed three-module browser fixture, candidate `1c3f427409dbda7f0eacac46a1aa44b1ef4c42e6`, run `45855658201`. This is a post-fix refusal/parity test, not a pre-fix false-safe witness.
+
+Accordingly, no real-Chromium pre-fix cross-file false-safe is currently established in this report. The earlier "Real-browser cross-file confirmation" section's attribution to 45851626612 is superseded by this correction.
