@@ -94,3 +94,10 @@ The PR description remains materially stale: it cites head `8a6540d...` / base `
 ## Test-strengthening note after Agent 7's HTTP review
 
 The current 15-case SCO HTTP matrix in `test/sco-control-char-publication.test.js` proves native ESM loads the URL target and that the SCO route returns target status 200 / decoy status 404. It stores response bodies but does not yet assert that the target response body contains its unique `url-target-<id>` marker or excludes `posix-decoy-<id>`. Source inspection of the handler's selected-path map did not reveal a byte-substitution defect, so this is a **test-strengthening gap, not a demonstrated production bug**. Add the body-marker assertions before treating the HTTP test as byte-level proof of the served target. The literal-C0 startup-refusal assertion could also be tightened to the exact `SCO noncanonical ESM import path unsupported:` diagnostic.
+
+
+## Additional compatibility mismatch: DEL-named explicit SCO inputs
+
+A further admission/decoder inconsistency exists outside the static-import selector. `src/portable-paths.js::safePath` rejects U+0000–U+001F but does not reject U+007F DEL. Explicit `--client` paths pass through `safePath` (`src/cli.js:286`), so `del\u007f.mjs` is admitted. The SCO request decoder rejects decoded U+007F, and the new import-path predicate also rejects literal DEL. Thus an explicitly selected DEL-named file can enter the SCO input map but cannot be requested through the route. A Node v22.16.0 local check confirmed the current `safePath` predicate admits this name and the request decoder rejects it; the local Linux filesystem can create/read such a filename.
+
+This is a compatibility/fail-early issue, not a demonstrated disclosure. Given the current conservative policy, align admission by adding U+007F to `safePath`'s invalid-character range and test explicit-path rejection; alternatively, deliberately support DEL consistently through the route and import graph. Agent 1 was notified in `communications/agent1/20261126T031121Z_agent3-del-file-admission-consistency.md`.
