@@ -10,7 +10,8 @@ const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runBrowser=promisify(execFile);
 
-/** @typedef {{name:string,kind:number,renamed:number}} BrowserCase */
+/** @typedef {{path:string,sourceType:'module',code:string}} BrowserSource */
+/** @typedef {{name:string,kind?:number,renamed:number,files?:BrowserSource[],duplicateSeparator?:boolean,expected?:unknown[],properties?:boolean,identifiers?:boolean}} BrowserCase */
 
 /** @type {BrowserCase[]} */
 const CASES=[
@@ -19,7 +20,75 @@ const CASES=[
   {name:'external-key-callback',kind:13,renamed:0},
   {name:'inherited-prototype-getter',kind:17,renamed:0},
   {name:'unrelated-descriptor-positive',kind:20,renamed:2},
-  {name:'external-numeric-positive',kind:23,renamed:2}
+  {name:'external-numeric-positive',kind:23,renamed:2},
+  {name:'sibling-alias-local-reader',renamed:1,files:[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left} from "./state.mjs";'+
+      'import {state as right} from "./state.mjs";'+
+      'const alias=right;const getLeft=()=>left;'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(alias),local(getLeft()));'}
+  ]},
+  {name:'sibling-alias-imported-reader',renamed:1,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:29};'+
+      'export function peek(value){return value.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left,state as right,peek} from "./state.mjs";'+
+      'console.log(peek(left),peek(right));'}
+  ]},
+  {name:'repeated-separator-distinct-url-identities',renamed:0,duplicateSeparator:true,
+    expected:[false,29,29,29,29],files:[
+      {path:'state.mjs',sourceType:'module',code:
+        'export const state={secretField:29};'+
+        'export function peek(value){return value.secretField;}'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {state as left} from "./state.mjs";'+
+        'import {state as right,peek} from ".//state.mjs";'+
+        'console.log(left===right,peek(left),peek(right),'+
+        'left.secretField,right.secretField);'}
+    ]},
+  {name:'browser-url-dot-segment-target-distinct-from-posix-path',renamed:0,
+    expected:[42],files:[
+      {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+      {path:'a/state.mjs',sourceType:'module',code:'export const state={secretField:42};'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {state} from "./a//../state.mjs";console.log(state.secretField);'}
+    ]},
+  {name:'sibling-alias-escape',renamed:0,files:[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:29};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state as left,state as right} from "./state.mjs";'+
+      'globalThis.escapedOwner=right;'+
+      'const local=value=>value.secretField;'+
+      'console.log(local(left));'}
+  ]},
+  {name:'text-import-default-owner-module-type',renamed:0,files:[
+    {path:'state.mjs',sourceType:'module',code:'export default {length:23};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import source from "./state.mjs" with {type:"text"};export const value=source.length??-1;'}
+  ]},
+  {name:'text-import-observes-identifier-rewrite',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import source from "./state.mjs" with {type:"text"};export const value=source.length;'}
+  ]},
+  {name:'dynamic-text-import-observes-source-rewrite',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'const loaded=await import("./state.mjs",{with:{type:"text"}});export const value=loaded.default.length;'}
+  ]},
+  {name:'text-reexport-observes-module-source',renamed:0,properties:false,identifiers:true,files:[
+    {path:'state.mjs',sourceType:'module',code:
+      'const privateValue=23;export default {length:privateValue};'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {default as source} from "./state.mjs" with {type:"text"};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {source} from "./relay.mjs";export const value=source.length;'}
+  ]}
 ];
 
 /**
@@ -39,17 +108,30 @@ function browserCode(filename,source) {
   return adapted;
 }
 
-/** @returns {string} */
-function page() {
+/**
+ * @param {string} entryUrl
+ * @returns {string}
+ */
+function page(entryUrl) {
   return [
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
+    'let capturedArgs;',
+    'let logged=false;',
+    'const originalLog=console.log;',
+    'console.log=(...args)=>{if(logged)throw Error("Multiple fixture outputs");logged=true;capturedArgs=args;};',
     'try {',
-    'const mod=await import("./entry.mjs");',
+    `const mod=await import(${JSON.stringify(entryUrl)});`,
+    'console.log=originalLog;',
+    'const hasValue=Object.hasOwn(mod,"value");',
+    'if(!hasValue&&!logged)throw Error("Missing fixture output");',
+    'const encoded=JSON.stringify(hasValue?mod.value:capturedArgs);',
+    'if(typeof encoded!=="string")throw Error("Fixture value is not JSON serializable");',
     'const pre=document.createElement("pre");',
-    'pre.id="result";pre.textContent=btoa(JSON.stringify(mod.value));',
+    'pre.id="result";pre.textContent=btoa(encoded);',
     'document.body.appendChild(pre);',
     '} catch(error) {',
+    'console.log=originalLog;',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);',
     'document.body.appendChild(pre);',
@@ -59,8 +141,8 @@ function page() {
 }
 
 /**
- * Test six actual network-served, original vs generated ESM module graphs
- * with Chrome's genuine ESM linker and external host callback support.
+ * Test eleven actual network-served, original vs generated ESM module graphs
+ * with Chrome's genuine ESM linker and a known in-graph host shim.
  * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
 async function main() {
@@ -68,10 +150,13 @@ async function main() {
   const files=new Map();
   let normalizedPublicFields=0;
   for(const item of CASES) {
-    const fixture=makeFixture(7,item.kind);
-    assert.equal(fixture.scenario,SCENARIOS[item.kind]);
+    const fixture=item.files ?
+      {scenario:'custom-sibling-alias',files:item.files} :
+      makeFixture(7,item.kind??0);
+    if(item.kind!==undefined)assert.equal(fixture.scenario,SCENARIOS[item.kind]);
     const protectedFiles=obfuscateFiles(fixture.files,{
-      mode:'coo',closedWorld:true,identifiers:false,strings:false,
+      mode:'coo',closedWorld:true,properties:item.properties,
+      identifiers:item.identifiers??false,strings:false,
       seed:'esm-observer-browser-'+item.name
     });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
@@ -85,22 +170,37 @@ async function main() {
     assert.equal(attacked.properties,item.renamed,
       item.name+' should normalize every privately renamed public field');
     normalizedPublicFields+=attacked.properties;
-    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
-    for(const source of fixture.files)
-      files.set('/'+item.name+'/original/'+source.path,browserCode(source.path,source.code));
+    for(const source of attacked.files) {
+      const pathname='/'+item.name+'/normalized/'+source.path;
+      files.set(pathname,browserCode(source.path,source.code));
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/normalized//state.mjs',browserCode(source.path,source.code));
+    }
+    for(const source of fixture.files) {
+      const pathname='/'+item.name+'/original/'+source.path;
+      files.set(pathname,browserCode(source.path,source.code));
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/original//state.mjs',browserCode(source.path,source.code));
+    }
     for(const source of protectedFiles.files) {
       assert.equal(typeof source.code,'string');
-      files.set('/'+item.name+'/emitted/'+source.path,
-        browserCode(source.path,/** @type {string} */(source.code)));
+      const pathname='/'+item.name+'/emitted/'+source.path;
+      const emitted=browserCode(source.path,/** @type {string} */(source.code));
+      files.set(pathname,emitted);
+      if(item.duplicateSeparator&&source.path==='state.mjs')
+        files.set('/'+item.name+'/emitted//state.mjs',emitted);
     }
   }
-  const html=page();
   const server=http.createServer((request,response)=>{
     if(request.method!=='GET'){response.writeHead(405).end();return;}
     const url=new URL(request.url??'/', 'http://localhost');
     if(url.pathname.endsWith('/index.html')){
+      const host=request.headers.host;
+      if(typeof host!=='string')throw Error('Browser request must include Host');
+      const basePath=url.pathname.slice(0,url.pathname.lastIndexOf('/')+1);
+      const entryUrl=new URL('entry.mjs','http://'+host+basePath).href;
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
-      response.end(html);
+      response.end(page(entryUrl));
       return;
     }
     const content=files.get(url.pathname);
@@ -129,8 +229,10 @@ async function main() {
         const resultText=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
         assert.ok(resultText,item.name+'/'+target+' Chrome failure: '+stdout.slice(0,1200));
         const result=JSON.parse(Buffer.from(resultText,'base64').toString('utf8'));
-        if(target==='original') baseline=result;
-        else assert.deepEqual(result,baseline,item.name+' emitted/native browser mismatch');
+        if(target==='original') {
+          baseline=result;
+          if(item.expected)assert.deepEqual(result,item.expected,item.name+' native URL-identity contract');
+        } else assert.deepEqual(result,baseline,item.name+' emitted/native browser mismatch');
       }
       if(item.renamed)renamed+=item.renamed;
       else refusals++;

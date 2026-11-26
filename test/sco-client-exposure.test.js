@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const net=require('node:net');
-const {spawn}=require('node:child_process');
+const {spawn,spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 
 /** @returns {Promise<number>} */
@@ -102,6 +102,48 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
       assert.equal(explicit.get(name)?.status,404,name);
     }
   }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('SCO CLI rejects repeated-separator ESM paths that POSIX normalization would misresolve',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-ambiguous-url-path-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),
+      'import {value} from "./a//../dep.mjs";globalThis.value=value;');
+    await atomicWrite(path.join(root,'dep.mjs'),'export const value="posix-target";');
+    await atomicWrite(path.join(root,'a','dep.mjs'),'export const value="url-target";');
+    const port=await unusedPort();
+    const child=spawnSync(process.execPath,[
+      path.join(__dirname,'../bin/sco.js'),'--root',root,'--entry','index.mjs',
+      '--port',String(port)
+    ],{encoding:'utf8',timeout:8000,windowsHide:true});
+    if(child.error)throw child.error;
+    assert.notEqual(child.status,0,child.stdout);
+    assert.match(child.stderr,/SCO noncanonical ESM import path unsupported: \.\/a\/\/\.\.\/dep\.mjs/u);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('SCO CLI rejects terminal dot-segment ESM paths that would over-publish a file',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-terminal-dot-url-path-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),
+      'import {value} from "./private.mjs/.";globalThis.value=value;');
+    await atomicWrite(path.join(root,'private.mjs'),
+      'export const value="must-remain-private";');
+    const port=await unusedPort();
+    const child=spawnSync(process.execPath,[
+      path.join(__dirname,'../bin/sco.js'),'--root',root,'--entry','index.mjs',
+      '--port',String(port)
+    ],{encoding:'utf8',timeout:8000,windowsHide:true});
+    assert.notEqual(child.error?.code,'ETIMEDOUT',
+      'SCO accepted the noncanonical import and remained listening');
+    if(child.error)throw child.error;
+    assert.notEqual(child.status,0,child.stdout);
+    assert.match(child.stderr,/SCO noncanonical ESM import path unsupported: \.\/private\.mjs\/\./u);
+  } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
 });
