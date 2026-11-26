@@ -373,6 +373,8 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
  * @param {string[]} [additionalRootNames] Other local names proven to denote the same immutable imported ESM binding.
+ * @param {boolean} [allowExportedClosureReaders] Admit the narrow closed-world zero-argument exported closure-reader proof.
+ * @param {boolean} [allowBoundFunctionTargets] Admit a private target used only by native bind when the complete graph passes its mutation gate.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, additionalRootNames=[], allowExportedClosureReaders=false, allowBoundFunctionTargets=false) {
