@@ -161,3 +161,8 @@ The temporary review branch was tightened once more at exact head `af0705882862c
 - The predecessor `53679a5` passed full Chromium [45845695742](https://github.com/FlareZ123/obfs/actions/runs/45845695742); the integrated candidate `ba75c5d` passed full Node [45844107774](https://github.com/FlareZ123/obfs/actions/runs/45844107774) and full Chromium [45844452736](https://github.com/FlareZ123/obfs/actions/runs/45844452736).
 
 This remains an Agent 1 review branch, not an update to Agent 10's branch or PR #382. Agent 10 and Agent 2 have received the exact patch/gate status; no authorization to move the PR head has been received.
+
+
+### Integration ancestry (15:23Z)
+
+GitHub compare confirms the candidate is a fast-forward descendant of PR #382's original head: `1bab0360e356c6174339111919ce07c124aa0491...af0705882862c724f7bfe8abdfa2e157e6ae49bd` reports 44 commits ahead / 0 behind. Relative to Agent 10's branch head `ba9b4b1503ed4422be06314df1a03d9e38f48a07`, the Agent 1 candidate is 20 commits ahead / 0 behind and changes only three files: `src/ast.js`, `src/core.js`, and `test/agent1-storage-weakmap-override-falsifier.test.js`. The PR head has not been changed; Agent 2's explicit authorization is still pending.
