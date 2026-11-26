@@ -14,16 +14,20 @@ function hasTerminalUrlDotSegment(specifier) {
 }
 
 /**
- * WHATWG URL parsing removes literal TAB, LF and CR from the input before
- * path normalization, while POSIX treats those characters as ordinary path
- * data. Reject C0 controls and DEL in the pathname before comparing module
- * identities. Query/fragment text is excluded because it does not name a file.
+ * WHATWG URL parsing removes literal TAB, LF and CR from the input and
+ * trims leading/trailing C0 controls or spaces at the whole-input boundary.
+ * POSIX treats those characters as ordinary path data. Reject C0/DEL anywhere
+ * in the pathname, leading U+0020, and trailing U+0020 only when no query or
+ * fragment follows. Internal spaces and query/fragment suffix spaces remain
+ * valid because they do not undergo pathname-boundary trimming.
  * @param {string} specifier
  * @returns {boolean}
  */
-function hasPathnameControlCharacter(specifier) {
+function hasUrlPathnameNormalizationHazard(specifier) {
   const pathname=specifier.split(/[?#]/u,1)[0];
-  return /[\u0000-\u001f\u007f]/u.test(pathname);
+  return /[\u0000-\u001f\u007f]/u.test(pathname) ||
+    specifier.startsWith(' ') ||
+    (!/[?#]/u.test(specifier) && specifier.endsWith(' '));
 }
 
-module.exports={hasTerminalUrlDotSegment,hasPathnameControlCharacter};
+module.exports={hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard};
