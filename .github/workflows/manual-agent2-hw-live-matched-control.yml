@@ -41,6 +41,11 @@ on:
         required: false
         default: 20
         type: number
+      learner_seed:
+        description: "Independent learner RNG seed; never derived from target seed/state count"
+        required: false
+        default: 41342
+        type: number
 
 permissions:
   contents: read
@@ -71,7 +76,11 @@ jobs:
             sims/agent2-hw-live-sco-client.py \
             sims/agent2-hw-live-sco-benchmark.py \
             sims/agent2-hw-live-matched-control.py \
+            sims/agent2-hw-process-isolation.py \
+            sims/agent49-process-isolation-probe.py \
             sims/agent2-hw-no-reset-benchmark.py
+      - name: Verify cross-UID process isolation
+        run: python sims/agent49-process-isolation-probe.py
       - name: Test exact evaluator semantics
         run: python sims/test_agent2_hw_no_reset_evaluator.py
       - name: Run paired live HTTP hW benchmark
@@ -83,6 +92,7 @@ jobs:
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 120 }}
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
+          LEARNER_SEED: ${{ inputs.learner_seed }}
         run: |
           python sims/agent2-hw-live-matched-control.py \
             --fixture-family "$FIXTURE_FAMILY" \
@@ -90,6 +100,7 @@ jobs:
             --seeds "$SEEDS" --timeout-seconds "$TIMEOUT_SECONDS" \
             --random-walk-length "$RANDOM_WALK_LENGTH" \
             --origin-states "$ORIGIN_STATES" \
+            --learner-seed "$LEARNER_SEED" \
             > live-hw-matched-results.json
           python - <<'PY'
           import json
@@ -117,6 +128,19 @@ jobs:
               if row["status"] != "completed":
                   continue
               assert row["comparison"]["matched"], row
+              assert row["server_user_isolated"] is True, row
+              assert row["sco"]["server_process"]["uid"] == result["scope"]["server_uid"], row
+              assert row["ordinary"]["server_process"]["uid"] == result["scope"]["server_uid"], row
+              assert row["sco"]["learner_process"]["uid"] == result["scope"]["learner_uid"], row
+              assert row["ordinary"]["learner_process"]["uid"] == result["scope"]["learner_uid"], row
+              assert row["sco"]["learner_process"]["euid"] == result["scope"]["learner_uid"], row
+              assert row["ordinary"]["learner_process"]["euid"] == result["scope"]["learner_uid"], row
+              assert row["sco"]["learner_process"]["learner_seed"] == int(os.environ["LEARNER_SEED"]), row
+              assert row["ordinary"]["learner_process"]["learner_seed"] == int(os.environ["LEARNER_SEED"]), row
+              assert row["sco"]["server_process"]["private_root_mode"] == "700", row
+              assert row["sco"]["server_process"]["private_file_mode"] == "600", row
+              for process in (row["sco"]["learner_process"], row["ordinary"]["learner_process"]):
+                  assert not any(key.startswith(("GITHUB_", "RUNNER_", "ACTIONS_", "TARGET_", "FIXTURE_", "ORACLE_")) for key in process["environment_keys"]), row
               assert row["comparison"]["learner_trace_equal"], row
               assert row["comparison"]["hypothesis_equal"], row
               assert row["comparison"]["rpc_request_response_trace_equal"], row
@@ -132,6 +156,9 @@ jobs:
               assert row["ordinary"]["source_disclosed"] is False, row
           summary = {
               "fixture_family": family,
+              "learner_seed": result["scope"]["learner_seed"],
+              "server_uid": result["scope"]["server_uid"],
+              "learner_uid": result["scope"]["learner_uid"],
               "runs": result["total_runs"],
               "completed": result["completed_runs"],
               "timeouts": result["timeouts"],
