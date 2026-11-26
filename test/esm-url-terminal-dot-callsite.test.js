@@ -4,7 +4,9 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 
-/** @param {string} path @param {string} code @returns {{path: string, sourceType: 'module', code: string}} */
+/** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
+
+/** @param {string} path @param {string} code @returns {ModuleFile} */
 function moduleFile(path,code) {
   return {path,sourceType:'module',code};
 }
@@ -43,4 +45,32 @@ test('terminal dot URL identity disables unproved static ESM string decoding',()
     closedWorld:true,strings:true,properties:false,identifiers:false
   });
   assert.equal(output.files.reduce((sum,file)=>sum+file.metrics.literals,0),0);
+});
+
+test('query, fragment, encoded-dot, encoded-separator and trailing-slash paths do not enter cross-file proof',()=>{
+  const owner='export const state={secretField:23};export function peek(x){return x.secretField;}';
+  /** @param {string} specifier @param {ModuleFile[]} [decoys] @returns {ModuleFile[]} */
+  function ownerGraph(specifier,decoys=[]) {
+    return [
+      moduleFile('state.mjs',owner),
+      ...decoys,
+      moduleFile('entry.mjs',
+        'import {state,peek} from '+JSON.stringify(specifier)+';console.log(peek(state));')
+    ];
+  }
+  const options={mode:'coo',seed:'pr379-url-boundary-review',
+    closedWorld:true,strings:false,identifiers:false};
+  assert.equal(obfuscateFiles(ownerGraph('./state.mjs'),options).crossFile.properties,1,
+    'canonical control must admit the established proof');
+  const cases=[
+    {specifier:'./state.mjs?version=1'},
+    {specifier:'./state.mjs#fragment',decoys:[moduleFile('state.mjs#fragment',owner)]},
+    {specifier:'./state.mjs/%2e',decoys:[moduleFile('state.mjs/%2e',owner)]},
+    {specifier:'./state.mjs%2fchild',decoys:[moduleFile('state.mjs/child',owner)]},
+    {specifier:'./folder/../state.mjs/'}
+  ];
+  for(const candidate of cases) {
+    assert.equal(obfuscateFiles(ownerGraph(candidate.specifier,candidate.decoys),options)
+      .crossFile.properties,0,candidate.specifier);
+  }
 });

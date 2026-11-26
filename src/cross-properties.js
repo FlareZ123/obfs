@@ -32,8 +32,10 @@ function resolveImport(from,specifier) {
   // normalization collapses them. A repeated separator can therefore name a
   // distinct module URL (or resolve around a dot segment to a different input
   // file). Refuse that spelling instead of merging distinct module identities.
+  // Browser URL query/fragment and percent/backslash spellings are excluded
+  // here too: POSIX normalization cannot prove their WHATWG URL identity.
   if ((!specifier.startsWith('./') && !specifier.startsWith('../')) ||
-      specifier.includes('//') || hasTerminalUrlDotSegment(specifier)) return null;
+      /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasTerminalUrlDotSegment(specifier)) return null;
   const normalized=path.posix.normalize(path.posix.join(path.posix.dirname(from),specifier));
   return normalized.startsWith('../') || normalized==='..' ? null : normalized;
 }
