@@ -61,7 +61,7 @@ class LoopbackListenerTests(unittest.TestCase):
             try:
                 connection, _address = listener.accept()
                 with connection:
-                    connection.sendall(b"SSH-2.0-OpenSSH_10.2p1 Ubuntu-2ubuntu3.8\\r\\n")
+                    connection.sendall(b"SSH-2.0-OpenSSH_10.2p1 Ubuntu-2ubuntu3.8\r\n")
                     banner_sent.set()
             except OSError:
                 pass
