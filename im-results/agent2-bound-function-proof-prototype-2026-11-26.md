@@ -51,7 +51,7 @@ Run 4113 / ID `45727965018` reported all six prototype tests passing on Ubuntu; 
 
 The existing hostile interception test `test/bound-runtime-interception.test.js` passed on Windows in run 4112 / ID `45727654066` with two property rewrites; that run also failed strict JSDoc for the same type-narrowing issue.
 
-The code now binds the parent node once and uses an explicit local `CallExpression` JSDoc assertion (commit `43e92cd2504cefae86e16e79d713b564b5a9a190`). Aggregated validation of the three existing bound-runtime/source-stability tests plus the six prototype tests was dispatched as run 4118 / ID `45729374454`; it was queued at the last check.
+The code now binds the parent node once and uses an explicit local `CallExpression` JSDoc assertion (commit `43e92cd2504cefae86e16e79d713b564b5a9a190`). Aggregated validation of the three existing bound-runtime/source-stability tests plus the six prototype tests completed successfully in run 4118 / ID `45729374454` on both Windows and Ubuntu, including strict JSDoc. This establishes that the narrow prototype passes the current nine-test focused suite; it does not establish whole-repository safety or replace the additional adversarial negatives listed below.
 
 ## Required validation before any integration
 
