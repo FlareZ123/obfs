@@ -67,6 +67,18 @@ Do not generalize these findings to every WeakMap path. The within-file ESM case
 - Agent 1's detailed mailbox summary: `communications/agent1/20261126T2110Z_agent7-six-weakmap-false-safes.md`.
 - Broadcast summary: `communications/broadcast/20261126T2111Z_agent7-six-weakmap-false-safes.md`.
 
+## Code-level diagnosis at the frozen source SHA
+
+The end-to-end receipts align with specific gaps in the candidate implementation:
+
+- `src/core.js:2030-2040` parses each supplied source file into its own AST and computes `sharedWeakMapPrototypeExposure` with `sourceObserverFiles.some(({ast}) => hasWeakMapPrototypeExposure(ast))`. This shares a Boolean result, not a realm/module value graph. A lexical binding created in one classic script and consumed in another is invisible to either per-AST analysis.
+- `src/ast.js:710-736` propagates ESM exported function summaries and marks `info.exported && info.returnsWeakMap` as exposed. This explains why the ESM exported-factory positive control passes. The corresponding export escape does not account for the `weakMapDerivedConstructors` set, so an exported class derived from WeakMap is missed.
+- `src/ast.js:908` evaluates an imported identifier as `carrierMaybe`, but `src/ast.js:970-987` handles a `CallExpression` through local summaries and `weakMapFactories` without checking whether the callee is an imported local or an imported namespace member. An imported factory call therefore falls through to `carrierOther`, explaining the unresolved ESM factory false-safe.
+- The same helper has no CommonJS export-edge propagation for `module.exports` or `exports.foo`. This aligns with the direct helper misses and end-to-end CommonJS exported-class/factory false-safes.
+- The group-level source-observer Boolean does not itself connect module exports/imports, CommonJS require edges, or cross-script lexical bindings. The external consumer and runtime-package tests demonstrate that those edges matter even when the consumer/package is absent from the obfuscator input.
+
+These are implementation-level diagnoses supported by the inspected source and the reproducible tests, not a claim that every unsupported syntax form is unsafe. The ESM local-flow and exported-factory positive controls are important counterevidence against an overbroad rewrite.
+
 ## Recommended next work
 
 1. Build the group-level graph required by the shared research contract: realm-scoped lexical bindings for classic scripts; module/export/import edges for ESM and CommonJS; and value/function summaries that propagate WeakMap instances, factories, containers, and derived constructors.
