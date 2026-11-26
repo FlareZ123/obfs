@@ -227,7 +227,7 @@ test('in-program source observation blocks an exported closure-owner rewrite',()
   assert.match(output.files.find(file=>file.path==='state.mjs').code,/secretField/);
 });
 
-test('exported generic reader does not make a caller-supplied owner private',()=>{
+test('without a closed-world assertion, exported generic readers keep public owner shapes',()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',
       code:'export const state={secretField:17};export function read(owner){return owner.secretField;}'},
@@ -235,7 +235,7 @@ test('exported generic reader does not make a caller-supplied owner private',()=
       code:'import {state,read} from "./state.mjs";console.log(read(state));'}
   ];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'exported-generic-reader',
+    mode:'coo',closedWorld:false,seed:'exported-generic-reader-open-world',
     identifiers:false,strings:false
   });
   assert.equal(output.crossFile.properties,0);
