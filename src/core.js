@@ -2032,7 +2032,10 @@ function obfuscateFiles(files, options = {}) {
       if(file.sourceType==='asset'||typeof file.code!=='string')return [];
       return [{file,ast:parse(file.code,file.sourceType)}];
     }):[];
-  const sharedWeakMapPrototypeExposure=sourceObserverFiles.some(({ast})=>
+  // A different module can publish a WeakMap instance or a factory that
+  // the source-observer module later imports. Summarize the complete supplied
+  // graph, not only modules that independently look like source observers.
+  const sharedWeakMapPrototypeExposure=prepared.some(({ast})=>
     hasWeakMapPrototypeExposure(ast));
   let remoteSourceObserver=hasPinnedSource;
   let hostLockSourceObserver=false;
