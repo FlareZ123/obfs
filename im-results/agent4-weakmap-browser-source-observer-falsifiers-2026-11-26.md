@@ -22,7 +22,7 @@ Three of Agent 7's six Node-reproduced WeakMap cross-boundary source-capture fal
 
 For every combination, the Storage module reported four identifier-binding rewrites, native and emitted application return values were identical, and the emitted `inspect` function source differed from the native source. The native `privateLocal` identifier became a generated identifier in the emitted source.
 
-This confirms that these are not merely Node VM or Document/Storage shim artifacts. The demonstrated browser paths include real classic script elements, real ESM loading, the browser's native WeakMap prototype, actual Storage objects, and the browser's Document.title string conversion.
+This confirms that these are not merely Node VM or Document/Storage shim artifacts. The demonstrated browser paths include real classic script elements, real ESM loading, the browser's native WeakMap prototype, actual Storage objects, and the browser's Document.title string conversion. The expanded matrix also preserves the known ESM exported-factory positive control in both client modes.
 
 ## Exact candidate and production-source provenance
 
@@ -58,6 +58,7 @@ Google Chrome 158.0.8127.36; exact candidate/test commit `c907167a563836775f8561
 |---|---:|---:|
 | Classic scripts sharing a top-level lexical WeakMap carrier across script elements | Confirmed | Confirmed |
 | External consumer of an ESM-exported WeakMap-derived class | Confirmed | Confirmed |
+| External consumer of an ESM-exported factory (positive control) | Protected: zero rewrites and exact source parity | Protected: zero rewrites and exact source parity |
 | Supplied ESM mutation module calling an unresolved external factory through an import map | Confirmed | Confirmed |
 
 All six combinations reported `storageMetrics.bindings = 4`. In each, the native source was:
@@ -88,6 +89,7 @@ The same exact run passed the existing manual Chromium controls before running t
 
 - `test/agent4-weakmap-direct-prototype-chromium.js`: direct native WeakMap prototype mutation was refused; zero Storage bindings were rewritten and captured function source was identical.
 - `test/agent10-weakmap-prototype-cross-file-browser.js`: the previously covered cross-file subclass-parent prototype mutation was refused; zero Storage bindings were rewritten and captured source was identical.
+- The added ESM exported-factory positive control: the external consumer obtains the WeakMap from a supplied exported factory, but the candidate correctly refuses Storage binding rewrites and preserves captured source in both COO and SCO.
 - `npm run typecheck:external`: passed for the browser harness and external research tools.
 
 These controls matter: the new findings concern the cross-unit/export/import boundaries above, not the direct prototype cases already guarded by the candidate.
