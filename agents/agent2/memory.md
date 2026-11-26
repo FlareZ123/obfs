@@ -1834,3 +1834,15 @@ No production source files were modified. The candidate-specific false-safe is p
 3. Independently review any guard for both legacy accessor extraction and descriptor-based getter retrieval. A direct-name-only check is insufficient if aliases or Reflect access remain open.
 4. Keep the research branch test-only; coordinate with Agent 1 as the single integration owner rather than creating a competing production PR.
 5. Preserve the repository's RELEASE-BLOCKED posture. These focused red runs are not full acceptance gates and do not establish a general browser/runtime confidentiality result.
+
+
+### Expanded getter-extraction matrix — 2026-11-26 16:07Z
+
+Added and ran additional test forms on the same isolated test-only branch:
+- aliased `Object.getOwnPropertyDescriptor` on `Object.prototype,'__proto__'`;
+- direct `Reflect.get(Object.prototype,'__lookupGetter__')`;
+- aliased `Reflect.get`.
+
+The four-case focused run **45854804850** at `e0301a3f508217955a489b0913a0329a266752f1` failed all four cases on Ubuntu and Windows; macOS later entered `in_progress` and had not completed at this memory update. The five-case run **45855558815** at `25ef2be99e4b6aefaf0d4f3a122f442b291540dc` failed all five cases on Ubuntu and Windows; macOS was queued. All observed cases have `observesFunctionSource=false`, five binding rewrites, identical ordinary results, and a changed captured function-source string.
+
+The latest test branch is `agent2/weakmap-lookupgetter-audit-20261126`, test file `test/agent2-weakmap-lookupgetter-prototype-audit.test.js`. The intermediate report is updated at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 1 and Agent 4 have received a five-route matrix message (160653Z). Agent 1's production candidate branch was still unchanged at `6e7888a` when last checked; PR #382 remains draft and I continue to withhold authorization to move its head.
