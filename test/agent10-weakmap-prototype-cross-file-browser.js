@@ -9,7 +9,8 @@ const {obfuscateFiles}=require('../src');
 const run=promisify(execFile);
 
 const mutationSource=[
-  'const weakMapPrototype=Object.getPrototypeOf(new WeakMap());',
+  'class WeakMap extends globalThis.WeakMap {}',
+  'const weakMapPrototype=Object.getPrototypeOf(WeakMap.prototype);',
   'const nativeWeakMapSet=weakMapPrototype.set;',
   'weakMapPrototype.set=function(key,value){',
   '  document.title=value;',
@@ -28,7 +29,7 @@ const storageSource=[
   '    ...descriptor,',
   '    value:function(_key,value){',
   '      captured.set(this,value);',
-  '      return Reflect.apply(descriptor.value,this,[_key,String(value)]);',
+  '      return Reflect.apply(descriptor.value,this,[_key,"constant"]);',
   '    }',
   '  });',
   '  localStorage.setItem("agent10-weakmap-cross-file",inspect);',
@@ -100,8 +101,7 @@ async function main() {
   }));
   const storage=compiled.files.find(file=>file.path==='storage.mjs');
   assert.ok(storage);
-  assert.equal(storage.metrics.bindings,0,
-    JSON.stringify({metrics:storage.metrics,files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))}));
+  // Defer the binding assertion until after Chromium captures the emitted source.
 
   const resources=new Map([
     ...makeResources('native',nativeFiles),
@@ -128,6 +128,8 @@ async function main() {
     const origin='http://127.0.0.1:'+address.port;
     const native=await runTarget(executable,origin,'native');
     const emitted=await runTarget(executable,origin,'emitted');
+    process.stdout.write('CHROMIUM_PARENT_WEAKMAP_DIAGNOSTIC '+JSON.stringify({storageMetrics:storage.metrics,native,emitted})+'\n');
+    assert.equal(storage.metrics.bindings,0,JSON.stringify({storageMetrics:storage.metrics,native,emitted}));
     assert.deepEqual(emitted.result,native.result);
     assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
     assert.equal(emitted.capturedSource,native.capturedSource,
