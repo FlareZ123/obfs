@@ -9,7 +9,7 @@ const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
 const {portableKeys}=require('./portable-paths');
-const {hasTerminalUrlDotSegment}=require('./esm-url-paths');
+const {hasTerminalUrlDotSegment,hasPathnameControlCharacter}=require('./esm-url-paths');
 const {assertSnoDirectBareRequireParity}=require('./sno-bare-audit');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -315,6 +315,9 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
       const specifier=node.source.value;
       if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
+      if(hasPathnameControlCharacter(specifier)) {
+        throw new Error('SCO noncanonical ESM import path unsupported: '+specifier);
+      }
       // Module resolution is URL-based. Resolve a single percent-decoding
       // layer per segment so ordinary encoded Unicode, spaces and # names
       // remain reachable, while encoded separators/dot segments cannot
@@ -337,7 +340,7 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
         let decoded;
         try {decoded=decodeURIComponent(part);}
         catch (error) {throw new Error('SCO encoded import path unsupported: '+specifier);}
-        if(/[\\/\x00]/u.test(decoded) ||
+        if(/[\\/\x00-\x1f\x7f]/u.test(decoded) ||
            part.includes('%') && (decoded==='.'||decoded==='..')) {
           throw new Error('SCO encoded import path unsupported: '+specifier);
         }
