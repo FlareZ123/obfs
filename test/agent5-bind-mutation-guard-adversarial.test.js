@@ -153,3 +153,20 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('receiver map models this for a custom bind method stored directly on the local function',()=>{
+  const source='(function run(){'+
+    'const owner={secretField:7};'+
+    'const internal=()=>owner.secretField;'+
+    'internal.bind=function(){external(this);const target=this;'+
+    'return (...args)=>Reflect.apply(target,null,args);};'+
+    'const hot=internal.bind(null);hot();'+
+    '})();';
+  const [captured]=execute(source);
+  assert.equal(typeof captured,'function');
+  assert.match(String(captured),/owner\.secretField/);
+  const summary=hiddenSummary(source);
+  assert.equal(summary.hostHeldCallable,true,JSON.stringify(summary.reasons));
+  assert.equal(summary.safe,false,JSON.stringify(summary.reasons));
+});
