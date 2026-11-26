@@ -54,6 +54,160 @@ function walk(root, visit) {
 }
 
 /**
+ * Detect source-visible access to the shared native WeakMap prototype.
+ * The result is also aggregated across a supplied module group so a side-effect
+ * import cannot mutate the intrinsic behind another file's local proof.
+ *
+ * @param {AstNode} ast
+ * @param {Set<string>|Map<string,number>} [boundNames]
+ * @returns {boolean}
+ */
+function hasWeakMapPrototypeEscape(ast,boundNames=new Set()) {
+  const hasBinding=name=>boundNames.has(name);
+  const globalRootNames=new Set(['globalThis','window','self','global']);
+  const reflectiveNames=new Set(['Object','Reflect']);
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {string|null}
+   */
+  function propertyName(node) {
+    if(!node)return null;
+    if(node.type==='MemberExpression') {
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    if(node.type==='Property') {
+      return node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+    }
+    return null;
+  }
+  const globalAliases=new Set();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='Identifier'&&globalRootNames.has(node.init.name)&&
+       !hasBinding(node.init.name))globalAliases.add(node.id.name);
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobalObject(node) {
+    return Boolean(node?.type==='Identifier'&&
+      (globalRootNames.has(node.name)&&!hasBinding(node.name)||
+       globalAliases.has(node.name)));
+  }
+  const reflectiveAliases=new Set();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='Identifier'&&reflectiveNames.has(node.init.name)&&
+       !hasBinding(node.init.name))reflectiveAliases.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='MemberExpression'&&
+       reflectiveNames.has(propertyName(node.init)??'')&&
+       isGlobalObject(node.init.object))reflectiveAliases.add(node.id.name);
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isReflectiveRoot(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&
+        (reflectiveNames.has(node.name)&&!hasBinding(node.name)||
+         reflectiveAliases.has(node.name))||
+      node.type==='MemberExpression'&&
+        reflectiveNames.has(propertyName(node)??'')&&
+        isGlobalObject(node.object)
+    ));
+  }
+  const weakMapConstructorAliases=new Set();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='Identifier'&&node.init.name==='WeakMap'&&
+       !hasBinding('WeakMap'))weakMapConstructorAliases.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='MemberExpression'&&
+       propertyName(node.init)==='WeakMap'&&isGlobalObject(node.init.object))
+      weakMapConstructorAliases.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+       isGlobalObject(node.init)) {
+      for(const property of node.id.properties) {
+        if(property.type==='Property'&&propertyName(property)==='WeakMap'&&
+           property.value?.type==='Identifier')
+          weakMapConstructorAliases.add(property.value.name);
+      }
+    }
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapConstructor(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&
+        (node.name==='WeakMap'&&!hasBinding('WeakMap')||
+         weakMapConstructorAliases.has(node.name))||
+      node.type==='MemberExpression'&&propertyName(node)==='WeakMap'&&
+        isGlobalObject(node.object)
+    ));
+  }
+  const weakMapInstanceAliases=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapInstance(node) {
+    return Boolean(node&&(
+      node.type==='NewExpression'&&isWeakMapConstructor(node.callee)||
+      node.type==='Identifier'&&weakMapInstanceAliases.has(node.name)
+    ));
+  }
+  let changed=true;
+  while(changed) {
+    changed=false;
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         isWeakMapInstance(node.init)&&!weakMapInstanceAliases.has(node.id.name)) {
+        weakMapInstanceAliases.add(node.id.name);
+        changed=true;
+      }
+    });
+  }
+  const prototypeReaderAliases=new Set();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init?.type==='MemberExpression'&&
+       propertyName(node.init)==='getPrototypeOf'&&
+       isReflectiveRoot(node.init.object))
+      prototypeReaderAliases.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+       isReflectiveRoot(node.init)) {
+      for(const property of node.id.properties) {
+        if(property.type==='Property'&&propertyName(property)==='getPrototypeOf'&&
+           property.value?.type==='Identifier')
+          prototypeReaderAliases.add(property.value.name);
+      }
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'&&
+       node.right?.type==='MemberExpression'&&
+       propertyName(node.right)==='getPrototypeOf'&&
+       isReflectiveRoot(node.right.object))
+      prototypeReaderAliases.add(node.left.name);
+  });
+  let escaped=false;
+  walk(ast,(node,parent)=>{
+    if(node.type==='Identifier'&&node.name==='WeakMap'&&
+       !hasBinding('WeakMap')&&
+       !(parent?.type==='NewExpression'&&parent.callee===node))
+      escaped=true;
+    if(node.type==='MemberExpression'&&propertyName(node)==='prototype'&&
+       isWeakMapConstructor(node.object))escaped=true;
+    if(node.type==='MemberExpression'&&propertyName(node)==='__proto__'&&
+       isWeakMapInstance(node.object))escaped=true;
+    if(node.type==='CallExpression') {
+      const callee=node.callee;
+      if(callee?.type==='MemberExpression'&&
+         propertyName(callee)==='getPrototypeOf'&&
+         isReflectiveRoot(callee.object)&&
+         isWeakMapInstance(node.arguments[0]))escaped=true;
+      if(callee?.type==='Identifier'&&
+         prototypeReaderAliases.has(callee.name)&&
+         isWeakMapInstance(node.arguments[0]))escaped=true;
+    }
+  });
+  return escaped;
+}
+
+/**
  * Admit only a tiny source-visible grammar for native-bound targets:
  * top-level fn.bind(null) calls, no opaque calls, dynamic evaluation, host
  * capabilities, prototype access, computed member paths, getters, or member
