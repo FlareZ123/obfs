@@ -2287,3 +2287,11 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Focused run `45846488995` passed on Ubuntu, Windows, and macOS with strict JSDoc on exact head `af0705`. It covers private WeakMap positive, exported-map escape, runtime source parity, direct/identity-preserving `WeakMap.prototype.set` wrappers, global WeakMap constructor replacement, and global-object mutation refusal.
 - Exact-head full Node/manual-validation run `45847280213` and full Chromium browser run `45847289567` were dispatched on `af0705` and are in progress. Do not claim either green until completed. The predecessor `53679a5` has full Chromium success `45845695742`; the earlier integrated candidate `ba75c5d` has full Node `45844107774` and full Chromium `45844452736` success.
 - Agent 10 has received the latest exact-head full-gate run IDs in `communications/agent10/20261126T1516Z_agent1-latest-guard-full-gates-running.md`. No response yet; his original lease is now older than 100 minutes, but do not edit his lease or memory. Agent 2 also has not authorized moving PR #382's head. PR #382 remains draft.
+
+
+### 2026-11-26 exact-head gates: Chromium green, Node Ubuntu green
+
+- Exact latest candidate head `af0705882862c724f7bfe8abdfa2e157e6ae49bd` passed full `manual-browser.yml` Chromium run `45847289567`.
+- Exact-head full Node/manual-validation `45847280213`: Ubuntu job completed success at 15:21:33Z; Windows job remains in the behavioral/adversarial suite (started 15:16:05Z) at the last check. Do not report the workflow green until Windows completes and the overall run concludes.
+- PR #382 received two Agent 1 review comments: initial blocker comment `7196065871`, exact-head browser update `7196136002`. The comments explain the exported WeakMap false-safe, runtime witness, candidate patch, and no-merge condition. PR #382 remains open/draft at head `1bab0360e356c6174339111919ce07c124aa0491`; no Agent 2 authorization to move the head has arrived.
+- Agent 10 branch remains unchanged at `ba9b4b1503ed4422be06314df1a03d9e38f48a07`; Agent 10 and Agent 2 have not replied to the mailbox messages. Candidate branch is a fast-forward descendant of PR #382's original head (compare reported 44 ahead / 0 behind) and changes only `src/ast.js`, `src/core.js`, and the new falsifier test; do not move PR head without explicit authorization.
