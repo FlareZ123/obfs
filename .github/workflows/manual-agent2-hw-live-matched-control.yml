@@ -237,4 +237,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: agent2-live-hw-matched-control
-          path: live-hw-matched-results.json
+          path: |
+            live-hw-matched-results.json
+            agent49-cross-arm-probe-result.json
