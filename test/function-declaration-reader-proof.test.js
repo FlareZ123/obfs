@@ -90,6 +90,140 @@ test('cross-module native ESM graph preserves direct named declaration reader ca
   }
 });
 
+test('ESM private readers remain unrenamed when exported, escaped, optional, mixed-owner or source-observed',async()=>{
+  /** @type {Array<{name:string,files:SourceFile[]}>} */
+  const cases=[
+    {
+      name:'re-exported helper',
+      files:[
+        {path:'owner.mjs',sourceType:'module',code:[
+          'const privateRecord={secretAlpha:23};',
+          'export function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'export function calculate(k){return k*readAlpha(privateRecord);}'
+        ].join('\\n')},
+        {path:'barrel.mjs',sourceType:'module',code:'export {readAlpha} from "./owner.mjs";'},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export {readAlpha} from "./barrel.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute,readAlpha} from "./api.mjs";',
+          'process.stdout.write(JSON.stringify([execute(2),readAlpha({secretAlpha:5})]));'
+        ].join('\\n')}
+      ]
+    },
+    {
+      name:'helper aliased and stored',
+      files:[
+        {path:'owner.mjs',sourceType:'module',code:[
+          'const privateRecord={secretAlpha:23};',
+          'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'const alias=readAlpha;',
+          'export function calculate(k){return k*alias(privateRecord);}'
+        ].join('\\n')},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute} from "./api.mjs";',
+          'process.stdout.write(String(execute(2)));'
+        ].join('\\n')}
+      ]
+    },
+    {
+      name:'helper passed to opaque callback',
+      files:[
+        {path:'owner.mjs',sourceType:'module',code:[
+          'const privateRecord={secretAlpha:23};',
+          'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'function capture(reader){globalThis.__capturedReader=reader;}',
+          'capture(readAlpha);',
+          'export function calculate(k){return k*readAlpha(privateRecord);}'
+        ].join('\\n')},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute} from "./api.mjs";',
+          'process.stdout.write(String(execute(2)));'
+        ].join('\\n')}
+      ]
+    },
+    {
+      name:'optional helper call',
+      files:[
+        {path:'owner.mjs',sourceType:'module',code:[
+          'const privateRecord={secretAlpha:23};',
+          'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'export function calculate(k){return k*(readAlpha?.(privateRecord)??0);}'
+        ].join('\\n')},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute} from "./api.mjs";',
+          'process.stdout.write(String(execute(2)));'
+        ].join('\\n')}
+      ]
+    },
+    {
+      name:'mixed tracked and imported owner arguments',
+      files:[
+        {path:'external.mjs',sourceType:'module',code:'export const externalOwner={secretAlpha:13};'},
+        {path:'owner.mjs',sourceType:'module',code:[
+          'import {externalOwner} from "./external.mjs";',
+          'const privateRecord={secretAlpha:23};',
+          'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'export function calculate(k){return k*readAlpha(privateRecord)+readAlpha(externalOwner);}'
+        ].join('\\n')},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute} from "./api.mjs";',
+          'process.stdout.write(String(execute(2)));'
+        ].join('\\n')}
+      ]
+    },
+    {
+      name:'direct helper source observation',
+      files:[
+        {path:'owner.mjs',sourceType:'module',code:[
+          'const privateRecord={secretAlpha:23};',
+          'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+          'const observedSource=readAlpha.toString();',
+          'export function calculate(k){return k*readAlpha(privateRecord)+observedSource.length*0;}'
+        ].join('\\n')},
+        {path:'api.mjs',sourceType:'module',code:[
+          'import {calculate} from "./owner.mjs";',
+          'export function execute(k){return calculate(k);}'
+        ].join('\\n')},
+        {path:'entry.mjs',sourceType:'module',code:[
+          'import {execute} from "./api.mjs";',
+          'process.stdout.write(String(execute(2)));'
+        ].join('\\n')}
+      ]
+    }
+  ];
+  for(const item of cases){
+    const native=await runEsm(item.files);
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+      const transformed=obfuscateFiles(item.files,{mode,closedWorld:true,
+        seed:'esm-private-reader-refusal-'+mode+'-'+item.name,strings:false,identifiers:false});
+      const owner=transformed.files.find(file=>file.path==='owner.mjs');
+      assert.ok(owner,item.name+': owner module must be retained');
+      assert.equal(owner.metrics.objects,0,mode+'/'+item.name+': owner must remain unrenamed');
+      assert.equal(owner.metrics.properties,0,mode+'/'+item.name+': source-observed/escaped reader must retain its key');
+      assert.equal(await runEsm(transformed.files),native,mode+'/'+item.name+': native ESM output parity');
+    }
+  }
+});
+
 test('immutable two-statement helper expressions can safely consume owned fields',()=>{
   const variants=[
     'const read=(incoming)=>{const value=incoming.secretAlpha;return value;};',
