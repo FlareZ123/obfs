@@ -50,7 +50,7 @@ async function run(files){
 }
 
 for(const mode of /** @type {const} */ (['coo','sno','sco'])){
-  test(mode+' constructible bound wrapper exposes its private target via prototype.constructor',async()=>{
+  test(mode+' constructible bound target is refused to preserve source through prototype.constructor',async()=>{
     const native=await run(constructibleSources);
     assert.equal(native.result,7);
     assert.match(native.source,/owner\.secretField/u);
@@ -63,22 +63,21 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     });
     const app=compiled.files.find(file=>file.path==='app.mjs');
     assert.ok(app);
-    assert.equal(app.metrics.properties,1,
+    assert.equal(app.metrics.properties,0,
       JSON.stringify({mode,metrics:app.metrics,source:app.code}));
 
     const actual=await run(compiled.files.map(file=>({
       path:file.path,sourceType:'module',code:String(file.code)
     })));
-    process.stdout.write('BOUND_CONSTRUCTOR_TARGET_EXTRACTION '+JSON.stringify({
+    process.stdout.write('BOUND_CONSTRUCTOR_TARGET_REFUSAL '+JSON.stringify({
       mode,native,actual,properties:app.metrics.properties,emittedSource:app.code
     })+'\n');
 
     assert.equal(actual.result,7,'the extracted target still computes the original value');
-    assert.match(actual.source,/_p[0-9a-f]{10}/u,
-      'the recovered target source contains the transformed property key');
-    assert.doesNotMatch(actual.source,/secretField/u,
-      'the ordinary constructor path extracts transformed, not original, source');
-    assert.notEqual(actual.source,native.source,
-      'the constructor path exposes the changed target source without a host preloader');
+    assert.equal(actual.source,native.source,
+      'the target remains recoverable, so its source must not be rewritten');
+    assert.equal(actual.recoveredName,native.recoveredName);
+    assert.equal(actual.wrapperName,native.wrapperName);
+    assert.equal(actual.wrapperLength,native.wrapperLength);
   });
 }
