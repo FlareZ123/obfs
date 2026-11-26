@@ -720,18 +720,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          !(use.parent?.type==='Property' && use.key==='key' && !use.parent.computed) &&
          !(use.parent?.type==='MemberExpression' && use.key==='property' &&
            !use.parent.computed)))continue;
-    let privateValue=true;
+    let privateValue=true,exportedBinding=false;
     for(const use of identifierUses.get(binding.name)??[]) {
       if(use.node===binding.decl) {
-        // Exporting a closure-only function is not itself an in-program
-        // source observer. The graph-wide source-observer gate has already
-        // rejected programs that inspect this function's source. The owner
-        // alias proof below still rejects returning/passing the owner or
-        // accepting it through an unproved exported parameter.
+        if(use.ancestors.some(ancestor=>
+          ancestor.type==='ExportNamedDeclaration'||
+          ancestor.type==='ExportDefaultDeclaration'))exportedBinding=true;
         continue;
       }
       if(use.parent?.type==='ExportSpecifier'&&use.key==='local'||
-         use.parent?.type==='ExportDefaultDeclaration'&&use.key==='declaration')continue;
+         use.parent?.type==='ExportDefaultDeclaration'&&use.key==='declaration') {
+        exportedBinding=true;
+        continue;
+      }
       if(!use.ancestors.includes(scope)||
          use.parent?.type!=='CallExpression'||
          use.parent.callee!==use.node||
@@ -739,6 +740,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         privateValue=false;
         break;
       }
+    }
+    // An exported function can safely read a private closure owner only when
+    // it has no formal object-input channel and directly reads that owner.
+    // Generic exported readers remain fail-closed: callers outside the closed
+    // graph could supply objects whose property spelling must not be changed.
+    // The graph-wide source-observer gate above still rejects in-program
+    // Function#toString observation; host-side extraction sees transformed
+    // source by design.
+    if(privateValue&&exportedBinding) {
+      if(binding.node.params?.length!==0)privateValue=false;
+      let readsOwner=false;
+      if(privateValue)walk(binding.node.body??binding.node,node=>{
+        if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+           rootNames.has(node.object.name))readsOwner=true;
+      });
+      if(!readsOwner)privateValue=false;
     }
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
