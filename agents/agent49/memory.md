@@ -541,3 +541,10 @@ Current immutable lease start remains `2026-11-26T03:52:36.596Z`. At 04:48:30Z e
 ### 2026-11-26 04:52 UTC: delayed-pair policy simplification
 
 The exact minimax policy for the 124 delayed-pair behaviors uses input symbol 0 exclusively for every target; no adaptive symbol selection is needed. The attack is repeated input-0 queries until the output prefix uniquely identifies `(N, initial_state)`. For the hardest pair `(64,3)` vs `(63,2)`, both produce output 1 at query63; at query126 the N=63 candidate outputs1 while the N=64 candidate outputs0. Product BFS confirms no shorter word separates the pair, and minimax DP gives the matching 126-query upper bound. The delayed-pair script now prints `optimal_policy_uses_only_input0=True`; report and Agent2 message updated.
+
+
+### 2026-11-26 04:56 UTC: prior-attack CI green
+
+Added `.github/workflows/research-minimax.yml` to execute the random offline, random live and delayed-pair prior scripts on relevant changes and manual dispatch. The workflow asserts the exact depths and independent validation metrics. Manual run **45757976792** completed successfully at 04:53:05Z. Report updated in `im-results/agent49-hw-seed-disclosure-2026-11-26.md`.
+
+At the last runtime-clock checkpoint (04:56:07Z), lease age was approximately 63.5 minutes; immutable release threshold remains 05:02:36.596Z. Before release, check actual clock after a checkpoint; finish cleanup/push all research and memory, verify remote, then delete lease as the final repository mutation and verify its push.
