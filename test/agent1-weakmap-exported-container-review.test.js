@@ -119,6 +119,55 @@ const fixtures=[
     mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
     probe:'probe',
     seed:'agent1-exported-class-getter-weakmap'
+  },
+  {
+    name:'an exported object literal containing the result of a local WeakMap factory must invalidate the group proof',
+    factorySource:'export const holder={map:makeMap()};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-factory-result-weakmap'
+  },
+  {
+    name:'a later assignment of a local WeakMap factory result into an exported object must invalidate the group proof',
+    factorySource:'const holder={};\nholder.map=makeMap();\nexport {holder};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-factory-assignment-weakmap'
+  },
+  {
+    name:'a global property assigned a local WeakMap factory result must invalidate the group proof',
+    factorySource:'globalThis.__obfsWeakMapProbe=makeMap();\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:'const probe=globalThis.__obfsWeakMapProbe;',
+    probe:'probe',
+    seed:'agent1-global-factory-result-weakmap'
+  },
+  {
+    name:'an exported class constructor publishing a WeakMap instance field must invalidate the group proof',
+    factorySource:'class Factory { constructor(){this.map=new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
+    probe:'probe',
+    seed:'agent1-exported-class-constructor-weakmap'
+  },
+  {
+    name:'an exported class static block publishing a WeakMap property must invalidate the group proof',
+    factorySource:'class Factory { static {this.map=new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=Factory.map;",
+    probe:'probe',
+    seed:'agent1-exported-class-static-block-weakmap'
+  },
+  {
+    name:'an exported class constructor publishing a local WeakMap factory result must invalidate the group proof',
+    factorySource:'class Factory { constructor(){this.map=makeMap();} }\nexport {Factory};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
+    probe:'probe',
+    seed:'agent1-exported-class-constructor-factory-weakmap'
+  },
+  {
+    name:'an exported factory returning a container whose property is a local WeakMap factory result must invalidate the group proof',
+    factorySource:'function makeMap(){return new WeakMap();}\nexport function makeHolder(){return {map:makeMap()};}',
+    mutatePrefix:"import {makeHolder} from './factory.mjs';\nconst probe=makeHolder().map;",
+    probe:'probe',
+    seed:'agent1-exported-factory-container-weakmap'
   }
 ];
 
