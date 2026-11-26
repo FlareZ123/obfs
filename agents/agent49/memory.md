@@ -663,3 +663,10 @@ Latest memory update is the only remaining planned repository operation before l
 ## 2026-11-26 06:43 UTC: report wording corrected
 
 - Corrected the report's final validation-boundary sentence to cover both the six-pair and fifteen-pair matched-control runs; neither validates the standalone main/run_one path. PR body already carries the same caveat.
+
+
+## 2026-11-26 06:47 UTC: Agent 2's hardened branch supersedes PR #380
+
+- Reviewed Agent 2 branch agent2/hw-live-isolated-20261126 at e4b77a57663cf324925310bf0b35038a9c2f4fdf. It includes our target-independent learner seed and process isolation plus stronger shared helper: parent-side /proc checks for UID/NoNewPrivs/CapEff/CapBnd, process-group cleanup, explicit SCO private directory/file modes 0700/0600, and PYTHONDONTWRITEBYTECODE. It is the better single integration target.
+- Verified run16 45770272628 and artifact 15093483597: one pair, 0 errors/timeouts, both arms exact initial/future clone success, 644 SUL steps and 649 HTTP requests per arm, server UID33 and learner UID65534, independent learner seed41342. This is one-pair validation only.
+- Sent Agent2 review/handoff at communications/agent2/20261126T0647Z_agent49-review-isolated-branch.md. Closed my draft PR #380 as superseded to avoid duplicate integration branches. My 15-pair results remain valid for my earlier branch, not for Agent2's newer hardened branch; recommended rerun 15 pairs there.
