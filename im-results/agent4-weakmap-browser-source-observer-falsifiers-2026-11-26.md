@@ -5,16 +5,16 @@
 **Classification:** Intermediate reproducible browser evidence; not an established security result.  
 **Candidate source SHA:** `fcec2e0d99e909e43433b18cacb63f9fba37b31e`  
 **Browser-test branch:** `agent4/weakmap-browser-source-observer-falsifiers-20261126`  
-**Exact browser-test commit:** `c246d9de796ff5f96e9a3389956ed8e8ca123291`  
+**Exact browser-test commit:** `c907167a563836775f85615b459751f2c554e2bd`  
 **Browser-test file:** `test/agent4-weakmap-browser-source-observer-falsifiers.js`  
-**Browser-test blob:** `7a8da9f79e71a09e03771698778845c212620f70`  
+**Browser-test blob:** `f4d98648e6371e4710b291b1808265655cb56173`  
 **Manual workflow update:** `8d8da6a7243c176ee8f4ddd068a3ec752d4a7712`  
 **Workflow documentation update:** `3af358e2cf49e9cfbc6b578446806c0bd31af786`  
-**Exact Chromium run:** [45897924700](https://github.com/FlareZ123/obfs/actions/runs/45897924700)
+**Exact Chromium run:** [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264)
 
 ## Executive finding
 
-Three of Agent 7's six Node-reproduced WeakMap cross-boundary source-capture false-safes also reproduce in a real browser. The exact frozen compiler candidate was exercised in Google Chrome 157.0.8127.78. All six client-mode/scenario combinations passed the *expected-vulnerability diagnostic*:
+Three of Agent 7's six Node-reproduced WeakMap cross-boundary source-capture false-safes also reproduce in a real browser. The exact frozen compiler candidate was exercised in Google Chrome 158.0.8127.36. All six client-mode/scenario combinations passed the *expected-vulnerability diagnostic*:
 
 - three browser-applicable scenarios;
 - both client modes, COO and SCO;
@@ -52,7 +52,7 @@ The browser runner also checks that the browser returns a structured result rath
 
 ## Confirmed browser matrix
 
-Google Chrome 157.0.8127.78; exact candidate/test commit `c246d9de796ff5f96e9a3389956ed8e8ca123291`; run [45897924700](https://github.com/FlareZ123/obfs/actions/runs/45897924700).
+Google Chrome 158.0.8127.36; exact candidate/test commit `c907167a563836775f85615b459751f2c554e2bd`; run [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264).
 
 | Browser scenario | COO | SCO |
 |---|---:|---:|
@@ -120,3 +120,18 @@ The result does **not** establish:
 - an academically established obfuscation-security result.
 
 Keep this work in `im-results/`. The release/security decision remains **RELEASE-BLOCKED / NO-GO** until the six source-level falsifiers, positive-yield controls, exact full gates, runtime-budget measurements, and the broader threat-model requirements are resolved on one frozen candidate.
+
+
+## Addendum — ESM exported-factory positive control (26 November 2026)
+
+The browser matrix was expanded with the positive control already present in Agent 7's Node suite: an external browser consumer imports `export function make(){return new WeakMap();}`, obtains the returned instance's native prototype, patches it, then imports the Storage observer.
+
+Exact expanded test commit: `c907167a563836775f85615b459751f2c554e2bd` (test blob `f4d98648e6371e4710b291b1808265655cb56173`). Exact run: [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264), Google Chrome 158.0.8127.36.
+
+Results:
+- The three false-safe scenarios still reproduce in COO and SCO: **6/6** source-capture mismatches, four Storage bindings rewritten per combination, same application result.
+- The exported ESM factory remains protected in COO and SCO: **2/2** positive controls have zero Storage binding rewrites and exact native/emitted captured-source parity.
+- The direct-prototype and subclass-parent controls still pass with zero Storage binding rewrites and exact source parity.
+- Strict external JSDoc checking passes.
+
+The earlier false-safe-only run 45897924700 is superseded as the latest matrix receipt by 45898378264. The latter exact commit includes all six browser false-safe combinations plus the ESM exported-factory positive control. Production source blobs remain unchanged from candidate fcec2e0.
