@@ -141,18 +141,16 @@ for(const fixture of fixtures) {
     });
     const storage=compiled.files.find(file=>file.path==='storage.mjs');
     assert.ok(storage);
-    assert.ok(storage.metrics.bindings>0,
+    assert.equal(storage.metrics.bindings,0,
       JSON.stringify({seed:fixture.seed,storageMetrics:storage.metrics,
         files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))}));
     const native=run(files.map(file=>({path:file.path,code:file.code})));
     const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
     assert.deepEqual(emitted.result,native.result);
     assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
-    assert.notEqual(emitted.capturedSource,native.capturedSource,
+    assert.equal(emitted.capturedSource,native.capturedSource,
       JSON.stringify({seed:fixture.seed,native,emitted,storageMetrics:storage.metrics}));
-    assert.ok(!emitted.capturedSource.includes('privateLocal'),
-      JSON.stringify({seed:fixture.seed,native,emitted,storageMetrics:storage.metrics}));
-    process.stdout.write('WEAKMAP_EXPORTED_ESCAPE_FALSE_SAFE '+JSON.stringify({
+    process.stdout.write('WEAKMAP_EXPORTED_ESCAPE_REFUSED '+JSON.stringify({
       seed:fixture.seed,storageMetrics:storage.metrics,native,emitted
     })+'\\n');
   });
