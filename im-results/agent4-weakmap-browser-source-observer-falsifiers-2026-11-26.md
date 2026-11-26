@@ -5,20 +5,21 @@
 **Classification:** Intermediate reproducible browser evidence; not an established security result.  
 **Candidate source SHA:** `fcec2e0d99e909e43433b18cacb63f9fba37b31e`  
 **Browser-test branch:** `agent4/weakmap-browser-source-observer-falsifiers-20261126`  
-**Exact browser-test commit:** `c907167a563836775f85615b459751f2c554e2bd`  
+**Exact browser-test commit:** `3cef395f7520e0830d3f19ec1d8cd05edb25ae45`  
 **Browser-test file:** `test/agent4-weakmap-browser-source-observer-falsifiers.js`  
-**Browser-test blob:** `f4d98648e6371e4710b291b1808265655cb56173`  
-**Manual workflow update:** `8d8da6a7243c176ee8f4ddd068a3ec752d4a7712`  
-**Workflow documentation update:** `3af358e2cf49e9cfbc6b578446806c0bd31af786`  
-**Exact Chromium run:** [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264)
+**Browser-test blob:** `e6993fcb17e75cbdf31a0e3262c446d3646dd101`  
+**Manual workflow update:** `e8246cb4a6e95375eb77e7235563ff5632fb7699`  
+**Workflow documentation update:** `8b539607d30d52beb361371c4ec19f00172dae23`  
+**Exact Chromium run:** [45899994192](https://github.com/FlareZ123/obfs/actions/runs/45899994192)
 
 ## Executive finding
 
-Three of Agent 7's six Node-reproduced WeakMap cross-boundary source-capture false-safes also reproduce in a real browser. The exact frozen compiler candidate was exercised in Google Chrome 158.0.8127.36. All six client-mode/scenario combinations passed the *expected-vulnerability diagnostic*:
+Five browser-side WeakMap source-observer paths reproduce in real Chrome: three of Agent 7's Node cases plus dynamic global constructor heritage and Reflect.get prototype-chain extraction. The exact frozen compiler candidate was exercised in Google Chrome 158.0.8127.36. All ten client-mode/scenario combinations passed the *expected-vulnerability diagnostic*, while the exported ESM factory positive control remained protected:
 
-- three browser-applicable scenarios;
+- five false-safe scenarios;
 - both client modes, COO and SCO;
-- six source-capture mismatches in total.
+- ten source-capture mismatches in total;
+- two protected exported-ESM-factory positive-control runs.
 
 For every combination, the Storage module reported four identifier-binding rewrites, native and emitted application return values were identical, and the emitted `inspect` function source differed from the native source. The native `privateLocal` identifier became a generated identifier in the emitted source.
 
@@ -52,16 +53,18 @@ The browser runner also checks that the browser returns a structured result rath
 
 ## Confirmed browser matrix
 
-Google Chrome 158.0.8127.36; exact candidate/test commit `c907167a563836775f85615b459751f2c554e2bd`; run [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264).
+Google Chrome 158.0.8127.36; exact candidate/test commit `3cef395f7520e0830d3f19ec1d8cd05edb25ae45`; run [45899994192](https://github.com/FlareZ123/obfs/actions/runs/45899994192).
 
 | Browser scenario | COO | SCO |
 |---|---:|---:|
 | Classic scripts sharing a top-level lexical WeakMap carrier across script elements | Confirmed | Confirmed |
 | External consumer of an ESM-exported WeakMap-derived class | Confirmed | Confirmed |
+| Dynamic global constructor heritage via `globalThis[constructorKey]` | Confirmed | Confirmed |
+| `Reflect.get` extraction of the derived/native prototype chain | Confirmed | Confirmed |
 | External consumer of an ESM-exported factory (positive control) | Protected: zero rewrites and exact source parity | Protected: zero rewrites and exact source parity |
 | Supplied ESM mutation module calling an unresolved external factory through an import map | Confirmed | Confirmed |
 
-All six combinations reported `storageMetrics.bindings = 4`. In each, the native source was:
+All ten false-safe combinations reported `storageMetrics.bindings = 4`. In each, the native source was:
 
 ```js
 function inspect(){const privateLocal=29;return privateLocal;}
@@ -81,7 +84,11 @@ The generated spelling varies by seed/mode. In every combination, the applicatio
 
 2. **External ESM-derived class.** The supplied producer exports `class Derived extends globalThis.WeakMap {}`. The external browser runner imports it, obtains `Object.getPrototypeOf(Derived.prototype)`, and patches the native parent prototype before importing the entry module. The external runner is not part of the obfuscator input.
 
-3. **Unresolved external ESM factory.** The supplied mutation module imports `make` from bare package `opaque-runtime`. An import map resolves this to a real browser module that exports `make(){ return new WeakMap(); }`, but that producer module is deliberately absent from the obfuscator input. The supplied mutation module calls the unresolved import and patches the returned instance's native prototype before the Storage module initializes.
+3. **Dynamic global constructor heritage.** The mutation module sets `const constructorKey='WeakMap'` and declares `class Derived extends globalThis[constructorKey] {}` before obtaining `Object.getPrototypeOf(Derived.prototype)` and patching the returned native prototype. The browser executes the computed heritage lookup successfully, but the candidate still rewrites the Storage function.
+
+4. **`Reflect.get` prototype-chain extraction.** The mutation module declares a normal `class Derived extends globalThis.WeakMap {}`, then obtains the derived prototype with `Reflect.get(Derived,'prototype')` and the native WeakMap parent with `Reflect.get(derivedPrototype,'__proto__')`. The browser executes the chain and the native mutation, but the candidate still rewrites the Storage function.
+
+5. **Unresolved external ESM factory.** The supplied mutation module imports `make` from bare package `opaque-runtime`. An import map resolves this to a real browser module that exports `make(){ return new WeakMap(); }`, but that producer module is deliberately absent from the obfuscator input. The supplied mutation module calls the unresolved import and patches the returned instance's native prototype before the Storage module initializes.
 
 ## Existing positive controls
 
@@ -128,7 +135,7 @@ Keep this work in `im-results/`. The release/security decision remains **RELEASE
 
 The browser matrix was expanded with the positive control already present in Agent 7's Node suite: an external browser consumer imports `export function make(){return new WeakMap();}`, obtains the returned instance's native prototype, patches it, then imports the Storage observer.
 
-Exact expanded test commit: `c907167a563836775f85615b459751f2c554e2bd` (test blob `f4d98648e6371e4710b291b1808265655cb56173`). Exact run: [45898378264](https://github.com/FlareZ123/obfs/actions/runs/45898378264), Google Chrome 158.0.8127.36.
+Exact expanded test commit: `3cef395f7520e0830d3f19ec1d8cd05edb25ae45` (test blob `e6993fcb17e75cbdf31a0e3262c446d3646dd101`). Exact run: [45899994192](https://github.com/FlareZ123/obfs/actions/runs/45899994192), Google Chrome 158.0.8127.36.
 
 Results:
 - The three false-safe scenarios still reproduce in COO and SCO: **6/6** source-capture mismatches, four Storage bindings rewritten per combination, same application result.
@@ -136,7 +143,7 @@ Results:
 - The direct-prototype and subclass-parent controls still pass with zero Storage binding rewrites and exact source parity.
 - Strict external JSDoc checking passes.
 
-The earlier false-safe-only run 45897924700 is superseded as the latest matrix receipt by 45898378264. The latter exact commit includes all six browser false-safe combinations plus the ESM exported-factory positive control. Production source blobs remain unchanged from candidate fcec2e0.
+The earlier false-safe-only run 45897924700 is superseded as the latest matrix receipt by 45899994192. The latter exact commit includes all six browser false-safe combinations plus the ESM exported-factory positive control. Production source blobs remain unchanged from candidate fcec2e0.
 
 
 ## Addendum — independent challenge of Agent 10's group-guard donor
