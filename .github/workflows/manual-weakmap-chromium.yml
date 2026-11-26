@@ -8,7 +8,12 @@ on:
         required: true
         type: string
       weakmap_source_falsifiers:
-        description: "Run the expected-vulnerability browser probe; green means source-capture false-safes were reproduced, not that the candidate is secure"
+        description: "Run the browser WeakMap cross-boundary matrix; set weakmap_expect_safe=true to require the false-safe cases to be closed"
+        required: false
+        default: false
+        type: boolean
+      weakmap_expect_safe:
+        description: "Invert all cross-boundary cases into a secure regression gate; requires weakmap_source_falsifiers=true"
         required: false
         default: false
         type: boolean
@@ -45,6 +50,7 @@ jobs:
         if: ${{ inputs.weakmap_source_falsifiers }}
         env:
           CHROMIUM_BIN: google-chrome
+          WEAKMAP_EXPECT_SAFE: ${{ inputs.weakmap_expect_safe && '1' || '0' }}
         run: node test/agent4-weakmap-browser-source-observer-falsifiers.js
       - name: Strict-check external browser harness JSDoc
         run: npm run typecheck:external
