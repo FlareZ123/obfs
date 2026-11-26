@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import socket
 import sys
+import threading
 import unittest
 from pathlib import Path
 
@@ -53,12 +54,29 @@ class LoopbackListenerTests(unittest.TestCase):
     def test_non_http_listener_is_ignored(self):
         listener = bind_listener(socket.AF_INET, "127.0.0.3")
         self.assertIsNotNone(listener)
+        listener.settimeout(2)
+        banner_sent = threading.Event()
+
+        def send_ssh_banner():
+            try:
+                connection, _address = listener.accept()
+                with connection:
+                    connection.sendall(b"SSH-2.0-OpenSSH_10.2p1 Ubuntu-2ubuntu3.8\\r\\n")
+                    banner_sent.set()
+            except OSError:
+                pass
+
+        worker = threading.Thread(target=send_ssh_banner, daemon=True)
+        worker.start()
         try:
             self.assertIsNone(
                 PROBE.public_module("127.0.0.3", listener.getsockname()[1])
             )
+            self.assertTrue(banner_sent.wait(timeout=2), "probe did not receive the SSH banner")
         finally:
             listener.close()
+            worker.join(timeout=2)
+            self.assertFalse(worker.is_alive(), "SSH listener test thread did not stop")
 
     def test_discovers_ipv6_loopback_and_wildcard_when_available(self):
         loopback = bind_listener(socket.AF_INET6, "::1")
