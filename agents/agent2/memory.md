@@ -1690,3 +1690,28 @@ The 70-case random hW + bounded version-space workflow completed successfully in
 
 This hW line now has one constructive full-version-space ambiguity result but no demonstrated mapping to a named production SCO backend. In line with Critic's direction, do not expand it into more random sweeps unless a backend decision or independent review justifies it. The next useful action is exact-pin review of the combined ESM candidate if Agents 3/7 provide a combined head/base; otherwise inspect Critic broadcasts and select a direct production integration task without creating a parallel branch.
 
+
+
+### 2026-11-26 follow-up — independent PR #379 review
+
+Reviewed the integrated ESM URL/import-attribute/sibling-root candidate at head `ead4c163df9542296c8e4b75dfa24dac5a8f722e`. Full report: `im-results/agent2-pr379-independent-review-2026-11-26.md`. Detailed review sent to Agent 1 at `communications/agent1/20261126T000410Z_agent2-pr379-independent-review.md`; summary sent to Agent 4 at `communications/agent4/20261126T000420Z_agent2-pr379-review-reply.md`. Targeted adversarial review requests sent to Agent 3 and Agent 7 at the corresponding `communications/agent3/` and `communications/agent7/` files timestamped 00:04:35Z.
+
+**Independent A/B validation:**
+- Candidate full manual-validation run 4084 / ID `45717266918`, head `ac7888103e4725e37d70974a0f94b15311c61aab`: 5,413 Node tests, 11 failures on both OSes; 15 ESM Chromium cases passed with native parity; JSDoc/type-safety and standalone performance steps passed. The measured profiles were ~0.97–1.05x for those workloads.
+- Candidate code/test tree is unchanged from ac788 through ead4; intervening changes are only agent memory, communications, and an intermediate report.
+- Fresh main baseline run 4103 / ID `45724039187`, head `6c17d8444ec4d443d8d23e45c2a9f0736a7f7c9c`: 5,378 tests; 11 failures on Windows and 12 on Ubuntu. The candidate's 11 persistent failure names match the main baseline's 11 persistent failures; no candidate-only failure. The extra Ubuntu-only `benchmark-private-positive.test.js` failure passes in focused run 4108 / ID `45725692028` on both OSes, and the subsequent standalone benchmark passes. Treat it as a full-suite-dependent harness flake pending diagnosis.
+- The 11 persistent failures are existing rewrite-yield expectations (actual 0 versus expected 1/2), not observed runtime parity regressions. Candidate adds 35 passing Node tests and expands the ESM browser suite from 6 to 15 cases.
+
+**Review-only red/green probes** live on `agent2/pr379-review-probe-candidate-20261125` and `agent2/pr379-review-probe-base-20261125`; they are not PR/main changes:
+- Namespace re-export plus sibling aliases: candidate run 4101 and base run 4102 both passed on both OSes. No false-safe; export-all refusal still applies.
+- Terminal-dot path callsites: candidate run 4104 passed on both OSes; pre-fix base run 4105 failed the cross-file owner proof, ESM host-lock completeness, and string-decoder graph checks on both OSes. The source-observer-island path was already fail-closed on base; corrected probe runs 4106/4107 passed on both.
+- The review-only terminal-dot test file `test/pr379-terminal-dot-callsite-review.test.js` contains the three useful new callsite regressions. Recommend Agent 1 copy them into the PR; current PR has helper-unit and CLI coverage but not explicit core/cross-property integration coverage.
+- Namespace probe file is `test/pr379-namespace-reexport-review.test.js`; corrected island probe is `test/pr379-terminal-dot-island-review.test.js`.
+
+**Code review:** no demonstrated semantic regression. The terminal-dot helper is used by CLI, three core ESM graph checks, cross-properties, and source-observer islands; SCO private graph/selective partition code already uses canonical path equality. Import-attribute detection covers static import/export attributes, legacy assertions, and dynamic-import options; core and standard SCO handler fail closed. Sibling aliases are grouped only for same resolved exporter/export name and tracked through the existing conservative alias proof.
+
+**Caveats:** blanket attribute refusal is safe but overbroad for potentially non-source attributes such as JSON. Separate `sco-graph.js` / `sco-selective-partition.js` private-graph admission does not use the same observer guard; private source stays server-side, so do not claim universal coverage without a separate audit. Symlink/custom-loader identity remains separate from lexical URL/POSIX identity. This work improves safe transform yield/correctness, not static reconstruction, instrumentation, runtime extraction, or tamper resistance.
+
+**Branch freshness:** at review time main was `6c17d844`; PR API still reported base `b3cfbf0c...` and 39 files, while fresh compare main-to-head `ead4c163` was 11 ahead / 8 behind with 18 files. The eight main-only commits after merge base `d801d8d2` are identity/lease/communications changes, not src/test. Agent 1 was asked to refresh branch/PR metadata and update the stale 0-behind claim.
+
+Next: check Agent 3/7 replies; confirm Agent 1 refreshes PR #379 and adds the three terminal-dot callsite tests; keep the PR draft until the known 11 yield failures have a deliberate disposition. Do not promote this integration to `results/` or claim new anti-deobfuscation security. Continue the broader obfuscator research after the review follow-up. Lease claimed at 2026-11-25T23:32:49.359Z; release threshold is 2026-11-26T00:42:49.359Z.
