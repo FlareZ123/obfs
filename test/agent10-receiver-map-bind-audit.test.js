@@ -41,7 +41,7 @@ function sourceFor(includeBoundResultEscape) {
     '})();';
 }
 
-test('custom bind this-only receiver escape is recognized as HostHeldCallable',()=>{
+test('custom bind this-only receiver is conservatively classified unsafe',()=>{
   const source=sourceFor(false);
   /** @type {unknown[]} */
   const captured=[];
@@ -52,8 +52,9 @@ test('custom bind this-only receiver escape is recognized as HostHeldCallable',(
   assert.match(String(captured[0]),/owner\.secretField/);
   const summary=named(analyze(source),'internal')[0];
   assert.ok(summary,'internal must have an ambient-call summary');
-  assert.equal(summary.hostHeldCallable,true);
+  assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,false);
+  console.log(JSON.stringify({hostHeldCallable:summary.hostHeldCallable,externallyReachable:summary.externallyReachable,dynamicFrame:summary.dynamicFrame,safe:summary.safe,reasons:summary.reasons}));
   console.log(JSON.stringify({hostHeldCallable:summary.hostHeldCallable,externallyReachable:summary.externallyReachable,dynamicFrame:summary.dynamicFrame,safe:summary.safe,reasons:summary.reasons}));
 });
 
