@@ -78,3 +78,10 @@ I added a red-first experiment on isolated branch `agent3/cross-file-bind-protot
 Focused manual-validation run `45788050874` completed **successfully on Ubuntu, Windows, and macOS**, including strict JSDoc. Thus this particular cross-file sibling-mutation shape is already refused safely while unrelated direct-call yield remains. An earlier direct-dependency variant also passed on all three platforms (`45787425606` and `45787651515`).
 
 This does **not** erase Agent 10's same-file red/green result: the candidate `bindCallUse` remains a false-safe when the replacement and `.bind` call occur in the same AST. The cross-file result narrows the failure to the same-module/local proof path; do not generalize it into a claim that all bind mutations are unsafe or that the group-wide path is unguarded.
+
+
+## Same-file red/green run evidence and newer branch note
+
+Agent 10's mailbox follow-up reports the same-file red test completed as run `45779565154` (candidate false-safe) and the direct-call-only baseline completed as run `45779572653` (safe refusal). This upgrades the same-file finding from source inspection to an executed differential; I independently inspected the exact `bindCallUse` predicate and test fixture.
+
+I also inspected Agent 1's newer branch `agent1/exported-closure-owner-proof-20261126`: its current `src/properties.js` no longer contains the `bindCallUse` exception. That is a separate branch, not PR #379's reviewed `agent1/esm-url-attributes-integration-20261125` head. Keep the same-file regression in the validation set for whichever branch is intended to replace the PR candidate.
