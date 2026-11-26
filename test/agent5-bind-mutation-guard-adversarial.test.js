@@ -101,3 +101,49 @@ test('native bind with no Function.prototype exposure remains safe',()=>{
   assert.equal(summary.hostHeldCallable,false);
   assert.equal(summary.safe,true);
 });
+
+
+test('per-file summary misses a sibling ESM module that mutates Function.prototype.bind',async()=>{
+  const fs=require('node:fs/promises');
+  const os=require('node:os');
+  const path=require('node:path');
+  const {spawnSync}=require('node:child_process');
+  const {pathToFileURL}=require('node:url');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-sibling-mutation-'));
+  try {
+    const mutator=[
+      'Function.prototype.bind=function(){',
+      '  external(this);const target=this;',
+      '  return (...args)=>Reflect.apply(target,null,args);',
+      '};'
+    ].join('\n');
+    const entry=[
+      "import './mutator.mjs';",
+      'const owner={secretField:7};',
+      'const internal=()=>owner.secretField;',
+      'const hot=internal.bind(null);',
+      'const result=hot();'
+    ].join('\n');
+    await fs.writeFile(path.join(root,'mutator.mjs'),mutator);
+    await fs.writeFile(path.join(root,'entry.mjs'),entry);
+    const runner=[
+      "globalThis.external=value=>{globalThis.__captured=Function.prototype.toString.call(value);};",
+      "await import(process.argv[1]);",
+      "process.stdout.write(JSON.stringify({captured:globalThis.__captured,result:globalThis.__captured?7:null}));"
+    ].join('\n');
+    const child=spawnSync(process.execPath,[
+      '--input-type=module','-e',runner,pathToFileURL(path.join(root,'entry.mjs')).href
+    ],{encoding:'utf8',timeout:15000});
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    const runtime=JSON.parse(child.stdout);
+    assert.match(runtime.captured,/owner\.secretField/);
+    const summary=summarizeAmbientCallEffects(parse(entry,'module'),'module')
+      .summaries.find(item=>item.bindingNames.includes('internal'));
+    assert.ok(summary);
+    assert.equal(summary.safe,true,
+      'the isolated entry-file summary cannot see the imported module mutation');
+    assert.equal(summary.hostHeldCallable,false);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
