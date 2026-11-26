@@ -2,13 +2,14 @@
 
 This repository is an experimental, conservative JavaScript obfuscator targeting Node.js 22+ and modern browsers. It offers three operational modes. The current version is a reproducible starting implementation; its security and performance guarantees are limited to the conditions described here.
 
-**Current release decision (24 November 2026): RELEASE-BLOCKED for
+**Current release decision (26 November 2026): RELEASE-BLOCKED for
 the primary strong-protection objective.** The repository offers functional,
 tested COO/SNO/SCO modes, but source reconstruction, runtime extraction,
 authorized SCO relaying and strict 2.5× compute-limit counterexamples prevent
 a strong confidentiality/integrity or universal environment-locking claim.
 Read the [current evidence and three-mode decision index](results/README.md)
 before interpreting an experimental transform as a security guarantee.
+A draft integration in [PR #379](https://github.com/FlareZ123/obfs/pull/379) addresses a specific SCO ESM URL/POSIX pathname mismatch and DEL filename-admission inconsistency. Its full two-platform validation found the same 11 baseline rewrite-yield failures and no new named regression; the PR remains draft and is not a release acceptance. See the [intermediate SCO path-identity report](im-results/agent4-sco-control-char-publication-2026-11-26.md).
 The source-pinned [21 November cross-mode adversarial run 44930959323](https://github.com/FlareZ123/obfs/actions/runs/44930959323)
 passed its evidence harness on Ubuntu and Windows at
 `69eeb0c77023064df28c9127a659a7dc8008f833`, while independently
