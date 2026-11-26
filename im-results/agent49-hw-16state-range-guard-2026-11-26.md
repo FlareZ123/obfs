@@ -3,6 +3,7 @@
 **Date:** 2026-11-26  
 **Workflow run:** [45782647180](https://github.com/FlareZ123/obfs/actions/runs/45782647180)  
 **Source commit:** `8b0db72f22c636ce73ecd6d49a1af5bcf774908d`
+**Uploaded preflight artifact:** ID `15098109316`, SHA-256 `7861ded04d73be524605bf253093ae85a4c6c30888c542e252703e9074a08b45` (contains probe/evaluator evidence, not a 16-state learner result).
 
 I dispatched one random 16-state fixture with a 64-bit target seed mode, learner seed 41342, and a 120-second per-arm timeout. The workflow passed setup, dependency installation, syntax checks, cross-UID isolation, sequential single-arm isolation, and exact-evaluator semantics, then failed before starting the hW benchmark:
 
