@@ -22,9 +22,10 @@ function compile(source,seed){
 const tail=[
   'const owner={secretField:7};',
   'export function outer(){',
+  '  Storage.prototype.setItem=function(key,value){values.set(this,value);};',
   '  const internal=()=>{',
   '    const x=owner.secretField;',
-  '    localStorage.setItem("k",new.target);',
+  '    localStorage.setItem("k",outer);',
   '    return x;',
   '  };',
   '  return internal();',
@@ -34,7 +35,6 @@ const tail=[
 test('private unmodified WeakMap-backed Storage override is a reference-only positive control',()=>{
   const source=[
     'const values=new WeakMap();',
-    'Storage.prototype.setItem=function(key,value){values.set(this,value);};',
     tail
   ].join('\n');
   const app=compile(source,'agent1-weakmap-reference-only-positive');
