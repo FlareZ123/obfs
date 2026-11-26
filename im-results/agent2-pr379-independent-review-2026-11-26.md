@@ -3,8 +3,8 @@
 Date: 2026-11-26 UTC  
 Reviewer identity: Agent 2  
 Initial candidate head reviewed: `ead4c163df9542296c8e4b75dfa24dac5a8f722e`  
-Refreshed PR head: `1a60af1facbceeed0417017581a092cc9fb8080c`  
-Current PR base at refresh: `e9f689fb6f9bc159856ccf284cb3a52007a81c23`  
+Refreshed PR head: `8a6540d33e86230ae0cd7df0c3424673241c11e3`  
+Current PR base at refresh: `f702618881046b831f52c3e4e8fbc926483712a4`  
 Full-suite baseline head: `6c17d8444ec4d443d8d23e45c2a9f0736a7f7c9c`  
 Original candidate merge base: `d801d8d24444071dc0072c936513018cd93c505b`
 
@@ -55,7 +55,7 @@ All probes were added only to temporary Agent 2 review branches, not to PR #379 
 
 ## Caveats and follow-up
 
-1. **Branch sync completed; PR body still needs refresh.** Agent 1 synced the branch with current main and added a merge commit at `179bfd90`; the PR API now has base `e9f689fb` and a fresh compare of 15 ahead / 0 behind with 20 files. The PR body still cites old head `ead4c163`, old base `d801d8d2`, and 11 ahead / 0 behind / 18 files. Update its source pins, diff count, and validation section before final review.
+1. **Branch sync completed; PR body still needs refresh.** Agent 1 synced the branch with current main and added a merge commit at `179bfd90`; the PR API now has base `e9f689fb` and a fresh compare of 16 ahead / 0 behind with 22 files. The PR body still cites old head `ead4c163`, old base `d801d8d2`, and 11 ahead / 0 behind / 18 files. Update its source pins, diff count, and validation section before final review.
 2. **Callsite integration tests now added.** Agent 1 added `test/esm-url-terminal-dot-callsite.test.js` in the refreshed PR head. It covers the three red/green callsites from the review-only probe: cross-file owner proof, host-lock graph completeness, and static ESM decoder admission. Updated-head focused run 4111 / ID `45727635672` completed: all three terminal-dot tests passed on both Windows and Ubuntu. The run then failed `typecheck:external` because the helper return type widened `sourceType: 'module'` to `string` (TS2345). Agent 2 added the explicit JSDoc return type in commit `d98f51335160ebe0ac446bfccc65d8048c7927ac`; Agent 1 merged it into refreshed head `8a440c3c`. Follow-up focused run 4115 / ID `45728849600` was queued at the latest check. The source-observer-island path was already fail-closed on base and remains so.
 3. **Attribute guard is intentionally broad.** It refuses every nonempty static attribute/assertion list and every dynamic import options argument, including cases such as JSON imports that may not expose source text. This is safe but reduces transform yield; precise allowance for known non-source attributes is future work and needs end-to-end evidence.
 4. **Keep SCO private-graph claims scoped.** The separate APIs do not use `observesDistributedSource` as an admission check, but Agent 3's diagnostic `test/sco-graph-import-attribute-diagnostic.test.js` (run 45675391908) shows the generic private graph either rejects the attributed import or accepts it while retaining exact SHA-256 digests for both entry and target source and emitting only a client RPC facade with neither the import nor source canary. The selective partitioner rejects both used and unused attributed default imports in its tested named-import-only contract. This is not the same source-byte exposure path as the standard SCO handler; no leak was demonstrated. Custom loader semantics remain untested. Do not generalize the main observer guarantee to every private-graph API without citing this separate admission/output evidence. `sco-graph.js` and `sco-selective-partition.js` do not use `observesDistributedSource` as an admission check. Their private source remains server-side and is not served as transformed client source, while the standard SCO handler is covered. Do not generalize the new source-observer guarantee to every private-graph API without a separate audit.
@@ -65,3 +65,16 @@ All probes were added only to temporary Agent 2 review branches, not to PR #379 
 ## Recommended disposition
 
 No blocking semantic defect found in the reviewed PR scope. Agent 1 has refreshed the branch and added the three terminal-dot callsite regressions. Remaining review housekeeping is to update the PR body and confirm run 4111; keep the PR draft while the 11 known yield failures have no deliberate disposition.
+
+
+## New blocker found after initial review — literal URL control characters
+
+Agent 3 independently reviewed exact PR head `1a60af1` and found a second WHATWG URL / POSIX mismatch not covered by the terminal-dot helper. WHATWG URL parsing strips literal U+0009 TAB, U+000A LF, and U+000D CR before path normalization; POSIX treats those characters as ordinary segment contents.
+
+From `dir/entry.mjs`, specifier `./a/..\\t/../secret.mjs` resolves under Node 22.16.0 / WHATWG URL to root `secret.mjs`, while the current CLI's POSIX resolver selects `dir/a/secret.mjs`. Six dot/dotdot × TAB/LF/CR variants were reproduced with actual Node ESM imports. If both the real URL target and a distinct POSIX-selected decoy exist, the SCO selector can publish the otherwise-unselected private decoy. This is a publication-boundary failure, not merely compatibility.
+
+Exact evidence, code references, and recommended red-first tests: `im-results/agent3-pr379-control-character-url-identity-review-2026-11-26.md`. The current PR head `8a6540d3` still only rejects terminal dot segments; no shared control-character guard is present. Recommended correction: reject at least TAB/LF/CR (preferably all literal C0 controls plus DEL, preserving ordinary spaces) in the shared URL-specifier admission predicate used by CLI selection, core host-lock/decoder/unproved-import graph checks, cross-file resolution, and source-observer islands. Add an end-to-end SCO CLI/HTTP test with the actual URL target and a distinct private decoy, plus graph and browser controls.
+
+Agent 7 also clarified the earlier boundary-fixture issue: the file/directory conflict was caused by the encoded-dot decoy under `state.mjs/%2e`, not the trailing-slash case. The current PR test file now uses non-conflicting `folder/%2e` and `folder/child` decoys, and expects zero properties for trailing slash. This fixture correction is reflected in the latest PR branch.
+
+**Updated disposition:** the original terminal-dot/sibling-alias/import-attribute scope has no demonstrated semantic regression, but PR #379 is now blocked from merge by the independently reproduced control-character publication mismatch. Keep draft / no-merge until the shared control-character guard and end-to-end regression pass. The PR description was updated to pin head `8a6540d3`, base `f7026188`, 16 ahead / 0 behind, 22 files, and explicitly record this blocker.
