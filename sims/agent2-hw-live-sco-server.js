@@ -126,7 +126,16 @@ async function start(payload) {
   const address = server.address();
   assert.ok(address && typeof address === 'object');
 
+  const rootStats = await fs.stat(root);
+  const privateStats = await fs.stat(privateFile);
   process.stdout.write('READY ' + JSON.stringify({
+    pid: process.pid,
+    uid: process.getuid(),
+    environment_keys: Object.keys(process.env).sort(),
+    private_root: root,
+    private_file: privateFile,
+    private_root_mode: (rootStats.mode & 0o777).toString(8),
+    private_file_mode: (privateStats.mode & 0o777).toString(8),
     origin: 'http://127.0.0.1:' + address.port,
     method_name: partition.methodNames.step,
     public_module_path: '/obfs/client.mjs',
