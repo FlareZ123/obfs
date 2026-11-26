@@ -50,6 +50,16 @@ class LoopbackListenerTests(unittest.TestCase):
                 if listener is not None:
                     listener.close()
 
+    def test_non_http_listener_is_ignored(self):
+        listener = bind_listener(socket.AF_INET, "127.0.0.3")
+        self.assertIsNotNone(listener)
+        try:
+            self.assertIsNone(
+                PROBE.public_module("127.0.0.3", listener.getsockname()[1])
+            )
+        finally:
+            listener.close()
+
     def test_discovers_ipv6_loopback_and_wildcard_when_available(self):
         loopback = bind_listener(socket.AF_INET6, "::1")
         wildcard = bind_listener(socket.AF_INET6, "::")
