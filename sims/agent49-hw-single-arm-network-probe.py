@@ -74,7 +74,8 @@ def loopback_listeners() -> list[tuple[str, int]]:
 
 
 def public_module(host: str, port: int):
-    connection = http.client.HTTPConnection(host, port, timeout=2)
+    """Return metadata only for a matching SCO module; ignore unrelated local TCP services."""
+    connection = http.client.HTTPConnection(host, port, timeout=0.5)
     try:
         connection.request("GET", "/obfs/client.mjs", headers={"Cache-Control": "no-store"})
         response = connection.getresponse()
@@ -92,6 +93,8 @@ def public_module(host: str, port: int):
             "module_sha256": hashlib.sha256(body).hexdigest(),
             "module_bytes": len(body),
         }
+    except (OSError, http.client.HTTPException, ValueError):
+        return None
     finally:
         connection.close()
 
