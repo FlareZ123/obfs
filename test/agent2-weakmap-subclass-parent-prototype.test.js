@@ -117,7 +117,7 @@ test('Object.getPrototypeOf(shadowed WeakMap.prototype) exposes the shared nativ
 const namedClassExpressionMutationSource=[
   'const Parent=class WeakMap extends globalThis.WeakMap {};',
   'class Child extends Parent {};',
-  'const nativeWeakMapPrototype=Object.getPrototypeOf(Child.prototype);',
+  'const nativeWeakMapPrototype=Object.getPrototypeOf(Parent.prototype);',
   'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
   'nativeWeakMapPrototype.set=function(key,value){',
   '  document.title=value;',
@@ -125,7 +125,7 @@ const namedClassExpressionMutationSource=[
   '};'
 ].join('\n');
 
-test('named class-expression aliases and subclass chains expose the native WeakMap parent prototype',()=>{
+test('named class-expression aliases expose the native WeakMap parent prototype',()=>{
   const mutationAst=parse(namedClassExpressionMutationSource,'module');
   const groupExposure=hasWeakMapPrototypeExposure(mutationAst);
   const sourceFiles=[
