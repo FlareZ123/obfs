@@ -18,6 +18,17 @@ const mutateSource=[
   '};'
 ].join('\n');
 
+const shadowedNativeMutationSource=[
+  'class WeakMap extends globalThis.WeakMap {}',
+  'const {WeakMap:NativeWeakMap}=globalThis;',
+  'const nativeWeakMapPrototype=Object.getPrototypeOf(new NativeWeakMap());',
+  'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+  'nativeWeakMapPrototype.set=function(key,value){',
+  '  document.title=value;',
+  '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+  '};'
+].join('\\n');
+
 const storageSource=[
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
   'const captured=new WeakMap();',
@@ -103,4 +114,27 @@ test('a separate imported module mutation blocks the Storage reference-only exce
   process.stdout.write('CROSS_FILE_WEAKMAP_PROTOTYPE_EXPOSURE_REFUSED '+JSON.stringify({
     storageMetrics:storage.metrics,native,emitted
   })+'\\n');
+});
+test('explicit native WeakMap aliases remain visible when a sibling shadows the bare constructor',()=>{
+  assert.equal(observesFunctionSource(parse(shadowedNativeMutationSource,'module')),false);
+  assert.equal(observesFunctionSource(parse(storageSource,'module')),false);
+  const sourceFiles=[
+    {path:'entry.mjs',sourceType:'module',code:entrySource},
+    {path:'mutate.mjs',sourceType:'module',code:shadowedNativeMutationSource},
+    {path:'storage.mjs',sourceType:'module',code:storageSource}
+  ];
+  const compiled=obfuscateFiles(sourceFiles,{
+    mode:'coo',seed:'agent10-shadowed-weakmap-explicit-native-alias',
+    properties:false,identifiers:true,strings:false,closedWorld:true
+  });
+  const storage=compiled.files.find(file=>file.path==='storage.mjs');
+  assert.ok(storage);
+  assert.equal(storage.metrics.bindings,0,
+    JSON.stringify({metrics:storage.metrics,files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))}));
+  const native=run(sourceFiles.map(file=>({path:file.path,code:file.code})));
+  const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+  assert.deepEqual(emitted.result,native.result);
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  assert.equal(emitted.capturedSource,native.capturedSource,
+    JSON.stringify({native,emitted,storageMetrics:storage.metrics}));
 });

@@ -71,7 +71,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // A top-level class declaration shadows the ambient WeakMap binding
   // throughout this module. Its instance prototype is not the shared native
   // WeakMap.prototype, unless the source explicitly uses globalThis.WeakMap.
-  const hasTopLevelWeakMapClass=ast.body.some(statement=>{
+  const hasTopLevelWeakMapClass=ast.body.some((/** @type {AstNode} */ statement)=>{
     const declaration=statement.type==='ExportNamedDeclaration'||
       statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
