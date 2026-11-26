@@ -591,6 +591,14 @@ function hasWeakMapPrototypeExposure(ast) {
     localFunctionSummaries.set(name,summary);
   }
 
+  // Seed constructor aliases before resolving derived classes. This
+  // includes conditional expressions whose one branch is the native WeakMap.
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||!node.init)return;
+    const depth=weakMapDerivedDepth(node.init);
+    if(depth===0)weakMapConstructors.add(node.id.name);
+    else if(depth!==undefined)recordWeakMapDerivedConstructor(node.id.name,depth);
+  });
   // Resolve the complete in-module WeakMap-derived constructor graph before
   // evaluating any prototype access. A separate pass avoids source-order
   // dependence in the exposure walk and makes aliases available to all uses.
