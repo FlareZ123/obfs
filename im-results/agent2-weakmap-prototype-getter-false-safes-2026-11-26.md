@@ -103,27 +103,29 @@ This is a distinct residual false-safe in the proposed group-level repair. A com
 
 Agent 10 and Agent 1 were notified. This audit remains test-only; it did not modify either production candidate branch.
 
-### Additional container and factory-flow challenges
+### Additional container and factory-flow challenges in Agent 10's donor
 
-A follow-up matrix on the same Agent 10 donor found three additional ways to hide the WeakMap instance from the direct-call check, plus a local factory-return path:
+The group-level donor passes the five getter-extraction regressions, but it does not propagate WeakMap identity through containers or local factory returns. Six receiver-flow variants are now confirmed:
 
-- A separately bound WeakMap identifier stored in a local object property and later read as `protoCarrier.instance`.
-- A WeakMap identifier stored in an array and later read as `protoCarrier[0]`.
-- A local factory function returning `new WeakMap()`, with `makeProbe()` passed as the getter's receiver argument.
+1. Inline `new WeakMap()` stored in a local object property and later read as `protoCarrier.instance`.
+2. A separately bound WeakMap identifier stored in an object property and later read as `protoCarrier.instance`.
+3. A WeakMap identifier stored in an array and later read as `protoCarrier[0]`.
+4. A local factory function returning `new WeakMap()`, with the factory call passed as the getter's receiver argument.
+5. A local function returning an object literal containing `new WeakMap()`; its result is stored and the WeakMap is later read as `protoCarrier.instance`.
+6. A class constructor assigning `this.instance = new WeakMap()`; the class instance is created and the field is later read as `protoCarrier.instance`.
 
-Together with the original inline object-carrier case, the four new variants are all reproduced. The first five getter-extraction tests pass against Agent 10's donor, but these four instance-flow tests fail.
+**Exact follow-up runs:**
 
-**Exact follow-up:**
-- Test branch: `agent2/weakmap-carrier-alias-audit-20261126`.
-- Test commit: `4de0138be1215089566ac961f3fca54bec20acdb`.
-- Test: `test/agent2-weakmap-prototype-carrier-alias-audit.test.js`.
-- Focused run: [45859902121](https://github.com/FlareZ123/obfs/actions/runs/45859902121).
+| Workflow run | Test commit | Cases | Result |
+|---|---|---|---|
+| [45859902121](https://github.com/FlareZ123/obfs/actions/runs/45859902121) | `4de0138be1215089566ac961f3fca54bec20acdb` | First four receiver-flow variants | All four failed on Ubuntu, Windows and macOS; five getter tests passed |
+| [45860661175](https://github.com/FlareZ123/obfs/actions/runs/45860661175) | `d235515811a6a7f8da6832022ec6faae60923c26` | All six receiver-flow variants | All six failed on Ubuntu, Windows and macOS; five getter tests passed |
 
-The run logs show all four container/factory cases fail on Ubuntu, Windows and macOS, while the five getter-extraction regressions pass on all three. The failures report `observesFunctionSource=false`, five to seven identifier binding rewrites, equal ordinary return values, and changed captured function source.
+The test branch is `agent2/weakmap-carrier-alias-audit-20261126`; test file `test/agent2-weakmap-prototype-carrier-alias-audit.test.js`. Each failing case reports `observesFunctionSource=false`, five to seven identifier binding rewrites, identical ordinary return values, and changed captured function source.
 
-The helper's `isWeakMapInstance()` recognizes a direct `NewExpression` or a tracked identifier. It does not propagate WeakMap identity through local object/array container properties and later member reads. It also computes a set of local WeakMap factories but does not recognize a `CallExpression` of a known local factory as a WeakMap instance. The direct-call and inline nested-expression veto therefore remains incomplete.
+The helper's `isWeakMapInstance()` recognizes a direct `NewExpression` or a tracked identifier. It does not propagate WeakMap identity through local object/array container properties and later member reads. It also computes a set of local WeakMap factories but does not recognize a `CallExpression` of a known local factory as a WeakMap instance. The returned-object and class-field tests further show that local interprocedural object construction is not summarized into the container's property contents.
 
-This is another distinct residual false-safe in the Agent 10 donor. The group-level repair must track object/array container contents, aliases, member reads and local factory call results, or conservatively reject the relevant flows. Agent 10 and Agent 1 received the exact witnesses.
+This is a distinct residual false-safe in Agent 10's group-level repair. The repair must track object/array container contents, aliases, member reads, function returns, class instance fields and local factory call results, or conservatively reject the relevant flows. Agent 10 and Agent 1 received the exact witnesses.
 
 ### Challenge of Agent 4's group-summary donor
 
