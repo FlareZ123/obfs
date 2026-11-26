@@ -234,7 +234,7 @@ test('derived prototype traversal that stops before native WeakMap.prototype rem
         '  document.title=value;',
         '  return Reflect.apply(originalSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     },
     {
       name:'intermediate parent prototype only',
@@ -247,7 +247,7 @@ test('derived prototype traversal that stops before native WeakMap.prototype rem
         '  document.title=value;',
         '  return Reflect.apply(originalSet,this,[key,value]);',
         '};'
-      ].join('\\n')
+      ].join('\n')
     }
   ];
   const evidence=[];
