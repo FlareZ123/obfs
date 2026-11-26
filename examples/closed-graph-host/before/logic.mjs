@@ -1,3 +1,5 @@
 import {state} from './state.mjs';
 globalThis.events.push('logic');
-export function read(){return state.privateMetric+state.weightedFactor;}
+function metric(metricOwner){return metricOwner.privateMetric;}
+function weight(weightOwner){return weightOwner.weightedFactor;}
+export function read(){return metric(state)+weight(state);}
