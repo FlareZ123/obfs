@@ -104,9 +104,9 @@ for(const replacement of replacements) {
 }
 
 test('directly invoked private arrow remains eligible for local owner-key rewriting',()=>{
-  const source='const owner={secretField:7};'+
-    'const internal=()=>owner.secretField;'+
-    'const result=internal();'+
+  const source='const owner={secretField:7,otherField:11};'+
+    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
+    'const result=internal(4,6);'+
     'process.stdout.write(String(result));';
   const emitted=obfuscateFiles([{
     path:'entry.mjs',
@@ -120,7 +120,7 @@ test('directly invoked private arrow remains eligible for local owner-key rewrit
     identifiers:false,
     strings:false
   });
-  assert.equal(emitted.files[0].metrics.properties,1);
+  assert.equal(emitted.files[0].metrics.properties,2);
   const run=(code)=>{
     const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-bound-positive-'));
     try {
