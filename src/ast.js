@@ -617,6 +617,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Native WebSocket.send(data) converts non-Blob/Buffer values with ToString.
+  // Passing a function sends its original Function#toString source on the
+  // wire, even when the application never calls a string coercer explicitly.
+  const webSocketNames=new Set(['WebSocket']);
+  const webSocketConstructors=new Set(webSocketNames);
+  const webSocketInstances=new Set();
+  const webSocketSendMethods=new Set();
+  const boundWebSocketSendMethods=new Set();
+  // A different classic script can publish a native socket through a page
+  // global. Within one file it is an opaque value, not proof of a benign app
+  // object. Preserve source on a potentially external .send(function) call.
+  const opaqueGlobalObjectAliases=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -629,6 +641,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // monotonically, so an overwritten property merely causes over-refusal.
   /** @type {Map<string,Set<string>>} */
   const webRecordObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const webSocketInstanceObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const responseObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
@@ -914,6 +928,48 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (name==='searchParams'||node.computed&&name===null) &&
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
+  /**
+   * Track native WebSocket instances stored in local object properties.
+   * Reusing the existing may-flow property inventory is conservative across
+   * assignments, shared object aliases and later destructuring.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isWebSocketInstance(node) {
+    if(isWebInstance(node,webSocketInstances,webSocketConstructors,webSocketNames))
+      return true;
+    if(node?.type!=='MemberExpression'||node.object.type!=='Identifier')return false;
+    const keys=webSocketInstanceObjectKeys.get(node.object.name);
+    const key=memberName(node);
+    return key!==null ? keys?.has(key)??false : Boolean(node.computed&&keys?.size);
+  }
+  /**
+   * Externally sourced page-global references can carry native WebSocket
+   * instances, including when their defining script is compiled separately.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isOpaqueGlobalObject(node) {
+    return Boolean(node && (node.type==='MemberExpression'&&isGlobal(node.object) ||
+      node.type==='Identifier'&&opaqueGlobalObjectAliases.has(node.name)));
+  }
+  /**
+   * Preserve known native sockets and opaque page-global receivers that may
+   * be sockets. Other local application objects with send remain transformable.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isWebSocketSendMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return webSocketSendMethods.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    return (memberName(node)==='send'||node.computed&&memberName(node)===null) &&
+      (isWebSocketInstance(node.object)||isOpaqueGlobalObject(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundWebSocketSendMethod(node) {
+    return Boolean(node?.type==='Identifier'&&boundWebSocketSendMethods.has(node.name));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
@@ -981,6 +1037,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function addWebObjectExpression(receiver,key,expression) {
     if(isWebConstructor(expression,webRecords,webRecordNames))
       addWebObjectKey(webRecordObjectKeys,receiver,key);
+    if(isWebSocketInstance(expression))
+      addWebObjectKey(webSocketInstanceObjectKeys,receiver,key);
     if(isWebConstructor(expression,responseConstructors,responseNames))
       addWebObjectKey(responseObjectKeys,receiver,key);
     if(isWebConstructor(expression,webStringConstructors,webStringNames))
@@ -1112,6 +1170,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webStringConstructors,webStringNames)) {
           changed=add(webStringConstructors,name)||changed;
         }
+        if(isWebConstructor(value,webSocketConstructors,webSocketNames)) {
+          changed=add(webSocketConstructors,name)||changed;
+        }
         if(isResponseRedirect(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -1138,6 +1199,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
+        }
+        if(isWebSocketInstance(value)) {
+          changed=add(webSocketInstances,name)||changed;
+        }
+        if(isWebSocketSendMethod(value)) {
+          changed=add(webSocketSendMethods,name)||changed;
+        }
+        if(value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isWebSocketSendMethod(value.callee.object) ||
+           isBoundWebSocketSendMethod(value)) {
+          changed=add(boundWebSocketSendMethods,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -1174,6 +1248,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
+        if(isOpaqueGlobalObject(value))
+          changed=add(opaqueGlobalObjectAliases,name)||changed;
         if(value?.type==='Identifier'&&reflectiveReceivers.has(value.name) ||
            value?.type==='MemberExpression'&&isGlobal(value.object)&&
              ['Reflect','Object'].includes(memberName(value)??'')) {
@@ -1197,6 +1273,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             addObjectFunctionKey(name,key);
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
+            webSocketInstanceObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
             boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
             urlConstructorObjectKeys]) {
@@ -1291,6 +1368,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(known?.has(key))changed=add(functions,property.value.name)||changed;
           if(webRecordObjectKeys.get(node.init.name)?.has(key))
             changed=add(webRecords,property.value.name)||changed;
+          if(webSocketInstanceObjectKeys.get(node.init.name)?.has(key))
+            changed=add(webSocketInstances,property.value.name)||changed;
           if(responseObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseConstructors,property.value.name)||changed;
           if(webStringObjectKeys.get(node.init.name)?.has(key))
@@ -3055,6 +3134,34 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
+        // Native socket.send() stringifies functions; a detached .send
+        // keeps those semantics when invoked with a proper socket receiver.
+        if(isWebSocketSendMethod(callee) && node.arguments[0] &&
+           !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        if(isWebSocketSendMethod(callee.object)) {
+          if((method==='call'||method==='bind') &&
+             node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+               !isDefinitelyPrimitive(value)))observed=true;
+          if(method==='apply'){
+            const supplied=node.arguments[1];
+            if(supplied?.type==='ArrayExpression') {
+              if(supplied.elements[0] &&
+                 !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+            }else if(supplied)observed=true;
+          }
+        }
+      }
+      if(node.type==='CallExpression' && isBoundWebSocketSendMethod(callee) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           !isDefinitelyPrimitive(value)))observed=true;
+      if(node.type==='CallExpression' && isReflectApplyMethod(callee) &&
+         (isWebSocketSendMethod(node.arguments[0]) ||
+          isBoundWebSocketSendMethod(node.arguments[0]))) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] &&
+             !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+        }else if(supplied)observed=true;
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
