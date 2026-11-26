@@ -50,6 +50,15 @@ The positive interception witness demonstrates that a hostile pre-import preload
 
 The negative mutation witnesses exercise same-file and sibling-module custom `Function.prototype.bind` replacement in COO, SNO, and SCO. In each mode, the bound target's owner properties remain unchanged while an unrelated direct-call control still receives one safe property rewrite. This is important: the refusal is local to the uncertain target, not a graph-wide disable of all property renaming.
 
+A separate Agent 10 witness, `test/agent10-bind-in-source-custom-bind-escape.test.js`,
+runs an in-source replacement that passes the target function through
+`this` to an opaque host callback, then invokes the bound wrapper. It checks
+all three modes, requires zero property rewrites for that target, and asserts
+native/transformed runtime parity. This is the in-program source-observer
+case; it is distinct from the out-of-band hostile-preloader test, where
+capturing the already-rewritten target source is expected.
+
+
 Each positive fixture rewrites exactly two private owner properties (the `secretField` and `otherField` keys). The minifier control is deliberately included to prevent an inflated security claim. The result is consistent with ordinary property-mangled minification; the experiment expands the compiler's rewrite coverage but does not establish an advantage against a capable analyst.
 
 ## Integration issue found and fixed
