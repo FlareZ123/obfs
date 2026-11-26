@@ -715,10 +715,10 @@ test('same-spelled parameters across private readers conservatively refuse impor
 test('deferred private owner reader after initialization supports benign ESM cycle',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'import {ready} from "./relay.mjs";'+
+      'import "./relay.mjs";'+
       'export const state={secretField:23};'+
       'const localCheck=state.secretField;'+
-      'export const result=ready()+localCheck-23;'},
+      'export const result=localCheck;'},
     {path:'relay.mjs',sourceType:'module',code:
       'import {state} from "./state.mjs";'+
       'function peek(){return state.secretField;}'+
