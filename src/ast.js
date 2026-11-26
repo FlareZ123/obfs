@@ -1078,12 +1078,6 @@ function hasWeakMapPrototypeExposure(ast) {
       carrierMaybe:carrierOther;
   }
   /**
-   * @param {AstNode|null|undefined} node
-   * @param {Map<string,CarrierValue>} environment
-   * @param {CarrierValue} [thisValue]
-   * @returns {CarrierValue}
-   */
-  /**
    * Whether an accessor or method can yield a WeakMap carrier. Unknown
    * external getter values remain MaybeWeakMap; proven primitive/local values
    * retain their existing precision.
@@ -1281,17 +1275,12 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
-  /**
-   * @param {AstNode|null|undefined} node
-   * @param {Map<string,CarrierValue>} environment
-   * @param {CarrierValue} [thisValue]
-   */
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
   /**
-   * @param {AstNode|null|undefined} node
-   * @param {Map<string,CarrierValue>} environment
-   * @param {CarrierValue} [thisValue=carrierOther]
+   * @param {CarrierValue} target
+   * @param {string|null} key
+   * @param {AstNode|null|undefined} descriptor
    * @returns {void}
    */
   function applyAccessorDescriptor(target,key,descriptor) {
@@ -1306,6 +1295,12 @@ function hasWeakMapPrototypeExposure(ast) {
     target.properties.set(key,functionMayReturnWeakMap(getter.value)?
       carrierMaybe:carrierOther);
   }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
     if(functionTypes.has(node.type)) {
