@@ -38,12 +38,12 @@ const runnerSource=[
   '});',
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
-  'process.stdout.write(JSON.stringify({result,capturedSource:document.title}));'
+  'process.stdout.write(JSON.stringify({result,capturedSource:document.title,privateWeakMapValue:globalThis.__privateWeakMapValue??null}));'
 ].join('\n');
 
 /**
  * @param {Array<{path:string,code:string}>} files
- * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ * @returns {{result:{value:number,independent:number},capturedSource:string,privateWeakMapValue:number|null}}
  */
 function run(files) {
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-weakmap-container-review-'));
@@ -170,7 +170,7 @@ test('private local WeakMap storage and non-exported factories do not disable th
     "import {Cache} from './factory.mjs';",
     'const cache=new Cache();',
     "cache.set('answer',29);",
-    "if(cache.get('answer')!==29)throw new Error('private WeakMap behavior changed');"
+    "globalThis.__privateWeakMapValue=cache.get('answer');"
   ].join('\n');
   const entrySource=[
     "import './factory.mjs';",
@@ -200,6 +200,8 @@ test('private local WeakMap storage and non-exported factories do not disable th
   const native=run(files.map(file=>({path:file.path,code:file.code})));
   const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
   assert.deepEqual(emitted.result,native.result);
+  assert.equal(native.privateWeakMapValue,29);
+  assert.equal(emitted.privateWeakMapValue,29);
   assert.equal(emitted.capturedSource,native.capturedSource);
   assert.equal(native.capturedSource,'');
 });
