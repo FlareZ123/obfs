@@ -133,3 +133,37 @@ browser test retains existing six positive transformed fixtures,
 while the additional reflection cases conservatively decline to
 rewrite. No hostile-runtime security, full-application performance
 or universal property-safety result follows from this finite corpus.
+
+
+## 26 November 2026: top-level native-bound target extension (experimental)
+
+The [native-bound private-target report](../im-results/agent1-native-bound-target-proof-2026-11-26.md)
+documents a narrow extension for a non-exported callable binding whose
+complete source-visible use set consists of top-level, noncomputed,
+nonoptional `target.bind(null)` calls. The bound wrapper may be exported;
+the target binding itself may not be exported.
+
+Admission additionally requires `closedWorld:true`, a fully supplied
+source-visible JavaScript graph, in-graph static imports, no unresolved
+CommonJS requires, no opaque calls other than the literal-null bind sites,
+no dynamic computed member paths, no reflection/prototype/global capability
+surface, no getter/setter/method/class or other runtime-effect constructs
+currently rejected by the lexical gate, and no unresolved ambient references
+except immutable language constants and the CommonJS `module.exports`
+publication write. Parameter-derived host receivers and aliases are refused.
+The CommonJS exception is write-only; reading back `module.exports` is not
+admitted.
+
+This is a conservative rewrite-eligibility grammar, not a general JavaScript
+effect proof. The top-level-only restriction prevents in-graph calls from
+creating later bound wrappers after an exported target has executed. It may
+reject otherwise benign code; widening it requires a more precise receiver
+and effect analysis plus new hostile negative fixtures.
+
+A hostile pre-import preloader can still intercept `Function.prototype.bind`
+and capture the actual target function object and its **transformed** source.
+The extension improves property-rewrite coverage; it does not provide source
+secrecy, tamper resistance against a runtime controller, or an advantage over
+ordinary property-mangled minification. The final full manual-validation run
+for this revision is recorded in the intermediate report, not as an
+established result.
