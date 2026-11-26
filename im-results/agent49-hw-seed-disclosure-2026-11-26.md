@@ -210,4 +210,6 @@ Results:
 
 Reproduction: `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`. For `N=64, initial_state=3`, the optimal policy uses input 0 throughout and distinguishes the target at query 126.
 
+The 126-query minimax value has an independent matching lower-bound witness. Consider the two candidates `(N=64, initial=3)` and `(N=63, initial=2)`. BFS over their product automaton finds that their shortest distinguishing word has length **126**, specifically `0^126`; no input word shorter than 126 separates them. An adaptive learner sees identical outputs under both candidates until the first differing output, so it must issue at least 126 queries in the worst case. The minimax DP supplies a 126-query upper bound, proving the prior-aware worst-case query complexity is exactly 126.
+
 This is not the same as the random-family result: the delayed-pair prior is small but intentionally has a long distinguishing delay, so it is not a trivial few-query attack. The `oracle_seed` disclosure nevertheless bypasses that difficulty by revealing N and seed (and therefore the exact initial state) before any oracle query. After fixing the seed leak, the delayed-pair family remains a useful known-prior benchmark, but its claims should be compared against the 126-query exact prior-aware baseline rather than an unrestricted unknown-machine interpretation.
