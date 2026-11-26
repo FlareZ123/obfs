@@ -1289,7 +1289,7 @@ function hasWeakMapPrototypeExposure(ast) {
       target.unknown=true;
       return;
     }
-    const getter=(descriptor.properties??[]).find(property=>
+    const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
     if(!getter)return;
     target.properties.set(key,functionMayReturnWeakMap(getter.value)?
