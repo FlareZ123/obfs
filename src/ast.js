@@ -524,6 +524,20 @@ function hasWeakMapPrototypeExposure(ast) {
   function carrierContainer() {
     return {kind:'container',properties:new Map(),unknown:false};
   }
+  /**
+   * @param {AstNode} property
+   * @param {boolean} computed
+   * @returns {string|null}
+   */
+  function carrierStaticKey(property,computed) {
+    if(!computed&&property.type==='Identifier')return property.name;
+    const key=staticString(property);
+    if(key!==null)return key;
+    if(property.type==='Literal'&&
+       (typeof property.value==='number'||typeof property.value==='string'))
+      return String(property.value);
+    return null;
+  }
   /** @param {CarrierValue} value @returns {boolean} */
   function carrierMayContainWeakMap(value) {
     if(value.kind==='weakmap'||value.kind==='maybe')return true;
@@ -591,8 +605,7 @@ function hasWeakMapPrototypeExposure(ast) {
           value.unknown=true;
           continue;
         }
-        const propertyKey=property.computed?staticString(property.key):
-          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        const propertyKey=carrierStaticKey(property.key,property.computed);
         if(propertyKey===null) {
           value.unknown=true;
           continue;
@@ -619,7 +632,7 @@ function hasWeakMapPrototypeExposure(ast) {
       return value;
     }
     if(node.type==='MemberExpression') {
-      const key=memberKey(node);
+      const key=carrierStaticKey(node.property,node.computed);
       if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name))
         return carrierMaybe;
       const base=evaluateCarrierValue(node.object,environment,thisValue);
@@ -688,8 +701,7 @@ function hasWeakMapPrototypeExposure(ast) {
           continue;
         }
         if(property.type!=='Property')continue;
-        const key=property.computed?staticString(property.key):
-          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        const key=carrierStaticKey(property.key,property.computed);
         const nested=value.kind==='container'?
           key!==null&&value.properties.has(key)?value.properties.get(key)??carrierOther:
             value.unknown?carrierMaybe:carrierOther:
@@ -740,7 +752,7 @@ function hasWeakMapPrototypeExposure(ast) {
         environment.set(node.left.name,assigned);
       } else if(node.left.type==='MemberExpression') {
         const base=evaluateCarrierValue(node.left.object,environment,thisValue);
-        const key=memberKey(node.left);
+        const key=carrierStaticKey(node.left.property,node.left.computed);
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
           else base.properties.set(key,assigned);
