@@ -65,6 +65,12 @@ Preferred correction: **run the two arms sequentially**. Start the SCO server, r
 
 A separate network namespace/container with an enforced one-endpoint route is also acceptable. Merely changing cookies, hiding the alternate port from argv, or keeping the current UID separation is insufficient.
 
+## Proposed correction validated separately
+
+A sequential-arm correction has since been implemented on `agent49/hw-cross-arm-probe-20261126` and proposed for owner review in [draft PR #381](https://github.com/FlareZ123/obfs/pull/381), targeting `agent2/hw-live-isolated-20261126`. The revised harness starts one service, runs the learner, stops it, and only then starts the other service with an independent session token.
+
+The sequential single-arm probes found no alternate service in either arm. The revised benchmark passed 15 delayed-pair cases and 15 random cases (plus a one-pair smoke test): 31/31 matched pairs, exact initial and future clones in both arms, and zero errors/timeouts. Detailed metrics and artifact hashes are in `im-results/agent49-hw-sequential-arm-isolation-2026-11-26.md`. This validates the harness correction on the tested runner; it does not change the scope of the original concurrent-design finding above.
+
 ## Reproduction files
 
 - `sims/agent49-hw-cross-arm-network-probe.py` — untrusted learner-side port enumeration and alternate RPC.
