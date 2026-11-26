@@ -1,93 +1,86 @@
 # Compound Unicode case-fold composition aliases on macOS
 
-**Status:** A native macOS filename alias escaped the three-key portable-path inventory in the current PR #379 candidate. An isolated full-case-fold correction passes focused native, tree, and unit tests on Ubuntu, Windows, and macOS. The complete manual-validation gate is pending.
+**Status:** A native macOS filename alias escaped the three-key portable-path inventory in the current PR #379 candidate. A pinned Unicode 17.0.0 full-casefold correction now passes exhaustive table, native filesystem, and cross-mode path tests on Ubuntu, Windows, and macOS. Full manual validation of the final table is running; the repository remains release-blocked by 11 pre-existing property-renaming/yield failures.
 
 ## Reproduction
 
-The candidate's `portableKeys` used three independent whole-string keys: NFC lowercase, NFC uppercase, and NFC upper-then-lower. A bounded Unicode 15.1 scalar-pair audit had found 2,645 single-code-point default-casefold pairs, all sharing at least one of those keys. That result did not cover concatenations whose positions require different keys.
+The PR candidate's portableKeys used three independent whole-string keys: NFC lowercase, NFC uppercase, and NFC upper-then-lower. A bounded Unicode 15.1 scalar-pair audit found 2,645 single-code-point default-casefold pairs, all sharing at least one of those keys. That did not cover concatenations whose positions require different keys.
 
-The compound filenames below are equivalent under Unicode 15.1 default full case folding:
+The compound filenames below are equivalent under Unicode default full case folding (including Unicode 15.1 and 17.0):
 
-- A: `ßϑ.txt` (U+00DF, U+03D1)
-- B: `ẞϴ.txt` (U+1E9E, U+03F4)
-- Both NFC full-fold to `ssθ.txt`.
+- A: ßϑ.txt (U+00DF, U+03D1)
+- B: ẞϴ.txt (U+1E9E, U+03F4)
+- Both NFC full-fold to ssθ.txt.
 
 But the candidate's three keys for the stem were:
 
 | Key | A | B | Equal |
 | --- | --- | --- | --- |
-| NFC lowercase | `ßϑ` | `ßθ` | no |
-| NFC uppercase | `SSΘ` | `ẞϴ` | no |
-| NFC upper-then-lower | `ssθ` | `ßθ` | no |
+| NFC lowercase | ßϑ | ßθ | no |
+| NFC uppercase | SSΘ | ẞϴ | no |
+| NFC upper-then-lower | ssθ | ßθ | no |
 
-The isolated test-only branch `agent4/compound-casefold-native-probe-20261126` reproduced a real alias on the GitHub macOS runner (Node v22.23.4, Unicode 17.0): the filesystem returned only `ßϑ.txt` after both names were written, and both spellings read the same entry. The portable inventory accepted both names. The focused native probe therefore failed on macOS, while Ubuntu and Windows did not alias the pair.
+The isolated test-only branch agent4/compound-casefold-native-probe-20261126 reproduced a real alias on the GitHub macOS runner (Node v22.23.4, Unicode 17.0): the filesystem returned only ßϑ.txt after both names were written, and both spellings read the same entry. The portable inventory accepted both names. Ubuntu and Windows did not alias the pair.
 
-- Red reproduction: [manual-validation run 4196](https://github.com/FlareZ123/obfs/actions/runs/45759382638), test-only head `b72f32ea7758bddef68541c36c62123c812053cb).
-- Repeated with a negative control: [run 4197](https://github.com/FlareZ123/obfs/actions/runs/45759699820), test-only head `496b28df7b68a10573b4eb019e39bb3ff035753f).
+- Red reproduction: [run 4196](https://github.com/FlareZ123/obfs/actions/runs/45759382638), test-only head b72f32ea7758bddef68541c36c62123c812053cb.
+- Repeated with a negative control: [run 4197](https://github.com/FlareZ123/obfs/actions/runs/45759699820), test-only head 496b28df7b68a10573b4eb019e39bb3ff035753f.
 
 ## Why the simple composite heuristic was rejected
 
-A fourth `NFC(lower→upper→lower)` key catches the observed alias, but it also collapses `ıß` and `iẞ`. Unicode default full case folding keeps these distinct (`ıss` versus `iss`), and the macOS runner stored both filenames as distinct entries. The original three keys also kept this control distinct. The second native probe recorded `candidateCompositeKeyRejects:true` while `filesystemAliases:false`.
+A fourth NFC(lower→upper→lower) key catches the observed alias, but it also collapses ıß and iẞ. Unicode default full case folding keeps these distinct (ıss versus iss), and the macOS runner stored both filenames as distinct entries. The original three keys also kept this control distinct. The second native probe recorded candidateCompositeKeyRejects=true while filesystemAliases=false.
 
-This is an observed extra false positive, not just a theoretical concern. The fix therefore uses a full-fold key rather than the broad composite heuristic.
+This is an observed extra false positive, not just a theoretical concern. The correction uses a full-fold key rather than the broad composite heuristic.
 
-## Isolated correction
+## Pinned Unicode 17 correction
 
-Branch: `agent4/compound-casefold-fullfold-fix-20261126`
+Port-source branch: agent4/compound-casefold-fullfold-fix-20261126
 
-Candidate head: `417881e2c964575d50e0cbb69bde8a0e891c007c`
+Current head: 118e324802f0cbef4f7665554b4da9f3bab054b3
 
-The correction preserves the three existing conservative keys and adds a fourth key based on Unicode 15.1 default full case folding, applied to the complete NFC-normalized string. The generated override table records the 297 scalars for which full default folding differs from per-code-point lowercase; other scalars use per-code-point lowercase. Turkic-only mappings are excluded. NFC is applied before and after folding.
+The correction preserves the three existing conservative keys and adds a fourth key using the complete Unicode 17.0.0 default full-casefold mapping table. The table contains 1,585 common/full (C/F) mappings; simple-only (S) and Turkic-only (T) mappings are excluded. Unlisted codepoints remain unchanged. There is no runtime lowercase fallback. BMP lookup keys are padded to four hexadecimal digits to match the UCD table representation.
+
+The fold mapping is pinned to Unicode 17.0.0. NFC normalization before and after folding still uses the host Node runtime's Unicode normalization data; that remains a compatibility boundary for runtimes whose normalization data predates Unicode 17.0.0. The table is therefore deterministic, but the complete path-key pipeline is not wholly independent of the host runtime.
 
 Reproduction/generation artifacts:
 
-- `src/unicode-casefold.js`
-- `src/unicode-casefold-overrides.js`
-- `sims/generate-unicode-casefold-overrides.py`
-- `sims/audit-compound-casefold-witness.py`
-- `resources/unicode-casefold-data-source.md` (data source and license attribution)
-- `test/unicode-casefold.test.js`
-- `test/portable-path-tree.test.js`
-- `test/portable-fs-casefold-probe.test.js`
+- src/portable-paths.js
+- src/unicode-casefold.js
+- src/unicode-casefold-data.js
+- sims/generate-unicode-casefold-data.py (parses a local Unicode 17.0.0 CaseFolding.txt; validates version header and 1,585 C/F mappings)
+- sims/audit-compound-casefold-witness.py (reproduces the original compound witness with Python Unicode 15.1)
+- resources/unicode-casefold-data-source.md (source and license attribution)
+- test/unicode-casefold.test.js
+- test/portable-path-tree.test.js
+- test/portable-fs-casefold-probe.test.js
 
-Focused validation on the correction branch (code/test validation head c248d52; the final branch head c720480 adds only JSDoc/comment clarifications to the Unicode-version boundary):
+The Unicode source is [Unicode 17.0.0 CaseFolding.txt](https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt). The generator includes C/F mappings and excludes S/T mappings. Attribution and licensing are recorded in resources/unicode-casefold-data-source.md; the official [Unicode License V3](https://www.unicode.org/license.txt) provides the complete copyright and permission terms.
+
+## Validation
 
 | Run | Scope | Result |
 | --- | --- | --- |
-| [4199](https://github.com/FlareZ123/obfs/actions/runs/45760247426) | Native filesystem probe, including both compound witness and non-fold-equivalent control | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
-| [4200](https://github.com/FlareZ123/obfs/actions/runs/45760347205) | Cross-mode output-tree regression | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
-| [4201](https://github.com/FlareZ123/obfs/actions/runs/45760479383) | Unicode full-fold unit tests | Pass on Ubuntu, Windows, macOS; all JSDoc steps pass |
-| [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) | Complete manual-validation workflow | Red on the same 11 baseline failures; all new tests and validation steps pass |
+| [4199](https://github.com/FlareZ123/obfs/actions/runs/45760247426) | Initial native compound witness and negative control, Unicode 15.1 hybrid | Pass on Ubuntu, Windows, macOS |
+| [4200](https://github.com/FlareZ123/obfs/actions/runs/45760347205) | Cross-mode output-tree regression, initial hybrid | Pass on all three OS |
+| [4201](https://github.com/FlareZ123/obfs/actions/runs/45760479383) | Initial Unicode fold unit tests | Pass on all three OS |
+| [4208](https://github.com/FlareZ123/obfs/actions/runs/45762696800) | Eight default-ignorable native controls | Pass on all three OS; no unprotected alias |
+| [4211](https://github.com/FlareZ123/obfs/actions/runs/45762865689) | Accent/compatibility controls and fold-positive pairs | Pass on all three OS |
+| [4212](https://github.com/FlareZ123/obfs/actions/runs/45762986175) | Unit policy for accent/compatibility distinctions | Pass on all three OS |
+| [4215](https://github.com/FlareZ123/obfs/actions/runs/45763722686) | First Unicode 17 full-table unit attempt | Failed: BMP lookup omitted leading zeroes |
+| [4218](https://github.com/FlareZ123/obfs/actions/runs/45764695789) | Exhaustive 1,585-entry Unicode 17 table test; includes Unicode 16 Cyrillic Tje U+1C89/U+1C8A | Pass on all three OS and all JSDoc steps |
+| [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938) | Expanded native filesystem probe with Unicode 17 table, compound witness, default-ignorables, accents, compatibility, and Cyrillic Tje | Pass on all three OS and all JSDoc steps |
+| [4224](https://github.com/FlareZ123/obfs/actions/runs/45765013827) | Full manual-validation workflow for the pinned Unicode 17 table | In progress |
 
-The native-probe green result shows that the new inventory rejects the compound pair on all three runner platforms and still accepts the non-fold-equivalent `ıß` / `iẞ` control on macOS. The tests exercise the shared path inventory through COO, SNO, and SCO packaging/admission paths.
+Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'), and run 4218 validates every table entry. The expanded native probe in run 4220 shows no unprotected alias for the listed default-ignorable, accent, compatibility, and Unicode 16 controls. These are bounded test pairs, not an exhaustive filesystem-equivalence proof.
 
 ## Limits and integration status
 
 - This is one reproduced alias on the tested macOS GitHub runner, not proof about every APFS/HFS+ version, filesystem configuration, or Unicode revision.
-- The table is pinned to Unicode 15.1.0 while the macOS Node runner reports Unicode 17.0. The tested mappings are present in 15.1.0; new Unicode mappings and future table updates remain a maintenance boundary.
-- Keeping the existing three keys intentionally retains their known conservative refusals (including the dotless-I case). The full-fold key improves compound coverage but does not establish a universal filesystem-equivalence theorem.
-- This is a path identity and safe-publication correctness result. It does not increase confidentiality, anti-debugging strength, tamper resistance, or satisfy the 2.5× runtime constraint.
-- The correction branch is a temporary port source for the sole integration path PR #379, not a separate PR or merge path. It is not integrated into `main` or the PR branch. Do not treat the focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
+- The Unicode 17.0 full-fold table is a conservative equivalence relation. Older filesystems may not implement every newer mapping, so some names may be refused even when a particular filesystem would keep them distinct.
+- NFC normalization remains runtime-version-dependent. The three legacy keys also use runtime lower/upper mappings. The full-fold table improves deterministic coverage but does not establish a universal filesystem-equivalence theorem.
+- Keeping the existing three keys intentionally retains their known conservative refusals (including the dotless-I case).
+- This is a path identity and safe-publication correctness result. It does not increase confidentiality, anti-debugging strength, tamper resistance, or prove the 2.5× runtime constraint across all programs.
+- The correction branch is a temporary port source for the sole integration path PR #379, not a separate PR or merge path. It is not integrated into main or the PR branch. Do not treat focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
 
-Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded). Attribution and licensing are recorded in `resources/unicode-casefold-data-source.md`; the Unicode License V3 requires its copyright/permission notice to accompany derived data or its associated documentation ([official license](https://www.unicode.org/license.txt)).
+## Historical full-gate comparison
 
-
-## Expanded native probe coverage
-
-After the full-gate run, the test-only native probe was expanded without changing production behavior:
-
-- [Run 4208](https://github.com/FlareZ123/obfs/actions/runs/45762696800) added eight default-ignorable controls: zero-width space, soft hyphen, zero-width non-joiner, zero-width joiner, word joiner, combining grapheme joiner, BOM, and Mongolian vowel separator. It passed on Ubuntu, Windows, and macOS; no unprotected alias was observed for these pairs.
-- [Run 4211](https://github.com/FlareZ123/obfs/actions/runs/45762865689) added accent and compatibility controls: ASCII versus accented e/a/n, ASCII versus fullwidth A, ASCII 1 versus circled one, plus full-fold-positive ffi/ligature and K/Kelvin pairs. It passed on all three operating systems.
-- [Run 4212](https://github.com/FlareZ123/obfs/actions/runs/45762986175) expanded the unit assertions to pin the intended policy: Kelvin and ffi ligature fold together; accent, fullwidth, and circled forms remain distinct. It passed on all three operating systems with all JSDoc steps.
-
-These results are bounded to the listed pairs and runner filesystems; they are not an exhaustive filesystem-equivalence proof. The final port-source branch head is 417881e2c964575d50e0cbb69bde8a0e891c007c. The full behavioral gate remains the earlier run 4202 at code/test head c248d52; subsequent branch commits only clarify comments/licensing and expand tests, not production behavior.
-
-## Full-gate disposition (run 4202)
-
-The full manual-validation workflow completed red because the Node 22 behavioral test command reproduced the exact same 11 failure names present in baseline run 4150. No new failure appeared in the path/case-fold work.
-
-- Ubuntu: 5,441 tests; 5,405 passed, 11 failed, 25 skipped.
-- Windows: 5,441 tests; 5,395 passed, 11 failed, 35 skipped.
-- The 11 failures are the existing property-renaming/yield assertions in bound-runtime interception, minifier control, factory object flow, function-declaration reader proof (two cases), interfile, private-class source yield (two cases), private-tuple session, SNO bound-runtime interception, and source-stable bound export. The exact test names and locations match baseline 4150.
-- All new case-fold and path-tree tests passed. Project and external JSDoc typechecks, affine/paired-budget typechecks, benchmarks, verified-record and local-parameter profiles all passed. The reported profile rows stayed within 2.5×. All Ubuntu Chromium integration checks passed; the Windows browser steps were skipped because the behavioral test command had already failed.
-- Therefore run 4202 is not a green full gate. It establishes no new regression relative to baseline for this correction branch, but it does not clear the repository's existing release blocker or validate a merged PR #379 head.
+The earlier Unicode 15.1 hybrid full-gate run [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) completed red on the exact same 11 baseline property-renaming/yield failures as baseline run 4150. It introduced no new failures, but it does not validate the current pinned Unicode 17 table. The current full gate is run 4224 and its final disposition will supersede that historical comparison.
