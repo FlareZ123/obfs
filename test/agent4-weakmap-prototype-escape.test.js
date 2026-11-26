@@ -25,7 +25,7 @@ const source=[
   '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 /**
  * Run a module with a DOMString-compatible Document.title host shim.
@@ -46,7 +46,7 @@ function run(moduleSource){
     'const {sample}=await import(process.argv[1]);',
     'const result=sample();',
     'process.stdout.write(JSON.stringify({result,capturedSource:globalThis.document.title??null}));'
-  ].join('\\n');
+  ].join('\n');
   const url='data:text/javascript;base64,'+Buffer.from(moduleSource).toString('base64');
   const child=spawnSync(process.execPath,['--input-type=module','-e',script,url],{
     encoding:'utf8',timeout:15000
