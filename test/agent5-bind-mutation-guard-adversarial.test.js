@@ -114,7 +114,7 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
     const mutator=[
       'const nativeBind=Function.prototype.bind;',
       'Function.prototype.bind=function(...args){',
-      "  if(this&&this.name===globalThis.__targetName){",
+      "  if(this&&this.name==='internal'&&Function.prototype.toString.call(this).includes('owner.secretField')){",
       '    external(this);const target=this;const thisArg=args[0];const boundArgs=args.slice(1);',
       '    return (...callArgs)=>Reflect.apply(target,thisArg,[...boundArgs,...callArgs]);',
       '  }',
@@ -123,7 +123,7 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
     ].join('\n');
     const entry=[
       "import './mutator.mjs';",
-      "globalThis.__targetName='internal';",
+
       'const owner={secretField:7};',
       'const internal=()=>owner.secretField;',
       'const hot=internal.bind(null);',
