@@ -226,3 +226,22 @@ test('bound-only arrow cannot leak owner through Reflect.set on globalThis',()=>
     'export const hot=internal.bind(null);';
   assert.equal(propertyCount(source),0);
 });
+
+test('cross-file target.toString through globalThis alias blocks owner renaming',()=>{
+  const setup='const nativeBind=Function.prototype.bind;'+
+    'Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'get(){globalThis.leaked=this;return nativeBind;}});';
+  const entry='import "./setup.mjs";'+ownerPrefix+
+    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
+    'export const hot=internal.bind(null);';
+  const observer='import "./entry.mjs";globalThis.source=globalThis.leaked.toString();';
+  const main='import "./observer.mjs";';
+  const output=obfuscateFiles([
+    {path:'setup.mjs',sourceType:'module',code:setup},
+    {path:'entry.mjs',sourceType:'module',code:entry},
+    {path:'observer.mjs',sourceType:'module',code:observer},
+    {path:'main.mjs',sourceType:'module',code:main}
+  ],{mode:'coo',closedWorld:true,seed:'agent7-cross-file-dot-tostring',
+    properties:true,identifiers:false,strings:false});
+  assert.equal(output.files.find(file=>file.path==='entry.mjs').metrics.properties,0);
+});
