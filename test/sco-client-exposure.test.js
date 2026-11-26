@@ -8,6 +8,7 @@ const path=require('node:path');
 const net=require('node:net');
 const {spawn,spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
+const {main}=require('../src/cli');
 
 /** @returns {Promise<number>} */
 async function unusedPort() {
@@ -143,6 +144,19 @@ test('SCO CLI rejects terminal dot-segment ESM paths that would over-publish a f
     if(child.error)throw child.error;
     assert.notEqual(child.status,0,child.stdout);
     assert.match(child.stderr,/SCO noncanonical ESM import path unsupported: \.\/private\.mjs\/\./u);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO CLI rejects an explicitly selected DEL filename before listening',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-del-public-path-'));
+  try {
+    await atomicWrite(path.join(root,'index.mjs'),'export const ready=true;');
+    await assert.rejects(main('sco',[
+      '--root',root,'--entry','index.mjs','--client','del\\u007f.mjs'
+    ]),/Unsafe file path:/u);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
