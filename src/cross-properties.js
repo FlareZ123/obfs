@@ -379,7 +379,12 @@ function collectImportedStorageMethodAliases(files,parseFile=parseModule) {
           property.value.left:property.value;
         if(binding.type!=='Identifier')continue;
         if(fromStorage&&isStorageMethodName(name)||
-           fromDescriptor&&name==='value')storageMethods.add(binding.name);
+           fromDescriptor&&name==='value') {
+          if(!storageMethods.has(binding.name)) {
+            storageMethods.add(binding.name);
+            changed=true;
+          }
+        }
       }
     }
     let changed;
