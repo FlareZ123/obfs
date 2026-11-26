@@ -110,6 +110,8 @@ def main():
                 f"expected {expected_value!r}"
             )
 
+        result_path = Path.cwd() / "agent49-cross-arm-probe-result.json"
+        result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
         print("CROSS_ARM_NETWORK_ORACLE_PROBE " + json.dumps(result, sort_keys=True), flush=True)
         print(
             "CONFIRMED: a learner with no target seed, state count, or alternate origin "
