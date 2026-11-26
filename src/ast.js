@@ -145,12 +145,43 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function containsWeakMapInstanceValue(root) {
     if(!root)return false;
-    let found=false;
-    walk(root,(candidate,parent,key,ancestors)=>{
-      if(!found&&!ancestors.some(ancestor=>functionTypes.has(ancestor.type))&&
-         isWeakMapInstance(candidate))found=true;
-    });
-    return found;
+    if(isWeakMapInstance(root))return true;
+    // Only follow expression positions that contribute to the returned or
+    // exported value. Do not mistake a WeakMap used as the receiver of
+    // WeakMap.prototype.get() for a WeakMap returned by that call.
+    if(functionTypes.has(root.type))return false;
+    if(root.type==='ObjectExpression') {
+      return root.properties.some((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?
+          containsWeakMapInstanceValue(property.argument):
+        property.type==='Property'?
+          containsWeakMapInstanceValue(property.value):false);
+    }
+    if(root.type==='ArrayExpression')
+      return root.elements.some((/** @type {AstNode|null} */ element)=>
+        containsWeakMapInstanceValue(element));
+    if(root.type==='Property'||root.type==='SpreadElement')
+      return containsWeakMapInstanceValue(root.value??root.argument);
+    if(root.type==='ConditionalExpression')
+      return containsWeakMapInstanceValue(root.consequent)||
+        containsWeakMapInstanceValue(root.alternate);
+    if(root.type==='LogicalExpression')
+      return containsWeakMapInstanceValue(root.left)||
+        containsWeakMapInstanceValue(root.right);
+    if(root.type==='SequenceExpression')
+      return containsWeakMapInstanceValue(root.expressions.at(-1));
+    if(root.type==='AssignmentExpression')
+      return containsWeakMapInstanceValue(root.right);
+    if(root.type==='AwaitExpression'||root.type==='YieldExpression')
+      return containsWeakMapInstanceValue(root.argument);
+    if(root.type==='ChainExpression')
+      return containsWeakMapInstanceValue(root.expression);
+    if(root.type==='ClassDeclaration'||root.type==='ClassExpression') {
+      return root.body.body.some((/** @type {AstNode} */ element)=>
+        element.type==='PropertyDefinition'&&
+          containsWeakMapInstanceValue(element.value));
+    }
+    return false;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isPrototypeGetterMember(node) {
