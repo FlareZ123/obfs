@@ -5,32 +5,76 @@ from __future__ import annotations
 import argparse
 import hashlib
 import http.client
+import ipaddress
 import json
 import os
 import shutil
 import subprocess
-import sys
 from urllib.parse import urlsplit
 
 from agent2_hw_process_isolation import process_security_state
 
 
-def loopback_listeners() -> list[int]:
-    ports: set[int] = set()
-    with open("/proc/net/tcp", "r", encoding="ascii") as handle:
-        next(handle, None)
-        for line in handle:
-            fields = line.split()
-            if len(fields) < 4 or fields[3] != "0A":
-                continue
-            address, separator, port_hex = fields[1].partition(":")
-            if separator and address.upper() == "0100007F":
-                ports.add(int(port_hex, 16))
-    return sorted(ports)
+def _connect_host_v4(address_hex: str) -> str | None:
+    """Decode Linux /proc/net/tcp's little-endian IPv4 address."""
+    address = ipaddress.IPv4Address(bytes.fromhex(address_hex)[::-1])
+    if address.is_loopback:
+        return str(address)
+    if address.is_unspecified:
+        return "127.0.0.1"
+    return None
 
 
-def public_module(port: int):
-    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+def _connect_host_v6(address_hex: str) -> str | None:
+    """Decode Linux /proc/net/tcp6's per-word little-endian IPv6 address."""
+    raw = bytes.fromhex(address_hex)
+    if len(raw) != 16:
+        return None
+    network_order = b"".join(raw[offset:offset + 4][::-1] for offset in range(0, 16, 4))
+    address = ipaddress.IPv6Address(network_order)
+    mapped = address.ipv4_mapped
+    if mapped is not None:
+        if mapped.is_loopback:
+            return str(mapped)
+        if mapped.is_unspecified:
+            return "127.0.0.1"
+        return None
+    if address.is_loopback:
+        return str(address)
+    if address.is_unspecified:
+        return "::1"
+    return None
+
+
+def loopback_listeners() -> list[tuple[str, int]]:
+    """List connectable IPv4/IPv6 loopback and wildcard TCP listener endpoints."""
+    endpoints: set[tuple[str, int]] = set()
+    sources = (
+        ("/proc/net/tcp", _connect_host_v4),
+        ("/proc/net/tcp6", _connect_host_v6),
+    )
+    for path, decode_host in sources:
+        try:
+            handle = open(path, "r", encoding="ascii")
+        except FileNotFoundError:
+            continue
+        with handle:
+            next(handle, None)
+            for line in handle:
+                fields = line.split()
+                if len(fields) < 4 or fields[3] != "0A":
+                    continue
+                address_hex, separator, port_hex = fields[1].partition(":")
+                if not separator:
+                    continue
+                host = decode_host(address_hex)
+                if host is not None:
+                    endpoints.add((host, int(port_hex, 16)))
+    return sorted(endpoints)
+
+
+def public_module(host: str, port: int):
+    connection = http.client.HTTPConnection(host, port, timeout=2)
     try:
         connection.request("GET", "/obfs/client.mjs", headers={"Cache-Control": "no-store"})
         response = connection.getresponse()
@@ -59,7 +103,9 @@ def main():
     parsed = urlsplit(args.origin)
     if parsed.scheme != "http" or parsed.hostname != "127.0.0.1" or parsed.port is None:
         raise ValueError("expected an explicit 127.0.0.1 HTTP origin")
+    candidate_host = parsed.hostname
     candidate_port = parsed.port
+    candidate_endpoint = (candidate_host, candidate_port)
 
     security = process_security_state(os.getpid())
     sudo = shutil.which("sudo")
@@ -68,21 +114,21 @@ def main():
         if sudo else None
     )
     sudo_blocked = sudo_result is None or sudo_result.returncode != 0
-    candidate = public_module(candidate_port)
+    candidate = public_module(candidate_host, candidate_port)
     if candidate is None:
         raise RuntimeError("active service did not issue a usable public module")
 
-    visible_ports = loopback_listeners()
-    if candidate_port not in visible_ports:
-        raise RuntimeError("active service listener was not visible in /proc/net/tcp")
+    visible_endpoints = loopback_listeners()
+    if candidate_endpoint not in visible_endpoints:
+        raise RuntimeError("active service listener was not visible in /proc/net/tcp or tcp6")
 
     alternate_services = []
-    for port in visible_ports:
-        if port == candidate_port:
+    for host, port in visible_endpoints:
+        if (host, port) == candidate_endpoint:
             continue
-        alternate = public_module(port)
+        alternate = public_module(host, port)
         if alternate is not None:
-            alternate_services.append({"port": port, **alternate})
+            alternate_services.append({"host": host, "port": port, **alternate})
 
     result = {
         "status": "single_arm_isolated" if not alternate_services else "alternate_local_oracle_found",
@@ -93,8 +139,12 @@ def main():
         "cap_eff": security["CapEff"],
         "cap_bnd": security["CapBnd"],
         "sudo_blocked": sudo_blocked,
+        "candidate_host": candidate_host,
         "candidate_port": candidate_port,
-        "visible_loopback_listener_ports": visible_ports,
+        "visible_loopback_listeners": [
+            {"host": host, "port": port} for host, port in visible_endpoints
+        ],
+        "visible_loopback_listener_ports": sorted({port for _host, port in visible_endpoints}),
         "candidate_module": candidate,
         "alternate_services": alternate_services,
     }
