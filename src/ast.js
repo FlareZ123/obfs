@@ -1035,23 +1035,54 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       storageNames.has(memberName(node)??'');
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStoragePrototype(node) {
+    if(node?.type!=='MemberExpression'||memberName(node)!=='prototype')return false;
+    const root=node.object;
+    return root.type==='Identifier'&&root.name==='Storage' ||
+      root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='Storage';
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageMethodOwner(node) {
+    return isStorageCollection(node)||isStoragePrototype(node);
+  }
+  /** @param {string|null} name @returns {boolean} */
+  function isStorageMethodName(name) {
+    return name===null||['setItem','getItem','removeItem'].includes(name);
+  }
+  /**
+   * Object.getOwnPropertyDescriptor(Storage.prototype, method).value recovers
+   * the same Web IDL method as a direct Storage.prototype member reference.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isStorageMethodDescriptor(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      memberName(node.callee)==='getOwnPropertyDescriptor' &&
+      isReflectiveReceiver(node.callee.object) &&
+      isStoragePrototype(node.arguments[0]) &&
+      isStorageMethodName(sourceStringKey(node.arguments[1])));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStorageMethodReference(node) {
     if(!node)return false;
     if(node.type==='Identifier')return storageMethodAliases.has(node.name);
-    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-       memberName(node.callee)==='bind')
-      return isStorageMethodReference(node.callee.object);
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='MemberExpression' &&
+         memberName(node.callee)==='bind')
+        return isStorageMethodReference(node.callee.object);
+      // Reflect.get can detach a native Storage method without leaving a
+      // MemberExpression at the eventual invocation site.
+      if(node.callee.type==='MemberExpression' &&
+         memberName(node.callee)==='get' &&
+         isReflectiveReceiver(node.callee.object) &&
+         isStorageMethodOwner(node.arguments[0]) &&
+         isStorageMethodName(sourceStringKey(node.arguments[1])))return true;
+      return false;
+    }
     if(node.type!=='MemberExpression')return false;
-    const method=memberName(node);
-    const possibleMethod=['setItem','getItem','removeItem'].includes(method??'') ||
-      node.computed && method===null;
-    if(!possibleMethod)return false;
-    if(isStorageCollection(node.object))return true;
-    const owner=node.object;
-    if(owner?.type!=='MemberExpression'||memberName(owner)!=='prototype')return false;
-    const root=owner.object;
-    return root.type==='Identifier'&&root.name==='Storage' ||
-      root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='Storage';
+    if(memberName(node)==='value'&&isStorageMethodDescriptor(node.object))return true;
+    return isStorageMethodName(memberName(node))&&isStorageMethodOwner(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
@@ -1423,6 +1454,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         node.init) {
+        const target=node.init;
+        const fromStorage=isStorageMethodOwner(target);
+        const fromDescriptor=isStorageMethodDescriptor(target);
+        if(fromStorage||fromDescriptor)for(const property of node.id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?sourceStringKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const binding=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(binding.type!=='Identifier')continue;
+          if(fromStorage&&isStorageMethodName(name) ||
+             fromDescriptor&&name==='value') {
+            changed=add(storageMethodAliases,binding.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
