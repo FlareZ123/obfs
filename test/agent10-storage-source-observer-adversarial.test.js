@@ -120,6 +120,46 @@ test('Reflect.get-extracted Storage method is a source observer',async()=>{
   );
 });
 
+test('assignment-pattern Storage method destructuring is a source observer',async()=>{
+  await assertStorageObserver(
+    'let setItem; ({setItem}=localStorage);',
+    "setItem.call(localStorage,'k',new.target)",
+    'agent10-storage-assignment-destructure'
+  );
+});
+
+test('Storage descriptor aliases retain source-observer provenance',async()=>{
+  await assertStorageObserver(
+    "const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem'); const setItem=descriptor.value;",
+    "setItem.call(localStorage,'k',new.target)",
+    'agent10-storage-descriptor-alias-chain'
+  );
+});
+
+test('aliased Reflect.get extraction retains Storage source-observer provenance',async()=>{
+  await assertStorageObserver(
+    "const get=Reflect.get; const setItem=get(Storage.prototype,'setItem');",
+    "setItem.call(localStorage,'k',new.target)",
+    'agent10-storage-reflect-get-alias'
+  );
+});
+
+test('aliased Object.getOwnPropertyDescriptor extraction retains Storage source-observer provenance',async()=>{
+  await assertStorageObserver(
+    "const descriptorReader=Object.getOwnPropertyDescriptor; const setItem=descriptorReader(Storage.prototype,'setItem').value;",
+    "setItem.call(localStorage,'k',new.target)",
+    'agent10-storage-descriptor-reader-alias'
+  );
+});
+
+test('descriptor value destructuring retains Storage source-observer provenance',async()=>{
+  await assertStorageObserver(
+    "const {value:setItem}=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem');",
+    "setItem.call(localStorage,'k',new.target)",
+    'agent10-storage-descriptor-value-destructure'
+  );
+});
+
 test('Storage method extraction with primitive-only values retains positive property yield',async()=>{
   const files=[{
     path:'app.mjs',
