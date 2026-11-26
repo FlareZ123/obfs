@@ -79,6 +79,12 @@ function hasWeakMapPrototypeExposure(ast) {
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
   /** @type {Map<string,number>} */
   const weakMapDerivedConstructors=new Map();
+  /** @param {string} name @param {number} depth */
+  function recordWeakMapDerivedConstructor(name,depth) {
+    const previous=weakMapDerivedConstructors.get(name);
+    if(previous===undefined||depth<previous)
+      weakMapDerivedConstructors.set(name,depth);
+  }
   /** @type {Map<string,number>} */
   const weakMapPrototypeChainDepths=new Map();
   const weakMapInstances=new Set();
@@ -587,11 +593,11 @@ function hasWeakMapPrototypeExposure(ast) {
       if(parentDepth!==undefined) {
         const derivedDepth=parentDepth+1;
         if(node.id?.type==='Identifier')
-          weakMapDerivedConstructors.set(node.id.name,derivedDepth);
+          recordWeakMapDerivedConstructor(node.id.name,derivedDepth);
         if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
-          weakMapDerivedConstructors.set(parent.id.name,derivedDepth);
+          recordWeakMapDerivedConstructor(parent.id.name,derivedDepth);
         if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
-          weakMapDerivedConstructors.set(parent.left.name,derivedDepth);
+          recordWeakMapDerivedConstructor(parent.left.name,derivedDepth);
       }
     }
   });
@@ -659,8 +665,9 @@ function hasWeakMapPrototypeExposure(ast) {
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
         const derivedDepth=weakMapDerivedDepth(init);
-        if(derivedDepth!==undefined&&derivedDepth>0)
-          weakMapDerivedConstructors.set(name,derivedDepth);
+        if(derivedDepth===0)weakMapConstructors.add(name);
+        else if(derivedDepth!==undefined)
+          recordWeakMapDerivedConstructor(name,derivedDepth);
         const prototypeDepth=weakMapPrototypeChainDepth(init);
         if(prototypeDepth===0)exposed=true;
         else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
