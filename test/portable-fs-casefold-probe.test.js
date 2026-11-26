@@ -38,7 +38,7 @@ test('report native filesystem aliasing for candidate Unicode case-fold pairs',a
     {label:'ASCII 1 versus circled one',a:'1.txt',b:'①.txt'},
     {label:'ASCII ffi versus ligature ffi',a:'ffi.txt',b:'ﬃ.txt'},
     {label:'ASCII K versus Kelvin sign',a:'K.txt',b:'K.txt'},
-    {label:'Unicode 16 Cyrillic Tje case fold',a:'\\u1C89.txt',b:'\\u1C8A.txt'},
+    {label:'Unicode 16 Cyrillic Tje case fold',a:String.fromCodePoint(0x1C89)+'.txt',b:String.fromCodePoint(0x1C8A)+'.txt'},
     {label:'dotless I',a:'I.txt',b:'ı.txt'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-casefold-'));
