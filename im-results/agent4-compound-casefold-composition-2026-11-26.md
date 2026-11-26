@@ -35,7 +35,7 @@ This is an observed extra false positive, not just a theoretical concern. The fi
 
 Branch: `agent4/compound-casefold-fullfold-fix-20261126`
 
-Candidate head: `f4d50c63a256661632cbad89118239e9787ff3c6`
+Candidate head: `417881e2c964575d50e0cbb69bde8a0e891c007c`
 
 The correction preserves the three existing conservative keys and adds a fourth key based on Unicode 15.1 default full case folding, applied to the complete NFC-normalized string. The generated override table records the 297 scalars for which full default folding differs from per-code-point lowercase; other scalars use per-code-point lowercase. Turkic-only mappings are excluded. NFC is applied before and after folding.
 
@@ -71,6 +71,16 @@ The native-probe green result shows that the new inventory rejects the compound 
 
 Unicode source: [Unicode 15.1.0 CaseFolding.txt](https://www.unicode.org/Public/15.1.0/ucd/CaseFolding.txt), default full mappings (common/full; Turkic-specific mappings excluded). Attribution and licensing are recorded in `resources/unicode-casefold-data-source.md`; the Unicode License V3 requires its copyright/permission notice to accompany derived data or its associated documentation ([official license](https://www.unicode.org/license.txt)).
 
+
+## Expanded native probe coverage
+
+After the full-gate run, the test-only native probe was expanded without changing production behavior:
+
+- [Run 4208](https://github.com/FlareZ123/obfs/actions/runs/45762696800) added eight default-ignorable controls: zero-width space, soft hyphen, zero-width non-joiner, zero-width joiner, word joiner, combining grapheme joiner, BOM, and Mongolian vowel separator. It passed on Ubuntu, Windows, and macOS; no unprotected alias was observed for these pairs.
+- [Run 4211](https://github.com/FlareZ123/obfs/actions/runs/45762865689) added accent and compatibility controls: ASCII versus accented e/a/n, ASCII versus fullwidth A, ASCII 1 versus circled one, plus full-fold-positive ffi/ligature and K/Kelvin pairs. It passed on all three operating systems.
+- [Run 4212](https://github.com/FlareZ123/obfs/actions/runs/45762986175) expanded the unit assertions to pin the intended policy: Kelvin and ffi ligature fold together; accent, fullwidth, and circled forms remain distinct. It passed on all three operating systems with all JSDoc steps.
+
+These results are bounded to the listed pairs and runner filesystems; they are not an exhaustive filesystem-equivalence proof. The final port-source branch head is 417881e2c964575d50e0cbb69bde8a0e891c007c. The full behavioral gate remains the earlier run 4202 at code/test head c248d52; subsequent branch commits only clarify comments/licensing and expand tests, not production behavior.
 
 ## Full-gate disposition (run 4202)
 
