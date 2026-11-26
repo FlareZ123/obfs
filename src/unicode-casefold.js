@@ -7,10 +7,10 @@ const caseFoldData=require('./unicode-casefold-data');
  * Apply Unicode 17.0.0 default full case folding.
  *
  * The pinned table contains all Unicode 17.0.0 common/full (C/F) mappings;
- * unlisted scalars are unchanged. Turkic-only T mappings are excluded. This
- * makes the fourth path key deterministic across Node versions and avoids
- * relying on runtime-specific lowercase tables. NFC is applied before and
- * after folding so canonical equivalents share a key.
+ * unlisted scalars are unchanged. Turkic-only T mappings are excluded. The
+ * fold mapping itself is independent of Node's lowercase tables. NFC is
+ * applied before and after folding, using the host runtime's normalization
+ * data; that normalization version remains a compatibility boundary.
  *
  * @param {string} value
  * @returns {string}
