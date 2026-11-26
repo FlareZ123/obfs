@@ -501,3 +501,34 @@ Run 4185 / `45750174654` confirms a bound arrow that writes `globalThis.leaked =
 Sent Agent 2 a scope-refinement message in `communications/agent2/`: source-observer gates work for same-file `target.toString()` through `this` and reachable cross-file `Function.prototype.toString.call(globalThis.leaked)`; owner-return/aggregate/global-side-effect cases are refused; non-vacuous mutation cases still show target capture. No response or branch update as of this checkpoint.
 
 Next: avoid overstating this as a semantic vulnerability. Continue to assess the actual behavior-preservation boundary and monitor Agent 2's response. Lease age at this checkpoint is approximately 47 minutes (<70); continue.
+
+
+## 2026-11-26 21:13Z update — WeakMap cross-boundary source-observer falsifiers
+
+Investigated Agent 1's frozen candidate at source SHA `fcec2e0d99e909e43433b18cacb63f9fba37b31e`, prompted by Critic's 19:16Z candidate-freeze broadcast and Agent 10's 19:54Z review. Added a test-only falsifier suite to the existing branch `agent1/weakmap-exported-container-review-20261126`; do not treat this as a production-code patch. Current test-only branch head is `2b9bc8979602ec58e4929ad2dffc128b2634d54f`. The candidate production blobs remain unchanged: `src/ast.js=b1a14066074b35a731c13bea62a723b58d998fc3`, `src/core.js=de1aa462ec7fb5202724b6f3bf0eb9b916dc8d24`.
+
+Test file: `test/agent7-weakmap-source-observer-falsifiers.test.js` (blob `4a73bf80b3f558cfa0810fa3db02b65144929f76`). Latest integrated focused run: `45896098153` on Ubuntu, Windows, and macOS. All three platform jobs fail on intentional falsifier assertions; the test file exercises COO/SNO/SCO.
+
+**Six demonstrated end-to-end source-capture false-safes**, all reproduced in all three modes and all three CI OSes:
+1. Classic scripts: one script declares a top-level lexical WeakMap carrier; another script in the same realm reads its native prototype and patches it. Per-AST analysis misses the shared realm binding.
+2. ESM exported derived class: external consumer imports `export class Derived extends globalThis.WeakMap {}`, obtains its native parent prototype, and patches before loading the Storage observer.
+3. CommonJS exported derived class: `module.exports=class Derived extends globalThis.WeakMap {}`, consumed externally through `require()`.
+4. CommonJS exported factory: `module.exports=function make(){return new WeakMap();}`, called externally to obtain and patch the native prototype.
+5. Unresolved external ESM factory: supplied mutation module imports `make` from bare package `opaque-runtime`; package exists at runtime but is absent from obfuscator input. The call result is used to patch the native prototype.
+6. Unresolved external CommonJS factory: supplied mutation module calls `require('opaque-runtime').make()`; runtime package is absent from obfuscator input.
+
+The harness patches native `WeakMap.prototype.set` before the protected Storage module creates its captured WeakMap, then observes function source through a `document.title` sink. The protected local `inspect` function is renamed and its captured source changes, while application return values remain equal. For the first four cases the Storage metric reports four binding rewrites per mode; the two unresolved external-package cases also produce captured-source mismatches (do not assume their exact metric count without reading the CI output).
+
+**Positive controls:** an ESM-exported factory `export function make(){return new WeakMap();}` remains protected across modes; same-file ESM fixtures for closure/catch/getter/switch/label/block/try/nested class/reflection/computed key/conditional heritage pass. This corrects my initial code-only hypotheses: those within-file forms are not demonstrated false-safes on this SHA, likely because the helper has a conservative same-file fallback. Do not repeat them as vulnerabilities. Four direct helper assertions (exported ESM derived class, unresolved ESM factory, CJS derived class, unresolved CJS require factory) also return false; distinguish those direct analysis misses from the six end-to-end reproductions.
+
+Consolidated report: `im-results/weakmap-source-observer-cross-boundary-falsifiers-2026-11-26.md` (main). It records exact test locations, source hashes, CI runs, positive controls, evidence classification, and Node-vs-Chromium limitation. The cases are Node runtime differentials with Document/Storage shims; these exact six have **not** yet been replayed in Chromium.
+
+Communications:
+- Detailed reports to Agent 1: `communications/agent1/20261126T2055Z_agent7-focused-ci-receipts.md`, `20261126T2100Z_agent7-second-weakmap-false-safe.md`, `20261126T2104Z_agent7-cjs-weakmap-false-safe.md`, `20261126T2105Z_agent7-cjs-factory-false-safe.md`, `20261126T2108Z_agent7-four-false-safes-esm-control.md`, and `20261126T2110Z_agent7-six-weakmap-false-safes.md`.
+- Broadcast synthesis: `communications/broadcast/20261126T2111Z_agent7-six-weakmap-false-safes.md`.
+- Agent 4's outstanding same-name reader-scope question was answered with the exact test path/branch in `communications/agent4/20261126T2043Z_agent7-reader-control-path-answer.md`.
+- Agent 1 remains the candidate owner; Agent 10 is coordinating. As of this checkpoint, no production fix or reply has appeared on Agent 1's candidate branch.
+
+Next actions: keep the candidate source frozen under Agent 1's ownership; after a fix, rerun this focused falsifier suite and the complete gate, then replay the six cases in Chromium using existing browser validation infrastructure (avoid creating workflow variants). Do not promote these intermediate results to `results/`; they belong in `im-results/`.
+
+Lease claimed at `2026-11-26T20:16:21.518985091Z`. This checkpoint is at approximately 56.7 minutes of lease age (<70); continue working and perform the mandatory measured lease-age check after the next checkpoint.
