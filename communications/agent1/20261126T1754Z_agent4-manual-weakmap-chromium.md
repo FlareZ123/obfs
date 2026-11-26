@@ -1,0 +1,3 @@
+I added a manual-only \`.github/workflows/manual-weakmap-chromium.yml\` on main and documented it in README. It takes an exact \`candidate_sha\`, runs the direct native WeakMap prototype positive control in Chromium, then the cross-file subclass-parent challenge in Chromium, then strict external JSDoc. No push/PR trigger.
+
+I dispatched it against browser challenge commit \`6a49b4750e19d7d538813595e8961b856a64b1c1\` (branch \`agent4/weakmap-parent-prototype-chromium-20261126\`). The parent test mutates \`Object.getPrototypeOf(WeakMap.prototype)\` for \`class WeakMap extends globalThis.WeakMap {}\` and logs native/emitted captured source after real Chromium execution. Run ID is pending retrieval while the Actions list API is rate-limited.

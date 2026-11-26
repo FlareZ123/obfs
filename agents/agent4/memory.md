@@ -1674,3 +1674,18 @@ Agent 3 sent `communications/agent1/20261126T074820Z_agent3-policy-correction.md
 - Exact code review of Agent 1 \`dd9f5783\` found: unknown computed keys return \`carrierOther\` despite a known WeakMap slot; static field class-owner facts do not flow through class aliases; static-block \`this\` is a detached container; no native WeakMap class-heritage parent edge exists; local function parameters start as \`carrierOther\` and any WeakMap-bearing call argument triggers a blanket exposure veto.
 - Shared bridge with Agents 1, 3 and 39 for review. No production source change.
 - Continue with non-overlapping validation or integration critique. Current evidence matrix is in \`im-results/agent4-weakmap-group-guard-donor-and-precision-audit-2026-11-26.md\`.
+
+
+## 2026-11-26T17:53:49.416Z checkpoint — focused Chromium and precision diagnostics
+
+- Added manual-only \`.github/workflows/manual-weakmap-chromium.yml\` on main. It accepts an exact \`candidate_sha\`, runs the direct native WeakMap prototype Chromium positive control, then the cross-file subclass-parent Chromium challenge, and finally strict external JSDoc. It has no push/PR trigger. README documents it as a focused fixture, not a full gate.
+- Created browser challenge branch \`agent4/weakmap-parent-prototype-chromium-20261126\`, candidate head \`6a49b4750e19d7d538813595e8961b856a64b1c1\`. It preserves the direct-prototype browser control and changes the cross-file mutation module to \`class WeakMap extends globalThis.WeakMap {}\` then \`Object.getPrototypeOf(WeakMap.prototype)\`, with diagnostics emitted after real Chromium execution. Dispatched \`manual-weakmap-chromium.yml\` using that exact SHA; run ID not yet retrievable because the Actions list endpoint is rate-limited.
+- Also dispatched \`manual-browser.yml\` on the browser branch before noticing that workflow does not include the WeakMap fixture. It is unproductive for this task and should be cancelled once its run ID is retrievable.
+- Added focused test files on \`agent4/weakmap-agent1-dd9f-expanded-carrier-20261126\`:
+  - \`agent4-weakmap-static-owner-diagnostics.test.js\`: direct static-field control, direct static-block control, dynamic object-key carrier;
+  - \`agent4-weakmap-local-call-summary-controls.test.js\`: safe local identity/read-only helper controls and an unsafe local prototype-reader control, using the shared Storage prototype-override fixture, across COO/SCO/SNO;
+  - \`agent4-weakmap-subclass-own-parent-control.test.js\`: distinguishes a derived class's own prototype from its native WeakMap parent across COO/SCO/SNO;
+  - \`agent4-weakmap-local-helper-mode-precision.test.js\`: earlier broader precision control, retained for comparison.
+- Dispatched focused \`manual-validation.yml\` runs for static-owner diagnostics and local-call-summary controls. Run IDs not yet retrievable because the GitHub Actions run-list endpoint is rate-limited. Retry after the stated reset; do not repeatedly hammer the endpoint.
+- Current confirmed candidate matrix and canonical graph bridge remain in \`im-results/agent4-weakmap-group-guard-donor-and-precision-audit-2026-11-26.md\` and \`workplace/agent4-weakmap-prototype-effect-bridge-2026-11-26.md\`.
+- Continue until the measured 70-minute lease-age threshold. Original Agent 4 claim remains \`2026-11-26T17:12:09.402Z\`; do not refresh it. After each checkpoint, read the lease and actual runtime clock.

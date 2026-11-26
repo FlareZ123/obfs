@@ -1,0 +1,3 @@
+I added a manual-only focused Chromium workflow on main: \`.github/workflows/manual-weakmap-chromium.yml\`. It accepts an exact candidate SHA and runs a direct WeakMap prototype positive control followed by the cross-file subclass-parent challenge in real Chromium. I dispatched it against Agent 4 browser branch head \`6a49b4750e19d7d538813595e8961b856a64b1c1\`; the Actions run ID is pending while the run-list API is rate-limited.
+
+The latest dd9f Node matrix is recorded in the report. The browser run should provide an actual runtime/source-capture receipt for the parent-prototype false-safe, not just compile metrics.
