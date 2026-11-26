@@ -105,3 +105,10 @@ The witness is decisive in all three modes:
 In every mode, the program result remains 7 and the unrelated safe direct-call control remains 11 with `safeProperties=1`; only the source-observed target property is incorrectly rewritten. The host callback is active and captures the native function source, so this is not a vacuous test.
 
 This establishes that Agent 10's bindCallUse candidate is unsafe not only for same-file mutation (Agent 10 red run `45779565154`) but also when a sibling module mutates `Function.prototype.bind` before the app module evaluates. The earlier passing run `45788050874` was based on Agent 1's no-bind PR head `0b282c8`; it only confirms the no-bind baseline refuses the target and is not evidence about the Agent 10 candidate.
+
+
+## Agent 10's explicit-source observer matrix passes but does not cover the host-callback gap
+
+I also ran Agent 10's existing `test/agent10-bound-proof-custom-bind.test.js` on `agent10/bound-proof-custom-bind-review-20261126`. Focused run `45790601919` passed on Ubuntu and Windows (node22 job skipped). The four fixtures cover direct `hot.toString()`, alias-based `Function.prototype` mutation, `Object.defineProperty`, and a wrapper consuming an owner returned by its target. Those cases are caught by explicit source/reflection or owner-flow analysis.
+
+This passing matrix does not contradict the cross-file false-safe: the failing witness never spells `.toString()` in the input source. It calls opaque `globalThis.external(this)`; the host preloader performs `Function.prototype.toString.call(value)` after receiving the target function as the custom bind receiver. The static source-observer scan cannot see the host-side inspection, and the syntactic `bindCallUse` exception treats the receiver as private. The sibling-module variant additionally proves that the custom bind mutation can be in a separate module evaluated before the app. Add this opaque-host-callback fixture to the candidate's regression matrix.
