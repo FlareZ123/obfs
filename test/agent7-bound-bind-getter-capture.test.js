@@ -117,3 +117,28 @@ test('cross-file source observation of getter-captured target blocks owner renam
     properties:true,identifiers:false,strings:false});
   assert.equal(output.files.find(file=>file.path==='entry.mjs').metrics.properties,0);
 });
+
+test('bound-only arrow cannot hide owner escape through Promise.resolve',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>Promise.resolve(owner);export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot hide owner escape through Object.create',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>Object.create(owner);export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot hide owner escape through Proxy',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>new Proxy(owner,{});export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot hide owner escape through Map',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>new Map([["owner",owner]]);export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
+
+test('bound-only arrow cannot hide owner escape through object spread',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>({...owner});export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
