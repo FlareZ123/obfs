@@ -518,10 +518,10 @@ function hasWeakMapPrototypeExposure(ast) {
     const mapName=call.arguments[0].name;
     if(!weakMapInstances.has(mapName)||exportedLocalNames.has(mapName)||
        importedLocalNames.has(mapName)||
-       !ast.body.some(statement=>statement.type==='ExpressionStatement'&&
+       !ast.body.some((/** @type {AstNode} */ statement)=>statement.type==='ExpressionStatement'&&
          statement.expression===call)||
-       !ast.body.some(statement=>statement.type==='VariableDeclaration'&&
-         statement.kind==='const'&&statement.declarations.some(declaration=>
+       !ast.body.some((/** @type {AstNode} */ statement)=>statement.type==='VariableDeclaration'&&
+         statement.kind==='const'&&statement.declarations.some((/** @type {AstNode} */ declaration)=>
            declaration.id.type==='Identifier'&&declaration.id.name===mapName&&
            declaration.init?.type==='NewExpression'&&
            isWeakMapConstructor(declaration.init.callee))))
