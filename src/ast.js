@@ -4792,4 +4792,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface, hasWeakMapPrototypeEscape};
