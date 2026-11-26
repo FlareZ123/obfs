@@ -760,6 +760,8 @@ function hasWeakMapPrototypeExposure(ast) {
           exposed=true;
         }
         visitCarrierExpression(node.left.object,environment,thisValue);
+      } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
+        bindCarrierPattern(node.left,assigned,environment);
       }
       return;
     }
