@@ -375,7 +375,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {string[]} [additionalRootNames] Other local names proven to denote the same immutable imported ESM binding.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, additionalRootNames=[]) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, additionalRootNames=[], allowExportedClosureReaders=false) {
   const rootNames=new Set([rootName,...additionalRootNames]);
   if([...rootNames].some(name=>bindings.get(name)!==1))return null;
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
@@ -749,7 +749,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // Function#toString observation; host-side extraction sees transformed
     // source by design.
     if(privateValue&&exportedBinding) {
-      if(binding.node.params?.length!==0)privateValue=false;
+      if(!allowExportedClosureReaders||binding.node.params?.length!==0)privateValue=false;
       let readsOwner=false;
       if(privateValue)walk(binding.node.body??binding.node,node=>{
         if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
@@ -1437,7 +1437,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,closedWorld?:boolean}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -1468,7 +1468,7 @@ function renameLocalProperties(source, ast, options) {
   let objects = 0;
   let properties = 0;
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast, candidate.name, bindings);
+    const proof = proveLocalObject(ast, candidate.name, bindings,new Map(),new Map(),new Map(),new Map(),new Set(),false,[],options.closedWorld===true);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
