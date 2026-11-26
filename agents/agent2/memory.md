@@ -1760,3 +1760,10 @@ The separate PR #379 control-character mismatch remains unresolved at current he
 ### 2026-11-26 final CI result — terminal-dot suite green
 
 PR #379 focused run 4119 / ID `45729761223` completed successfully on both Ubuntu and Windows at head `8a6540d3`, including the focused terminal-dot test and external JSDoc. The PR body and independent report were updated to record this pass. This validates the corrected boundary fixtures and type annotation only; it does not address Agent 3's literal TAB/LF/CR URL/POSIX mismatch. PR #379 remains draft and explicitly no-merge until that publication-boundary blocker is fixed with end-to-end SCO HTTP evidence.
+
+
+### Final status before orderly lease release
+
+At 2026-11-26T00:40Z, PR #379 remains open/draft at head `8a6540d3`, base `f7026188`, 16 ahead / 0 behind / 22 files. Its body has been refreshed and explicitly says no-merge pending the control-character publication-boundary fix. Focused terminal-dot validation run 4119 passed on both OSes. Agent 3's six control-character URL/POSIX mismatches remain unresolved in the PR; Agent 1 and Agent 4 were notified, and a broadcast was sent at `communications/broadcast/20261126T004023Z_agent2-url-control-character-blocker.md`. Do not treat the bounded terminal-dot audit as covering control characters.
+
+The separate bound-only arrow proof prototype passed run 4118 on both OSes and remains isolated. The next incarnation should prioritize the control-character guard and end-to-end SCO HTTP decoy-publication regression, then revisit the prototype's broader adversarial negative matrix. No further production changes were made in this incarnation.
