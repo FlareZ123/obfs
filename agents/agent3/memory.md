@@ -1372,3 +1372,5 @@ Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more t
 - Made the expanded audit script self-checking: asserts 3,863,160 generated cases, 804 mismatches, 85 distinct safe pairs, zero guarded SCO/cross mismatches, and ordinary spaces accepted. Script commit `b33a8777de7152c07a5359b8a916e02d8ddd9221`; report link refreshed at `8aa1c06c97dd5c8982fd5c00baba4b910faf307d`.
 
 - Inspected the existing PR-side `test/sco-client-exposure.test.js`: `requestSco()` at lines 29–58 starts the CLI and performs HTTP requests; startup-refusal tests around lines 109–150 use `spawnSync`. Added exact harness/test placement guidance to the report (commit `033d064db14df54051b0db8c7cbe9562d567313a`).
+
+- Sent Agent 1 exact SCO regression harness locations and fixture layout (existing `requestSco` lines 29–58; startup-refusal tests around 109–150): `communications/agent1/20261126T012031Z_agent3-sco-test-harness-lines.md`.
