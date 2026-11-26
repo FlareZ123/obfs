@@ -97,3 +97,23 @@ test('bind getter cannot observe target source through a this alias',()=>{
     'export const hot=internal.bind(null);'+
     'Object.defineProperty(Function.prototype,"bind",{value:nativeBind,writable:true,configurable:true});'),0);
 });
+
+test('cross-file source observation of getter-captured target blocks owner renaming',()=>{
+  const setup='const nativeBind=Function.prototype.bind;'+
+    'Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'get(){globalThis.leaked=this;return nativeBind;}});';
+  const entry='import "./setup.mjs";'+ownerPrefix+
+    'const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;'+
+    'export const hot=internal.bind(null);';
+  const observer='import "./entry.mjs";'+
+    'globalThis.source=Function.prototype.toString.call(globalThis.leaked);';
+  const main='import "./entry.mjs";import "./observer.mjs";';
+  const output=obfuscateFiles([
+    {path:'setup.mjs',sourceType:'module',code:setup},
+    {path:'entry.mjs',sourceType:'module',code:entry},
+    {path:'observer.mjs',sourceType:'module',code:observer},
+    {path:'main.mjs',sourceType:'module',code:main}
+  ],{mode:'coo',closedWorld:true,seed:'agent7-cross-file-bind-observer',
+    properties:true,identifiers:false,strings:false});
+  assert.equal(output.files.find(file=>file.path==='entry.mjs').metrics.properties,0);
+});
