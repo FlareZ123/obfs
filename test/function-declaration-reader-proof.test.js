@@ -242,7 +242,7 @@ test('immutable two-statement helper expressions can safely consume owned fields
   }
 });
 
-test('name-only scope proof conservatively declines duplicate formal spellings',()=>{
+test('binding identity allows duplicate formal spellings across private readers',()=>{
   const source='const root={secretAlpha:23};'+
     'function first(owner){return owner.secretAlpha;}'+
     'function second(owner){return owner.secretAlpha;}'+
@@ -251,7 +251,9 @@ test('name-only scope proof conservatively declines duplicate formal spellings',
     const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
       mode,seed:'duplicate-formal-'+mode,strings:false,identifiers:false
     }).files[0];
-    assert.equal(result.metrics.objects,0);
+    assert.equal(result.metrics.objects,1,mode+': one private root object');
+    assert.equal(result.metrics.properties,1,mode+': shared private property');
+    assert.doesNotMatch(result.code,/secretAlpha/u,mode+': original private key must disappear');
     assert.equal(JSON.stringify(runCommonJs(result.code)),JSON.stringify(runCommonJs(source)));
   }
 });
