@@ -16,7 +16,7 @@ const atoms = [
   '%2e', '%2E', '.%2e', '%2e.', '%2e%2e',
   '%2f', '%2F', '%5c', '%25', '%252e', '%252e%252e', '%252f',
   'foo%2ebar', 'x%23y', 'x%3Fy',
-  '.\\t', '..\\t', '.\\n', '..\\n', '.\\r', '..\\r',
+  '.\t', '..\t', '.\n', '..\n', '.\r', '..\r',
 ];
 const suffixes = ['', '/', '?v=1', '#frag', '?v=1#frag', '#frag/..', '?x/../y'];
 const from = 'app/entry.mjs';
@@ -30,7 +30,7 @@ function hasTerminalUrlDotSegment(specifier) {
 
 function hasPathControl(specifier) {
   const pathname = specifier.split(/[?#]/u, 1)[0];
-  return /[\\u0000-\\u001f\\u007f]/u.test(pathname);
+  return /[\u0000-\u001f\u007f]/u.test(pathname);
 }
 
 function decodePublicName(pathname) {
@@ -38,21 +38,21 @@ function decodePublicName(pathname) {
   for (const segment of pathname.split('/')) {
     let value;
     try { value = decodeURIComponent(segment); } catch { return null; }
-    if (value === '.' || value === '..' || /[\\\\/\\x00]/u.test(value)) return null;
+    if (value === '.' || value === '..' || /[\\/\x00]/u.test(value)) return null;
     decoded.push(value);
   }
   return decoded.join('/');
 }
 
 function safePathAdmissible(filename) {
-  if (!filename || filename.includes('\\\\') || /[<>:\\x22|?*\\x00-\\x1f]/u.test(filename) || path.posix.isAbsolute(filename)) return false;
+  if (!filename || filename.includes('\\') || /[<>:"|?*\x00-\x1f]/u.test(filename) || path.posix.isAbsolute(filename)) return false;
   for (const segment of filename.split('/')) if (/[. ]$/u.test(segment)) return false;
   const normalized = path.posix.normalize(filename);
   return normalized !== '..' && !normalized.startsWith('../') && normalized !== '.' && normalized === filename;
 }
 
 function candidateTarget(specifier, rejectTerminalDot = false, rejectControl = false) {
-  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) || specifier.includes('\\\\')) return null;
+  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) || specifier.includes('\\')) return null;
   if (rejectControl && hasPathControl(specifier)) return null;
   const rawPath = specifier.split(/[?#]/u, 1)[0];
   const segments = rawPath.split('/');
@@ -62,7 +62,7 @@ function candidateTarget(specifier, rejectTerminalDot = false, rejectControl = f
   for (const segment of segments) {
     let value;
     try { value = decodeURIComponent(segment); } catch { return null; }
-    if (/[\\\\/\\x00]/u.test(value) || (segment.includes('%') && (value === '.' || value === '..'))) return null;
+    if (/[\\/\x00]/u.test(value) || (segment.includes('%') && (value === '.' || value === '..'))) return null;
     decoded.push(value);
   }
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(from), decoded.join('/')));
@@ -70,7 +70,7 @@ function candidateTarget(specifier, rejectTerminalDot = false, rejectControl = f
 }
 
 function crossPropertiesTarget(specifier, rejectControl = false) {
-  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) || /[?#%\\\\]/u.test(specifier) || specifier.includes('//')) return null;
+  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) || /[?#%\\]/u.test(specifier) || specifier.includes('//')) return null;
   if (hasTerminalUrlDotSegment(specifier) || (rejectControl && hasPathControl(specifier))) return null;
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(from), specifier));
   return target === '..' || target.startsWith('../') ? null : target;
@@ -113,7 +113,7 @@ function visit(parts, maxDepth) {
         counts.preGuardCross.accepted += 1;
         if (oldCross !== routeTarget) {
           counts.preGuardCross.mismatches += 1;
-          safePairs.add(oldCross + '\\u0000' + String(routeTarget));
+          safePairs.add(oldCross + '\u0000' + String(routeTarget));
         }
       }
 
