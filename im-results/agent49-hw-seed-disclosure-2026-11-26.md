@@ -185,6 +185,7 @@ For the actual offline family:
 - mean under uniform candidate prior: **6.528571**;
 - query-count histogram: `{4:1, 5:8, 6:26, 7:25, 8:8, 9:2}`;
 - memoized belief states: 12,276.
+- an independent reachable-graph/value-iteration implementation also returns 9, traversing 12,906 reachable belief states and converging in 7 passes.
 
 For target `N=6, seed=0`, the optimal policy asks input `0` five times and observes outputs `11010`, identifying the exact fixture in five queries.
 
@@ -205,6 +206,7 @@ Results:
 - mean under uniform behavior prior: **65.459677**;
 - mean under the actual 20-seed schedule: **65.502419** (the seed PRNG selects the two pair members 11/9 times);
 - memoized belief states: **6,287**;
+- an independent reachable-graph/value-iteration implementation also returns 126, traversing 10,441 reachable belief states and converging in 59 passes;
 - maximum within-machine state-pair distinguishing-word length: **63**;
 - every candidate is identified by the exact policy.
 
