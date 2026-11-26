@@ -141,7 +141,9 @@ The [native-bound private-target report](../im-results/agent1-native-bound-targe
 documents a narrow extension for a non-exported callable binding whose
 complete source-visible use set consists of top-level, noncomputed,
 nonoptional `target.bind(null)` calls. The bound wrapper may be exported;
-the target binding itself may not be exported.
+the target binding itself may not be exported. Current positive bound-target
+witnesses are same-file; sibling-module fixtures cover negative mutation
+refusal only. Imported-target and cross-file owner admission remain unproven.
 
 Admission additionally requires `closedWorld:true`, a fully supplied
 source-visible JavaScript graph, in-graph static imports, no unresolved
