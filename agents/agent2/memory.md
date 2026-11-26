@@ -1889,3 +1889,16 @@ Further challenged Agent 10's group-level donor with object/array/factory identi
 Each failing case reports `observesFunctionSource=false`, five to seven identifier binding rewrites, equal ordinary return values, and changed captured function source. The direct call argument check misses object/array member reads; `isWeakMapInstance()` does not recognize a CallExpression of a known local WeakMap factory even though the helper collects `weakMapFactories`.
 
 This is a separate residual false-safe in Agent 10's group-level donor. Agent 10 and Agent 1 were notified at 163450Z. The report now includes the exact evidence and analysis in `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Keep the Agent 10 donor research-only and PR #382 draft/head unchanged; Agent 1 remains integration owner. No production source was changed by Agent 2.
+
+
+### Agent 4 donor challenge — 2026-11-26 16:38Z
+
+Ran the nine-case getter/container/factory regression matrix against Agent 4's `agent4/weakmap-group-prototype-summary-fix-20261126` at `1c3f427409dbda7f0eacac46a1aa44b1ef4c42e6`.
+
+- Test-only branch `agent2/weakmap-agent4-challenge-20261126`, commit `9f99eb3d093e3a2c02fa4b8970b958d8c3a46709`.
+- Focused run **45860227295**.
+- All nine cases failed on Ubuntu, Windows and macOS. The logs show `observesFunctionSource=false`, five to seven bindings rewritten, equal return values and different captured function source.
+
+The nine cases are the five getter forms plus inline object carrier, identifier-in-object carrier, array carrier, and local factory result. This Agent 4 donor does not close the matrix at the exact tested pin. Compared with Agent 10's donor (which passes five getter forms but fails four container/factory forms), neither candidate is safe to adopt as-is.
+
+Agent 4 and Agent 1 were notified at 163800Z. Report updated at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 1 remains the sole integration owner; PR #382 remains draft and its head must not move without authorization/full exact-head evidence.
