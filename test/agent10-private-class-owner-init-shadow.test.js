@@ -46,6 +46,28 @@ test('nested shadowed owner cannot satisfy top-level class owner initialization 
   const transformed=compile(source);
   assert.equal(transformed.metrics.properties,0,
     'A nested same-name object must not satisfy the top-level owner-before-class gate');
-  assert.equal(execute(String(transformed.code)),execute(source));
+  assert.deepEqual(execute(String(transformed.code)),execute(source));
   assert.equal(execute(source)[0],'ReferenceError');
+});
+
+test('direct eval source observation disables private class method proof',()=>{
+  const source='const owner={secretA:7,secretB:11};'+
+    'class Reader{read(){return owner.secretA;}}'+
+    'const reader=new Reader();'+
+    'eval("module.exports=[reader.read(),Reader.prototype.read.toString()]");';
+  const transformed=compile(source);
+  assert.equal(transformed.metrics.properties,0);
+  assert.equal(String(transformed.code),source);
+  assert.deepEqual(execute(String(transformed.code)),execute(source));
+});
+
+test('with dynamic scope disables private class method proof',()=>{
+  const source='const owner={secretA:7,secretB:11};'+
+    'class Reader{read(){return owner.secretA;}}'+
+    'const reader=new Reader();'+
+    'with({}){module.exports=reader.read();}';
+  const transformed=compile(source);
+  assert.equal(transformed.metrics.properties,0);
+  assert.equal(String(transformed.code),source);
+  assert.deepEqual(execute(String(transformed.code)),execute(source));
 });
