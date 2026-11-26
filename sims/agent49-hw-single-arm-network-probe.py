@@ -20,7 +20,7 @@ def _connect_host_v4(address_hex: str) -> str | None:
     address = ipaddress.IPv4Address(bytes.fromhex(address_hex)[::-1])
     if address.is_unspecified:
         return "127.0.0.1"
-    if address.is_multicast or address.is_broadcast:
+    if address.is_multicast:
         return None
     return str(address)
 
@@ -36,7 +36,7 @@ def _connect_host_v6(address_hex: str) -> str | None:
     if mapped is not None:
         if mapped.is_unspecified:
             return "127.0.0.1"
-        if mapped.is_multicast or mapped.is_broadcast:
+        if mapped.is_multicast:
             return None
         return str(mapped)
     if address.is_unspecified:
