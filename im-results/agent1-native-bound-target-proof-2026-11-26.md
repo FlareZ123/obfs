@@ -4,7 +4,7 @@
 **Owner:** Agent 1  
 **Implementation branch:** `agent1/exported-closure-owner-proof-20261126`  
 **Implementation revision under validation:** `8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8`  
-**Status:** focused tests green; final full validation pending; experiment branch intentionally isolated
+**Status:** focused tests and full manual validation green; experiment branch intentionally isolated
 
 ## Question
 
@@ -43,13 +43,14 @@ The gate is intentionally conservative. The target's private owner-property read
 | Ordinary-minifier control | `56af133`, run `45801390490` | Passed on Ubuntu, Windows, macOS |
 | Bound export metadata/source stability | `56af133`, run `45801396935` | Passed on Ubuntu, Windows, macOS |
 | Real Chromium bound-target interception | `912df9`, full run `45803413065` | Browser step passed; overall run had one unrelated selector-snapshot regression, fixed in `8eee5ba` |
+| Final full manual validation | `8eee5ba`, run `45805807618` | Passed on Ubuntu and Windows; behavior/adversarial suite, JSDoc, performance, paired profiles, native/emitted whole-process budget, and Ubuntu Chromium gates passed |
 | Final full manual validation | `8eee5ba` | Pending at report creation |
 
 The positive interception witness demonstrates that a hostile pre-import preloader can capture the actual target function object and its source. The captured source contains the **rewritten** owner-property names, not the original spellings. Native and generated execution preserve the tested values.
 
 The negative mutation witnesses exercise same-file and sibling-module custom `Function.prototype.bind` replacement in COO, SNO, and SCO. In each mode, the bound target's owner properties remain unchanged while an unrelated direct-call control still receives one safe property rewrite. This is important: the refusal is local to the uncertain target, not a graph-wide disable of all property renaming.
 
-The minifier control is deliberately included to prevent an inflated security claim. The result is consistent with ordinary property-mangled minification; the experiment expands the compiler's rewrite coverage but does not establish an advantage against a capable analyst.
+Each positive fixture rewrites exactly two private owner properties (the `secretField` and `otherField` keys). The minifier control is deliberately included to prevent an inflated security claim. The result is consistent with ordinary property-mangled minification; the experiment expands the compiler's rewrite coverage but does not establish an advantage against a capable analyst.
 
 ## Integration issue found and fixed
 
@@ -58,6 +59,13 @@ The first full run at `912df9` exposed a regression in `experimental-selector-fi
 The gate was moved after selected-function snapshotting. The existing regression test then passed in the focused three-OS run `45805382915`.
 
 A separate TypeScript check found an implicit-any parameter in the local bind-call predicate; JSDoc was added. The latest focused runs include the typecheck.
+
+
+The full run's source-paired direct-alias compiler A/B step was skipped. The
+workflow's other randomized-source/post-answer audit is not an independently
+blinded LLM comparison. Therefore this experiment contributes **no anti-LLM
+resistance result**; the Critic's private-delivery and hidden-verifier gate
+remains unsatisfied for this candidate.
 
 ## Security boundary and limitations
 
@@ -69,7 +77,7 @@ A separate TypeScript check found an implicit-any parameter in the local bind-ca
 
 ## Next work
 
-1. Complete and inspect the final full manual-validation run at revision `8eee5ba`, including the real Chromium test added to `npm run test:browser`.
+1. Preserve the successful full manual-validation receipt `45805807618` at code revision `8eee5ba`, including the real Chromium bound-target interception test added to `npm run test:browser`.
 2. Obtain independent review from Agents 2, 3, and 10; require concrete counterexamples or reproduced green tests rather than approval by assertion.
 3. Compare the narrow lexical gate with Agent 9's ambient-call effect-summary work before attempting to widen the grammar.
 4. Keep the experiment branch isolated. If validation and review remain sound, propose a selective port of only independently validated pieces into the existing PR #379; do not create a competing PR or port the entire diverged branch. Do not promote this experiment to `results/` or treat it as release clearance.
