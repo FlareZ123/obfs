@@ -2048,6 +2048,110 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(value&&!isDefinitelyPrimitive(value)&&
       !hasSafeOwnFunctionStringCoercion(value,use,ancestors));
   }
+  /**
+   * Recognize a local WeakMap created without arguments and never rebound.
+   * Its native set operation stores references without DOMString conversion.
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function isStableWeakMapInstance(name) {
+    let declarations=0;
+    let nativeConstruction=false;
+    let reassigned=false;
+    let methodMutated=false;
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.id.name===name) {
+        declarations++;
+        nativeConstruction=node.init?.type==='NewExpression'&&
+          node.init.callee.type==='Identifier'&&node.init.callee.name==='WeakMap'&&
+          node.init.arguments.length===0&&!bindingCounts.has('WeakMap');
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'&&
+         node.left.name===name)reassigned=true;
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         memberName(node.left)==='set'&&node.left.object.type==='Identifier'&&
+         node.left.object.name===name)methodMutated=true;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         memberName(node.callee)==='defineProperty'&&
+         node.arguments[0]?.type==='Identifier'&&node.arguments[0].name===name&&
+         sourceStringKey(node.arguments[1])==='set')methodMutated=true;
+    });
+    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated;
+  }
+  /**
+   * A Storage.prototype override that only stores its receiver/value pair in
+   * a stable WeakMap does not perform Web IDL DOMString conversion. Keep this
+   * proof deliberately narrow; arbitrary override bodies remain conservative.
+   * @param {AstNode|null|undefined} value
+   * @returns {boolean}
+   */
+  function isReferenceOnlyStorageOverride(value) {
+    if(!value||!['FunctionExpression','ArrowFunctionExpression'].includes(value.type)||
+       value.async||value.generator||value.body.type!=='BlockStatement'||
+       value.body.body.length!==1)return false;
+    const parameter=value.params[1];
+    const statement=value.body.body[0];
+    if(parameter?.type!=='Identifier'||statement.type!=='ExpressionStatement'||
+       statement.expression.type!=='CallExpression')return false;
+    const call=statement.expression;
+    return call.callee.type==='MemberExpression'&&
+      memberName(call.callee)==='set'&&
+      call.callee.object.type==='Identifier'&&
+      isStableWeakMapInstance(call.callee.object.name)&&
+      call.arguments.length===2&&call.arguments[0].type==='ThisExpression'&&
+      call.arguments[1].type==='Identifier'&&call.arguments[1].name===parameter.name;
+  }
+  /**
+   * Find the latest direct Storage.prototype method replacement before a
+   * direct instance call. Only a replacement proven to store references in a
+   * native WeakMap suppresses the native DOMString observer.
+   * @param {string|null} method
+   * @param {AstNode} use
+   * @param {AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function hasReferenceOnlyStorageOverride(method,use,ancestors) {
+    if(!method)return false;
+    const functionTypes=['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'];
+    const scope=[...ancestors].reverse().find(node=>functionTypes.includes(node.type))??ast;
+    const statements=scope.type==='Program'?scope.body:
+      scope.body?.type==='BlockStatement'?scope.body.body:[];
+    /** @type {AstNode|null} */
+    let current=null;
+    for(const statement of statements) {
+      if(statement.start>=use.start)break;
+      if(statement.type!=='ExpressionStatement')continue;
+      const expression=statement.expression;
+      if(expression.type==='AssignmentExpression'&&
+         expression.left.type==='MemberExpression'&&
+         isStoragePrototype(expression.left.object)&&
+         memberName(expression.left)===method) {
+        current=expression.right;
+        continue;
+      }
+      if(expression.type!=='CallExpression'||
+         expression.callee.type!=='MemberExpression'||
+         memberName(expression.callee)!=='defineProperty'||
+         !isReflectiveReceiver(expression.callee.object)||
+         !isStoragePrototype(expression.arguments[0])||
+         sourceStringKey(expression.arguments[1])!==method)continue;
+      const descriptor=expression.arguments[2];
+      if(descriptor?.type!=='ObjectExpression') {
+        current=null;
+        continue;
+      }
+      current=null;
+      for(const property of descriptor.properties) {
+        if(property.type!=='Property')continue;
+        const name=property.computed?sourceStringKey(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(name==='value')current=property.value;
+      }
+    }
+    return isReferenceOnlyStorageOverride(current);
+  }
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -3357,7 +3461,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         // exposes its exact source through localStorage/sessionStorage.
         if(isStorageCollection(callee.object) &&
             (['setItem','getItem','removeItem'].includes(method??'') ||
-             callee.computed && method===null)) {
+             callee.computed && method===null) &&
+           !hasReferenceOnlyStorageOverride(method,node,ancestors)) {
           const positions=method==='setItem' ? node.arguments.slice(0,2) :
             method==='getItem'||method==='removeItem' ? node.arguments.slice(0,1) :
               node.arguments.slice(0,2);
