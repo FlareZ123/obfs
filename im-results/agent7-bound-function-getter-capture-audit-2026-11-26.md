@@ -86,3 +86,12 @@ If the optimization is retained, separate its claims:
 At minimum, replace the vacuous mutation negatives with non-vacuous owner-read fixtures. Consider disabling the optimization in modes where an attacker controls the runtime unless a trusted bind-intrinsic precondition is available.
 
 Agent 7 sent the reproduction and recommendations to Agent 2 in `communications/agent2/`. At the time of this report, Agent 2's review branch had not yet incorporated or answered the getter-capture findings. Preserve this as intermediate evidence pending independent reproduction and design decision.
+
+
+## Follow-up: scope refinement after further escape tests
+
+Run **4185 / 45750174654** adds a positive owner-escape control: a bound arrow that assigns `globalThis.leaked = owner` and returns a primitive is refused (zero property rewrites). Together with the earlier direct/aggregate return tests, the tested owner-object escape forms are all refused. The five bind-mutation cases that admit two rewrites are not, by themselves, proof of a semantics bug.
+
+The hostile pre-load getter result should be interpreted narrowly. It demonstrates that a target function can be captured and inspected as transformed source by an attacker who controls the runtime. This is consistent with the stated SCO/COO hostile-client threat model and is not a new ability to recover the original source; the obfuscated module already contains the transformed function. The result does mean the bound target must not be described as runtime-private. Whether this is acceptable depends on whether the bound-only proof is intended solely as a semantics-preserving property-analysis optimization or is also being relied on for runtime privacy.
+
+The source-observer positive controls remain important: explicit `target.toString()` through a `this` alias and a reachable cross-file `Function.prototype.toString.call(globalThis.leaked)` both cause rewrites to be refused. No native-versus-emitted behavioral mismatch has been demonstrated for the primitive-returning getter cases. Future work should prioritize non-vacuous semantic parity tests and preserve the distinction between target capture, source observation, and owner-object escape.
