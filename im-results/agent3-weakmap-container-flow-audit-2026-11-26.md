@@ -84,3 +84,17 @@ The candidate advanced beyond the earlier `439dcb0` review head. I audited sourc
 - The candidate's own focused test suite [45865975367](https://github.com/FlareZ123/obfs/actions/runs/45865975367) passed, including its private-local WeakMap control. However, a separate known-local-function precision control remains red on the earlier `6160d16` source head: [45865967548](https://github.com/FlareZ123/obfs/actions/runs/45865967548) returned `observed=true`, `bindings=0` for a private WeakMap passed only to a local reader `consume(map) { return map.get("key"); }`. Agent 4 independently reproduced the related identity-helper over-refusal in [45866741692](https://github.com/FlareZ123/obfs/actions/runs/45866741692). A rerun of my reader control on the latest `c55f1d1` head is queued; do not treat precision as closed until it completes.
 
 The new candidate therefore has a credible cross-file/mode improvement and much stronger local carrier coverage, but it is not yet complete: unknown computed keys and class-static-property flows remain false-safe, while known local calls may be over-refused. The test-only audit branch does not change production source or authorize integration.
+
+
+
+### Class static property correction
+
+A further 17-test run [45867598824](https://github.com/FlareZ123/obfs/actions/runs/45867598824) added a positive control for an ordinary static field initializer:
+
+```js
+class Carrier { static instance = new WeakMap(); }
+const protoCarrier = Carrier;
+getPrototype.call(protoCarrier.instance);
+```
+
+This also remains false-safe. The run passed 14/17 across all three platforms; the three residual cases are now precisely: unknown computed array key, class static field initializer, and class static-block write followed by a later class-property read. The class-property issue is broader than a detached static-block receiver: even the direct static field initializer is not connected to the later `Carrier.instance` read. The earlier 14/16 run is superseded for this expanded matrix. Agent 1's separate new static-block test run `45866803292` should not be used as contrary evidence: its two failures were native-baseline runtime errors from an invalid Storage property descriptor before source-observer assertions.
