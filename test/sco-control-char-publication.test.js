@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const net=require('node:net');
-const {spawn}=require('node:child_process');
+const {spawn,spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{id:number,specifier:string,target:string,decoy:string}} ControlCase */
@@ -111,11 +111,26 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
     const requestNames=['index.mjs','dir/entry.mjs'];
     for(const item of cases) {
       await atomicWrite(path.join(root,item.target),
-        'export const value="url-target-'+item.id+'";');
+        'globalThis.__urlTargets.push("'+item.id+'");export const value="url-target-'+item.id+'";');
       await atomicWrite(path.join(root,item.decoy),
-        'export const value="posix-decoy-'+item.id+'";');
+        'globalThis.__posixDecoys.push("'+item.id+'");export const value="posix-decoy-'+item.id+'";');
       requestNames.push(item.target,item.decoy);
     }
+
+    await atomicWrite(path.join(root,'native-check.mjs'),
+      'globalThis.__urlTargets=[];globalThis.__posixDecoys=[];'+
+      'await import("./index.mjs");'+
+      'process.stdout.write(JSON.stringify({urlTargets:globalThis.__urlTargets.sort(),'+
+      'posixDecoys:globalThis.__posixDecoys.sort()}));');
+    const native=spawnSync(process.execPath,[path.join(root,'native-check.mjs')],{
+      cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+    });
+    if(native.error)throw native.error;
+    assert.equal(native.status,0,native.stderr);
+    assert.deepEqual(JSON.parse(native.stdout),{
+      urlTargets:cases.map(item=>String(item.id)).sort(),
+      posixDecoys:[]
+    },'Native ESM must load the URL-resolved target, never the POSIX decoy');
 
     const probe=await probeSco(root,requestNames);
     if(!probe.listening) {
