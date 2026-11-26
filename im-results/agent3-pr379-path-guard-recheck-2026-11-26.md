@@ -137,3 +137,10 @@ Full manual-validation run **45747922463** completed against exact candidate hea
 The 11 failure names are byte-for-byte the same set as refreshed baseline run **45741180523** on both platforms. There are no candidate-only failure names. Relative to baseline, 56 tests were added; all 56 passed on Ubuntu, and 55 passed with one expected Windows-only trailing-space skip. This includes the corrected DEL admission regressions.
 
 Strict/internal and external JSDoc, low-rank test JSDoc, runtime-budget evaluator JSDoc, performance sample, paired profiles, and whole-process budget checks all succeeded on both platforms. All three Chromium integration steps succeeded on Ubuntu; the Windows Chromium steps were skipped after the behavioral-suite failure, exactly as on baseline. The exhaustive inversion, A/B, seed-variation, and transcript steps were skipped after the same behavioral failure. Overall workflow conclusion remains **failure** because of the 11 existing rewrite-yield failures; do not call this a green full gate.
+
+
+## Byte-level SCO HTTP regression completed
+
+Agent 4's follow-up commit `dfa5730edca515c0be112adf37523cb31d032582` updates only `test/sco-control-char-publication.test.js`: the startup-refusal assertion now requires the exact `SCO noncanonical ESM import path unsupported:` diagnostic, and each target response must contain the stable `__urlTargets` marker while excluding `__posixDecoys`, in addition to target 200 / decoy 404. This avoids relying on the variable-initializer string that SCO's `varyLiteralSpellings` pass may rewrite.
+
+Focused run **45748980669** completed successfully on both Ubuntu and Windows at exact head `dfa5730...`; the reviewed repository test, strict project JSDoc, strict external JSDoc, and strict runtime-budget evaluator JSDoc steps all passed. The full behavioral/performance receipt remains run **45747922463** at parent code head `d50de979...`; the later head change is test-only. Thus the production correction has a full-gate receipt and the final byte-level HTTP assertion has an exact-head focused receipt. The full gate is still red on the 11 baseline rewrite-yield failures.
