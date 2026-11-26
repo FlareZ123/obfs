@@ -27,7 +27,7 @@ const shadowedNativeMutationSource=[
   '  document.title=value;',
   '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
   '};'
-].join('\\n');
+].join('\n');
 
 const storageSource=[
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
