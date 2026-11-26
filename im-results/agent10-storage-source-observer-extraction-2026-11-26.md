@@ -125,3 +125,28 @@ The SNO parity tests now require source preservation for direct `localStorage`, 
 The imported-method collector currently covers named ESM imports, default imports, explicit named reexports, and `export *` propagation. Namespace imports, opaque/indirect reexports, CommonJS method imports, and method aliases returned from arbitrary factories are not established by this work. The CommonJS SNO factory-return test is protected conservatively because the entry file's direct Storage source observation disables rewriting across the supplied file group; it is not a general interprocedural return-provenance solution.
 
 This remains an intermediate source-observer correctness contribution, not proof of complete SCO/COO/SNO acceptance, dynamic-analysis resistance, 2.5× runtime compliance across workloads, or release readiness. Overall posture remains RELEASE-BLOCKED.
+
+
+## Agent 1 independent review: exported WeakMap backing-store escape (15:12Z)
+
+The reference-only override proof has a confirmed false-safe not covered by the earlier positive controls. The helper `isStableWeakMapInstance` established a single local `new WeakMap()`, no rebinding, and no direct instance `.set` replacement, but did not establish that the backing map remained private.
+
+A red-first fixture exports the backing instance. An importing host can replace `captured.set` with a wrapper that captures `String(value)` and delegates to the original WeakMap method. The module's Storage override stores a private function reference in the map; the host wrapper then observes the function's source after the obfuscator has renamed its local bindings.
+
+Receipts on Agent 10 candidate head `ba9b4b1503ed4422be06314df1a03d9e38f48a07`:
+
+- Run [45842633950](https://github.com/FlareZ123/obfs/actions/runs/45842633950): private unmodified WeakMap positive passed; exported backing-map negative failed on all three platforms because `observesFunctionSource` returned false and the compiler performed four identifier rewrites.
+- Run [45843093395](https://github.com/FlareZ123/obfs/actions/runs/45843093395): runtime witness reproduced different native/emitted source. Native capture: `function inspect(){const privateLocal=29;return privateLocal;}`; emitted capture: `function inspect(){const _v966a9e5f8923=29;return _v966a9e5f8923;}`. Ordinary results remained equal (`sameReference: true`, `storageValue: null`, `value: 29`, `independent: 7`).
+- Direct source-visible `WeakMap.prototype.set` string-coercion mutation was already refused by the existing observer; the initial concern about that specific mutation is retracted.
+
+### Candidate fail-closed correction
+
+Agent 1 created an independent review branch `agent1/storage-weakmap-falsifier-20261126` from the Agent 10 candidate. It adds a closed identifier-use proof for the backing WeakMap: only direct `.set`/`.get` receiver uses are accepted; export specifiers/declarations, aliases, returns, object/array storage, unknown-call arguments, reflective mutation, and direct instance method replacement invalidate the reference-only premise.
+
+- Focused run [45843922309](https://github.com/FlareZ123/obfs/actions/runs/45843922309) passed on Ubuntu/Windows/macOS with strict JSDoc, including the runtime host-mutation parity witness.
+- A stricter follow-up rejects any source-visible `WeakMap` identifier use outside `new WeakMap()` construction, including identity-preserving `WeakMap.prototype.set` wrappers. Focused run [45844947562](https://github.com/FlareZ123/obfs/actions/runs/45844947562) passed on all three platforms with strict JSDoc.
+- The latest candidate additionally rejects direct global-object `WeakMap` property access and reflective global-object mutation. Its focused run [45846488995](https://github.com/FlareZ123/obfs/actions/runs/45846488995) is queued.
+- Integrated candidate head `ba75c5d4fc20bc7122bc83262d6d62c5f539d14a` includes the backing-map escape fix and conditional Wasm refusal wording. Full Chromium run [45844452736](https://github.com/FlareZ123/obfs/actions/runs/45844452736) passed. Full Node/manual-validation run [45844107774](https://github.com/FlareZ123/obfs/actions/runs/45844107774) has Ubuntu success and Windows still in progress.
+- Broader Chromium run [45845695742](https://github.com/FlareZ123/obfs/actions/runs/45845695742) on the stricter `53679a5` head is queued.
+
+The candidate patch has **not** been cherry-picked into Agent 10's branch or integrated into PR #382. Agent 10 has received the exact reproduction, runtime witness, patch branch, and focused receipts in `communications/agent10/`; Agent 2 has been notified that the PR remains blocked. Keep PR #382 draft until the exact final head passes full Node and browser validation and the PR owner authorizes the head move. This review does not establish full release readiness or any general anti-instrumentation/source-secrecy guarantee.
