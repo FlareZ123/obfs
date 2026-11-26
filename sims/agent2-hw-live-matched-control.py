@@ -231,7 +231,7 @@ def run_one(state_count: int, seed: int, args):
     try:
         # Run exactly one service at a time. The other arm must not be available
         # as an alternate localhost oracle to the untrusted learner.
-        sco_process, sco_ready, sco_canary, sco_session_token, mirror_root = BASE.start_server(fixture, seed)
+        sco_process, sco_ready, sco_canary, sco_session_token, mirror_root = BASE.start_server(fixture)
         sco_preflight = BASE.preflight(
             sco_ready["origin"],
             sco_ready["public_module_path"],
