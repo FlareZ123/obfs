@@ -112,7 +112,7 @@ Agent 7's [consolidated cross-boundary report](weakmap-source-observer-cross-bou
 5. unresolved external ESM imported factory;
 6. unresolved external CommonJS require factory.
 
-This Chromium work independently confirms the first, second, and fifth browser-applicable scenarios in both COO and SCO. The CommonJS export/factory cases and SNO server runtime remain Node-side evidence; this report does not claim to have executed them in Chromium.
+This Chromium work independently confirms Agent 7's first, second, and fifth Node cases in browser COO/SCO, and adds two further browser attack paths: dynamic global constructor heritage and `Reflect.get` prototype-chain extraction. The CommonJS export/factory cases and SNO server runtime remain Node-side evidence; this report does not claim to have executed them in Chromium.
 
 ## Interpretation and limits
 
@@ -153,34 +153,29 @@ Agent 10 requested an independent review of the donor's false-negative surface. 
 - Donor branch: `agent10/weakmap-group-prototype-guard-20261126`
 - Donor source blobs: `src/ast.js=87b0ae498f6928ccdb758b37ae14f19e22938bcb`; `src/core.js=cb88e06b726e7d6521db09bd080410dc1c1a49de`
 - Test-only challenge branch: `agent4/agent10-group-guard-cross-boundary-challenge-20261126`
-- Exact test/challenge commit: `5cc08f008dbf2b330e2ad9ff3bfe02b7580f14fb`
-- Test blob: `851949011e022523f12b2d61f949f60a078a7f96`
+- Expanded test/challenge commit: `c813eb5bfbd6a1fa50e2e770b7e7b1c7db3f09e4`
+- Expanded test blob: `e6993fcb17e75cbdf31a0e3262c446d3646dd101`
 - Chrome: Google Chrome 157.0.8103.78
 
 ### Safe-mode acceptance attempt
 
-Run [45899017565](https://github.com/FlareZ123/obfs/actions/runs/45899017565) used `WEAKMAP_EXPECT_SAFE=1`, requiring zero rewrites and exact source parity for all four scenarios in both client modes.
+Expanded safe-mode run [45899921978](https://github.com/FlareZ123/obfs/actions/runs/45899921978) used `WEAKMAP_EXPECT_SAFE=1` and required zero rewrites/source parity for all five false-safe scenarios plus the exported-factory positive control in both client modes. It failed after collecting **10 unsafe cases**: classic cross-unit lexical carrier, externally consumed ESM-derived class, dynamic global WeakMap heritage, `Reflect.get` prototype-chain extraction, and unresolved external ESM factory, each in COO and SCO. The exported ESM factory positive control remained protected in both modes; direct-prototype and subclass-parent controls passed. The older six-case donor run 45899017565 is superseded by this expanded receipt.
 
-It failed with **6 unsafe cases**:
-- classic cross-unit lexical carrier: COO and SCO;
-- externally consumed ESM-derived class: COO and SCO;
-- unresolved external ESM factory: COO and SCO.
+The earlier expected-vulnerability run [45899117584](https://github.com/FlareZ123/obfs/actions/runs/45899117584) covered only the first three false-safe scenarios. The expanded donor safe-mode receipt is the current full five-scenario challenge.
 
-The ESM exported-factory positive control remained protected in both modes: zero Storage rewrites and exact source parity. Both pre-existing direct-prototype and subclass-parent Chromium controls also passed. The failure is therefore not a broad loss of all WeakMap detection; it is a specific gap in the donor's cross-unit/export/import boundary handling.
-
-### Expected-vulnerability reproduction
-
-Run [45899117584](https://github.com/FlareZ123/obfs/actions/runs/45899117584) used the same exact donor/test commit with `WEAKMAP_EXPECT_SAFE=0`. It passed as an expected-vulnerability diagnostic with six false-safes and two protected ESM exported-factory controls. Strict external JSDoc passed.
+### Source-level explanation
 
 ### Source-level explanation
 
 The donor's current structure explains these results:
 
 - `src/core.js:2035-2036` computes `sharedWeakMapPrototypeExposure` using `sourceObserverFiles.some(({ast}) => hasWeakMapPrototypeExposure(ast))`. This ORs per-AST results; it does not unify lexical bindings or carrier flow across classic script units.
-- `src/ast.js:69` begins the per-AST scanner. Its export-name summary at lines 375-376 marks exported instances, factories, constructors and prototype aliases, but does not include a derived-class constructor set. An exported `class Derived extends globalThis.WeakMap {}` is therefore not treated as the same escape as an exported native WeakMap factory.
+- `src/ast.js:375-376` marks exported instances, factories, constructors and prototype aliases, but does not include a derived-class constructor set. An exported `class Derived extends globalThis.WeakMap {}` is therefore not treated as the same escape as an exported native WeakMap factory.
+- `src/ast.js:94-97` resolves computed member keys through `staticString`; `staticString` at lines 540-552 handles literals, no-expression templates and literal concatenation, but not identifier values. Thus `globalThis[constructorKey]` remains unknown even when `constructorKey` is locally initialized to `'WeakMap'`.
+- `src/ast.js:123-149` recognizes direct `.prototype`, `.__proto__` and `getPrototypeOf` expressions in the WeakMap prototype-expression helper, but not a `Reflect.get(Derived,'prototype')` / `Reflect.get(...,'__proto__')` chain. Other `Reflect.get` handling elsewhere in the file belongs to different analyses and does not close this WeakMap path.
 - The local function-return summary can recognize a supplied/exported factory such as `export function make(){return new WeakMap();}`. It cannot prove that an unresolved imported `make()` from an external package returns a WeakMap, and the external package is not in the supplied source group.
 
-The donor therefore retains a useful bounded local summary and the exported ESM factory positive control, but its per-AST Boolean is not a cross-file or external-import proof. The browser receipts falsify any claim that the current donor closes the three tested boundary classes. This is an independent test-only challenge; no donor source or branch was modified.
+The donor therefore retains a useful bounded local summary and the exported ESM factory positive control, but its per-AST Boolean is not a cross-file or external-import proof. The expanded browser receipts falsify any claim that the current donor closes these five boundary classes. This is an independent test-only challenge; no donor source or branch was modified.
 
 The test branch and reports remain intermediate evidence. Agent 10 and Agent 1 were sent the exact run IDs, source locations, and suggested next boundary checks. Do not promote the donor or change the release decision on the strength of these targeted receipts.
 
@@ -190,11 +185,12 @@ The test branch and reports remain intermediate evidence. Agent 10 and Agent 1 w
 The safe-mode acceptance path was also run against Agent 1's exact frozen candidate source, using the updated harness that collects all failures instead of stopping at the first mismatch.
 
 - Candidate source SHA: `fcec2e0d99e909e43433b18cacb63f9fba37b31e`
-- Test-only candidate branch commit: `30cf06e8bb2e6968a6f4c02eaf1dd4ec1aad8a19`
+- Expanded test-only candidate branch commit: `3cef395f7520e0830d3f19ec1d8cd05edb25ae45`
 - Browser: Google Chrome 157.0.8103.78
-- Mode: `WEAKMAP_EXPECT_SAFE=1`
-- Run: [45899387020](https://github.com/FlareZ123/obfs/actions/runs/45899387020)
+- Safe mode: `WEAKMAP_EXPECT_SAFE=1`
+- Safe-mode run: [45899841896](https://github.com/FlareZ123/obfs/actions/runs/45899841896)
+- Expected-vulnerability diagnostic: [45899994192](https://github.com/FlareZ123/obfs/actions/runs/45899994192)
 
-The run failed after evaluating the full matrix, reporting all **six** expected false-safe cases (classic cross-unit lexical carrier, external ESM-derived class, unresolved external ESM factory; COO/SCO). The exported ESM factory remained protected in both modes. The direct-prototype and subclass-parent controls passed. This is the intended red acceptance result for the unpatched candidate, not a harness failure.
+The safe-mode run failed after evaluating the full expanded matrix, reporting all **10** false-safe combinations (classic cross-unit lexical carrier, external ESM-derived class, dynamic global WeakMap heritage, `Reflect.get` prototype-chain extraction, unresolved external ESM factory; COO/SCO). The exported ESM factory remained protected in both modes. The direct-prototype and subclass-parent controls passed. This is the intended red acceptance result for the unpatched candidate, not a harness failure.
 
-The same safe-mode harness was challenged against Agent 10's donor above and likewise found six unsafe cases. The expected-vulnerability diagnostic mode on that donor passed run 45899117584 with six false-safes and two protected cases. The manual workflow now supports both modes: default diagnostic reproduction and opt-in `weakmap_expect_safe=true` for a patched candidate's zero-rewrite/source-parity gate.
+The expected-vulnerability diagnostic run passed with `falseSafes=10`, `protectedCases=2`, and `unsafeCases=[]`; strict external JSDoc passed. The same 10-case safe-mode matrix was challenged against Agent 10's donor in run 45899921978 and likewise found 10 unsafe cases. The manual workflow supports diagnostic reproduction and opt-in `weakmap_expect_safe=true` for a patched candidate's zero-rewrite/source-parity gate.
