@@ -232,7 +232,17 @@ function hasWeakMapPrototypeExposure(ast) {
         if(weakMapSubclassParents.has(node.object.name))return node.object.name;
         if(isWeakMapConstructor(node.object))return null;
       }
-      if(key==='__proto__'&&isWeakMapInstance(node.object))return null;
+      if(key==='__proto__') {
+        if(isWeakMapInstance(node.object))return null;
+        if(node.object?.type==='NewExpression'&&
+           node.object.callee?.type==='Identifier'&&
+           weakMapSubclassParents.has(node.object.callee.name))
+          return node.object.callee.name;
+        const objectPrototype=weakMapPrototypeValue(node.object,seen);
+        if(objectPrototype===undefined||objectPrototype===null)return undefined;
+        const parentClass=weakMapSubclassParents.get(objectPrototype);
+        return parentClass===null?null:parentClass;
+      }
       return undefined;
     }
     if(node.type!=='CallExpression'||!isPrototypeGetterCall(node))return undefined;
@@ -253,7 +263,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='MemberExpression') {
       const key=memberKey(node);
       return key==='prototype'&&isWeakMapConstructor(node.object)||
-        key==='__proto__'&&isWeakMapInstance(node.object);
+        key==='__proto__'&&weakMapPrototypeValue(node)===null;
     }
     return node.type==='CallExpression'&&isPrototypeGetterCall(node)&&
       weakMapPrototypeValue(node)===null;
