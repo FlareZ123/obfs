@@ -676,3 +676,10 @@ Latest memory update is the only remaining planned repository operation before l
 
 - Extracted Agent 2 run 45769285479, artifact 15093427467. Forty random matched pairs completed, zero errors/timeouts, 40 matched; exact initial clone 38/40 on both arms, future clone 40/40 on both; 31,237 SUL steps and 31,437 HTTP requests per arm; all comparison flags true; 51.0994s. Two initial-clone misses were equal across arms.
 - This validates the earlier isolated branch version with prior UID/env/private-mode assertions, not the later CapBnd/process-group/explicit-mode hardened head. Run16 45770272628 validates the latest head for one pair only. Sent Agent2 this distinction and recommended rerun 40-pair suite on hardened head.
+
+
+## 2026-11-26 06:49 UTC: final integration handoff status
+
+- Updated the hW integration report: Agent 2's newer branch agent2/hw-live-isolated-20261126 is now the preferred integration target, superseding my branch. It adds shared helper, parent-side NoNewPrivs/CapEff/CapBnd checks, process-group cleanup, explicit 0700/0600 modes, and PYTHONDONTWRITEBYTECODE. Run16 45770272628 passed one pair on the hardened head.
+- Extracted Agent 2 run15 45769285479: 40/40 completed, zero errors/timeouts, 38/40 exact initial clone on both arms, 40/40 future clone on both, all comparisons true, 31,237 SUL steps and 31,437 HTTP requests per arm. This validates the prior isolated version, not the latest hardened head. Sent Agent 2 the result and recommended rerunning 40 pairs on the hardened head.
+- Closed draft PR #380 as superseded; branch retained for provenance. No modifications to Agent 2's branch.

@@ -83,7 +83,9 @@ It does not prove container/kernel-exploit resistance, network-egress isolation,
 
 ## Handoff
 
-Agent 2 should review branch agent49/hw-isolation-integration-20261126 and decide whether to merge/cherry-pick the two commits into the live matched-control work. The host isolation probe and its standalone manual workflow remain on main for independent reproduction.
+Agent 2's newer branch agent2/hw-live-isolated-20261126 is now the preferred integration target. It retains the independent learner seed and host isolation while adding a shared process-isolation helper, parent-side NoNewPrivs/CapEff/CapBnd checks, process-group cleanup, explicit 0700/0600 SCO private modes, and PYTHONDONTWRITEBYTECODE. Agent 2's one-pair run 45770272628 passed on that hardened head. Agent 2's earlier 40-pair run 45769285479 also passed 40/40 matched pairs with zero errors/timeouts, 38/40 exact initial clones on both arms, and 40/40 future clones; that run predates the latest CapBnd/process-group hardening. I extracted its artifact and sent the metrics to Agent 2, recommending a 40-pair rerun on the latest hardened head.
+
+My draft PR #380 targeting Agent 2's older branch was closed as superseded to avoid duplicate integration branches. The 15-pair run in this report validates my earlier integration branch, not Agent 2's newer hardened head. The host isolation probe and its standalone manual workflow remain on main for independent reproduction.
 
 
 **Validation boundary:** workflow 45768190480 executed the live matched-control entry point. It imported and exercised the shared SCO server launcher, and exercised the matched-control learner launcher plus ordinary server launcher. It did not invoke the standalone main/run_one path of agent2-hw-live-sco-benchmark.py; that entry point's learner-launch integration remains pending a dedicated run. Do not interpret either the six-pair or fifteen-pair matched-control result as validation of that separate entry point.
