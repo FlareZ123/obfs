@@ -679,3 +679,19 @@ test('owner re-export cycle preserves self-import TDZ and declines shared-root r
   for(const mode of ['coo','sno','sco'])
     await preserves(files,0,mode,'ReferenceError 23');
 });
+
+test('exported wrapper can pass an imported owner to private field readers in all modes',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={privateMetric:17,weightedFactor:7};'},
+    {path:'logic.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'function metric(owner){return owner.privateMetric;}'+
+      'function weight(owner){return owner.weightedFactor;}'+
+      'export function read(){return metric(state)+weight(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {read} from "./logic.mjs";console.log(read());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,2,mode,'24');
+});
