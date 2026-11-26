@@ -171,6 +171,16 @@ const carrierFixtures = [
     name: 'function-returned-member-assigned-container',
     setup: 'function makeCarrier(){const carrier={};carrier.instance=new WeakMap();return carrier;} const protoCarrier=makeCarrier();',
     access: 'protoCarrier.instance'
+  },
+  {
+    name: 'class-static-block-local-carrier',
+    setup: 'class Carrier { static { const carrier={instance:new WeakMap()}; getPrototype(carrier.instance); } } const protoCarrier={};',
+    access: 'protoCarrier'
+  },
+  {
+    name: 'arrow-expression-local-carrier',
+    setup: 'const protoCarrier={instance:new WeakMap()}; const get=()=>getPrototype(protoCarrier.instance); get(); const ordinary={};',
+    access: 'ordinary'
   }
 ];
 
