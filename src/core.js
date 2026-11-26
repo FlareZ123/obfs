@@ -1953,21 +1953,6 @@ function obfuscateFiles(files, options = {}) {
   // though the caller selected a protected function in that file.
   const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
-  // Admit the narrow native-bind target proof only for a closed source graph
-  // whose files satisfy the strict top-level fn.bind(null) grammar and have no
-  // unresolved ambient identifiers or imports. This is a rewrite-eligibility
-  // proof, not source secrecy: a hostile host preloader can capture the
-  // already-transformed target function.
-  const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
-    prepared.every(file=>{
-      if(file.sourceType==='asset'||typeof file.code!=='string')return false;
-      const inputAst=parse(file.code,file.sourceType);
-      return !hasUnsafeNativeBindMutationSurface(inputAst)&&
-        !hasUnmodeledNativeBindGlobalReference(inputAst,file.sourceType==='commonjs')&&
-        !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
-        !(file.sourceType==='commonjs'&&
-          hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
-    });
   /** @type {Array<[string,Record<string,string[]>|undefined]>} */
   const selectedFunctionBackends=[
     ['Register VM',options.experimentalRegisterVm],
@@ -1998,6 +1983,23 @@ function obfuscateFiles(files, options = {}) {
       byPath.set(selectedPath,names.slice());
     }
   }
+  // Snapshot every selected function list before reading the lazy closedWorld
+  // option: its getter may mutate caller-owned selection arrays.
+  // Admit the narrow native-bind target proof only for a closed source graph
+  // whose files satisfy the strict top-level fn.bind(null) grammar and have no
+  // unresolved ambient identifiers or imports. This is a rewrite-eligibility
+  // proof, not source secrecy: a hostile host preloader can capture the
+  // already-transformed target function.
+  const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
+    prepared.every(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return false;
+      const inputAst=parse(file.code,file.sourceType);
+      return !hasUnsafeNativeBindMutationSurface(inputAst)&&
+        !hasUnmodeledNativeBindGlobalReference(inputAst,file.sourceType==='commonjs')&&
+        !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
+        !(file.sourceType==='commonjs'&&
+          hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
+    });
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(allowedHosts?.length && options.closedWorld &&
