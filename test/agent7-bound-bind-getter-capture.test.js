@@ -87,3 +87,13 @@ test('bound-only arrow returning owner inside an object cannot make owner proper
   const source=ownerPrefix+'const probe=owner.secretField;const internal=()=>({owner});export const hot=internal.bind(null);';
   assert.equal(propertyCount(source),0);
 });
+
+test('bind getter cannot observe target source through a this alias',()=>{
+  const getter='const nativeBind=Function.prototype.bind;'+
+    'Object.defineProperty(Function.prototype,"bind",{configurable:true,'+
+    'get(){const target=this;globalThis.source=target.toString();return nativeBind;}});';
+  const target='const internal=(a,b)=>((a+owner.secretField)^owner.otherField)+b;';
+  assert.equal(propertyCount(ownerPrefix+getter+target+
+    'export const hot=internal.bind(null);'+
+    'Object.defineProperty(Function.prototype,"bind",{value:nativeBind,writable:true,configurable:true});'),0);
+});
