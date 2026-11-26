@@ -191,3 +191,22 @@ For target `N=6, seed=0`, the optimal policy asks input `0` five times and obser
 Running the same exact solver over the live workflow's eight-candidate family (`--min-states 2 --max-states 5 --seeds 2`) gives an optimal worst-case depth of **4 queries**, mean **3.125**, histogram `{2:1, 3:5, 4:2}`, with 158 memoized belief states. All eight targets are identified. The earlier greedy policy's mean of 3.375 was not optimal.
 
 This is an exact optimal policy for the finite public 70-fixture prior, not for the unrestricted class of Mealy machines. It is a much stronger practical benchmark audit than the hW learner's 77-step run.
+
+
+## 11. Delayed-pair prior: 124 distinct behaviors, exact minimax depth 126
+
+The delayed-pair family needs a separate interpretation. Its allowed workflow domain is `N=3..64`, `seed=0..19` (1,240 parameter pairs), but the transition/output table is deterministic from N. The seed only chooses one of the two states in the maximum-distinguishing pair. Thus the public prior contains at most **124 distinct target behaviors** (two initial states for each N), not 1,240 distinct machines.
+
+I independently reproduced the generator's pair-distance calculation and built an exact minimax learner over those 124 `(N, initial_state)` candidates. The dynamic program uses the same candidate/current-state belief recurrence as the random-family solver and validates the public `query(symbol) -> output` callback against every candidate.
+
+Results:
+- candidate behaviors: **124**;
+- exact minimax worst-case: **126 queries**;
+- mean under uniform behavior prior: **65.459677**;
+- memoized belief states: **6,287**;
+- maximum within-machine state-pair distinguishing-word length: **63**;
+- every candidate is identified by the exact policy.
+
+Reproduction: `sims/agent49-hw-delayed-pair-prior-optimal-attack.py`. For `N=64, initial_state=3`, the optimal policy uses input 0 throughout and distinguishes the target at query 126.
+
+This is not the same as the random-family result: the delayed-pair prior is small but intentionally has a long distinguishing delay, so it is not a trivial few-query attack. The `oracle_seed` disclosure nevertheless bypasses that difficulty by revealing N and seed (and therefore the exact initial state) before any oracle query. After fixing the seed leak, the delayed-pair family remains a useful known-prior benchmark, but its claims should be compared against the 126-query exact prior-aware baseline rather than an unrestricted unknown-machine interpretation.
