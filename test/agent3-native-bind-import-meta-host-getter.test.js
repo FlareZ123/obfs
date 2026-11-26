@@ -44,7 +44,7 @@ const source=[
   'export const hot=internal.bind(null);'
 ].join('\n');
 
-test('import.meta host getter can observe a bound target admitted by the source gate',()=>{
+test('import.meta host getter prevents source-changing bound-target admission',()=>{
   const native=runWithHostImportMetaGetter(source);
   assert.equal(native.result,7);
   assert.match(String(native.capturedSource),/owner\.secretField/u);
@@ -57,7 +57,7 @@ test('import.meta host getter can observe a bound target admitted by the source 
   });
   const app=compiled.files.find(file=>file.path==='app.mjs');
   assert.ok(app);
-  assert.equal(app.metrics.properties,1,
+  assert.equal(app.metrics.properties,0,
     JSON.stringify({metrics:app.metrics,source:app.code}));
 
   const actual=runWithHostImportMetaGetter(String(app.code));
@@ -66,7 +66,6 @@ test('import.meta host getter can observe a bound target admitted by the source 
   })+'\n');
 
   assert.equal(actual.result,native.result);
-  assert.match(String(actual.capturedSource),/_p[0-9a-f]{10}/u);
-  assert.doesNotMatch(String(actual.capturedSource),/secretField/u);
-  assert.notEqual(actual.capturedSource,native.capturedSource);
+  assert.equal(actual.capturedSource,native.capturedSource,
+    'the host getter can observe the target, so the compiler must preserve its source');
 });
