@@ -74,11 +74,11 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
-  // The bound-target proof only consumes a function object whose binding is
-  // locally established by a declaration or an immutable direct function
-  // initializer. A member merely named "bind" is not evidence of native bind:
-  // namespace exports, host metadata, aliases and inline expressions can
-  // supply unrelated methods or unproved receivers.
+  // The bound-target proof only consumes a local immutable const arrow.
+  // Ordinary function declarations/expressions are constructible and expose
+  // their target through new hot() and prototype.constructor. A member merely
+  // named "bind" is not evidence of native bind: namespace exports, host
+  // metadata, aliases and inline expressions can supply unrelated methods.
   const localCallableBindings=new Set();
   walk(ast,(node,parent)=>{
     // Only arrows are admitted as bound targets. A constructible ordinary
