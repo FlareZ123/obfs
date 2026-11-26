@@ -419,6 +419,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         !importedStrings.has(node.name) && !importedPrimitives.has(node.name) &&
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
+      // Under construction, new.target is the target function object. Existing
+      // coercion checks below must treat it like any other function value.
+      node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target' ||
+
       node.type==='MemberExpression' &&
         (isOpaqueNamespace(node.object) ||
          node.object.type==='Identifier' && node.object.name==='Function' &&
@@ -2725,11 +2729,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return true;
   }
   walk(ast,(node,parent,key,ancestors)=>{
-    // new.target is the constructed function object, including when inherited
-    // lexically by an arrow. Any coercive use can expose its exact source text;
-    // conservatively veto source-sensitive rewrites for this AST.
-    if(node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target')
-      observed=true;
     // An uncaught throw is itself a source-coordinate observer in Node: the
     // process diagnostic prints the throwing source line, caret and stack
     // column. Browser hosts can likewise surface uncaught error locations.
