@@ -120,6 +120,46 @@ class MinimaxPriorLearner:
     def initial_belief(self) -> tuple[tuple[int, int], ...]:
         return tuple((c.candidate_id, c.initial_state) for c in self.candidates)
 
+    def iterative_worst_case_depth(
+        self, initial_belief: tuple[tuple[int, int], ...]
+    ) -> tuple[int, int, int]:
+        """Independent reachable-graph/value-iteration check of minimax depth."""
+        pending = [initial_belief]
+        states = {initial_belief}
+        edges = {}
+        while pending:
+            belief = pending.pop()
+            for symbol in (0, 1):
+                groups = self.partition(belief, symbol)
+                successors = tuple(groups.values())
+                edges[(belief, symbol)] = successors
+                for successor in successors:
+                    if successor not in states:
+                        states.add(successor)
+                        pending.append(successor)
+
+        infinity = 10**9
+        values = {belief: (0 if len(belief) <= 1 else infinity) for belief in states}
+        passes = 0
+        changed = True
+        while changed:
+            changed = False
+            passes += 1
+            for belief in states:
+                if len(belief) <= 1:
+                    continue
+                choices = []
+                for symbol in (0, 1):
+                    successors = edges[(belief, symbol)]
+                    if all(values[item] < infinity for item in successors):
+                        choices.append(1 + max(values[item] for item in successors))
+                if choices:
+                    improved = min(choices)
+                    if improved < values[belief]:
+                        values[belief] = improved
+                        changed = True
+        return values[initial_belief], len(states), passes
+
     def partition(
         self, belief: tuple[tuple[int, int], ...], symbol: int
     ) -> dict[str, tuple[tuple[int, int], ...]]:
@@ -210,7 +250,11 @@ def main() -> None:
 
     candidates = build_candidates(args.min_states, args.max_states)
     learner = MinimaxPriorLearner(candidates)
-    depth = learner.worst_case_depth(learner.initial_belief())
+    initial = learner.initial_belief()
+    depth = learner.worst_case_depth(initial)
+    iterative_depth, reachable_beliefs, value_iteration_passes = learner.iterative_worst_case_depth(initial)
+    if iterative_depth != depth:
+        raise AssertionError(f"recursive minimax depth {depth} != iterative depth {iterative_depth}")
     traces = learner.simulate_all()
     lengths = [len(trace) for trace in traces.values()]
     histogram = dict(sorted(Counter(lengths).items()))
@@ -221,6 +265,8 @@ def main() -> None:
     print(f"mean_queries={sum(lengths) / len(lengths):.6f}")
     print(f"query_count_histogram={histogram}")
     print(f"belief_states_memoized={len(learner.memo)}")
+    print(f"iterative_reachable_beliefs={reachable_beliefs}")
+    print(f"iterative_value_iteration_passes={value_iteration_passes}")
     print(f"max_pair_distinguishing_length={max(c.max_pair_distinguishing_length for c in candidates)}")
 
     pair_left = next((c for c in candidates if (c.state_count, c.initial_state) == (64, 3)), None)
