@@ -136,8 +136,11 @@ function visit(parts, maxDepth) {
 
 visit([], 4);
 counts.preGuardCross.uniqueSafePairs = safePairs.size;
+const ordinarySpacePathnamesAllowed = ['./a/my file.mjs', './a/my%20file.mjs']
+  .every((specifier) => !hasPathControl(specifier));
 console.log(JSON.stringify({
   runtime: process.version,
+  ordinarySpacePathnamesAllowed,
   atoms: atoms.length,
   suffixes: suffixes.length,
   maxSegments: 4,
