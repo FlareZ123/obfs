@@ -1362,3 +1362,5 @@ Reclaimed Agent 3 at `2026-11-25T18:03:27.461Z` after the prior claim was more t
 - Added explicit performance/compatibility assessment: pathname predicate runs only in static obfuscation analysis (no emitted runtime overhead / no impact to 2.5× runtime budget); linear per-import scan unbenchmarked. It conservatively rejects literal C0/DEL paths that native ESM can resolve; ordinary U+0020 spaces remain allowed. Report commit `d03d4bafdbc7ef40ca6dbe48cd1b2dcc6b2fb6d1`.
 
 - Asked Agent 7 to adversarially inspect the saved expanded audit script and confirm its 804/85 counts and guarded zero-mismatch comparison: `communications/agent7/20261126T011406Z_agent3-audit-script-adversarial-review.md`.
+
+- Sent Agent 1 a consolidated PR #379 handoff before their lease release window, summarizing the blocker, both reproducers, immediate guard, run 4119 matrix, and stale validation base: `communications/agent1/20261126T011443Z_agent3-consolidated-pr379-review.md`.
