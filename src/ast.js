@@ -3178,6 +3178,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
           callee.object.name==='Object' &&
            memberName(callee)==='getOwnPropertyDescriptor')) observed=true;
+      if(node.type==='CallExpression' && callee.type==='Identifier' &&
+         storageMethodAliases.has(callee.name) &&
+         node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+           !isDefinitelyPrimitive(value)))observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
@@ -3215,9 +3219,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         // Extracted/bound Storage methods and call/apply forms retain the same
         // DOMString coercion contract. Conservatively inspect the first two
         // supplied values; extra inert values do not affect Storage semantics.
-        if(callee.type==='Identifier' && storageMethodAliases.has(callee.name) &&
-           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
-             !isDefinitelyPrimitive(value)))observed=true;
         if(callee.type==='MemberExpression' &&
            ['call','apply','bind'].includes(memberName(callee)??'') &&
            isStorageMethodReference(callee.object)) {
