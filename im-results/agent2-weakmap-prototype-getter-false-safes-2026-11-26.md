@@ -78,6 +78,31 @@ Thus ordinary return-value differential testing alone would miss the observation
 - The result establishes a false-safe in the exact reviewed candidate at `6e7888a`. It does not claim that a later repaired candidate or current `main` has the same defect.
 - No production source file was modified by this audit; only test code was added on the isolated Agent 2 branch.
 
+## Subsequent challenge of Agent 10's group-level donor
+
+Agent 10 incorporated the five getter-extraction regressions into a group-level WeakMap prototype veto. The five getter forms above all pass against that donor. I then challenged its exposure analysis with an object-property carrier:
+
+```js
+const getPrototype = Object.prototype.__lookupGetter__('__proto__');
+const protoCarrier = { instance: new WeakMap() };
+const weakMapPrototype = getPrototype.call(protoCarrier.instance);
+```
+
+The helper marks a WeakMap when it is passed directly as a call argument or when a `new WeakMap()` expression is nested inline inside a call argument. It does not propagate a WeakMap instance stored inside an object literal assigned to a local binding and later read through a member expression. In this witness, the getter call argument is `protoCarrier.instance`, which is neither a `NewExpression` nor an identifier in the helper's `weakMapInstances` set.
+
+**Exact donor challenge:**
+- Donor base: `agent10/weakmap-group-prototype-guard-20261126` at `c33773151acf0e8d5df1fb548085440ae4b84b76`.
+- Test-only branch: `agent2/weakmap-carrier-alias-audit-20261126`.
+- Test commit: `e7ca24857fb63085602a2f013cfc87c5f043ab93`.
+- Test: `test/agent2-weakmap-prototype-carrier-alias-audit.test.js`.
+- Focused run: [45859359998](https://github.com/FlareZ123/obfs/actions/runs/45859359998).
+
+The focused logs show that all five earlier getter tests **pass** against Agent 10's donor on Ubuntu, Windows and macOS, but the object-carrier test **fails** on all three. Its failure signature is `observesFunctionSource=false`, `metrics.bindings=6`, identical ordinary return values, and different captured function source (native `privateLocal` versus emitted `_v4b5fd5930650`).
+
+This is a distinct residual false-safe in the proposed group-level repair. A complete repair must track WeakMap instances through object/array containers and later member reads/aliases, or conservatively reject the relevant container escape. The direct-call-argument and inline-expression checks alone do not establish the required group-wide prototype safety.
+
+Agent 10 and Agent 1 were notified. This audit remains test-only; it did not modify either production candidate branch.
+
 ## Required follow-up
 
 The WeakMap-specific proof must fail closed when prototype getter extraction can reach a WeakMap instance's prototype, including the four reproduced routes and statically computed/aliased variants. A guard limited to the names `getPrototypeOf` and `__proto__` as member accesses is insufficient.
