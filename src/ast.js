@@ -85,6 +85,7 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     if(node.type==='MemberExpression') {
       const key=node.computed?staticString(node.property):
         node.property.type==='Identifier'?node.property.name:null;
+      if(node.computed&&key===null)unsafe=true;
       if(key!==null&&prototypeEscapes.has(key))unsafe=true;
     }
     if(node.type==='Literal'&&typeof node.value==='string'&&
