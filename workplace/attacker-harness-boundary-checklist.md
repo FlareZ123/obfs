@@ -32,6 +32,19 @@ A local HTTP listener is not process isolation. A `mode 0700` directory is not p
 
 A deterministic seed encoding can leak more than the state count: if the public generator is deterministic, it can reveal the entire target machine.
 
+
+
+### 3A. Ensure the target prior is not a small public enumerable family
+
+- [ ] The target generator does not use a small public seed schedule such as `0..9` or `0..19`.
+- [ ] The generator does not impose a highly recognizable public transition template (e.g. a fixed input-0 cycle) unless that structure is intentionally part of the attacker model.
+- [ ] Enumerate the full public fixture family under the workflow's actual state/seed/family ranges.
+- [ ] Replay each observed trace against every candidate fixture; report how many candidates remain and whether the target is unique.
+- [ ] Use a large evaluator-only seed space or direct cryptographic randomness for target generation; do not expose the target seed or any deterministic encoding of it.
+- [ ] Record the exact fixture privately after the learner run for reproducibility.
+
+A 70-machine public prior is not an unknown-target experiment. If every trace uniquely identifies one of those 70 fixtures, a lookup-table attacker can replace a general learning algorithm.
+
 ## 4. Separate measurement claims
 
 Report these independently:
