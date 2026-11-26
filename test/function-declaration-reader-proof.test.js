@@ -181,6 +181,13 @@ test('source-observed callers only transfer owners to exact private member reade
     ].join('\n'),
     [
       'const root={secretAlpha:23};',
+      'const read=(owner)=>{const value=owner.secretAlpha;notify(value);return value;};',
+      'function notify(observed){return observed;}',
+      'const calculate=function calculate(){return read(root);};',
+      'module.exports={calculate,result:calculate()};'
+    ].join('\\n'),
+    [
+      'const root={secretAlpha:23};',
       'function identity(owner){return owner;}',
       'const calculate=function calculate(){return identity(root).secretAlpha;};',
       'module.exports={calculate,result:calculate()};'
