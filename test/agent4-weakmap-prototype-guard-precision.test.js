@@ -70,7 +70,7 @@ test('unrelated prototype inspection does not invalidate the native WeakMap Stor
     assert.ok(result.bindings>=2,
       JSON.stringify({variant:variant.name,baseline,actual:result}));
   }
-  process.stdout.write('UNRELATED_PROTOTYPE_ACCESS_OVERREFUSAL '+JSON.stringify({
+  process.stdout.write('WEAKMAP_PROOF_UNRELATED_PROTOTYPE_PRECISION_CONTROL '+JSON.stringify({
     baselineBindings:baseline.bindings,
     variants:unrelated.map(x=>x.name)
   })+'\n');
