@@ -88,6 +88,8 @@ function hasWeakMapPrototypeExposure(ast) {
   const weakMapContainerOwners=new Set();
   const objectAliases=new Map();
   const exportedValueNodes=new Map();
+  /** @type {Array<{root:string|null,ownerName:string|null,global:boolean,imported:boolean,exportedFunction:boolean,value:AstNode}>} */
+  const memberWrites=[];
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
   /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
   const functionInfoByNode=new Map();
@@ -146,6 +148,8 @@ function hasWeakMapPrototypeExposure(ast) {
   function containsWeakMapInstanceValue(root) {
     if(!root)return false;
     if(isWeakMapInstance(root))return true;
+    if(root.type==='CallExpression'&&root.callee.type==='Identifier'&&
+       weakMapFactories.has(root.callee.name))return true;
     // Only follow expression positions that contribute to the returned or
     // exported value. Do not mistake a WeakMap used as the receiver of
     // WeakMap.prototype.get() for a WeakMap returned by that call.
@@ -343,19 +347,19 @@ function hasWeakMapPrototypeExposure(ast) {
            value.type==='Identifier'&&prototypeGetters.has(value.name))
           prototypeGetters.add(name);
         if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
-      } else if(node.left.type==='MemberExpression'&&
-                containsWeakMapInstanceValue(node.right)) {
+      } else if(node.left.type==='MemberExpression') {
         const root=rootIdentifier(node.left.object);
         const info=nearestFunctionInfo(ancestors);
-        if(isGlobalObjectPath(node.left.object)||root&&importedLocalNames.has(root)) {
-          exposed=true;
-        } else if(root) {
-          weakMapContainerOwners.add(root);
-        } else if(node.left.object.type==='ThisExpression'&&info?.ownerName) {
-          weakMapContainerOwners.add(info.ownerName);
-        } else if(node.left.object.type==='ThisExpression'&&info?.exported) {
-          exposed=true;
-        }
+        const classOwner=[...ancestors].reverse().find(ancestor=>
+          ancestor.type==='ClassDeclaration'&&ancestor.id?.type==='Identifier');
+        memberWrites.push({
+          root,
+          ownerName:info?.ownerName??classOwner?.id?.name??null,
+          global:isGlobalObjectPath(node.left.object),
+          imported:Boolean(root&&importedLocalNames.has(root)),
+          exportedFunction:Boolean(info?.exported),
+          value:node.right
+        });
       }
     }
     if(node.type==='ReturnStatement'||node.type==='YieldExpression') {
@@ -396,6 +400,11 @@ function hasWeakMapPrototypeExposure(ast) {
     changed=false;
     for(const info of functionInfoByNode.values()) {
       if(!info.returnsWeakMap&&
+         info.returnValues.some(containsWeakMapInstanceValue)) {
+        info.returnsWeakMap=true;
+        changed=true;
+      }
+      if(!info.returnsWeakMap&&
          [...info.returnedFactories].some(name=>weakMapFactories.has(name))) {
         info.returnsWeakMap=true;
         changed=true;
@@ -410,6 +419,31 @@ function hasWeakMapPrototypeExposure(ast) {
         if(info.exported)exposed=true;
       }
     }
+  }
+  // Resolve writes only after factory summaries reach a fixed point. A
+  // helper declared later in the module can return a WeakMap that is stored
+  // into an exported object, a global slot, or a public instance property.
+  for(const write of memberWrites) {
+    if(!containsWeakMapInstanceValue(write.value))continue;
+    if(write.global||write.imported) {
+      exposed=true;
+      break;
+    }
+    if(write.ownerName) {
+      weakMapContainerOwners.add(write.ownerName);
+      continue;
+    }
+    if(write.root) {
+      weakMapContainerOwners.add(write.root);
+      continue;
+    }
+    if(write.exportedFunction) {
+      exposed=true;
+      break;
+    }
+    // An unrooted member target cannot be proven private.
+    exposed=true;
+    break;
   }
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
