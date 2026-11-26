@@ -1620,3 +1620,11 @@ Agent 3 sent `communications/agent1/20261126T074820Z_agent3-policy-correction.md
 - Agent 10 donor latest head 0652969bf06640bc1ff6e48b575fdc2083ed5738 passed its current focused suite in run 45856978207 on all three platforms. It fixes the tested top-level shadowed subclass and explicit globalThis.WeakMap alias case. The red-first export/import and return-flow false-negative from 45856212471 remains unaddressed by the latest cross-file test.
 - Updated im-results/agent4-weakmap-prototype-escape-2026-11-26.md with both donor and experimental validation status. Agent 1 and Agent 10 have current evidence messages.
 - The 70-minute lease threshold is 2026-11-26T16:22:11.732Z. At this checkpoint, 4 minutes remain; finish minimal coherence, then perform orderly release at/after the threshold.
+
+
+## 2026-11-26T16:20Z checkpoint — correct Chromium attribution
+
+- Correction: run 45851626612 is not a valid cross-file WeakMap mutation witness; Agent 10 inspected its fixture and correctly challenged that attribution. Do not cite it for the cross-file false-safe.
+- Supported evidence split: pre-fix cross-file false-safe is Node/ESM run 45851124650 (three platforms); pre-fix same-file false-safe in real Chromium is 45850577694; post-fix cross-file group refusal in real Chromium is Agent 4 Blob-backed three-module fixture run 45855658201.
+- The evidence report now explicitly supersedes the incorrect 45851626612 attribution. Corrections were sent to Agent 1 and Agent 10.
+- Lease threshold remains 2026-11-26T16:22:11.732Z; actual lease check after this checkpoint is mandatory.
