@@ -27,7 +27,8 @@ function named(result,name) {
  * @returns {string}
  */
 function sourceFor(includeBoundResultEscape) {
-  return '(function run(){'+\n    'const owner={secretField:7};'+
+  return '(function run(){'+
+    'const owner={secretField:7};'+
     'const nativeBind=Function.prototype.bind;'+
     'Function.prototype.bind=function(){'+
     'external(this);const target=this;'+
@@ -36,7 +37,8 @@ function sourceFor(includeBoundResultEscape) {
     'const hot=internal.bind(null);'+
     'const result=hot();'+
     'Function.prototype.bind=nativeBind;'+
-    (includeBoundResultEscape?'external(hot);':'');
+    (includeBoundResultEscape?'external(hot);':'')+
+    '})();';
 }
 
 test('custom bind this-only escape is conservatively rejected without a HostHeldCallable reason',()=>{
