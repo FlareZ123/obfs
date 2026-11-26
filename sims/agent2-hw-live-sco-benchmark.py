@@ -89,7 +89,7 @@ def terminate_process_group(process):
     process.wait(timeout=5)
 
 
-def start_server(fixture, seed: int):
+def start_server(fixture, _target_seed: int):
     node_path = shutil.which("node")
     if not node_path:
         raise RuntimeError("node is required for isolated live SCO server")
@@ -139,12 +139,12 @@ def start_server(fixture, seed: int):
             "output": [list(row) for row in fixture.outputs],
             "initial_state": fixture.initial_state,
         }
-        canary = f"agent2-live-sco-private-canary-{fixture.state_count}-{seed}"
+        canary = "agent2-live-sco-private-canary-" + secrets.token_urlsafe(32)
         session_token = secrets.token_urlsafe(32)
         payload = {
             "machine": machine,
             "canary": canary,
-            "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
+            "partition_seed": "agent2-live-sco-partition-" + secrets.token_urlsafe(32),
             "session_token": session_token,
         }
         process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
