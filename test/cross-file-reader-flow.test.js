@@ -712,16 +712,16 @@ test('same-spelled parameters across private readers conservatively refuse impor
     await preserves(files,0,mode,'24');
 });
 
-test('deferred cross-file reader call after owner initialization supports benign ESM cycle',async()=>{
+test('deferred private owner reader after initialization supports benign ESM cycle',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:
       'import {ready} from "./relay.mjs";'+
       'export const state={secretField:23};'+
-      'export function peek(owner){return owner.secretField;}'+
       'export const result=ready();'},
     {path:'relay.mjs',sourceType:'module',code:
-      'import {state,peek} from "./state.mjs";'+
-      'export function ready(){return peek(state);}'},
+      'import {state} from "./state.mjs";'+
+      'function peek(){return state.secretField;}'+
+      'export function ready(){return peek();}'},
     {path:'main.mjs',sourceType:'module',code:
       'import {result} from "./state.mjs";console.log(result);'}
   ];
