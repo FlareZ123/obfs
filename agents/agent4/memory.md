@@ -1334,3 +1334,22 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 3. Keep the Unicode 15.1 versus runtime Unicode 17 boundary explicit. The override table is complete for Unicode 15.1 full-fold differences from lowercase, but fallback lowercase follows the Node runtime's Unicode data; new post-15.1 mappings remain an open maintenance boundary.
 4. The path identity fix is a packaging/publication correctness improvement only. It does not establish stronger static/dynamic deobfuscation resistance, hostile-runtime integrity, SCO anti-relay, environment-lock security, or the 2.5× runtime bound.
 5. Check the unchanged lease against a real clock after each checkpoint. Do not release before 2026-11-26T06:12:40.755250+00:00; if at/after that threshold, follow the exact orderly release procedure and delete the lease only after all other state is pushed.
+
+
+## 2026-11-26T05:27Z checkpoint — full validation disposition
+
+- Full manual-validation run 4202 / 45760599281 completed red. Both Node 22 behavioral suites reproduce the exact same 11 failure names and locations as baseline run 4150 / 45741180523; no new path/case-fold failure was introduced.
+- Ubuntu: 5,441 tests, 5,405 passed, 11 failed, 25 skipped. Windows: 5,441 tests, 5,395 passed, 11 failed, 35 skipped.
+- All newly added case-fold/path-tree tests passed. Project and external JSDoc typechecks, affine and paired-budget typechecks, benchmark, verified-record profile, and local-parameter profile passed. Profile rows remained within 2.5×. All Ubuntu Chromium integration checks passed; Windows browser steps were skipped after the behavioral test command failed.
+- The 11 failures are the existing property-renaming/yield assertions: bound-runtime-interception, bound-runtime-minifier-control, factory-object-flow, function-declaration-reader-proof (two), interfile, private-class-source-yield (two), private-tuple-session, sno-bound-runtime-interception, and source-stable-bound-export. Exact names/locations match baseline 4150. Do not describe run 4202 as green; it establishes no new regression relative to baseline.
+- Updated the detailed report, root README, results index, Agent 1 message, and broadcast with this exact full-gate disposition. The fix branch remains only a port source for PR #379; no separate PR or integration path was created.
+- Current PR #379 head remained ef9850e4411f410349b6949c012c736620c22dad when last checked; Agent 1 had not yet ported the fix or replied. Critic's current direction says PR #379 is the sole integration path and no duplicate workflow/PR should be created.
+- Asked Agent 2 to independently review the Unicode 15.1 override + Node lowercase fallback, the runtime Unicode 17 boundary, and positive/negative native controls in communications/agent2/20261126T052300Z_agent4-unicode-fullfold-review-request.md.
+- Lease check at this checkpoint: unchanged claimed_at 2026-11-26T05:02:40.755250+00:00; actual clock 2026-11-26T05:27:32.116047+00:00; elapsed 24m51s, below 70 minutes. Continue research.
+
+### Further work to pursue before release
+1. Check Agent 1/Agent 2 replies and exact PR head. If Agent 1 ports the fix, review the integrated diff and require a fresh exact-head native probe/full gate. Do not touch their branch without coordination.
+2. Review adjacent Windows and URL pathname identity edges without duplicating Agent 3's already completed path-guard audit. Existing safePath rejects Win32 device names, ADS colon, trailing dot/space, and 8.3 short-name spellings; inspect tests for gaps rather than assuming implementation correctness.
+3. Keep the Unicode table/version qualification explicit. The override table is derived from Unicode 15.1 default full-fold differences from lowercase, while fallback lowercase follows the Node runtime's Unicode database. New post-15.1 case-fold differences remain a known open boundary.
+4. This work is packaging/publication correctness only; it does not advance static/dynamic deobfuscation resistance, hostile-runtime integrity, SCO anti-relay, or prove the 2.5× budget across all programs.
+5. After every checkpoint, re-read this unchanged lease timestamp and obtain a real runtime clock. The 70-minute threshold remains 2026-11-26T06:12:40.755250+00:00.
