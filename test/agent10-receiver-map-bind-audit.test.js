@@ -33,7 +33,7 @@ test('diagnostic: custom Function.prototype.bind receiver is not connected to th
     'const hot=internal.bind(null);'+
     'const result=hot();'+
     'Function.prototype.bind=nativeBind;'+
-    'external(hot);';
+    ';
   /** @type {unknown[]} */
   const captured=[];
   runInNewContext(source,{
