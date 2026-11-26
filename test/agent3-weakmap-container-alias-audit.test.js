@@ -158,8 +158,18 @@ const carrierFixtures = [
     access: 'map'
   },
   {
+    name: 'object-destructure-assignment',
+    setup: 'const protoCarrier={instance:new WeakMap()}; let map; ({instance:map}=protoCarrier);',
+    access: 'map'
+  },
+  {
     name: 'array-destructure',
     setup: 'const protoCarrier=[new WeakMap()]; const [map]=protoCarrier;',
+    access: 'map'
+  },
+  {
+    name: 'array-destructure-assignment',
+    setup: 'const protoCarrier=[new WeakMap()]; let map; [map]=protoCarrier;',
     access: 'map'
   },
   {
