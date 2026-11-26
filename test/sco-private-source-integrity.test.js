@@ -303,9 +303,9 @@ test('private source verifier snapshots the digest-list property and length once
   try{
     await atomicWrite(path.join(root,'mixed.mjs'),source);
     await atomicWrite(path.join(root,engine.path),engine.code);
-    await atomicWrite(path.join(root,leaf.path),leaf.code+'\\n// changed before verification');
+    await atomicWrite(path.join(root,leaf.path),leaf.code+'\n// changed before verification');
     await assert.rejects(()=>verifyScoPrivateSourceDigests(hostilePartition,root),
-      /private source bytes changed since partition: private\\/leaf\\.mjs/u);
+      /private source bytes changed since partition: private\/leaf\.mjs/u);
     assert.equal(listReads,1,'top-level digest-list getter must be read once');
     assert.equal(lengthReads,1,'digest-list length must be snapshotted once');
   }finally{
