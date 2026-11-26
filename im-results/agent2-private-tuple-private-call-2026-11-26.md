@@ -9,9 +9,12 @@ Can the same tuple/owner dataflow be transformed when the scoring function remai
 ## Experimental branch
 
 - Branch: `agent2/private-tuple-private-call-20261126`
-- Test commit: `ab2216840a83e0c271cd2c82e7f832f06a188d9c`
+- Initial test commit: `ab2216840a83e0c271cd2c82e7f832f06a188d9c`
+- Reframed benchmark commit: `2987f280682bdcffb99a36218f3a796407d5f481`
 - Test: `test/agent2-private-tuple-private-call.test.js`
 - Focused CI run 4237: [45766410356](https://github.com/FlareZ123/obfs/actions/runs/45766410356)
+
+The positive fixture is also now the actual `sims/private-tuple-session.js` cold-session benchmark: it keeps `score` private, invokes it inside the module, and exports only the numeric result. The operation count is injected as a primitive VM-context binding. The separate test file retains the paired public-callable refusal.
 
 The positive fixture:
 1. creates an owner record with `hiddenCount` and `privateDelta`;
@@ -27,9 +30,20 @@ A paired negative fixture exports the score function itself. It asserts zero pro
 
 ## Evidence
 
-Focused run 4237 passed on Ubuntu and Windows, including strict project JSDoc, external JSDoc, and runtime-budget evaluator typechecks. The workflow ran the same test file on both platforms.
+- Focused run 4237 passed the three-mode private-call positive and public-callable refusal matrix on Ubuntu and Windows, including strict project JSDoc, external JSDoc, and runtime-budget evaluator typechecks.
+- Focused run 4243 passed the reworked `test/private-tuple-session.test.js` on Ubuntu and Windows, with the same JSDoc checks.
+- The 500,000-operation cold-session profile now runs 11 alternating trials per workload. All observed medians were within 2.5x:
 
-This is focused proof evidence only. The 500,000-operation cold-session profile has not yet been reworked or measured, and no full-suite result is claimed.
+| Operations | Ubuntu ratio | Windows ratio |
+|---:|---:|---:|
+| 1 | 0.986x | 1.008x |
+| 100 | 1.015x | 0.967x |
+| 10,000 | 0.993x | 0.994x |
+| 500,000 | 1.122x | 0.983x |
+
+The output was 273 source bytes / 279 emitted bytes and reported two renamed owner fields. The benchmark logs `within2point5` but does not assert the 2.5x bound as a hard correctness condition; these are observed measurements, not a universal guarantee.
+
+No full-suite result is claimed for the combined class/tuple branch.
 
 ## Proposed next step
 
