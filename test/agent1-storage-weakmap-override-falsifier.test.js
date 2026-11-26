@@ -63,3 +63,60 @@ test('exported WeakMap backing store invalidates reference-only Storage override
     JSON.stringify({observed,metrics:app.metrics,code:app.code}));
   assert.ok(String(app.code).includes('privateLocal'));
 });
+
+
+/**
+ * Execute the fixture with a host-mutated exported WeakMap. The host replaces
+ * the exported instance's set method so it observes String(value), then stores
+ * the original reference using the captured intrinsic.
+ * @param {string} source
+ * @returns {Promise<{result:unknown,capturedSource:string|null}>}
+ */
+async function runWithSourceCapture(source){
+  class TestStorage {
+    /** @param {string} key @param {string} value */
+    constructor(){this.data=new Map();}
+    /** @param {string} key @param {unknown} value */
+    setItem(key,value){this.data.set(String(key),String(value));}
+    /** @param {string} key */
+    getItem(key){return this.data.has(key)?this.data.get(key):null;}
+  }
+  const previousStorage=Object.getOwnPropertyDescriptor(globalThis,'Storage');
+  const previousLocalStorage=Object.getOwnPropertyDescriptor(globalThis,'localStorage');
+  Object.defineProperty(globalThis,'Storage',{configurable:true,writable:true,value:TestStorage});
+  Object.defineProperty(globalThis,'localStorage',{configurable:true,writable:true,value:new TestStorage()});
+  let capturedSource=null;
+  try{
+    const url='data:text/javascript;base64,'+Buffer.from(source).toString('base64')+'#'+String(++runWithSourceCapture.sequence);
+    const module=await import(url);
+    const nativeSet=module.captured.set;
+    module.captured.set=function(key,value){
+      capturedSource=String(value);
+      return Reflect.apply(nativeSet,this,[key,value]);
+    };
+    const result=module.sample();
+    return {result,capturedSource};
+  }finally{
+    if(previousStorage)Object.defineProperty(globalThis,'Storage',previousStorage);
+    else delete globalThis.Storage;
+    if(previousLocalStorage)Object.defineProperty(globalThis,'localStorage',previousLocalStorage);
+    else delete globalThis.localStorage;
+  }
+}
+/** @type {number} */
+runWithSourceCapture.sequence=0;
+
+test('exported WeakMap host mutation captures rewritten function source',async()=>{
+  const app=compile(exportedWeakMap,'agent1-weakmap-exported-instance-runtime-witness');
+  assert.ok(app.metrics.bindings>=2,JSON.stringify(app.metrics));
+  const native=await runWithSourceCapture(exportedWeakMap);
+  const emitted=await runWithSourceCapture(String(app.code));
+  assert.deepEqual(emitted.result,native.result);
+  assert.ok(native.capturedSource);
+  assert.ok(emitted.capturedSource);
+  assert.notEqual(emitted.capturedSource,native.capturedSource,
+    JSON.stringify({native,emitted,metrics:app.metrics}));
+  process.stdout.write('EXPORTED_WEAKMAP_SOURCE_DIVERGENCE '+JSON.stringify({
+    metrics:app.metrics,native,emitted
+  })+'\\n');
+});
