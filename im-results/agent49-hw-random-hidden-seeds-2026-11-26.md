@@ -45,6 +45,19 @@ The 15 recorded target seeds (state count, seed) were:
 
 The artifact stores the fixture digest, target seed, exact per-arm request/response traces and hashes, learner hypotheses, evaluation outcomes, process isolation metadata, and the single-arm probe result.
 
+## Latest partition-seed decoupling smoke test
+
+The subsequent source revision removed the target-seed argument from the SCO launcher and generated the SCO partition seed/private canary independently of the target seed. Hosted run [45779107906](https://github.com/FlareZ123/obfs/actions/runs/45779107906) on commit `d3a7e025066ee8e6a0d0d41cfb4a45c3534be34f` validates that change on one additional random 2-state fixture:
+- 1/1 matched pair; exact initial and future clones in both arms.
+- 644 SUL steps and 649 HTTP requests per arm.
+- Zero errors/timeouts.
+- Target seed mode was 64-bit OS-random.
+- The sequential single-arm probe passed for both arms; no alternate service was found and session tokens were distinct.
+
+Artifact ID: `15098147076`; SHA-256: `2e14797bf2611bfaf704302a84ce7d31156eb967b37ea1a8e8623d4a53c581d7`.
+
+This closes the partition-seed-decoupling validation gap for a smoke case, but is not a 15-case validation of that latest change. The 15-case hidden-seed run above remains the larger extraction result, on the immediately preceding revision.
+
 ## Interpretation
 
 This is stronger than the earlier 15-case deterministic-seed sample: it shows the fixed hW learner can recover the tested small random Mealy machines without receiving the target seed, using only the live application oracle. The SCO and ordinary HTTP arms remain behaviorally equivalent under the tested learner.
