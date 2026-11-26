@@ -10,7 +10,7 @@ const run=promisify(execFile);
 
 const mutationSource=[
   'class WeakMap extends globalThis.WeakMap {}',
-  'const weakMapPrototype=Object.getPrototypeOf(WeakMap.prototype)',
+  'const weakMapPrototype=Object.getPrototypeOf(WeakMap.prototype);',
   'const nativeWeakMapSet=weakMapPrototype.set;',
   'weakMapPrototype.set=function(key,value){',
   '  document.title=value;',
@@ -128,7 +128,7 @@ async function main() {
     const origin='http://127.0.0.1:'+address.port;
     const native=await runTarget(executable,origin,'native');
     const emitted=await runTarget(executable,origin,'emitted');
-    process.stdout.write('CHROMIUM_PARENT_WEAKMAP_DIAGNOSTIC '+JSON.stringify({storageMetrics:storage.metrics,native,emitted})+'\\n');
+    process.stdout.write('CHROMIUM_PARENT_WEAKMAP_DIAGNOSTIC '+JSON.stringify({storageMetrics:storage.metrics,native,emitted})+'\n');
     assert.equal(storage.metrics.bindings,0,JSON.stringify({storageMetrics:storage.metrics,native,emitted}));
     assert.deepEqual(emitted.result,native.result);
     assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
