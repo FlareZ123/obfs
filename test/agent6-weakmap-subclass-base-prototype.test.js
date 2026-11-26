@@ -183,7 +183,8 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
     }
   ];
   const evidence=[];
-  for(const variant of variants) {
+  for(const mode of ['coo','sco','sno']) {
+    for(const variant of variants) {
     const mutationAst=parse(variant.code,'module');
     const sourceFiles=[
       {path:'entry.mjs',sourceType:'module',code:entrySource},
@@ -191,7 +192,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
       {path:'storage.mjs',sourceType:'module',code:storageSource}
     ];
     const compiled=obfuscateFiles(sourceFiles,{
-      mode:'coo',seed:'agent6-weakmap-parent-variant-'+variant.name,
+      mode,seed:'agent6-weakmap-parent-variant-'+mode+'-'+variant.name,
       properties:false,identifiers:true,strings:false,closedWorld:true
     });
     const storage=compiled.files.find(file=>file.path==='storage.mjs');
@@ -203,6 +204,7 @@ test('WeakMap-derived prototype parent extraction aliases must invalidate the cr
     assert.deepEqual(emitted.result,native.result,variant.name);
     assert.ok(native.capturedSource.includes('privateLocal'),variant.name);
     evidence.push({
+      mode,
       name:variant.name,
       localObserver:observesFunctionSource(mutationAst),
       groupExposure:hasWeakMapPrototypeExposure(mutationAst),
