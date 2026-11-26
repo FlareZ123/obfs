@@ -718,7 +718,7 @@ test('deferred cross-file reader call after owner initialization supports benign
       'import {ready} from "./relay.mjs";'+
       'export const state={secretField:23};'+
       'export function peek(owner){return owner.secretField;}'+
-      'export const result=ready?peek(state):0;'},
+      'export const result=ready();'},
     {path:'relay.mjs',sourceType:'module',code:
       'import {state,peek} from "./state.mjs";'+
       'export function ready(){return peek(state);}'},
