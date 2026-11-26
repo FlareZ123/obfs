@@ -846,7 +846,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(functionNode.body?.type!=='BlockStatement')continue;
     const localEnvironment=new Map(carrierEnvironment);
     for(const parameter of functionNode.params??[])
-      bindCarrierPattern(parameter,info.exported?carrierMaybe:carrierOther,localEnvironment);
+      bindCarrierPattern(parameter,carrierOther,localEnvironment);
     const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
       (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
     visitCarrierStatement(functionNode.body,localEnvironment,thisValue);
