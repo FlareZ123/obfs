@@ -1,7 +1,7 @@
 'use strict';
 
 const path = require('node:path');
-const {hasTerminalUrlDotSegment,hasPathnameControlCharacter}=require('./esm-url-paths');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {parse,walk,staticString,observesDistributedSource} = require('./ast');
 const {collectBindings,staticName} = require('./properties');
 
@@ -157,7 +157,7 @@ function resolveKnownImport(origin,specifier,known) {
   // Browser URL paths preserve empty segments; POSIX normalization does not.
   // Repeated separators can therefore denote a different module-map key.
   if((!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-     /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasPathnameControlCharacter(specifier) || hasTerminalUrlDotSegment(specifier))return null;
+     /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return null;
   const target=path.posix.normalize(path.posix.join(path.posix.dirname(origin),specifier));
   return known.has(target) ? target : null;
 }
