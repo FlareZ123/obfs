@@ -161,6 +161,16 @@ const carrierFixtures = [
     name: 'computed-static-member',
     setup: 'const protoCarrier={instance:new WeakMap()};',
     access: "protoCarrier['instance']"
+  },
+  {
+    name: 'function-returned-container-binding',
+    setup: 'function makeCarrier(){const carrier={instance:new WeakMap()};return carrier;} const protoCarrier=makeCarrier();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'function-returned-member-assigned-container',
+    setup: 'function makeCarrier(){const carrier={};carrier.instance=new WeakMap();return carrier;} const protoCarrier=makeCarrier();',
+    access: 'protoCarrier.instance'
   }
 ];
 
