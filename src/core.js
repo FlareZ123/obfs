@@ -2207,7 +2207,7 @@ function obfuscateFiles(files, options = {}) {
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
-        throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
+        throw new TypeError('Wasm i32 declined: requires a module/CommonJS without function-source observation');
       }
       if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
           nativeNames.includes(name)||branchNames.includes(name)||statementNames.includes(name))) {
