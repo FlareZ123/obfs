@@ -941,31 +941,45 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
    * binding, not the private field spelling. Admit this one argument edge
    * only for a direct-call-only, one-parameter FunctionDeclaration,
    * FunctionExpression, or ArrowFunctionExpression whose complete body is either
-   * a static member return or a const-member-read then return of that local. Identity forwarding, side effects, and public consumers refuse.
+   * a static member return or a const-member-read then return of that local.
+   *
+   * Return the exact member-object Identifier node rather than its spelling.
+   * This lets distinct reader scopes use the same formal/local names without
+   * merging unrelated lexical bindings in the name-keyed alias inventory.
+   * Every direct call site must still pass a tracked owner alias.
    * @param {AstNode} node
    * @param {AstNode|null} parent
    * @param {string|null} key
-   * @returns {boolean}
+   * @returns {AstNode|null}
    */
   function privateConsumerArgument(node,parent,key) {
-    if(parent?.type!=='CallExpression'||key!=='arguments'||parent.optional||
-      parent.callee?.type!=='Identifier'||parent.arguments.length!==1||
-      parent.arguments[0]!==node)return false;
+    if(node.type!=='Identifier'||parent?.type!=='CallExpression'||
+      key!=='arguments'||parent.optional||parent.callee?.type!=='Identifier'||
+      parent.arguments.length!==1||parent.arguments[0]!==node)return null;
     const fn=functions.get(parent.callee.name);
     const reader=fn?.node;
     if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
       !reader||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
       !privateFunctionNodes.has(reader)||reader.async||reader.generator||
-      reader.params.length!==1)return false;
+      reader.params.length!==1)return null;
+    const callSites=(identifierUses.get(parent.callee.name)??[]).filter(use=>
+      use.parent?.type==='CallExpression'&&use.parent.callee===use.node);
+    if(!callSites.length||!callSites.some(use=>use.parent===parent)||
+      callSites.some(use=>{
+        const call=use.parent;
+        const argument=call.arguments[0];
+        return call.optional||call.arguments.length!==1||
+          argument?.type!=='Identifier'||!aliases.has(argument.name);
+      }))return null;
     const parameter=reader.params[0];
-    if(parameter.type!=='Identifier'||!aliases.has(parameter.name))return false;
+    if(parameter.type!=='Identifier')return null;
     /** @type {AstNode|null} */
     let member=null;
     if(reader.type==='ArrowFunctionExpression'&&reader.body?.type==='MemberExpression') {
       member=reader.body;
     } else {
       const body=reader.body?.body;
-      if(!Array.isArray(body))return false;
+      if(!Array.isArray(body))return null;
       if(body.length===1&&body[0]?.type==='ReturnStatement') {
         member=body[0].argument??null;
       } else if(body.length===2&&body[0]?.type==='VariableDeclaration'&&
@@ -976,19 +990,37 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         body[1].argument.name===body[0].declarations[0].id.name) {
         const declaration=body[0].declarations[0];
         const name=declaration.id.name;
-        const uses=identifierUses.get(name)??[];
-        if(bindings.get(name)!==1||uses.length!==2||
+        const uses=(identifierUses.get(name)??[]).filter(use=>
+          use.ancestors.includes(reader));
+        if(uses.length!==2||
           !uses.some(use=>use.node===declaration.id&&use.parent===declaration&&use.key==='id')||
           !uses.some(use=>use.node===body[1].argument&&use.parent===body[1]&&use.key==='argument'))
-          return false;
+          return null;
         member=declaration.init??null;
-      } else return false;
+      } else return null;
     }
-    return member?.type==='MemberExpression'&&!member.optional&&
-      member.object?.type==='Identifier'&&member.object.name===parameter.name&&
-      !member.computed&&staticName(member.property)!==null;
+    if(member?.type!=='MemberExpression'||member.optional||
+      member.object?.type!=='Identifier'||member.object.name!==parameter.name||
+      member.computed||staticName(member.property)===null)return null;
+    return member.object;
   }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
+  const privateReaderArgumentNodes=new Set();
+  const privateReaderOwnerNodes=new Set();
+  const aliasUseNodes=new Set(aliasUses.map(use=>use.node));
+  for(const use of [...aliasUses]) {
+    const ownerReference=privateConsumerArgument(use.node,use.parent,use.key);
+    if(!ownerReference)continue;
+    privateReaderArgumentNodes.add(use.node);
+    privateReaderOwnerNodes.add(ownerReference);
+    if(!aliasUseNodes.has(ownerReference)) {
+      const ownerUse=(identifierUses.get(ownerReference.name)??[]).find(candidate=>
+        candidate.node===ownerReference);
+      if(!ownerUse)return null;
+      aliasUses.push(ownerUse);
+      aliasUseNodes.add(ownerReference);
+    }
+  }
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
     // An ESTree Identifier used as a noncomputed property name is a grammar
@@ -1002,11 +1034,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // A property spelling inside an unproven callable body is part of that
     // callable's externally observable source. Private direct-call-only
     // functions survive the escape analysis above and remain eligible.
+    if(privateReaderArgumentNodes.has(node))continue;
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor))&&!privateConsumerArgument(node,parent,key))return null;
+      !privateFunctionNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
-    if (!scope || !ancestors.includes(scope)) return null;
+    if(!privateReaderOwnerNodes.has(node)&&(!scope||!ancestors.includes(scope)))return null;
     if (!parent) return null;
     if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
     if (key === 'params' && /^Function/.test(parent.type)) continue;
