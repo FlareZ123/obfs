@@ -383,12 +383,16 @@ function hasUnmodeledNativeBindGlobalReference(ast,allowCommonJsModuleExports=fa
     const bindingScope=scopes.get(node.name);
     const functionScope=bindingScope&&
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(bindingScope.type);
+    const insideFunction=ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type));
     if(functionScope&&(
       parent?.type==='MemberExpression'&&key==='object'||
       parent?.type==='VariableDeclarator'&&key==='init'||
       parent?.type==='Property'||
       parent?.type==='ArrayExpression'&&key==='elements'||
       parent?.type==='AssignmentExpression'&&key==='right'))return true;
+    if(insideFunction&&bindingScope?.type==='BlockStatement'&&
+       parent?.type==='MemberExpression'&&key==='object')return true;
     if(immutableGlobals.has(node.name))continue;
     if(node.name==='module'||counts.get(node.name)!==1)return true;
     const scope=scopes.get(node.name);
