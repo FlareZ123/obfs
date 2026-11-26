@@ -1953,12 +1953,11 @@ function obfuscateFiles(files, options = {}) {
   // though the caller selected a protected function in that file.
   const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
-  // Native bind does not expose its target to ordinary program code: only
-  // the exported bound wrapper remains visible. Admit a private target only
-  // when every supplied executable file has no obvious global/reflection/
-  // prototype mutation channel and every static import resolves in-graph.
-  // An external hostile preloader is deliberately not part of this semantic
-  // proof; it can observe the transformed target source, not the original.
+  // Admit the narrow native-bind target proof only for a closed source graph
+  // whose files satisfy the strict top-level fn.bind(null) grammar and have no
+  // unresolved ambient identifiers or imports. This is a rewrite-eligibility
+  // proof, not source secrecy: a hostile host preloader can capture the
+  // already-transformed target function.
   const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
     prepared.every(file=>{
       if(file.sourceType==='asset'||typeof file.code!=='string')return false;
