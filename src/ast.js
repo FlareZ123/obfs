@@ -642,7 +642,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='CallExpression') {
       const summary=node.callee.type==='Identifier'?
         localFunctionSummaries.get(node.callee.name):undefined;
-      if(node.arguments.some((argument,index)=>
+      if(node.arguments.some((/** @type {AstNode} */ argument,/** @type {number} */ index)=>
         isWeakMapInstance(argument)&&!summary?.safeParameters.has(index)))exposed=true;
     }
     // Also cover a WeakMap nested in an array/object/factory expression passed
@@ -831,6 +831,7 @@ function hasWeakMapPrototypeExposure(ast) {
    * @returns {CarrierValue}
    */
   function carrierLookupValue(container,key) {
+    if(container.kind!=='container')return carrierOther;
     if(key!==null) {
       if(container.properties.has(key))return container.properties.get(key)??carrierOther;
       return container.unknown?carrierMaybe:carrierOther;
