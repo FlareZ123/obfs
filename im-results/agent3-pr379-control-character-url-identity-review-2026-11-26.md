@@ -131,7 +131,7 @@ A focused placement check broadened the six minimal witnesses: for each of TAB, 
 
 ## Recommended correction
 
-Use one shared URL-specifier admission predicate in every resolver rather than adding another local patch. At minimum, refuse literal U+0009, U+000A, and U+000D anywhere in a relative module specifier before any POSIX normalization. Consider rejecting all literal C0 controls as a conservative policy, while retaining ordinary encoded and unencoded space support where the file-path rules permit it.
+Use one shared URL-specifier admission predicate in every resolver rather than adding another local patch. At minimum, refuse literal U+0009, U+000A, and U+000D in the pathname portion of a relative module specifier before any POSIX normalization. Consider rejecting all literal C0 controls plus DEL as a conservative policy, while retaining ordinary encoded and unencoded U+0020 space support where the file-path rules permit it.
 
 Apply the same predicate to:
 
@@ -150,6 +150,8 @@ Add red-first tests for TAB/LF/CR with both dot and dot-dot segments, including:
 2. Cross-file property proof refusal for the mismatched edge.
 3. Host-lock and decoder graph fail-closed controls.
 4. A real-browser ESM resolution case in the existing browser suite.
+
+Longer term, avoid maintaining parallel POSIX and WHATWG interpretations of the same static import edge. Resolve browser-target edges against the actual HTTP(S) module URL base for SCO/COO, and Node-target edges using Node's file-URL/ESM resolution for SNO; then map the canonical URL target back into the allowed source root and fail closed if it is outside the group. The shared control predicate is the immediate conservative fix; a mode-aware canonical resolver is the more general architecture.
 
 ## Recheck after the original review pin
 
