@@ -72,10 +72,29 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     'constructor','prototype','__proto__','__lookupGetter__','__lookupSetter__',
     '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
+  const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
+  function isLiteralNullBindCall(call) {
+    return call?.type==='CallExpression'&&
+      call.callee?.type==='MemberExpression'&&!call.callee.computed&&
+      !call.callee.optional&&call.callee.property.type==='Identifier'&&
+      call.callee.property.name==='bind'&&call.arguments.length===1&&
+      call.arguments[0].type==='Literal'&&call.arguments[0].value===null;
+  }
   let unsafe=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent,key,ancestors)=>{
     if(node.type==='WithStatement'||node.type==='ThisExpression'||
-       node.type==='ImportExpression') {
+       node.type==='ImportExpression'||node.type==='NewExpression'||
+       node.type==='TaggedTemplateExpression'||node.type==='AwaitExpression'||
+       node.type==='YieldExpression'||node.type==='ForOfStatement'||
+       node.type==='ForInStatement'||node.type==='SpreadElement'||
+       node.type==='ObjectPattern'||node.type==='ArrayPattern'||
+       node.type==='ClassDeclaration'||node.type==='ClassExpression'||
+       node.type==='MethodDefinition'||node.type==='PropertyDefinition') {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='CallExpression'&&
+       (!isLiteralNullBindCall(node)||ancestors.some(ancestor=>functionTypes.has(ancestor.type)))) {
       unsafe=true;
       return;
     }
@@ -83,11 +102,24 @@ function hasUnsafeNativeBindMutationSurface(ast) {
       unsafe=true;
       return;
     }
+    if(node.type==='Property') {
+      const propertyKey=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:null;
+      if(node.kind!=='init'||node.method||propertyKey==='bind'||
+         node.computed&&propertyKey===null)unsafe=true;
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'||
+       node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'||
+       node.type==='UnaryExpression'&&node.operator==='delete'&&
+         node.argument.type==='MemberExpression')unsafe=true;
     if(node.type==='MemberExpression') {
-      const key=node.computed?staticString(node.property):
+      const name=node.computed?staticString(node.property):
         node.property.type==='Identifier'?node.property.name:null;
-      if(node.computed&&key===null)unsafe=true;
-      if(key!==null&&prototypeEscapes.has(key))unsafe=true;
+      if(node.computed&&name===null)unsafe=true;
+      if(name!==null&&prototypeEscapes.has(name))unsafe=true;
+      if(name==='bind'&&!(parent?.type==='CallExpression'&&parent.callee===node&&
+         isLiteralNullBindCall(parent)&&
+         !ancestors.some(ancestor=>functionTypes.has(ancestor.type))))unsafe=true;
     }
     if(node.type==='Literal'&&typeof node.value==='string'&&
        prototypeEscapes.has(node.value))unsafe=true;
