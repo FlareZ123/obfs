@@ -139,7 +139,7 @@ const carrierFixtures = [
   },
   {
     name: 'dynamic-object-key',
-    setup: 'const protoCarrier={instance:new WeakMap()}; const dynamicKey=globalThis.dynamicKey;',
+    setup: 'const protoCarrier={0:new WeakMap()}; const dynamicKey=globalThis.dynamicKey;',
     access: 'protoCarrier[dynamicKey]'
   },
   {
