@@ -92,7 +92,7 @@ def process_security_state(pid: int) -> dict[str, str]:
         for line in handle:
             key, separator, value = line.partition(":")
             if separator and key in wanted:
-                state[key] = value.strip().split()[0]
+                state[key] = value.strip() if key == "Uid" else value.strip().split()[0]
     missing = wanted - set(state)
     if missing:
         raise RuntimeError(f"process {pid} status is missing {sorted(missing)}")
