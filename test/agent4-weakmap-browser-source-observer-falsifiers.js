@@ -347,14 +347,16 @@ async function main() {
       }));
       const storage = compiled.files.find(file => file.path === scenario.storagePath);
       assert.ok(storage, scenario.name + ' missing ' + scenario.storagePath + ' for ' + mode);
-      if (scenario.expectedVulnerable && !expectSafe) {
-        assert.ok(storage.metrics.bindings > 0,
-          scenario.name + ' did not transform a storage binding in ' + mode + ': ' +
-          JSON.stringify(storage.metrics));
-      } else {
-        assert.equal(storage.metrics.bindings, 0,
-          scenario.name + ' unexpectedly transformed Storage bindings in ' + mode + ': ' +
-          JSON.stringify(storage.metrics));
+      if (!expectSafe) {
+        if (scenario.expectedVulnerable) {
+          assert.ok(storage.metrics.bindings > 0,
+            scenario.name + ' did not transform a storage binding in ' + mode + ': ' +
+            JSON.stringify(storage.metrics));
+        } else {
+          assert.equal(storage.metrics.bindings, 0,
+            scenario.name + ' unexpectedly transformed Storage bindings in ' + mode + ': ' +
+            JSON.stringify(storage.metrics));
+        }
       }
 
       const prefix = scenario.name + '/' + mode;
@@ -408,6 +410,8 @@ async function main() {
 
     let falseSafes = 0;
     let protectedCases = 0;
+    /** @type {Array<Record<string,unknown>>} */
+    const unsafeCases = [];
     for (const job of jobs) {
       if (job.kind === 'native') continue;
       const native = nativeResults.get(job.scenario.name);
@@ -436,12 +440,21 @@ async function main() {
           JSON.stringify(evidence) + '\n');
         falseSafes++;
       } else {
-        assert.equal(emitted.capturedSource, native.capturedSource,
-          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+        const sourceParity = emitted.capturedSource === native.capturedSource;
+        const noRewrites = storage.metrics.bindings === 0;
+        if (!sourceParity || !noRewrites) {
+          if (!expectSafe) {
+            assert.equal(emitted.capturedSource, native.capturedSource,
+              JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
+            assert.equal(storage.metrics.bindings, 0,
+              JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
+          }
+          unsafeCases.push(evidence);
+          process.stdout.write('WEAKMAP_BROWSER_UNSAFE_CASE ' + JSON.stringify(evidence) + '\n');
+          continue;
+        }
         assert.ok(emitted.capturedSource.includes('privateLocal'),
           JSON.stringify({ scenario: job.scenario.name, mode: job.kind, native, emitted }));
-        assert.equal(storage.metrics.bindings, 0,
-          JSON.stringify({ scenario: job.scenario.name, mode: job.kind, storageMetrics: storage.metrics }));
         process.stdout.write((expectSafe
           ? 'WEAKMAP_BROWSER_PROTECTED_CASE_PASSED '
           : 'WEAKMAP_BROWSER_EXPORTED_FACTORY_POSITIVE_CONTROL_PASSED ') +
@@ -450,8 +463,14 @@ async function main() {
       }
     }
 
-    assert.equal(falseSafes, expectSafe ? 0 : 3 * 2);
-    assert.equal(protectedCases, expectSafe ? scenarios.length * 2 : 1 * 2);
+    if (expectSafe) {
+      assert.equal(unsafeCases.length, 0, JSON.stringify(unsafeCases));
+      assert.equal(protectedCases, scenarios.length * 2);
+    } else {
+      assert.equal(falseSafes, 3 * 2);
+      assert.equal(protectedCases, 1 * 2);
+      assert.equal(unsafeCases.length, 0);
+    }
     process.stdout.write('WEAKMAP_BROWSER_FALSE_SAFE_AND_POSITIVE_CONTROL_MATRIX_CONFIRMED ' +
       JSON.stringify({
         browser: version.stdout.trim(),
@@ -459,7 +478,8 @@ async function main() {
         clientModes: ['coo', 'sco'],
         expectSafe,
         falseSafes,
-        protectedCases
+        protectedCases,
+        unsafeCases
       }) + '\n');
   } finally {
     await new Promise((resolve, reject) => {
