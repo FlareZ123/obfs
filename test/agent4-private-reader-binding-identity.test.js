@@ -139,3 +139,53 @@ test('private reader nested in exported class static block remains source-stable
       mode+': class behavior and host-visible class source must match');
   }
 });
+
+
+/**
+ * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<string>}
+ */
+async function runExportedReaderEsm(files){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-reader-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
+    await atomicWrite(path.join(root,'host-probe.mjs'),[
+      'import {result} from "./entry.mjs";',
+      'import {readAlpha} from "./state.mjs";',
+      'process.stdout.write(JSON.stringify([result,Function.prototype.toString.call(readAlpha)]));'
+    ].join('\n'));
+    const child=spawnSync(process.execPath,[path.join(root,'host-probe.mjs')],{
+      cwd:root,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return child.stdout.trim();
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+test('inline-exported reader is not admitted as a private source island',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const privateRecord={secretAlpha:23};',
+      'export function readAlpha(owner){return owner.secretAlpha;}',
+      'export function calculate(){return readAlpha(privateRecord);}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {calculate} from "./state.mjs";',
+      'export const result=calculate();'
+    ].join('\n')}
+  ];
+  const native=await runExportedReaderEsm(files);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const transformed=obfuscateFiles(files,{mode,closedWorld:true,
+      seed:'exported-reader-'+mode,strings:false,identifiers:false});
+    const state=transformed.files.find(file=>file.path==='state.mjs');
+    assert.ok(state,mode+': state module must be retained');
+    assert.equal(state.metrics.objects,0,mode+': an inline-exported reader must not be treated as private');
+    assert.equal(state.metrics.properties,0,mode+': exported reader source must remain unchanged');
+    assert.equal(await runExportedReaderEsm(transformed.files),native,
+      mode+': behavior and host-visible exported reader source must match');
+  }
+});
