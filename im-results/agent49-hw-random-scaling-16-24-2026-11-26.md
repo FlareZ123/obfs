@@ -20,7 +20,7 @@ The new unit test verifies that each added fixture is strongly connected, minima
 
 ## Experiment
 
-- Fixture family: random minimal strongly connected binary Mealy machines.
+- Fixture family: the repository's restricted randomized binary Mealy family: input 0 is a directed cycle; input 1 transitions and output pairs are seeded-random; fixtures are filtered for minimality. This is not uniform sampling over all binary Mealy machines.
 - Target sizes: 16 through 24 states, one independently generated target per size (nine total).
 - Target seeds: independent 64-bit values from `secrets.randbits(64)`; exact values are retained in the artifact below.
 - Learner seed: fixed 41342, independent of target seed and state count, and shared across matched arms.
