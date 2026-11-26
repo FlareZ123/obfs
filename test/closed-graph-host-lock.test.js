@@ -120,6 +120,7 @@ test('undeclared, imported external, ambiguous and mixed graphs decline',()=>{
     'import "./dep.mjs?cache=1";',
     'import "./dep.mjs#fragment";',
     'import "./dep%2emjs";',
+    'import "./a//../dep.mjs";',
     'import "https://example.test/dep.mjs";',
     'export {n} from "./missing.mjs";',
     'export * from "./missing.mjs";'

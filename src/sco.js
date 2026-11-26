@@ -336,7 +336,7 @@ function decodePublicName(encodedName) {
     } catch (error) {
       return null;
     }
-    if(segment==='.'||segment==='..'||/[\\/\x00]/u.test(segment))return null;
+    if(segment==='.'||segment==='..'||/[\\/\x00-\x1f\x7f]/u.test(segment))return null;
     segments.push(segment);
   }
   return segments.join('/');
