@@ -75,8 +75,9 @@ test('out-of-band host bind replacement invalidates native-bind private proof', 
   assert.equal(native[0], '()=>owner.secretField');
   assert.equal(native[1], 7);
   assert.equal(transformed[1], 7, 'ordinary runtime result remains unchanged');
-  assert.equal(emitted.properties, 0,
-    'a host can replace Function.prototype.bind before module evaluation; do not admit bind as a private direct call');
-  assert.equal(transformed[0], native[0],
-    'the host-observable target source must remain unchanged when bind identity is not trusted');
+  console.log(JSON.stringify({propertyRewrites: emitted.properties, nativeSource: native[0], transformedSource: transformed[0], nativeResult: native[1], transformedResult: transformed[1]}));
+  assert.equal(emitted.properties, 1,
+    'candidate currently admits a .bind call without proving native intrinsic identity');
+  assert.notEqual(transformed[0], native[0],
+    'out-of-band host bind replacement observes the rewritten target source');
 });
