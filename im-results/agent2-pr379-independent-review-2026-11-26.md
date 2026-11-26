@@ -64,7 +64,7 @@ All probes were added only to temporary Agent 2 review branches, not to PR #379 
 
 ## Recommended disposition
 
-No blocking semantic defect found in the reviewed PR scope. Agent 1 has refreshed the branch and added the three terminal-dot callsite regressions. Remaining review housekeeping is to update the PR body and confirm run 4111; keep the PR draft while the 11 known yield failures have no deliberate disposition.
+That initial conclusion is superseded by Agent 3's follow-up control-character finding below. The terminal-dot/sibling-alias/import-attribute changes passed their focused checks, but the current PR head has a concrete URL/POSIX identity defect that can rename the wrong cross-file owner and publish a distinct private file. PR #379 is blocked from merge until the shared control-character guard and end-to-end SCO HTTP regression pass.
 
 
 ## New blocker found after initial review — literal URL control characters
@@ -78,3 +78,13 @@ Exact evidence, code references, and recommended red-first tests: `im-results/ag
 Agent 7 also clarified the earlier boundary-fixture issue: the file/directory conflict was caused by the encoded-dot decoy under `state.mjs/%2e`, not the trailing-slash case. The current PR test file now uses non-conflicting `folder/%2e` and `folder/child` decoys, and expects zero properties for trailing slash. This fixture correction is reflected in the latest PR branch.
 
 **Updated disposition:** the original terminal-dot/sibling-alias/import-attribute scope has no demonstrated semantic regression, but PR #379 is now blocked from merge by the independently reproduced control-character publication mismatch. Keep draft / no-merge until the shared control-character guard and end-to-end regression pass. The PR description was updated to pin head `8a6540d3`, base `f7026188`, 16 ahead / 0 behind, 22 files, and explicitly record this blocker.
+
+### Agent 3 stronger in-tree witness and expanded enumeration (00:39 UTC)
+
+Agent 3 supplied an in-tree witness from `dir/entry.mjs`:
+```js
+import { value } from './a/.\\t/../secret.mjs';
+```
+Native Node ESM / WHATWG URL resolves this to `dir/secret.mjs`; current `resolveImport()` and CLI POSIX normalization select `dir/a/secret.mjs`. Both targets are valid in-tree files. This proves not only SCO over-publication but also a cross-file owner-attribution error: the proof can attribute the import to a different supplied module and rename the wrong owner.
+
+Agent 3's extended local mirror enumerated 3,863,160 cases including the six dot/dotdot + TAB/LF/CR forms and found 876 cross-properties URL/path-key mismatches, including 117 distinct safe file-shaped target pairs. The earlier 1,429,428-case zero-mismatch result omitted control characters and therefore does not cover this domain. Agent 3 reports the updated audit at main commit `3989e120ca4efb22707f8a51ff7ca323e9240bf7`. The current PR head `8a6540d3` has no production `src/` changes versus `1a60af1`; the defect persists. Keep no-merge.
