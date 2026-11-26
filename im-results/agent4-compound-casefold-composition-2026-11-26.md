@@ -68,7 +68,7 @@ The Unicode source is [Unicode 17.0.0 CaseFolding.txt](https://www.unicode.org/P
 | [4215](https://github.com/FlareZ123/obfs/actions/runs/45763722686) | First Unicode 17 full-table unit attempt | Failed: BMP lookup omitted leading zeroes |
 | [4218](https://github.com/FlareZ123/obfs/actions/runs/45764695789) | Exhaustive 1,585-entry Unicode 17 table test; includes Unicode 16 Cyrillic Tje U+1C89/U+1C8A | Pass on all three OS and all JSDoc steps |
 | [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938) | Expanded native filesystem probe with Unicode 17 table, compound witness, default-ignorables, accents, compatibility, and Cyrillic Tje | Pass on all three OS and all JSDoc steps |
-| [4224](https://github.com/FlareZ123/obfs/actions/runs/45765013827) | Full manual-validation workflow for the pinned Unicode 17 table | In progress |
+| [4223](https://github.com/FlareZ123/obfs/actions/runs/45764924463) | Full manual-validation workflow for the pinned Unicode 17 table | In progress |
 
 Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'), and run 4218 validates every table entry. The expanded native probe in run 4220 shows no unprotected alias for the listed default-ignorable, accent, compatibility, and Unicode 16 controls. These are bounded test pairs, not an exhaustive filesystem-equivalence proof.
 
@@ -83,4 +83,4 @@ Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'
 
 ## Historical full-gate comparison
 
-The earlier Unicode 15.1 hybrid full-gate run [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) completed red on the exact same 11 baseline property-renaming/yield failures as baseline run 4150. It introduced no new failures, but it does not validate the current pinned Unicode 17 table. The current full gate is run 4224 and its final disposition will supersede that historical comparison.
+The earlier Unicode 15.1 hybrid full-gate run [4202](https://github.com/FlareZ123/obfs/actions/runs/45760599281) completed red on the exact same 11 baseline property-renaming/yield failures as baseline run 4150. It introduced no new failures, but it does not validate the current pinned Unicode 17 table. The current full gate is run 4223 and its final disposition will supersede that historical comparison.
