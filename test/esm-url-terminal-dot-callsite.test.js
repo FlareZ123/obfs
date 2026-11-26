@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
 
-/** @param {string} path @param {string} code */
+/** @param {string} path @param {string} code @returns {{path: string, sourceType: 'module', code: string}} */
 function moduleFile(path,code) {
   return {path,sourceType:'module',code};
 }
