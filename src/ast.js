@@ -54,6 +54,46 @@ function walk(root, visit) {
 }
 
 /**
+ * Conservatively reject source graphs with obvious capabilities to replace
+ * or indirectly reach Function.prototype.bind. This gates only the narrow
+ * private-target proof for native bound functions. It is not a defense against
+ * a hostile host preloader: that observer sees the already-rewritten target.
+ *
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasUnsafeNativeBindMutationSurface(ast) {
+  const globalCapabilities=new Set([
+    'Function','globalThis','window','self','global','process','Object',
+    'Reflect','Proxy','document','navigator','eval','require','Deno','Bun',
+    'frames','parent','top','createRequire','getBuiltinModule'
+  ]);
+  const prototypeEscapes=new Set([
+    'constructor','prototype','__proto__','require','createRequire','getBuiltinModule'
+  ]);
+  let unsafe=false;
+  walk(ast,node=>{
+    if(node.type==='WithStatement'||node.type==='ThisExpression'||
+       node.type==='ImportExpression') {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='Identifier'&&globalCapabilities.has(node.name)) {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='MemberExpression') {
+      const key=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(key!==null&&prototypeEscapes.has(key))unsafe=true;
+    }
+    if(node.type==='Literal'&&typeof node.value==='string'&&
+       prototypeEscapes.has(node.value))unsafe=true;
+  });
+  return unsafe;
+}
+
+/**
  * Apply edits in descending offset order, rejecting overlaps and out-of-range edits.
  * @param {string} source
  * @param {Edit[]} edits
@@ -4084,4 +4124,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface};
