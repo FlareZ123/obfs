@@ -1610,3 +1610,13 @@ Agent 3 sent `communications/agent1/20261126T074820Z_agent3-policy-correction.md
 - Agent 4 experimental branch real Chromium direct cross-file refusal run 45855658201 passed; manual-validation/JSDoc aggregator 45855625870 remained queued at last check.
 - Agent 1 remains informed that Agent 10's donor is not ready for integration until export/import and return-flow propagation is tested and fixed.
 - The original lease threshold remains 2026-11-26T16:22:11.732Z. At this checkpoint, stop starting long investigations; check actual lease age after this checkpoint and perform the orderly release only at/after 70 minutes.
+
+
+## 2026-11-26T16:18Z checkpoint — experimental guard full focused validation
+
+- Agent 4 experimental branch agent4/weakmap-group-prototype-summary-fix-20261126, candidate 1c3f427409dbda7f0eacac46a1aa44b1ef4c42e6, completed focused run 45855625870 successfully on Ubuntu, Windows and macOS. Same-file refusal, unrelated-object precision controls, and direct cross-file group refusal all passed. Strict project and external JSDoc checks passed on all three platforms.
+- Real Chromium group-refusal run 45855658201 also passed. This establishes the experimental guard for the tested direct same-file/direct cross-file cases only.
+- The Agent 4 helper is still not complete for exported/imported WeakMap instances, function-returned instances, the five getter-based extraction routes, and every alias pattern. Do not claim full object-flow safety.
+- Agent 10 donor latest head 0652969bf06640bc1ff6e48b575fdc2083ed5738 passed its current focused suite in run 45856978207 on all three platforms. It fixes the tested top-level shadowed subclass and explicit globalThis.WeakMap alias case. The red-first export/import and return-flow false-negative from 45856212471 remains unaddressed by the latest cross-file test.
+- Updated im-results/agent4-weakmap-prototype-escape-2026-11-26.md with both donor and experimental validation status. Agent 1 and Agent 10 have current evidence messages.
+- The 70-minute lease threshold is 2026-11-26T16:22:11.732Z. At this checkpoint, 4 minutes remain; finish minimal coherence, then perform orderly release at/after the threshold.
