@@ -1,6 +1,6 @@
 # Compound Unicode case-fold composition aliases on macOS
 
-**Status:** A native macOS filename alias escaped the three-key portable-path inventory in the current PR #379 candidate. A pinned Unicode 17.0.0 full-casefold correction now passes exhaustive table, native filesystem, and cross-mode path tests on Ubuntu, Windows, and macOS. Full manual validation of the final table is running; the repository remains release-blocked by 11 pre-existing property-renaming/yield failures.
+**Status:** A native macOS filename alias escaped the three-key portable-path inventory in PR #379. The pinned Unicode 17.0.0 full-casefold correction is now integrated into the existing draft PR #379 branch at `4cede8a5311ef35ca79736cf2503aed31ae7bb35` (main remains unpatched). Exhaustive table tests and the corrected three-platform native probe pass. The earlier full run 4223 remains red on the 11 known property-renaming/yield failures; a fresh full run on the integrated head, 4249, is pending. The repository remains release-blocked.
 
 ## Reproduction
 
@@ -33,9 +33,13 @@ This is an observed extra false positive, not just a theoretical concern. The co
 
 ## Pinned Unicode 17 correction
 
-Port-source branch: agent4/compound-casefold-fullfold-fix-20261126
+Port-source branch: `agent4/compound-casefold-fullfold-fix-20261126`
 
-Current head: 118e324802f0cbef4f7665554b4da9f3bab054b3
+Port-source head: `118e324802f0cbef4f7665554b4da9f3bab054b3`
+
+Integrated candidate: `agent1/esm-url-attributes-integration-20261125`
+
+Integrated candidate head: `4cede8a5311ef35ca79736cf2503aed31ae7bb35` (merge parents: corrected candidate `260f28406e0bd16892862d6b3390849f19e44c16` and current main `312800b0371ec711bed6bf5e665f9e7ccda184d0`).
 
 The correction preserves the three existing conservative keys and adds a fourth key using the complete Unicode 17.0.0 default full-casefold mapping table. The table contains 1,585 common/full (C/F) mappings; simple-only (S) and Turkic-only (T) mappings are excluded. Unlisted codepoints remain unchanged. There is no runtime lowercase fallback. BMP lookup keys are padded to four hexadecimal digits to match the UCD table representation.
 
@@ -67,10 +71,11 @@ The Unicode source is [Unicode 17.0.0 CaseFolding.txt](https://www.unicode.org/P
 | [4212](https://github.com/FlareZ123/obfs/actions/runs/45762986175) | Unit policy for accent/compatibility distinctions | Pass on all three OS |
 | [4215](https://github.com/FlareZ123/obfs/actions/runs/45763722686) | First Unicode 17 full-table unit attempt | Failed: BMP lookup omitted leading zeroes |
 | [4218](https://github.com/FlareZ123/obfs/actions/runs/45764695789) | Exhaustive 1,585-entry Unicode 17 table test; includes Unicode 16 Cyrillic Tje U+1C89/U+1C8A | Pass on all three OS and all JSDoc steps |
-| [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938) | Expanded native filesystem probe with Unicode 17 table, compound witness, default-ignorables, accents, compatibility, and Cyrillic Tje | Pass on all three OS and all JSDoc steps |
+| [4220](https://github.com/FlareZ123/obfs/actions/runs/45764798938) | Expanded native filesystem probe; the Unicode 16 Cyrillic Tje fixture was double-escaped and did not test U+1C89/U+1C8A | Passed other listed cases on all three OS; not evidence for the Cyrillic native pair |
+| [4247](https://github.com/FlareZ123/obfs/actions/runs/45767053306) | Corrected native probe using `String.fromCodePoint(0x1C89)` / `String.fromCodePoint(0x1C8A)` | Pass on Ubuntu, Windows, macOS and all JSDoc steps; macOS aliases the pair and the inventory rejects it; Ubuntu/Windows store both names separately and the inventory still rejects them |
 | [4223](https://github.com/FlareZ123/obfs/actions/runs/45764924463) | Full manual-validation workflow for the pinned Unicode 17 table | Red on the same 11 baseline failures; no new failures |
 
-Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'), and run 4218 validates every table entry. The expanded native probe in run 4220 shows no unprotected alias for the listed default-ignorable, accent, compatibility, and Unicode 16 controls. These are bounded test pairs, not an exhaustive filesystem-equivalence proof.
+Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'), and run 4218 validates every table entry, including the Unicode 16 U+1C89/U+1C8A mapping. Agent 2 later found that run 4220's native-probe fixture used two source backslashes before `u`, creating literal backslash-u filenames; its log recorded `unicodeCaseFoldEquivalent:false` and `portableInventoryRejects:false` for that row. Therefore 4220 does not establish native behavior for the Cyrillic pair. Corrected run 4247 uses actual scalar names: on macOS `readdir` returned one entry and both spellings resolved to the same file, while the inventory rejected the pair; Ubuntu and Windows stored two entries, but the inventory also rejected the pair conservatively. The compound witness and other listed controls remained protected. These are bounded test pairs, not an exhaustive filesystem-equivalence proof.
 
 ## Limits and integration status
 
@@ -79,7 +84,7 @@ Run 4215 exposed the missing BMP key padding; the lookup now uses padStart(4,'0'
 - NFC normalization remains runtime-version-dependent. The three legacy keys also use runtime lower/upper mappings. The full-fold table improves deterministic coverage but does not establish a universal filesystem-equivalence theorem.
 - Keeping the existing three keys intentionally retains their known conservative refusals (including the dotless-I case).
 - This is a path identity and safe-publication correctness result. It does not increase confidentiality, anti-debugging strength, tamper resistance, or prove the 2.5× runtime constraint across all programs.
-- The correction branch is a temporary port source for the sole integration path PR #379, not a separate PR or merge path. It is not integrated into main or the PR branch. Do not treat focused receipts as release acceptance. PR #379 should remain draft until the integration owner ports the correction and a fresh full validation is reviewed.
+- The correction is now ported into the existing PR #379 branch `agent1/esm-url-attributes-integration-20261125`; main remains unpatched. This remains the sole integration path, not a separate PR. Keep PR #379 draft until the current integrated full run 4249 and independent review are assessed. Focused receipts do not constitute release acceptance.
 
 ## Historical full-gate comparison
 
