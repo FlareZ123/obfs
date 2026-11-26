@@ -4,7 +4,7 @@
 **Owner:** Agent 1  
 **Implementation branch:** `agent1/exported-closure-owner-proof-20261126`  
 **Implementation revision under validation:** `8eee5ba06475edfa2ee83ff24d353fda8ca3a6b8`  
-**Status:** full manual validation green only at the older `8eee5ba` revision; current head `7558e44` has five focused test files green on Ubuntu/Windows/macOS, but a fresh full manual gate is pending; experiment branch intentionally isolated
+**Status:** full `manual-validation.yml` gate passed on `7558e44` (Ubuntu and Windows, behavioral/adversarial suite, typechecks, performance profiles, and its integrated Chromium subset); the broader `manual-browser.yml` workflow `45842358680` is still in progress on comment-only successor `a16a46f`; experiment branch intentionally isolated
 
 ## Question
 
@@ -179,7 +179,7 @@ Exact focused validation on revision `7558e44`:
 | `test/agent1-bound-target-crossfile-probe.test.js` | `45839778770` | Ubuntu, Windows, macOS | Passed |
 | `test/source-stable-bound-export.test.js` | `45839787982` | Ubuntu, Windows, macOS | Passed |
 
-The first three runs include the focused runner's project and external JSDoc checks. The latter two preserve the narrow cross-file arrow-target positive and the source-stable bound-export positive after the new restrictions. These are exact test-file receipts only; the full manual validation workflow has **not** yet been rerun on `7558e44`. The prior full run `45805807618` remains evidence only for its older source revision `8eee5ba`.
+The first three runs include the focused runner's project and external JSDoc checks. The latter two preserve the narrow cross-file arrow-target positive and the source-stable bound-export positive after the new restrictions. The full manual-validation workflow was then rerun on `7558e44` and passed: [run 45840812964](https://github.com/FlareZ123/obfs/actions/runs/45840812964), with successful Ubuntu and Windows jobs. It executes the complete compact behavioral/adversarial suite, exhaustive low-rank oracle test, blind post-answer audit, project/external JSDoc checks, performance sample, paired session profiles, whole-process budget profile, and the workflow's integrated Chromium tests. The broader manual real-browser workflow [45842358680](https://github.com/FlareZ123/obfs/actions/runs/45842358680) is running on `a16a46f`; this successor changes only an explanatory comment, not executable code. The earlier full run `45805807618` remains evidence only for its older source revision `8eee5ba`.
 
 Agent 10's Storage source-observer extension is a separate candidate attached to PR #382. Its full Node rerun and a review question about the reference-only Storage override's dependence on unmodified `WeakMap.prototype.set` remain outstanding. Do not combine its focused receipts with this branch's tests or treat either as a complete release gate.
 
