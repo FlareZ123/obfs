@@ -10,7 +10,7 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity');
-const {hasPathnameControlCharacter}=require('./esm-url-paths');
+const {hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
@@ -1293,7 +1293,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
  * @returns {boolean}
  */
 function isCanonicalPrivateModulePath(sourcePath,specifier){
-  if(!specifier.startsWith('./')||/[\\%?#]/u.test(specifier)||hasPathnameControlCharacter(specifier))return false;
+  if(!specifier.startsWith('./')||/[\\%?#]/u.test(specifier)||hasUrlPathnameNormalizationHazard(specifier))return false;
   const directory=path.posix.dirname(sourcePath);
   const resolved=path.posix.normalize(path.posix.join(directory,specifier));
   if(resolved===sourcePath||!/\.mjs$/u.test(resolved))return false;
