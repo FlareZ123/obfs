@@ -515,6 +515,7 @@ def main():
     parser.add_argument("--min-states", type=int, default=2)
     parser.add_argument("--max-states", type=int, default=5)
     parser.add_argument("--seeds", type=int, default=2)
+    parser.add_argument("--target-seed-mode", choices=("random", "deterministic"), default="random")
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
@@ -539,8 +540,13 @@ def main():
     started = time.perf_counter()
     results = []
     for state_count in range(args.min_states, args.max_states + 1):
-        for seed in range(args.seeds):
-            results.append(run_one(state_count, seed, args))
+        for sample_index in range(args.seeds):
+            target_seed = (
+                secrets.randbits(64)
+                if args.target_seed_mode == "random"
+                else sample_index
+            )
+            results.append(run_one(state_count, target_seed, args))
 
     completed = [row for row in results if row["status"] == "completed"]
     timeouts = [row for row in results if row["status"] == "timeout"]
@@ -552,6 +558,17 @@ def main():
             "fixture_family": args.fixture_family,
             "state_counts": [args.min_states, args.max_states],
             "seeds_per_state_count": args.seeds,
+            "target_seed_mode": args.target_seed_mode,
+            "target_seed_source": (
+                "secrets.randbits(64)"
+                if args.target_seed_mode == "random"
+                else "deterministic seed indices 0..seeds-1 per state count"
+            ),
+            "target_seed_behavior_note": (
+                "delayed-pair fixture uses only seed parity to select one of two initial states per state count"
+                if args.fixture_family == "delayed-pair"
+                else "random fixture is generated from the full recorded 64-bit seed"
+            ),
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
             "learner_seed": args.learner_seed,
