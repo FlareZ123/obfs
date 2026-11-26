@@ -1804,12 +1804,12 @@ function sourceSpelledErrorOperand(node) {
 
 /**
  * Resolve only bounded constant string spellings used as computed keys.
- * @param {AstNode} node
+ * @param {AstNode|null|undefined} node
  * @param {number} [depth]
  * @returns {string|null}
  */
 function staticString(node,depth=0){
-  if(depth>16)return null;
+  if(!node||depth>16)return null;
   if(node.type==='Literal' && typeof node.value==='string')return node.value;
   if(node.type==='TemplateLiteral' && !node.expressions.length){
     const cooked=node.quasis[0]?.value.cooked;
