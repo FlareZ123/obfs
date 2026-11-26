@@ -153,20 +153,25 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
 });
 
 
-test('SCO CLI rejects percent-decoded C0 and DEL path segments',async()=>{
-  for(const encoded of ['%09','%7F']) {
-    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-encoded-control-'));
-    try {
+test('SCO CLI rejects every percent-decoded C0 and DEL path segment',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-encoded-control-'));
+  /** @type {string[]} */
+  const encodedControls=[];
+  for(let code=0;code<=0x1f;code++)
+    encodedControls.push('%'+code.toString(16).padStart(2,'0'));
+  encodedControls.push('%7F');
+  try {
+    await atomicWrite(path.join(root,'secret.mjs'),'export const value="url-target";');
+    await atomicWrite(path.join(root,'a','secret.mjs'),'export const value="posix-decoy";');
+    for(const encoded of encodedControls) {
       await atomicWrite(path.join(root,'index.mjs'),
         'import {value} from "./a/'+encoded+'/../secret.mjs";globalThis.value=value;');
-      await atomicWrite(path.join(root,'secret.mjs'),'export const value="url-target";');
-      await atomicWrite(path.join(root,'a','secret.mjs'),'export const value="posix-decoy";');
       const probe=await probeSco(root,[]);
       assert.equal(probe.listening,false,encoded+' must be refused before SCO starts');
       assert.match(probe.stderr,/SCO encoded import path unsupported/u,encoded);
-    } finally {
-      await fs.rm(root,{recursive:true,force:true});
     }
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
   }
 });
 
