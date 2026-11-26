@@ -191,3 +191,10 @@ test('hostile pre-load bind getter captures the bound target after property obfu
     fs.rmSync(emittedRoot,{recursive:true,force:true});
   }
 });
+
+test('bound-only arrow cannot leak the owner through a global side effect',()=>{
+  const source=ownerPrefix+'const probe=owner.secretField;'+
+    'const internal=()=>{globalThis.leaked=owner;return 1;};'+
+    'export const hot=internal.bind(null);';
+  assert.equal(propertyCount(source),0);
+});
