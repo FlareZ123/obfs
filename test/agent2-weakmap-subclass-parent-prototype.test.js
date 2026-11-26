@@ -156,6 +156,6 @@ test('a descendant class prototype read alone is not mistaken for native WeakMap
     'class Child extends Parent {};',
     'const parentPrototype=Object.getPrototypeOf(Child.prototype);',
     'void parentPrototype;'
-  ].join('\\n');
+  ].join('\n');
   assert.equal(hasWeakMapPrototypeExposure(parse(source,'module')),false);
 });
