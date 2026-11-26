@@ -147,8 +147,7 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
     const summary=summarizeAmbientCallEffects(parse(entry,'module'),'module')
       .summaries.find(item=>item.bindingNames.includes('internal'));
     assert.ok(summary);
-    assert.equal(summary.safe,true,
-      'the isolated entry-file summary cannot see the imported module mutation');
+    assert.equal(summary.safe,true,JSON.stringify(summary));
     assert.equal(summary.hostHeldCallable,false);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
