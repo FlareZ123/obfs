@@ -77,7 +77,7 @@ function hasWeakMapPrototypeExposure(ast) {
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
   });
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
-  const weakMapSubclasses=new Set();
+  const weakMapSubclassParents=new Map();
   const weakMapInstances=new Set();
   const weakMapFactories=new Set();
   /** @type {AstNode[]} */
@@ -208,11 +208,29 @@ function hasWeakMapPrototypeExposure(ast) {
       isPrototypeGetterMember(node.callee)
     ));
   }
-  /** @param {AstNode|null|undefined} node @returns {boolean} */
-  function isWeakMapSubclassPrototype(node) {
-    return Boolean(node?.type==='MemberExpression'&&
-      memberKey(node)==='prototype'&&node.object?.type==='Identifier'&&
-      weakMapSubclasses.has(node.object.name));
+  /**
+   * Classify a prototype-getter expression as a WeakMap subclass prototype,
+   * native WeakMap.prototype (null), or an unrelated value (undefined).
+   * @param {AstNode|null|undefined} node
+   * @param {Set<AstNode>} [seen]
+   * @returns {string|null|undefined}
+   */
+  function weakMapPrototypeValue(node,seen=new Set()) {
+    if(!node||seen.has(node))return undefined;
+    seen.add(node);
+    if(node.type==='MemberExpression'&&memberKey(node)==='prototype'&&
+       node.object?.type==='Identifier'&&weakMapSubclassParents.has(node.object.name))
+      return node.object.name;
+    if(node.type!=='CallExpression'||!isPrototypeGetterCall(node))return undefined;
+    const argument=node.arguments[0];
+    if(isWeakMapInstance(argument))return null;
+    if(argument?.type==='NewExpression'&&argument.callee?.type==='Identifier'&&
+       weakMapSubclassParents.has(argument.callee.name))
+      return argument.callee.name;
+    const argumentValue=weakMapPrototypeValue(argument,seen);
+    if(argumentValue===undefined||argumentValue===null)return undefined;
+    const parentClass=weakMapSubclassParents.get(argumentValue);
+    return parentClass===null?null:parentClass;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isWeakMapPrototypeExpression(node) {
@@ -224,8 +242,7 @@ function hasWeakMapPrototypeExposure(ast) {
         key==='__proto__'&&isWeakMapInstance(node.object);
     }
     return node.type==='CallExpression'&&isPrototypeGetterCall(node)&&
-      (isWeakMapInstance(node.arguments[0])||
-       isWeakMapSubclassPrototype(node.arguments[0]));
+      weakMapPrototypeValue(node)===null;
   }
   /**
    * @param {AstNode} pattern
@@ -320,9 +337,20 @@ function hasWeakMapPrototypeExposure(ast) {
         classNames.add(parent.id.name);
       if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
         classNames.add(parent.left.name);
-      if(node.superClass&&(
-        isWeakMapConstructor(node.superClass))) {
-        for(const className of classNames)weakMapSubclasses.add(className);
+      if(node.superClass) {
+        let isWeakMapSubclass=false;
+        let parentClassName=null;
+        if(isWeakMapConstructor(node.superClass)) {
+          isWeakMapSubclass=true;
+        } else if(node.superClass.type==='Identifier'&&
+                  weakMapSubclassParents.has(node.superClass.name)) {
+          isWeakMapSubclass=true;
+          parentClassName=node.superClass.name;
+        }
+        if(isWeakMapSubclass) {
+          for(const className of classNames)
+            weakMapSubclassParents.set(className,parentClassName);
+        }
       }
     }
     if(functionTypes.has(node.type)) {
