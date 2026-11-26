@@ -301,13 +301,16 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
       exportedValueNodes.set(node.id.name,node);
     if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
-      const className=node.id?.type==='Identifier'?node.id.name:
-        parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier'?
-          parent.id.name:null;
-      if(className&&node.superClass&&(
+      const classNames=new Set();
+      if(node.id?.type==='Identifier')classNames.add(node.id.name);
+      if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
+        classNames.add(parent.id.name);
+      if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
+        classNames.add(parent.left.name);
+      if(node.superClass&&(
         isWeakMapConstructor(node.superClass)||
         node.superClass.type==='Identifier'&&weakMapSubclasses.has(node.superClass.name))) {
-        weakMapSubclasses.add(className);
+        for(const className of classNames)weakMapSubclasses.add(className);
       }
     }
     if(functionTypes.has(node.type)) {
