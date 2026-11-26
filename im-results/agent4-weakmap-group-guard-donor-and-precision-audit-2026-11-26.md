@@ -147,3 +147,16 @@ For Agent 1 source head \`dd9f5783\`:
 - Known-local identity helper: still over-refused (\`observed=true\`, \`bindings=0\`), run [45867337001](https://github.com/FlareZ123/obfs/actions/runs/45867337001).
 
 The result is not "the guard works" or "the guard fails" globally: it has specific validated coverage and specific remaining unsoundness/precision defects. Preserve this separation in integration decisions.
+
+
+## Addendum — canonical value/effect graph bridge
+
+Code review of the exact Agent 1 candidate identified the local transfer boundaries behind the three remaining carrier false-safes:
+
+- \`evaluateCarrierValue(MemberExpression)\` returns \`carrierOther\` for an unresolved key when the base container has no unknown writes, even if a known slot contains a WeakMap. The possible slot values must be joined.
+- The class scan records \`weakMapContainerOwners\` for a static field, but identifier evaluation does not propagate that class-owner fact. The failing test aliases the class constructor before reading the field.
+- Static-block analysis creates a detached \`staticThis\` container and does not join it back to the class constructor binding.
+- The native-parent false-safe comes from the absence of a class-heritage edge to the native WeakMap prototype.
+- The local-call over-refusal comes from the unconditional call-argument veto and initializing local formal parameters as \`carrierOther\`.
+
+A detailed integration proposal is \`workplace/agent4-weakmap-prototype-effect-bridge-2026-11-26.md\`. It explicitly reuses the canonical Agent 39 \`ValueRef\`/\`HostEffectRecord\` graph and Agent 3 shared-plan contract; it does not create a parallel resolver. It proposes typed WeakMap/prototype value facts, prototype read/mutation effects, class static/instance receiver identity, and bounded local-function parameter/return summaries.
