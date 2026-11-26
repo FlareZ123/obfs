@@ -446,7 +446,25 @@ def run_one(state_count: int, seed: int, args):
             "unauthorized_status": preflight_result["unauthorized_status"],
             "reset_status": preflight_result["reset_status"],
             "partition_names": ready["partition_names"],
-            "server_user_isolated": ready.get("uid") != learner_user.pw_uid and client_result.get("process_isolated") is True,
+            "server_user_isolated": (
+                ready.get("uid") == server_user.pw_uid
+                and server_user.pw_uid != learner_user.pw_uid
+                and client_result.get("process_isolated") is True
+            ),
+            "server_process": {
+                "pid": ready["pid"],
+                "uid": ready["uid"],
+                "environment_keys": ready["environment_keys"],
+                "private_root_mode": ready["private_root_mode"],
+                "private_file_mode": ready["private_file_mode"],
+            },
+            "learner_process": {
+                "pid": client_result["pid"],
+                "uid": client_result["uid"],
+                "euid": client_result["euid"],
+                "environment_keys": client_result["environment_keys"],
+                "learner_seed": client_result["learner_seed"],
+            },
             "server_stats": server_stats,
             "server_stderr": server_stderr[-1000:],
             "pre_calls": client_result["pre_calls"],
@@ -539,6 +557,9 @@ def main():
             "seeds_per_state_count": args.seeds,
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
+            "learner_seed": args.learner_seed,
+            "server_uid": isolation_accounts()[0].pw_uid,
+            "learner_uid": isolation_accounts()[1].pw_uid,
             "timeout_seconds": args.timeout_seconds,
             "learner_process": "Python subprocess runs as uid nobody with setpriv no-new-privs, empty capability bounding set, and an env -i allowlist; receives only HTTP origin and an independent learner RNG seed",
             "server_process": "Node SCO process runs as uid www-data with setpriv no-new-privs, empty capability bounding set, and an env -i allowlist; private fixture and per-run session token are supplied over stdin and held in server memory/private mode-0700 temp root",
