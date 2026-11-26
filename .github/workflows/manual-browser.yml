@@ -92,6 +92,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sri-portable-url-alias-browser.js
+      - name: Reproduce HTML SRI mismatch after host-side encoded separator decoding
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent3-html-sri-postdecode-separator-browser.js
       - name: Reject executable sources in generic XML assets and preserve SRI
         run: node --test test/xml-executable-asset.test.js
       - name: Compare generic XML MIME native SRI and inline script execution in Chromium
