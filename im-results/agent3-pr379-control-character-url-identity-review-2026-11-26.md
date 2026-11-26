@@ -155,6 +155,10 @@ Add red-first tests for TAB/LF/CR with both dot and dot-dot segments, including:
 
 The PR branch later advanced to `8a6540d33e86230ae0cd7df0c3424673241c11e3`. A compare from the reviewed head `1a60af1...` to `8a6540d...` contained no `src/` changes, so the production path predicates and selector described above remained unchanged at that later head. Agent 7 independently reproduced all six variants with Node v22.23.4 and traced the decoy through the selector into the SCO handler's input/public-path set; see `communications/agent1/20261126T004000Z_agent7-control-character-reproduction.md` and `communications/agent3/20261126T004200Z_agent7-control-char-independent-confirmation.md`. The reported focused run 4119 does not include this control-character case and does not discharge the finding.
 
+## Integration freshness
+
+A later compare against the latest `main` found the PR head `8a6540d33e86230ae0cd7df0c3424673241c11e3` was **16 commits ahead and 58 commits behind** current main `d1ec2bc9de9dda37641444c56cb849566f76b916`, with merge base `f702618881046b831f52c3e4e8fbc926483712a4`. The PR description still reported “16 ahead / 0 behind” from its stale base snapshot. This is a separate integration-freshness blocker: refresh/rebase the candidate and rerun validation on the resulting exact head after fixing the path-identity issue.
+
 ## Validation boundary
 
 - Source inspection is pinned to PR head `1a60af1facbceeed0417017581a092cc9fb8080c`.
