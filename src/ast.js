@@ -74,14 +74,31 @@ function hasUnsafeNativeBindMutationSurface(ast) {
     '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
   ]);
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
+  // The bound-target proof only consumes a function object whose binding is
+  // locally established by a declaration or an immutable direct function
+  // initializer. A member merely named "bind" is not evidence of native bind:
+  // namespace exports, host metadata, aliases and inline expressions can
+  // supply unrelated methods or unproved receivers.
+  const localCallableBindings=new Set();
+  walk(ast,(node,parent)=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      localCallableBindings.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
+       parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
+       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type))
+      localCallableBindings.add(node.id.name);
+  });
   /**
    * @param {AstNode|null|undefined} call
    * @returns {boolean}
    */
   function isLiteralNullBindCall(call) {
-    return call?.type==='CallExpression'&&
-      call.callee?.type==='MemberExpression'&&!call.callee.computed&&
-      !call.callee.optional&&call.callee.property.type==='Identifier'&&
+    return call?.type==='CallExpression'&&!call.optional&&
+      call.callee?.type==='MemberExpression'&&
+      call.callee.object?.type==='Identifier'&&
+      localCallableBindings.has(call.callee.object.name)&&
+      !call.callee.computed&&!call.callee.optional&&
+      call.callee.property.type==='Identifier'&&
       call.callee.property.name==='bind'&&call.arguments.length===1&&
       call.arguments[0].type==='Literal'&&call.arguments[0].value===null;
   }
