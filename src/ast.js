@@ -1259,8 +1259,15 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue]
    */
+  /** @type {Map<AstNode,Map<string,CarrierValue>>} */
+  const functionClosureEnvironments=new Map();
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
-    if(!node||functionTypes.has(node.type))return;
+    if(!node)return;
+    if(functionTypes.has(node.type)) {
+      if(!functionClosureEnvironments.has(node))
+        functionClosureEnvironments.set(node,environment);
+      return;
+    }
     if(node.type==='CallExpression') {
       const summary=node.callee.type==='Identifier'?
         localFunctionSummaries.get(node.callee.name):undefined;
@@ -1448,7 +1455,11 @@ function hasWeakMapPrototypeExposure(ast) {
          carrierMayContainWeakMap(staticValue))exposed=true;
       return;
     }
-    if(statement.type==='FunctionDeclaration')return;
+    if(statement.type==='FunctionDeclaration') {
+      if(!functionClosureEnvironments.has(statement))
+        functionClosureEnvironments.set(statement,environment);
+      return;
+    }
     if(statement.type==='ReturnStatement'||statement.type==='ThrowStatement') {
       visitCarrierExpression(statement.argument,environment,thisValue);
       return;
@@ -1552,7 +1563,8 @@ function hasWeakMapPrototypeExposure(ast) {
   // local WeakMaps remain ordinary values unless they reach an opaque call.
   for(const [functionNode,info] of functionInfoByNode) {
     if(!functionNode.body)continue;
-    const localEnvironment=new Map(carrierEnvironment);
+    const closureEnvironment=functionClosureEnvironments.get(functionNode)??carrierEnvironment;
+    const localEnvironment=new Map(closureEnvironment);
     for(const parameter of functionNode.params??[])
       bindCarrierPattern(parameter,carrierOther,localEnvironment);
     const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
