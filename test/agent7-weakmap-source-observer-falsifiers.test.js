@@ -436,6 +436,105 @@ test('CommonJS exported WeakMap-derived class external consumer source-capture d
   assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures}));
 });
 
+
+/**
+ * Run a supplied CommonJS group while an external consumer calls an exported
+ * factory to obtain a WeakMap and mutates its native prototype.
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function runCjsWithExternalFactoryConsumer(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent7-weakmap-cjs-factory-'));
+  const externalRunner=[
+    'class Storage {',
+    '  constructor(){this.data=new Map();}',
+    '  setItem(key,value){this.data.set(String(key),String(value));}',
+    '}',
+    'globalThis.Storage=Storage;',
+    'globalThis.localStorage=new Storage();',
+    'let documentTitle="";',
+    'globalThis.document={};',
+    'Object.defineProperty(globalThis.document,"title",{',
+    '  get(){return documentTitle;},',
+    '  set(value){documentTitle=String(value);}',
+    '});',
+    "const make=require('./producer.cjs');",
+    'const nativePrototype=Object.getPrototypeOf(make());',
+    'const nativeSet=nativePrototype.set;',
+    'nativePrototype.set=function(key,value){',
+    '  document.title=value;',
+    '  return Reflect.apply(nativeSet,this,[key,value]);',
+    '};',
+    "const {sample}=require('./entry.cjs');",
+    'const result=sample();',
+    'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+  ].join('\n');
+  try {
+    for(const file of files) {
+      fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    }
+    fs.writeFileSync(path.join(directory,'external-runner.cjs'),externalRunner,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'external-runner.cjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+test('CommonJS exported WeakMap factory external consumer source-capture differential',()=>{
+  const producerSource='module.exports=function make(){return new WeakMap();};';
+  const storageSourceCjs=[
+    'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+    'const captured=new WeakMap();',
+    'function inspect(){const privateLocal=29;return privateLocal;}',
+    'function independent(){const independentLocal=7;return independentLocal;}',
+    'function sample(){',
+    '  Object.defineProperty(Storage.prototype,"setItem",{',
+    '    ...descriptor,',
+    '    value:function(_key,value){captured.set(this,value);}',
+    '  });',
+    '  localStorage.setItem("storage-prototype-override",inspect);',
+    '  return {value:inspect(),independent:independent()};',
+    '}',
+    'module.exports={sample};'
+  ].join('\n');
+  const sourceFiles=[
+    {path:'producer.cjs',sourceType:'commonjs',code:producerSource},
+    {path:'entry.cjs',sourceType:'commonjs',code:"module.exports=require('./storage.cjs');"},
+    {path:'storage.cjs',sourceType:'commonjs',code:storageSourceCjs}
+  ];
+  const analysis=hasWeakMapPrototypeExposure(parse(producerSource,'script'));
+  const native=runCjsWithExternalFactoryConsumer(
+    sourceFiles.map(file=>({path:file.path,code:file.code}))
+  );
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+  const failures=[];
+  for(const mode of ['coo','sno','sco']) {
+    try {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent7-cjs-exported-factory-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.cjs');
+      assert.ok(storage,'missing storage.cjs for '+mode);
+      const emitted=runCjsWithExternalFactoryConsumer(
+        compiled.files.map(file=>({path:file.path,code:String(file.code)}))
+      );
+      if(!analysis || storage.metrics.bindings!==0 ||
+         emitted.capturedSource!==native.capturedSource ||
+         JSON.stringify(emitted.result)!==JSON.stringify(native.result)) {
+        failures.push({mode,analysis,storageMetrics:storage.metrics,native,emitted});
+      }
+    } catch(error) {
+      failures.push({mode,analysis,error:String(error)});
+    }
+  }
+  assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures}));
+});
+
 test('CommonJS exported WeakMap-derived class is a group escape',()=>{
   const source='module.exports=class Derived extends globalThis.WeakMap {};';
   assert.equal(hasWeakMapPrototypeExposure(parse(source,'script')),true);
