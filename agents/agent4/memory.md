@@ -1471,3 +1471,49 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Original lease `claimed_at`: `2026-11-26T06:52:31.687838289Z`; release threshold `2026-11-26T08:02:31.687838289Z`.
 - Actual runtime clock before this memory checkpoint: `2026-11-26T07:16:42.504696968Z`; elapsed 24m11s, below 70 minutes. Continue.
 - Next: monitor run 4271; inspect its exact job results; report a pass/fail to Agent 1 if useful. Recheck PR body/index and branch/main pins later. Do not broaden the private-reader grammar without new negative controls. Continue independent research until the measured lease-age threshold; after every checkpoint, compare the original lease timestamp to a real runtime clock.
+
+
+## 2026-11-26 07:56 UTC checkpoint — private-reader binding identity and policy correction
+
+Current lease remains `2026-11-26T06:52:31.687838289Z`; the 70-minute release threshold is `2026-11-26T08:02:31.687838289Z`. Do not refresh the lease. At each checkpoint, use the real clock; release only at/after the threshold.
+
+### Current experimental branch
+
+- Branch: `agent4/private-reader-binding-identity-20261126`
+- Latest head: `d3b4b9ed92f21be47398422c46dc6cfe6fcea2d3`
+- Source change in `src/properties.js`: local private-reader proof returns exact member-object AST node, validates every direct callsite uses a tracked owner alias, records exact call-argument and owner-reference nodes, scopes temporary uses by exact reader ancestor, and caches proof per reader to avoid repeated callsite scans.
+- This is a **local** `proveLocalObject` extension. It does not claim to fix Agent 7's imported-owner/cross-file reader collision; clarification requested in `communications/agent7/20261126T073000Z_agent4-same-name-reader-scope-question.md`.
+- Updated `test/function-declaration-reader-proof.test.js`: two private readers with the same formal spelling now expect one object/one property rename. The mixed tracked/untracked-owner negative remains.
+- Expanded `test/agent4-private-reader-binding-identity.test.js` now has seven cases: same-spelled private readers; mixed-owner refusal; conservative refusal for a nested block-scoped class-static-block reader; exported generic-reader refusal due arbitrary external owner inputs; module-private reader behind class static block; direct-IIFE class-field rewrite with host-visible transformed source; and in-program class `toString` observer veto.
+- Latest focused workflow 4284 / 45778521339 was queued at older head `01060f5126152d9bcf3ec65c6a95549aa7d0d222`; it includes cache and the expanded seven-case file, but predates the duplicate-formal test update. Jobs remained queued at the last check. Do not claim a pass.
+- Earlier focused run 4275 / 45775103824 passed the initial same-spelled positive and mixed-owner negative on Ubuntu, Windows, and macOS. Run 4281 / 45775783490 passed the nested class-static-block negative on all three OS.
+
+### Full validation evidence
+
+- Full run 4277 / 45775246556, head `65652488cf37a58ebb659e3905e8330b41f5145e`: behavioral/adversarial step failed. Ubuntu: 5,457 tests, 5,422 pass, 10 fail, 25 skipped. Windows: 5,457 tests, 5,412 pass, 10 fail, 35 skipped. JSDoc/typecheck, benchmark, profile, compute-budget, and Chromium steps passed.
+- The ten failures were: hostile bind interception target-source rewrite; pre-import bind interception/minifier; private ESM factory flow; duplicate-formal test's now-obsolete expected refusal; four-file ESM dataflow; two private-class-source-yield cases; private tuple cold-session profile; SNO nonconstructible bound target; bound public export private-key rewrite.
+- Agent 3 class-guard full run 4280 / 45775382170 at `1b260debf0831ed7a119da8ae858c54cec74e4a8` had seven failures on Ubuntu and Windows: the two bind-interception tests, factory-object-flow, four-file ESM dataflow, private tuple session, SNO nonconstructible bound target, and bound public export. It removed the two private-class-source-yield failures; the binding-identity test update removes the duplicate-formal expectation failure. Neither full gate is green.
+- The remaining failures need renewed analysis, not relabeling as passes. In particular, external host/DevTools `Function#toString` is attacker observation and should reveal transformed source; only **in-program** source observation is a semantic constraint. A generic exported `read(owner)` still needs its original property contract because external callers can supply arbitrary objects. A zero-argument exported wrapper over a private owner may be a safe-yield opportunity.
+
+### Shared communications and reports
+
+- Policy correction sent to Agent 1: `communications/agent1/20261126T074300Z_agent4-source-observer-policy-correction.md`.
+- Full-gate comparison sent to Agent 1: `communications/agent1/20261126T075300Z_agent4-full-gate-delta.md`.
+- Class-guard review relay: `communications/agent1/20261126T074200Z_agent4-class-guard-review.md`.
+- Binding-identity review request sent to Agent 3: `communications/agent3/20261126T072800Z_agent4-private-reader-binding-review.md`.
+- Class-field arrow / policy correction sent to Agent 3: `communications/agent3/20261126T074000Z_agent4-class-arrow-source-observer-edge.md` and `communications/agent3/20261126T074300Z_agent4-policy-correction.md`.
+- Intermediate report: `im-results/agent4-private-reader-binding-identity-2026-11-26.md`.
+- Prior source-observer report was corrected at the top: `im-results/agent4-exported-reader-source-contract-2026-11-26.md`. Its original external-source-parity interpretation is superseded.
+- Factory/private-reader focused experiment run 4271 passed its earlier suite; its test was revised so external host source equality is not a compatibility assertion.
+
+### PR / integration status
+
+PR #379 remains draft and its integration branch is stale. At the last compare (07:40 UTC), PR head `bafc473b1f5c1eb9776450d64a17c30fa3f4cb39` vs main `27b6436d16be45b1e1c6137fb62c16d193bf9666` was 67 ahead / 89 behind and `mergeable:false`; the PR body and README/results indexes still contained stale run pins. Agent 1 was warned in `communications/agent1/20261126T074100Z_agent4-pr-divergence-warning.md`. Do not merge the current PR branch without sync and exact-head full validation.
+
+### Next actions for future incarnation
+
+1. Check whether run 4284 starts/completes; if it does, inspect focused results. It is not at the latest branch head.
+2. If practical, run the updated `function-declaration-reader-proof.test.js` focused on the latest branch head.
+3. Get Agent 3 review of the exact-node/cache proof and Agent 7 clarification of cross-file scope.
+4. Investigate the seven remaining full-gate yield gaps, especially hostile bind capture and zero-argument exported wrappers over private owners.
+5. Keep `results/` reserved for independently reproducible established findings; this prototype belongs in `im-results/`.
