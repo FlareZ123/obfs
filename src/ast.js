@@ -98,11 +98,32 @@ function hasWeakMapPrototypeExposure(ast) {
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
   /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
   const functionInfoByNode=new Map();
-
+  // Resolve only immutable top-level string constants for computed global
+  // constructor keys. This is deliberately narrower than general constant
+  // propagation and avoids treating mutable/unknown expressions as literals.
+  /** @type {Map<string,string>} */
+  const topLevelStringConstants=new Map();
+  for(const statement of ast.body) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const declarator of declaration.declarations) {
+      if(declarator.id.type!=='Identifier')continue;
+      const value=staticString(declarator.init);
+      if(value!==null)topLevelStringConstants.set(declarator.id.name,value);
+    }
+  }
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function staticStringValue(node) {
+    const value=staticString(node);
+    if(value!==null)return value;
+    if(node?.type==='Identifier')return topLevelStringConstants.get(node.name)??null;
+    return null;
+  }
   /** @param {AstNode|null|undefined} node @returns {string|null} */
   function memberKey(node) {
     if(node?.type!=='MemberExpression')return null;
-    if(node.computed)return staticString(node.property);
+    if(node.computed)return staticStringValue(node.property);
     return node.property.type==='Identifier'?node.property.name:null;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -208,6 +229,11 @@ function hasWeakMapPrototypeExposure(ast) {
        isNamespace(node.object,reflectNamespaces)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isReflectGetMember(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      memberKey(node)==='get'&&isNamespace(node.object,reflectNamespaces));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isPrototypeGetterCall(node) {
     return Boolean(node?.type==='CallExpression'&&(
       node.callee.type==='Identifier'&&prototypeGetters.has(node.callee.name)||
@@ -268,6 +294,21 @@ function hasWeakMapPrototypeExposure(ast) {
         if(parentDepth===1)return 0;
         if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
         if(isWeakMapInstance(node.object))return 0;
+      }
+    }
+    if(node.type==='CallExpression'&&isReflectGetMember(node.callee)&&
+       node.arguments.length>=2) {
+      const key=staticStringValue(node.arguments[1]);
+      if(key==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.arguments[0]);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.arguments[0]))return 0;
+      }
+      if(key==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.arguments[0]))return 0;
       }
     }
     if(node.type==='CallExpression'&&isPrototypeGetterCall(node)) {
