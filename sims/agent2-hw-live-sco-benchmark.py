@@ -312,9 +312,7 @@ def verify_target_trace(fixture, trace):
 def run_one(state_count: int, seed: int, args):
     started = time.perf_counter()
     fixture = BENCHMARK.generate_fixture(state_count, seed)
-    oracle_seed = (
-        seed * 0x9E3779B1 + state_count * 0x85EBCA77
-    ) & 0xFFFFFFFF
+    learner_seed = args.learner_seed
     server_process = None
     server_root = None
     server_stats = None
@@ -329,15 +327,18 @@ def run_one(state_count: int, seed: int, args):
             session_token,
             ready["method_name"],
         )
-        client_script = Path(__file__).with_name("agent2-hw-live-sco-client.py")
-        command = [
-            sys.executable,
-            str(client_script),
-            "--origin", ready["origin"],
-            "--oracle-seed", str(oracle_seed),
-            "--random-walk-length", str(args.random_walk_length),
-            "--origin-states", str(args.origin_states),
-        ]
+        client_source = Path(__file__).with_name("agent2-hw-live-sco-client.py")
+        client_script = server_root / "sims" / client_source.name
+        shutil.copy2(client_source, client_script)
+        command, client_env = launch_as_user(
+            "nobody", sys.executable, [
+                str(client_script),
+                "--origin", ready["origin"],
+                "--learner-seed", str(learner_seed),
+                "--random-walk-length", str(args.random_walk_length),
+                "--origin-states", str(args.origin_states),
+            ]
+        )
         try:
             client_process = subprocess.run(
                 command,
@@ -345,12 +346,14 @@ def run_one(state_count: int, seed: int, args):
                 text=True,
                 timeout=args.timeout_seconds + 10,
                 check=False,
+                cwd=server_root,
+                env=client_env,
             )
         except subprocess.TimeoutExpired as error:
             return {
                 "state_count": state_count,
                 "seed": seed,
-                "oracle_seed": oracle_seed,
+                "learner_seed": learner_seed,
                 "status": "timeout",
                 "timeout_seconds": args.timeout_seconds,
                 "partial_stdout": (error.stdout or "")[-2000:],
@@ -371,6 +374,16 @@ def run_one(state_count: int, seed: int, args):
                 + "\n"
                 + client_process.stderr[-3000:]
             )
+        process_state = client_result.get("client_process", {})
+        expected_uid = pwd.getpwnam("nobody").pw_uid
+        if process_state.get("Uid") != expected_uid or process_state.get("Euid") != expected_uid:
+            raise AssertionError(f"learner UID mismatch: {process_state!r}")
+        if process_state.get("NoNewPrivs") != "1" or process_state.get("CapEff") != "0000000000000000":
+            raise AssertionError(f"learner privilege state is unsafe: {process_state!r}")
+        if process_state.get("SudoBlocked") is not True:
+            raise AssertionError(f"learner retained sudo privilege: {process_state!r}")
+        if set(process_state.get("EnvironmentKeys", [])) != set(client_env):
+            raise AssertionError(f"learner environment was not scrubbed: {process_state!r}")
 
         trace = client_result["trace"]
         target_post_state = verify_target_trace(fixture, trace)
@@ -415,7 +428,7 @@ def run_one(state_count: int, seed: int, args):
         result = {
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "status": "completed",
             "target_initial_state": fixture.initial_state,
             "target_post_trace_state": target_post_state,
@@ -436,7 +449,14 @@ def run_one(state_count: int, seed: int, args):
             "unauthorized_status": preflight_result["unauthorized_status"],
             "reset_status": preflight_result["reset_status"],
             "partition_names": ready["partition_names"],
-            "server_user_isolated": True,
+            "process_isolation": {
+                "server_uid": ready["server_uid"],
+                "learner_uid": process_state["Uid"],
+                "learner_no_new_privs": process_state["NoNewPrivs"] == "1",
+                "learner_cap_eff": process_state["CapEff"],
+                "learner_sudo_blocked": process_state["SudoBlocked"],
+                "learner_environment_keys": process_state["EnvironmentKeys"],
+            },
             "server_stats": server_stats,
             "server_stderr": server_stderr[-1000:],
             "pre_calls": client_result["pre_calls"],
@@ -481,7 +501,7 @@ def run_one(state_count: int, seed: int, args):
         return {
             "state_count": state_count,
             "seed": seed,
-            "oracle_seed": oracle_seed,
+            "learner_seed": learner_seed,
             "status": "error",
             "error": repr(error),
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
@@ -505,6 +525,7 @@ def main():
     parser.add_argument("--timeout-seconds", type=int, default=30)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
+    parser.add_argument("--learner-seed", type=int, default=20261126)
     args = parser.parse_args()
     if not (2 <= args.min_states <= args.max_states <= 12):
         raise ValueError("state range must satisfy 2 <= min <= max <= 12")
