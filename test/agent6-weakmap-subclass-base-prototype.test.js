@@ -113,3 +113,107 @@ test('Object.getPrototypeOf(shadowed WeakMap.prototype) exposes the shared nativ
     JSON.stringify({localObserver,groupExposure,storageMetrics:storage.metrics,native,emitted})
   );
 });
+
+
+test('WeakMap-derived prototype parent extraction aliases must invalidate the cross-file Storage proof',()=>{
+  const variants=[
+    {
+      name:'non-shadowing derived class via Object.getPrototypeOf',
+      code:[
+        'class LocalMap extends globalThis.WeakMap {}',
+        'const nativeWeakMapPrototype=Object.getPrototypeOf(LocalMap.prototype);',
+        'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+        'nativeWeakMapPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    },
+    {
+      name:'shadowed derived class via __proto__',
+      code:[
+        'class WeakMap extends globalThis.WeakMap {}',
+        'const nativeWeakMapPrototype=WeakMap.prototype.__proto__;',
+        'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+        'nativeWeakMapPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    },
+    {
+      name:'shadowed derived class via aliased Reflect.getPrototypeOf',
+      code:[
+        'class WeakMap extends globalThis.WeakMap {}',
+        'const getPrototype=Reflect.getPrototypeOf;',
+        'const nativeWeakMapPrototype=getPrototype(WeakMap.prototype);',
+        'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+        'nativeWeakMapPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    },
+    {
+      name:'shadowed derived class via aliased Object.getPrototypeOf',
+      code:[
+        'class WeakMap extends globalThis.WeakMap {}',
+        'const getPrototype=Object.getPrototypeOf;',
+        'const nativeWeakMapPrototype=getPrototype(WeakMap.prototype);',
+        'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+        'nativeWeakMapPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    },
+    {
+      name:'two-level derived class prototype chain',
+      code:[
+        'class ParentMap extends globalThis.WeakMap {}',
+        'class WeakMap extends ParentMap {}',
+        'const parentPrototype=Object.getPrototypeOf(WeakMap.prototype);',
+        'const nativeWeakMapPrototype=Object.getPrototypeOf(parentPrototype);',
+        'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
+        'nativeWeakMapPrototype.set=function(key,value){',
+        '  document.title=value;',
+        '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+        '};'
+      ].join('\\n')
+    }
+  ];
+  const evidence=[];
+  for(const variant of variants) {
+    const mutationAst=parse(variant.code,'module');
+    const sourceFiles=[
+      {path:'entry.mjs',sourceType:'module',code:entrySource},
+      {path:'mutate.mjs',sourceType:'module',code:variant.code},
+      {path:'storage.mjs',sourceType:'module',code:storageSource}
+    ];
+    const compiled=obfuscateFiles(sourceFiles,{
+      mode:'coo',seed:'agent6-weakmap-parent-variant-'+variant.name,
+      properties:false,identifiers:true,strings:false,closedWorld:true
+    });
+    const storage=compiled.files.find(file=>file.path==='storage.mjs');
+    assert.ok(storage);
+    const native=run(sourceFiles);
+    const emitted=run(compiled.files.map(file=>({
+      path:file.path,sourceType:'module',code:String(file.code)
+    })));
+    assert.deepEqual(emitted.result,native.result,variant.name);
+    assert.ok(native.capturedSource.includes('privateLocal'),variant.name);
+    evidence.push({
+      name:variant.name,
+      localObserver:observesFunctionSource(mutationAst),
+      groupExposure:hasWeakMapPrototypeExposure(mutationAst),
+      bindings:storage.metrics.bindings,
+      nativeSource:native.capturedSource,
+      emittedSource:emitted.capturedSource
+    });
+  }
+  process.stdout.write('WEAKMAP_PARENT_PROTOTYPE_VARIANTS '+JSON.stringify(evidence)+'\\n');
+  assert.ok(evidence.every(item=>
+    item.localObserver&&item.groupExposure&&item.bindings===0&&
+    item.emittedSource===item.nativeSource
+  ),JSON.stringify(evidence));
+});
