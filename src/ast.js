@@ -84,8 +84,12 @@ function hasWeakMapPrototypeExposure(ast) {
   const prototypeGetters=new Set();
   const prototypeAliases=new Set();
   const exportedLocalNames=new Set();
+  const importedLocalNames=new Set();
+  const weakMapContainerOwners=new Set();
+  const objectAliases=new Map();
+  const exportedValueNodes=new Map();
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
-  /** @type {Map<AstNode,{name:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean}>} */
+  /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
   const functionInfoByNode=new Map();
 
   /** @param {AstNode|null|undefined} node @returns {string|null} */
@@ -120,6 +124,33 @@ function hasWeakMapPrototypeExposure(ast) {
       node.type==='NewExpression'&&isWeakMapConstructor(node.callee)||
       node.type==='Identifier'&&weakMapInstances.has(node.name)
     ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobalObjectPath(node) {
+    return Boolean(isGlobalRoot(node)||
+      node?.type==='MemberExpression'&&isGlobalObjectPath(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function rootIdentifier(node) {
+    let current=node;
+    while(current?.type==='MemberExpression')current=current.object;
+    return current?.type==='Identifier'?current.name:null;
+  }
+  /**
+   * Find WeakMap instances in a value expression without treating a nested
+   * function body as an immediate escape. Function return/yield summaries
+   * are handled separately below.
+   * @param {AstNode|null|undefined} root
+   * @returns {boolean}
+   */
+  function containsWeakMapInstanceValue(root) {
+    if(!root)return false;
+    let found=false;
+    walk(root,(candidate,parent,key,ancestors)=>{
+      if(!found&&!ancestors.some(ancestor=>functionTypes.has(ancestor.type))&&
+         isWeakMapInstance(candidate))found=true;
+    });
+    return found;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isPrototypeGetterMember(node) {
@@ -173,7 +204,7 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /**
    * @param {AstNode[]} ancestors
-   * @returns {{name:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean}|undefined}
+   * @returns {{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}|undefined}
    */
   function nearestFunctionInfo(ancestors) {
     for(let index=ancestors.length-1;index>=0;index--) {
@@ -181,6 +212,17 @@ function hasWeakMapPrototypeExposure(ast) {
       if(info)return info;
     }
     return undefined;
+  }
+  /** @param {string} name @returns {boolean} */
+  function resolvesToEscapedContainer(name) {
+    const seen=new Set();
+    let current=name;
+    while(current&&!seen.has(current)) {
+      if(exportedLocalNames.has(current)||importedLocalNames.has(current))return true;
+      seen.add(current);
+      current=objectAliases.get(current);
+    }
+    return false;
   }
 
   let exposed=false;
@@ -202,8 +244,15 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ExportDefaultDeclaration') {
       if(node.declaration?.type==='Identifier')exportedLocalNames.add(node.declaration.name);
-      if(isWeakMapInstance(node.declaration))exposed=true;
+      else if(containsWeakMapInstanceValue(node.declaration))exposed=true;
     }
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')importedLocalNames.add(specifier.local.name);
+      }
+    }
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
+      exportedValueNodes.set(node.id.name,node);
     if(functionTypes.has(node.type)) {
       const name=node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'?
         node.id.name:
@@ -211,19 +260,28 @@ function hasWeakMapPrototypeExposure(ast) {
           parent.id.name:
         parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier'?
           parent.left.name:null;
+      const classOwner=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='ClassDeclaration'&&ancestor.id?.type==='Identifier');
+      const variableOwner=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='VariableDeclarator'&&ancestor.id?.type==='Identifier');
+      const ownerName=name??classOwner?.id?.name??variableOwner?.id?.name??null;
       const info={
         name,
+        ownerName,
         exported:ancestors.some(ancestor=>
           ancestor.type==='ExportNamedDeclaration'||ancestor.type==='ExportDefaultDeclaration'),
         returnedFactories:new Set(),
-        returnsWeakMap:node.type==='ArrowFunctionExpression'&&
-          node.body.type!=='BlockStatement'&&isWeakMapInstance(node.body)
+        returnsWeakMap:false,
+        returnValues:node.type==='ArrowFunctionExpression'&&node.body.type!=='BlockStatement'?
+          [node.body]:[]
       };
       functionInfoByNode.set(node,info);
     }
     if(node.type==='VariableDeclarator') {
       if(node.id.type==='Identifier') {
         const name=node.id.name,init=node.init;
+        if(init)exportedValueNodes.set(name,init);
+        if(init?.type==='Identifier')objectAliases.set(name,init.name);
         if(isGlobalRoot(init)||
            init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
         if(isWeakMapConstructor(init))weakMapConstructors.add(name);
@@ -235,33 +293,43 @@ function hasWeakMapPrototypeExposure(ast) {
           prototypeGetters.add(name);
         if(isWeakMapPrototypeExpression(init))prototypeAliases.add(name);
         if(ancestors.some(ancestor=>ancestor.type==='ExportNamedDeclaration')&&
-           (isWeakMapInstance(init)||isWeakMapPrototypeExpression(init)))
-          exposed=true;
+           containsWeakMapInstanceValue(init))exposed=true;
       } else if(node.id.type==='ObjectPattern') {
         collectDestructuredAliases(node.id,node.init);
       }
     }
-    if(node.type==='AssignmentExpression'&&node.left.type==='Identifier') {
-      const name=node.left.name,value=node.right;
-      if(isGlobalRoot(value)||
-         value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
-      if(isWeakMapConstructor(value))weakMapConstructors.add(name);
-      if(isWeakMapInstance(value))weakMapInstances.add(name);
-      if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
-      if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
-      if(isPrototypeGetterMember(value)||
-         value.type==='Identifier'&&prototypeGetters.has(value.name))
-        prototypeGetters.add(name);
-      if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
-    }
-    if(node.type==='ReturnStatement') {
-      const info=nearestFunctionInfo(ancestors);
-      if(info) {
-        if(isWeakMapInstance(node.argument))info.returnsWeakMap=true;
-        else if(node.argument?.type==='CallExpression'&&
-                node.argument.callee.type==='Identifier')
-          info.returnedFactories.add(node.argument.callee.name);
+    if(node.type==='AssignmentExpression') {
+      if(node.left.type==='Identifier') {
+        const name=node.left.name,value=node.right;
+        if(value.type==='Identifier')objectAliases.set(name,value.name);
+        if(isGlobalRoot(value)||
+           value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
+        if(isWeakMapConstructor(value))weakMapConstructors.add(name);
+        if(isWeakMapInstance(value))weakMapInstances.add(name);
+        if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
+        if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
+        if(isPrototypeGetterMember(value)||
+           value.type==='Identifier'&&prototypeGetters.has(value.name))
+          prototypeGetters.add(name);
+        if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
+      } else if(node.left.type==='MemberExpression'&&
+                containsWeakMapInstanceValue(node.right)) {
+        const root=rootIdentifier(node.left.object);
+        const info=nearestFunctionInfo(ancestors);
+        if(isGlobalObjectPath(node.left.object)||root&&importedLocalNames.has(root)) {
+          exposed=true;
+        } else if(root) {
+          weakMapContainerOwners.add(root);
+        } else if(node.left.object.type==='ThisExpression'&&info?.ownerName) {
+          weakMapContainerOwners.add(info.ownerName);
+        } else if(node.left.object.type==='ThisExpression'&&info?.exported) {
+          exposed=true;
+        }
       }
+    }
+    if(node.type==='ReturnStatement'||node.type==='YieldExpression') {
+      const info=nearestFunctionInfo(ancestors);
+      if(info&&node.argument)info.returnValues.push(node.argument);
     }
     if(isWeakMapPrototypeExpression(node))exposed=true;
     // Passing any concrete WeakMap instance to a call can let an opaque
@@ -277,11 +345,21 @@ function hasWeakMapPrototypeExposure(ast) {
       exposed=true;
   });
 
-  // Exporting a WeakMap instance, the native constructor, or a factory that
-  // returns a WeakMap is conservatively a group escape: another supplied file
-  // (or a consumer of the entry module) can obtain the instance and inspect
-  // the process-wide prototype. This avoids needing optimistic import-flow
-  // assumptions for these small, security-sensitive capabilities.
+  // Resolve return/yield values after the complete file has contributed its
+  // constructor and instance aliases. This handles helpers declared after
+  // their callers and generators that yield a WeakMap instance.
+  for(const info of functionInfoByNode.values()) {
+    for(const value of info.returnValues) {
+      if(containsWeakMapInstanceValue(value))info.returnsWeakMap=true;
+      else if(value.type==='CallExpression'&&value.callee.type==='Identifier')
+        info.returnedFactories.add(value.callee.name);
+    }
+  }
+  // Exporting a WeakMap instance, constructor, container, or factory that
+  // returns/yields a WeakMap is a group escape: another supplied file (or a
+  // consumer of the entry module) can obtain the instance and inspect the
+  // process-wide prototype. Public member writes and global publication are
+  // also escapes; unrelated local WeakMaps remain eligible.
   let changed=true;
   while(changed) {
     changed=false;
@@ -291,16 +369,31 @@ function hasWeakMapPrototypeExposure(ast) {
         info.returnsWeakMap=true;
         changed=true;
       }
-      if(info.returnsWeakMap&&info.name&&!weakMapFactories.has(info.name)) {
-        weakMapFactories.add(info.name);
-        changed=true;
+      if(info.returnsWeakMap) {
+        for(const name of [info.name,info.ownerName]) {
+          if(name&&!weakMapFactories.has(name)) {
+            weakMapFactories.add(name);
+            changed=true;
+          }
+        }
+        if(info.exported)exposed=true;
       }
-      if(info.returnsWeakMap&&info.exported)exposed=true;
     }
   }
   for(const name of exportedLocalNames) {
     if(weakMapInstances.has(name)||weakMapFactories.has(name)||
        weakMapConstructors.has(name)||prototypeAliases.has(name)) {
+      exposed=true;
+      break;
+    }
+    const exportedValue=exportedValueNodes.get(name);
+    if(exportedValue&&containsWeakMapInstanceValue(exportedValue)) {
+      exposed=true;
+      break;
+    }
+  }
+  for(const name of weakMapContainerOwners) {
+    if(resolvesToEscapedContainer(name)) {
       exposed=true;
       break;
     }
