@@ -1261,6 +1261,12 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
     if(functionTypes.has(node.type)) {
@@ -1388,6 +1394,12 @@ function hasWeakMapPrototypeExposure(ast) {
       if(environment.has(name)||varNames.has(name))environment.set(name,value);
     }
   }
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
   function visitCarrierStatement(statement,environment,thisValue=carrierOther) {
     if(statement.type==='Program') {
       for(const child of statement.body??[])visitCarrierStatement(child,environment,thisValue);
