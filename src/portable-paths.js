@@ -84,7 +84,7 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
  * @returns {string}
  */
 function safePath(file) {
-  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
+  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f\x7f]/u.test(file)) ||
       path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
   // With Unicode mode this range matches lone surrogates, not valid pairs.
   // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.
