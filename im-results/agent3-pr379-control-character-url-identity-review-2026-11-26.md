@@ -106,6 +106,13 @@ Depending on which other files are supplied, these can attribute an import to th
 
 The private SCO graph helpers in `src/sco-graph.js` and `src/sco-selective-partition.js` use stricter canonical-spelling comparisons and reject this exact noncanonical spelling; that does not repair the general CLI or the other graph resolvers.
 
+## Mode-specific impact
+
+- **SCO:** concrete publication-boundary failure. The CLI can select the POSIX decoy, and the handler serves selected files by canonical request pathname. The actual URL-resolved dependency may be absent while the wrong private file is addressable.
+- **COO:** the cross-file property graph can attribute an import to the POSIX decoy instead of the module that native ESM loads. If both files are in the distributed group and expose the same imported binding shape, the proof may rename the decoy's property and the importer while leaving the actual URL target's property unchanged. The resulting runtime behavior regression should be captured by a red-first transformation test; I have not executed the full transformation locally.
+- **SNO:** `completeGuardedModuleGraph()` can regard the supplied graph as closed because the POSIX decoy exists, even if the actual URL-resolved dependency is outside the supplied group but still present on the server filesystem. The host-lock proof then does not account for that actual dependency. The practical impact depends on the SNO caller's source-group boundary and should be validated with a filesystem-backed test; this is a proof-soundness risk, not a demonstrated end-to-end bypass.
+- **Decoder/source-observer analysis:** the same false edge can omit the actual module from `staticallyImportedEsmTargets()` or source-observer island analysis and can make `hasUnprovedModuleImport()` return false based on the decoy. Add targeted tests before relying on these proofs.
+
 ## Other requested dimensions checked
 
 No additional admitted mismatch was found in the bounded checks for:
