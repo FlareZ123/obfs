@@ -5,7 +5,7 @@ const assert=require('node:assert/strict');
 const {createServer}=require('node:http');
 const {createScoHandler,partitionScoAsyncGraph,partitionScoSelectedAsyncExports}=require('../src');
 const {obfuscateFiles}=require('../src/core');
-const {hasPathnameControlCharacter}=require('../src/esm-url-paths');
+const {hasUrlPathnameNormalizationHazard}=require('../src/esm-url-paths');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 
@@ -19,18 +19,28 @@ const options=/** @type {const} */ ({
   closedWorld:true,strings:false,identifiers:false
 });
 
-test('pathname C0 and DEL are rejected while query/fragment controls and ordinary spaces remain outside the predicate',()=>{
+test('pathname C0/DEL and URL-trimmed trailing spaces are rejected while internal/query/fragment spaces remain outside the predicate',()=>{
   const controls=Array.from({length:32},(_,index)=>String.fromCharCode(index)).concat('\x7f');
   for(const control of controls) {
-    assert.equal(hasPathnameControlCharacter('./dir/x'+control+'/secret.mjs'),true,
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/x'+control+'/secret.mjs'),true,
       'pathname control U+'+control.charCodeAt(0).toString(16).padStart(4,'0'));
-    assert.equal(hasPathnameControlCharacter('./dir/secret.mjs?value='+control),false,
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs?value='+control),false,
       'query control must not be classified as pathname data');
-    assert.equal(hasPathnameControlCharacter('./dir/secret.mjs#fragment'+control),false,
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs#fragment'+control),false,
       'fragment control must not be classified as pathname data');
   }
-  assert.equal(hasPathnameControlCharacter('./dir/hello world.mjs'),false);
-  assert.equal(hasPathnameControlCharacter('./dir/hello%20world.mjs'),false);
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/hello world.mjs'),false);
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/hello%20world.mjs'),false);
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs '),true,
+    'a trailing pathname space is trimmed by WHATWG URL parsing');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs?query '),false,
+    'a trailing query space does not change the pathname');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs#fragment '),false,
+    'a trailing fragment space does not change the pathname');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs ?query'),false,
+    'a space before a query delimiter is not an input-boundary space');
+  assert.equal(hasUrlPathnameNormalizationHazard(' ./dir/secret.mjs'),false,
+    'a leading space makes this a bare specifier, not a relative URL reference');
 });
 
 test('C0 URL identity mismatch refuses cross-file owner proof instead of renaming the POSIX decoy',()=>{
