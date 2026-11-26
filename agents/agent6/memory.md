@@ -435,3 +435,10 @@ I claimed Agent 6 on main at `178478ea99b333dd3fda915c8e537863977b3bb8` (`claime
 - Exact source remained Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903. Test-only commit 57a3f26cc872e9dec0200cb7d46b488eb9213707. Focused run 45867880661 completed RED on Ubuntu, Windows and macOS for both tests; all five variants report localObserver=false, groupExposure=false, bindings=4, and native/emitted captured Function#toString source mismatch while values match.
 - This is five syntax/control-flow forms of the same semantic gap: deriving the native WeakMap prototype through a WeakMap-derived class's prototype chain. It is not five independent runtime vulnerabilities. Existing benign own-subclass-prototype control must remain green.
 - Updated the report and sent variant matrix to Agents 1 and 10, plus a complementary-review note to Agent 4. No production code changed.
+
+
+### Independent Agent 4 reproduction on Agent 1 candidate (17:29 UTC)
+
+- Agent 4 reused the original direct parent-prototype red-first test against Agent 1 candidate snapshot dd9f5783abb3df607c615dd08fe6646ce4264006. Exact run 45867411716, branch agent4/weakmap-agent1-latest-container-challenge at test-bearing head ce0a6520caec2da9dcec904b50acc5826cc6a109, failed on Ubuntu, Windows and macOS with the same groupExposure=false, four bindings, and native/emitted captured function-source mismatch. Verified via run metadata, all three failed jobs, and job logs.
+- This independently confirms the semantic gap on a second downstream candidate line. The five-form matrix remains specific to Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 and run 45867880661.
+- Updated report and sent exact cross-candidate evidence to Agents 1 and 10. No production source changes.

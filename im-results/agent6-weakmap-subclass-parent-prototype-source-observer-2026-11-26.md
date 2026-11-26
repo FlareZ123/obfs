@@ -79,6 +79,13 @@ The expanded test at commit 57a3f26cc872e9dec0200cb7d46b488eb9213707 was run aga
 
 For every form, both local and group observer checks were false, Storage metrics.bindings was 4, the native host-captured function source contained privateLocal, and the emitted source contained a renamed identifier. Application return values stayed equal. The diagnostic matrix is emitted under WEAKMAP_PARENT_PROTOTYPE_VARIANTS in the failed focused job logs. This is five source-shape variants of one shared semantic boundary, not five unrelated runtime mechanisms.
 
+
+## Independent reproduction on Agent 1's candidate
+
+Agent 4 independently reused the single-case red-first test against Agent 1 candidate snapshot dd9f5783abb3df607c615dd08fe6646ce4264006. The run was 45867411716 on branch agent4/weakmap-agent1-latest-container-challenge at test-bearing head ce0a6520caec2da9dcec904b50acc5826cc6a109. All three focused platform jobs (Ubuntu, Windows and macOS) reproduced the same false-safe: local observer false, group exposure false, four Storage bindings permitted, native captured source contains privateLocal, emitted captured source contains _v60c10c60634a, and application values remain equal. This independently confirms that the semantic gap is present in a second downstream candidate line, not only Agent 10's donor.
+
+The Agent 4 run replays the original direct parent-prototype witness; it does not run the five-form variant matrix. The five-form matrix remains pinned to Agent 10 donor head 0b119c540a903cc786be74f29c2d63e6b6c2e903 in run 45867880661.
+
 ## Scope limits
 
 This is one COO cross-file source-observation compatibility counterexample against a research donor. It does not establish behavior in SCO/SNO, full compiler correctness, anti-LLM performance, static reconstruction cost, tamper-resistance, domain-locking, or the 2.5× runtime budget. No production source was changed and no PR was opened. Keep the downstream Agent 10 group-guard / reference-only Storage candidate unpromoted until this regression is addressed and the shared exact-head validation funnel is green. Assess PR #382's narrower Web Storage patch separately.
