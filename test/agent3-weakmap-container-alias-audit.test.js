@@ -74,7 +74,7 @@ function run(moduleSource) {
 /**
  * @param {{name:string,setup:string,access:string}} fixture
  */
-function verifyFalseSafe(fixture) {
+function verifyGuard(fixture) {
   const lines = [
     "const getPrototype=Object.prototype.__lookupGetter__('__proto__');",
     fixture.setup,
@@ -106,12 +106,12 @@ function verifyFalseSafe(fixture) {
     source: app.code
   };
 
-  assert.equal(observed, false, JSON.stringify(evidence));
-  assert.ok(app.metrics.bindings > 0, JSON.stringify(evidence));
+  assert.equal(observed, true, JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings, 0, JSON.stringify(evidence));
   assert.deepEqual(emitted.result, native.result);
   assert.ok(native.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
-  assert.notEqual(emitted.capturedSource, native.capturedSource, JSON.stringify(evidence));
-  assert.ok(!emitted.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource, native.capturedSource, JSON.stringify(evidence));
+  assert.ok(emitted.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
   return evidence;
 }
 
@@ -164,9 +164,9 @@ const carrierFixtures = [
 ];
 
 for (const fixture of carrierFixtures) {
-  test('object/array carrier flow is not treated as WeakMap prototype exposure: ' + fixture.name, () => {
-    const evidence = verifyFalseSafe(fixture);
-    process.stdout.write('WEAKMAP_CONTAINER_FALSE_SAFE ' + JSON.stringify({
+  test('object/array carrier flow blocks unsafe source rewrite: ' + fixture.name, () => {
+    const evidence = verifyGuard(fixture);
+    process.stdout.write('WEAKMAP_CONTAINER_GUARD_PASS ' + JSON.stringify({
       fixture: evidence.fixture,
       observed: evidence.observed,
       bindings: evidence.metrics.bindings,
