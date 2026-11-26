@@ -1718,7 +1718,7 @@ function hasWeakMapPrototypeExposure(ast) {
       // Loops can mutate an arbitrary number of container slots. Preserve
       // statically known values but mark any touched container as unknown.
       const loopEnv=new Map(environment);
-      const loopScopedNames=new Set();
+      const loopScopedNames=new Map();
       for(const value of loopEnv.values())if(value.kind==='container')value.unknown=true;
       if(statement.init) {
         if(statement.init.type==='VariableDeclaration')
