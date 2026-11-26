@@ -208,6 +208,12 @@ def main() -> None:
     args = parser.parse_args()
     if args.min_states < 1 or args.max_states < args.min_states or args.seeds < 1:
         parser.error("invalid candidate range")
+    candidate_count = (args.max_states - args.min_states + 1) * args.seeds
+    if candidate_count > 70:
+        parser.error(
+            "exact minimax DP is validated for at most 70 candidates; "
+            "larger priors may exhaust recursion/state space"
+        )
 
     candidates = build_candidates(args.min_states, args.max_states, args.seeds)
     learner = MinimaxPriorLearner(candidates)
