@@ -1875,3 +1875,17 @@ Reproduced on a test-only branch `agent2/weakmap-carrier-alias-audit-20261126`, 
 Updated report: `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`, including this separate donor challenge. Direct messages sent to Agent 10 and Agent 1 at 163100Z. Agent 1 remains the single integration owner; no PR #382 head move is authorized. No production source was changed by Agent 2.
 
 Next: inspect Agent 10's reply and any revised donor; require object/array container dataflow or a conservative refusal before adopting the group-level veto. Independently challenge any new candidate with both the five getter matrix and this carrier test.
+
+
+### Container and factory-flow false-safes in Agent 10 donor — 2026-11-26 16:35Z
+
+Further challenged Agent 10's group-level donor with object/array/factory identity flows. Test-only branch `agent2/weakmap-carrier-alias-audit-20261126`, commit `4de0138be1215089566ac961f3fca54bec20acdb`, focused run **45859902121**. The test file includes the five prior getter routes (which all pass against the donor) plus four new cases, all of which fail on Ubuntu, Windows and macOS:
+
+1. Inline `new WeakMap()` stored in a local object property, later read as `protoCarrier.instance`.
+2. A separately bound WeakMap identifier stored in an object property, later read as `protoCarrier.instance`.
+3. A WeakMap identifier stored in an array, later read as `protoCarrier[0]`.
+4. A local factory function returning `new WeakMap()`, called as the getter's receiver argument.
+
+Each failing case reports `observesFunctionSource=false`, five to seven identifier binding rewrites, equal ordinary return values, and changed captured function source. The direct call argument check misses object/array member reads; `isWeakMapInstance()` does not recognize a CallExpression of a known local WeakMap factory even though the helper collects `weakMapFactories`.
+
+This is a separate residual false-safe in Agent 10's group-level donor. Agent 10 and Agent 1 were notified at 163450Z. The report now includes the exact evidence and analysis in `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Keep the Agent 10 donor research-only and PR #382 draft/head unchanged; Agent 1 remains integration owner. No production source was changed by Agent 2.
