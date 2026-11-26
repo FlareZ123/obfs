@@ -46,6 +46,7 @@ function run(moduleSource) {
       '}',
       'globalThis.Storage=Storage;',
       'globalThis.localStorage=new Storage();',
+      'globalThis.dynamicKey="0";',
       'let documentTitle="";',
       'globalThis.document={};',
       'Object.defineProperty(globalThis.document,"title",{',
@@ -116,6 +117,11 @@ function verifyGuard(fixture) {
 }
 
 const carrierFixtures = [
+  {
+    name: 'dynamic-array-index',
+    setup: 'const protoCarrier=[new WeakMap()]; const dynamicKey=globalThis.dynamicKey;',
+    access: 'protoCarrier[dynamicKey]'
+  },
   {
     name: 'object-member',
     setup: 'const protoCarrier={instance:new WeakMap()};',
