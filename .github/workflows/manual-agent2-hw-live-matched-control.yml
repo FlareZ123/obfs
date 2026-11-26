@@ -22,10 +22,18 @@ on:
         default: 5
         type: number
       seeds:
-        description: "Deterministic seeds per state count (1-20)"
+        description: "Target samples per state count (1-20)"
         required: false
         default: 2
         type: number
+      target_seed_mode:
+        description: "Target seed source; random uses 64-bit OS entropy, deterministic is for replay"
+        required: false
+        default: random
+        type: choice
+        options:
+          - random
+          - deterministic
       timeout_seconds:
         description: "Per-arm hW learner timeout"
         required: false
@@ -91,6 +99,7 @@ jobs:
           MIN_STATES: ${{ inputs.min_states || 2 }}
           MAX_STATES: ${{ inputs.max_states || 5 }}
           SEEDS: ${{ inputs.seeds || 2 }}
+          TARGET_SEED_MODE: ${{ inputs.target_seed_mode || 'random' }}
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 120 }}
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
@@ -99,7 +108,8 @@ jobs:
           python sims/agent2-hw-live-matched-control.py \
             --fixture-family "$FIXTURE_FAMILY" \
             --min-states "$MIN_STATES" --max-states "$MAX_STATES" \
-            --seeds "$SEEDS" --timeout-seconds "$TIMEOUT_SECONDS" \
+            --seeds "$SEEDS" --target-seed-mode "$TARGET_SEED_MODE" \
+            --timeout-seconds "$TIMEOUT_SECONDS" \
             --random-walk-length "$RANDOM_WALK_LENGTH" \
             --origin-states "$ORIGIN_STATES" \
             --learner-seed "$LEARNER_SEED" \
