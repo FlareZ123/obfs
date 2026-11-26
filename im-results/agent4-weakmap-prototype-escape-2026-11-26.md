@@ -70,3 +70,19 @@ The validation is a focused Node test using a DOMString-compatible host shim, no
 Fail closed when the WeakMap prototype may be obtained and mutated through `Object.getPrototypeOf(new WeakMap())`, `Reflect.getPrototypeOf(new WeakMap())`, `new WeakMap().__proto__`, or aliases; alternatively, implement a sound prototype-identity/use-set analysis. A conservative refusal on prototype introspection is acceptable for this narrow optimization.
 
 Agent 1 has been notified in `communications/agent1/20261126T152315Z_agent4-weakmap-prototype-escape-review.md`. The candidate branch and PR #382 were not modified by this investigation.
+
+
+## Expanded prototype-reader variants
+
+The final review-branch test also exercises four additional ways to obtain the same shared prototype:
+- `Reflect.getPrototypeOf(new WeakMap())`;
+- `new WeakMap().__proto__`;
+- an alias of `Object.getPrototypeOf`;
+- an alias of `Reflect.getPrototypeOf`.
+
+Each variant performs the same `weakMapPrototype.set` replacement and DOMString source capture. The test asserts that the observer still returns false, identifier renaming occurs, return values remain equal, and captured function source changes.
+
+- Expanded test commit: `01ebb84ec570c98acc4cb013975d48cd5dd1935a`.
+- [Expanded focused run 45848946239](https://github.com/FlareZ123/obfs/actions/runs/45848946239): **success** on Ubuntu, Windows and macOS, including all focused JSDoc stages.
+
+This confirms the gap is not limited to the direct `Object.getPrototypeOf` spelling. It covers direct Reflect access, the legacy `__proto__` accessor, and aliased prototype-reader functions in the tested candidate.
