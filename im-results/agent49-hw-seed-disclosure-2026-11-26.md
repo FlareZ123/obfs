@@ -188,4 +188,6 @@ For the actual offline family:
 
 For target `N=6, seed=0`, the optimal policy asks input `0` five times and observes outputs `11010`, identifying the exact fixture in five queries.
 
+Running the same exact solver over the live workflow's eight-candidate family (`--min-states 2 --max-states 5 --seeds 2`) gives an optimal worst-case depth of **4 queries**, mean **3.125**, histogram `{2:1, 3:5, 4:2}`, with 158 memoized belief states. All eight targets are identified. The earlier greedy policy's mean of 3.375 was not optimal.
+
 This is an exact optimal policy for the finite public 70-fixture prior, not for the unrestricted class of Mealy machines. It is a much stronger practical benchmark audit than the hW learner's 77-step run.
