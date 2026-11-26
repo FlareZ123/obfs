@@ -714,3 +714,11 @@ does not change the hostile-runtime extraction boundary. The preloader still
 captures the transformed target source. See the
 [native-bound private-target report](../im-results/agent1-native-bound-target-proof-2026-11-26.md)
 for the exact conditions, regression fixtures and validation status.
+
+
+The distinction is covered by separate witnesses. The out-of-band hostile
+preloader test expects to capture the transformed target source. By contrast,
+`test/agent10-bind-in-source-custom-bind-escape.test.js` exercises an
+in-program `Function.prototype.bind` replacement that passes the target
+through `this` to an opaque host callback; COO, SNO and SCO must refuse the
+bound-target rewrite and preserve runtime parity.
