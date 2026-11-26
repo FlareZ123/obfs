@@ -119,3 +119,21 @@ Thus the **trace-only finite-class existence witness stands**. It does not estab
 6. Keep the result in `im-results/`; do not promote it to `results/` or claim a production SCO security theorem.
 
 This is a harness/evidence correction, not a claim that a production SCO backend has been broken.
+
+
+## 8. Public fixture-family enumeration is a separate blocker
+
+Removing the `oracle_seed` disclosure alone is insufficient. The target generator and workflow use a small public fixture family:
+
+- Offline run 45700869182: `state_count=6..12`, `seed=0..9` — exactly **70** possible fixtures.
+- Live run 45664689387: `state_count=2..5`, `seed=0..1` — exactly **8** possible fixtures.
+
+The generator is deterministic from the pair. Its random family also fixes the input-0 transition to `(state+1) % N`, so it is a narrow public prior rather than a sample from the full class of minimal strongly connected Mealy machines.
+
+I independently regenerated all 70 offline candidates and replayed each completed public trace against every candidate. **All 69 completed traces uniquely matched exactly one candidate, and it was the evaluator's target (69/69, zero ambiguous traces).** The failed learner row is excluded.
+
+For the live batch, all eight generated candidates have distinct fixture digests; each of the eight artifact rows maps to exactly one candidate. The learner can therefore enumerate the complete live target family and identify the target through public API queries. The exposed `oracle_seed` makes this immediate, but is not necessary for the family to be enumerable.
+
+This changes the interpretation of the SAT witness: it remains a valid alternative realization in the broad class of all minimal strongly connected Mealy machines with at most N states, but the alternative is outside the benchmark's known 70-machine generator prior. Under the actual public prior, the observed traces identify the target uniquely.
+
+**Required repair:** use a genuinely large target distribution (e.g. evaluator-only 128/256-bit seed or direct `secrets.SystemRandom` sampling), remove the fixed input-0 cycle, keep all target-generation material evaluator-side, and rerun the entire experiment. A separate learner RNG seed does not repair a tiny public target family.
