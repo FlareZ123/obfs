@@ -127,3 +127,14 @@ A separate three-file ESM graph reproduces the same source-observation false-saf
 The ESM entry imports a mutation module before the Storage module. The mutation module obtains and modifies the shared WeakMap prototype; the Storage module separately contains the reference-only WeakMap override. Both per-file `observesFunctionSource` checks return false, so the group compiler renames at least two private bindings in the Storage module. At runtime, ESM evaluation applies the mutation before the Storage module executes; ordinary return values match, but the function source captured through the DOMString-compatible Document title setter differs.
 
 This demonstrates that the per-file fail-closed patch is insufficient for grouped input. The prototype-mutation fact must be collected across the supplied file set and propagated into each relevant WeakMap proof, or the proof must conservatively reject when another module can mutate the shared intrinsic before use. This Node test uses a DOMString-compatible host shim; a real-browser cross-file confirmation remains a useful next validation.
+
+
+## Real-browser cross-file confirmation
+
+The three-module cross-file false-safe was also reproduced in actual Chromium against Agent 1's patched candidate. The browser harness creates separate Blob-backed ESM modules, imports the prototype-mutation module before the Storage module, and uses the native `Document.title` setter.
+
+- Browser harness candidate commit: `df012568ec367ff8521f025ff40a9dbdb2fbe318`.
+- Patched source base: `6e7888ae33b47a7f5cda432b545088c75b937a54`.
+- [Real Chromium cross-file run 45851626612](https://github.com/FlareZ123/obfs/actions/runs/45851626612): success.
+
+The browser assertions confirm that the group compiler still renames the private Storage-module bindings, ordinary return values remain equal, and the function source captured by the native Document.title setter differs between native and emitted module graphs. This closes the remaining gap between the Node-shim cross-file witness and browser behavior for this reproducer.
