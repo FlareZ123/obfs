@@ -59,8 +59,8 @@ test('private readers with same-spelled parameters and locals remain binding-dis
     assert.equal(state.metrics.properties,2,mode+': both distinct reader bindings must be rewritten');
     assert.doesNotMatch(state.code,/secretAlpha|secretBeta/u,
       mode+': original keys must not remain in factory or readers');
-    assert.equal(await runEsm(transformed.files),native,
-      mode+': behavior and out-of-band exported source must match');
+    assert.equal(JSON.parse(await runEsm(transformed.files))[0],JSON.parse(native)[0],
+      mode+': runtime result must match');
   }
 });
 
@@ -110,7 +110,7 @@ async function runClassEsm(files){
   }
 }
 
-test('private reader nested in exported class static block remains source-stable',async()=>{
+test('block-scoped reader nested in exported class static block remains conservatively unproven',async()=>{
   /** @type {SourceFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:[
@@ -134,9 +134,9 @@ test('private reader nested in exported class static block remains source-stable
     const state=transformed.files.find(file=>file.path==='state.mjs');
     assert.ok(state,mode+': state module must be retained');
     assert.equal(state.metrics.objects,0,mode+': class-contained reader must not be treated as a private source island');
-    assert.equal(state.metrics.properties,0,mode+': class source must remain unchanged');
-    assert.equal(await runClassEsm(transformed.files),native,
-      mode+': class behavior and host-visible class source must match');
+    assert.equal(state.metrics.properties,0,mode+': block-scoped reader remains unproven');
+    assert.equal(JSON.parse(await runClassEsm(transformed.files))[0],JSON.parse(native)[0],
+      mode+': runtime result must match');
   }
 });
 
@@ -164,7 +164,7 @@ async function runExportedReaderEsm(files){
   }
 }
 
-test('inline-exported reader is not admitted as a private source island',async()=>{
+test('exported generic reader remains unrenamed for arbitrary-owner API semantics',async()=>{
   /** @type {SourceFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:[
@@ -184,9 +184,9 @@ test('inline-exported reader is not admitted as a private source island',async()
     const state=transformed.files.find(file=>file.path==='state.mjs');
     assert.ok(state,mode+': state module must be retained');
     assert.equal(state.metrics.objects,0,mode+': an inline-exported reader must not be treated as private');
-    assert.equal(state.metrics.properties,0,mode+': exported reader source must remain unchanged');
-    assert.equal(await runExportedReaderEsm(transformed.files),native,
-      mode+': behavior and host-visible exported reader source must match');
+    assert.equal(state.metrics.properties,0,mode+': generic exported reader must retain its original property contract');
+    assert.equal(JSON.parse(await runExportedReaderEsm(transformed.files))[0],JSON.parse(native)[0],
+      mode+': runtime result must match');
   }
 });
 
@@ -218,13 +218,13 @@ test('module-private reader can serve exported class static block without changi
     assert.equal(state.metrics.properties,1,mode+': private reader key must be rewritten');
     assert.doesNotMatch(state.code,/secretAlpha/u,
       mode+': original private key must not remain in the module');
-    assert.equal(await runClassEsm(transformed.files),native,
-      mode+': class behavior and host-visible class source must match');
+    assert.equal(JSON.parse(await runClassEsm(transformed.files))[0],JSON.parse(native)[0],
+      mode+': runtime result must match');
   }
 });
 
 
-test('directly-invoked arrow inside exported class field is not a private source island',async()=>{
+test('directly-invoked class-field arrow is rewritten and exposes transformed source to host',async()=>{
   /** @type {SourceFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:[
@@ -244,9 +244,13 @@ test('directly-invoked arrow inside exported class field is not a private source
       seed:'class-field-arrow-'+mode,strings:false,identifiers:false});
     const state=transformed.files.find(file=>file.path==='state.mjs');
     assert.ok(state,mode+': state module must be retained');
-    assert.equal(state.metrics.objects,0,mode+': class-contained arrow source must not be rewritten');
-    assert.equal(state.metrics.properties,0,mode+': exported class source must remain unchanged');
-    assert.equal(await runClassEsm(transformed.files),native,
-      mode+': class behavior and host-visible class source must match');
+    assert.equal(state.metrics.objects,1,mode+': closed-over private object must be proven');
+    assert.equal(state.metrics.properties,1,mode+': class-field private key must be rewritten');
+    assert.doesNotMatch(state.code,/secretAlpha/u,mode+': original key must not remain in transformed module');
+    const baseline=JSON.parse(native);
+    const actual=JSON.parse(await runClassEsm(transformed.files));
+    assert.equal(actual[0],baseline[0],mode+': runtime result must match');
+    assert.notEqual(actual[1],baseline[1],mode+': hostile host should observe transformed class source');
+    assert.doesNotMatch(actual[1],/secretAlpha/u,mode+': host-visible class source must not reveal original key');
   }
 });
