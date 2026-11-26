@@ -33,14 +33,15 @@ jobs:
         env:
           CANDIDATE_SHA: ${{ inputs.candidate_sha }}
         run: |
+          set -euo pipefail
           checked_out_sha="$(git rev-parse HEAD)"
           test "$checked_out_sha" = "$CANDIDATE_SHA"
           {
-            echo "## Candidate source pin"
-            echo "- Input candidate SHA: `$CANDIDATE_SHA`"
-            echo "- Checked-out SHA: `$checked_out_sha`"
-            echo "- Workflow ref: `$GITHUB_REF`"
-            echo "- Workflow SHA: `$GITHUB_SHA`"
+            printf '%s\n' "## Candidate source pin"
+            printf '%s\n' "- Input candidate SHA: $CANDIDATE_SHA"
+            printf '%s\n' "- Checked-out SHA: $checked_out_sha"
+            printf '%s\n' "- Workflow ref: $GITHUB_REF"
+            printf '%s\n' "- Workflow SHA: $GITHUB_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Candidate SHA verified: $checked_out_sha"
       - uses: actions/setup-node@v4
