@@ -967,6 +967,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(!callSites.length||!callSites.some(use=>use.parent===parent)||
       callSites.some(use=>{
         const call=use.parent;
+        if(call?.type!=='CallExpression'||call.callee!==use.node)return true;
         const argument=call.arguments[0];
         return call.optional||call.arguments.length!==1||
           argument?.type!=='Identifier'||!aliases.has(argument.name);
