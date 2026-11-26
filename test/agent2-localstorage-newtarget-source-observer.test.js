@@ -36,6 +36,8 @@ async function run(files){
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
     const script=[
       "globalThis.localStorage={setItem(_key,value){globalThis.__stored=String(value);}};",
+      'globalThis.sessionStorage=globalThis.localStorage;',
+      'globalThis.window=globalThis;',
       'const {outer}=await import(process.argv[1]);',
       'const result=new outer();',
       "process.stdout.write(JSON.stringify({result:result.result,storedHasOriginal:globalThis.__stored.includes('secretField')}));"
@@ -49,6 +51,62 @@ async function run(files){
     await fs.rm(root,{recursive:true,force:true});
   }
 }
+
+
+const windowAliasSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'const storage=window.localStorage;',
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;storage.setItem('k',new.target);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+const sessionAliasSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'const storage=globalThis.sessionStorage;',
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;storage.setItem('k',new.target);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+async function assertStorageSourcePreserved(files,seed){
+  const native=await run(files);
+  assert.deepEqual(native,{result:7,storedHasOriginal:true});
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed,
+    properties:true,identifiers:false,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='app.mjs');
+  assert.ok(app);
+  const emitted=compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }));
+  const actual=await run(emitted);
+  process.stdout.write('WEB_STORAGE_SOURCE_OBSERVER '+JSON.stringify({
+    original:native,emitted:actual,propertyRenames:app.metrics.properties,source:app.code
+  })+'\\n');
+  assert.equal(app.metrics.properties,0,
+    JSON.stringify({native,actual,propertyRenames:app.metrics.properties,source:app.code}));
+  assert.deepEqual(actual,native);
+}
+
+test('window.localStorage alias is recognized as a Web Storage source observer',async()=>{
+  await assertStorageSourcePreserved(windowAliasSources,'agent2-window-localstorage-alias');
+});
+
+test('globalThis.sessionStorage alias is recognized as a Web Storage source observer',async()=>{
+  await assertStorageSourcePreserved(sessionAliasSources,'agent2-globalthis-sessionstorage-alias');
+});
 
 test('unmodeled Web Storage string conversion of lexical new.target disables owner property renaming',async()=>{
   const native=await run(sources);
