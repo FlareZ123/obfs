@@ -146,3 +146,4 @@ console.log(JSON.stringify({
   maxSegments: 4,
   counts,
 }, null, 2));
+if (!ordinarySpacePathnamesAllowed) process.exitCode = 1;
