@@ -100,17 +100,17 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'const privateRecord={secretAlpha:23};',
           'export function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
           'export function calculate(k){return k*readAlpha(privateRecord);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'barrel.mjs',sourceType:'module',code:'export {readAlpha} from "./owner.mjs";'},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export {readAlpha} from "./barrel.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute,readAlpha} from "./api.mjs";',
           'process.stdout.write(JSON.stringify([execute(2),readAlpha({secretAlpha:5})]));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     },
     {
@@ -121,15 +121,15 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
           'const alias=readAlpha;',
           'export function calculate(k){return k*alias(privateRecord);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute} from "./api.mjs";',
           'process.stdout.write(String(execute(2)));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     },
     {
@@ -141,15 +141,15 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'function capture(reader){globalThis.__capturedReader=reader;}',
           'capture(readAlpha);',
           'export function calculate(k){return k*readAlpha(privateRecord);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute} from "./api.mjs";',
           'process.stdout.write(String(execute(2)));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     },
     {
@@ -159,15 +159,15 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'const privateRecord={secretAlpha:23};',
           'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
           'export function calculate(k){return k*(readAlpha?.(privateRecord)??0);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute} from "./api.mjs";',
           'process.stdout.write(String(execute(2)));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     },
     {
@@ -179,15 +179,15 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'const privateRecord={secretAlpha:23};',
           'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
           'export function calculate(k){return k*readAlpha(privateRecord)+readAlpha(externalOwner);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute} from "./api.mjs";',
           'process.stdout.write(String(execute(2)));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     },
     {
@@ -198,15 +198,15 @@ test('ESM private readers remain unrenamed when exported, escaped, optional, mix
           'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
           'const observedSource=readAlpha.toString();',
           'export function calculate(k){return k*readAlpha(privateRecord)+observedSource.length*0;}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'api.mjs',sourceType:'module',code:[
           'import {calculate} from "./owner.mjs";',
           'export function execute(k){return calculate(k);}'
-        ].join('\\n')},
+        ].join('\n')},
         {path:'entry.mjs',sourceType:'module',code:[
           'import {execute} from "./api.mjs";',
           'process.stdout.write(String(execute(2)));'
-        ].join('\\n')}
+        ].join('\n')}
       ]
     }
   ];
