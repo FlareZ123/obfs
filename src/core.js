@@ -4,7 +4,7 @@ const path = require('node:path');
 const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -1953,6 +1953,21 @@ function obfuscateFiles(files, options = {}) {
   // though the caller selected a protected function in that file.
   const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
+  // Native bind does not expose its target to ordinary program code: only
+  // the exported bound wrapper remains visible. Admit a private target only
+  // when every supplied executable file has no obvious global/reflection/
+  // prototype mutation channel and every static import resolves in-graph.
+  // An external hostile preloader is deliberately not part of this semantic
+  // proof; it can observe the transformed target source, not the original.
+  const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
+    prepared.every(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return false;
+      const inputAst=parse(file.code,file.sourceType);
+      return !hasUnsafeNativeBindMutationSurface(inputAst)&&
+        !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
+        !(file.sourceType==='commonjs'&&
+          hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
+    });
   /** @type {Array<[string,Record<string,string[]>|undefined]>} */
   const selectedFunctionBackends=[
     ['Register VM',options.experimentalRegisterVm],
@@ -2047,7 +2062,7 @@ function obfuscateFiles(files, options = {}) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2239,7 +2254,7 @@ function obfuscateFiles(files, options = {}) {
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt,closedWorld:options.closedWorld===true});
+        renameLocalProperties(code,ast,{seed:salt,closedWorld:options.closedWorld===true,allowBoundFunctionTargets});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
