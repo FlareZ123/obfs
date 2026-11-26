@@ -46,7 +46,12 @@ const sourceObserverCases=[
   {name:'destructuredLocal',setup:'const {setItem}=localStorage;'},
   {name:'destructuredPrototype',setup:'const {setItem}=Storage.prototype;'},
   {name:'descriptorValue',setup:"const setItem=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem').value;"},
-  {name:'reflectGet',setup:"const setItem=Reflect.get(Storage.prototype,'setItem');"}
+  {name:'reflectGet',setup:"const setItem=Reflect.get(Storage.prototype,'setItem');"},
+  {name:'assignmentDestructured',setup:'let setItem; ({setItem}=localStorage);'},
+  {name:'descriptorAliasChain',setup:"const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem'); const setItem=descriptor.value;"},
+  {name:'reflectGetAlias',setup:"const get=Reflect.get; const setItem=get(Storage.prototype,'setItem');"},
+  {name:'descriptorReaderAlias',setup:"const descriptorReader=Object.getOwnPropertyDescriptor; const setItem=descriptorReader(Storage.prototype,'setItem').value;"},
+  {name:'descriptorValueDestructure',setup:"const {value:setItem}=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem');"}
 ];
 for(const {name,setup:methodSetup} of sourceObserverCases) {
   const source=[
