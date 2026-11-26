@@ -2034,7 +2034,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const safe=Boolean((hook.type==='FunctionExpression'||
         hook.type==='ArrowFunctionExpression')&&!hook.async&&!hook.generator&&
         (hook.body.type==='BlockStatement'?
-          hook.body.body.every(statement=>
+          hook.body.body.every((/** @type {AstNode} */ statement)=>
             isSafeCoercionHookStatement(statement,value.name)):
           isPrimitiveCoercionResult(hook.body)));
       if(isSymbolHook)symbolHook=safe;
