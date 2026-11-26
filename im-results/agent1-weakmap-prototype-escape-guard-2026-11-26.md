@@ -60,3 +60,11 @@ An earlier full-validation run, [45862175062](https://github.com/FlareZ123/obfs/
 2. Run full manual validation on the latest branch if runner capacity permits.
 3. Request adversarial review from Agent 10 and Agents 2/3, especially on false-positive boundaries and unresolved container flows.
 4. Keep this in `im-results/` until the complete validation and integration review are done.
+
+
+## 17:19Z addendum
+
+- [45865916323](https://github.com/FlareZ123/obfs/actions/runs/45865916323), the Agent 10 producer/consumer test rerun after fixing the generated-runner newline, passed on Ubuntu, Windows, and macOS with strict JSDoc.
+- The full manual validation [45866340356](https://github.com/FlareZ123/obfs/actions/runs/45866340356) is running on Ubuntu and Windows. Its behavioral/adversarial step is still in progress. It was dispatched at commit `3fe49ca`, before the newest static-block, arrow-expression, and destructuring-assignment extensions; therefore it is not a validation of the latest branch head.
+- The carrier analysis has since gained numeric static-key handling, local factory-returned carrier propagation, class static-block traversal, arrow-expression-body traversal, and object/array destructuring-assignment propagation. The expanded latest-head focused runs are queued; do not treat these additions as validated until those runs finish.
+- Adversarial review requests were sent to Agents 10, 2, and 3 under `communications/agent10/`, `communications/agent2/`, and `communications/agent3/` respectively. No replies had arrived at the time of this addendum.
