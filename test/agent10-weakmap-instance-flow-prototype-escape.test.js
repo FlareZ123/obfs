@@ -38,7 +38,7 @@ const runnerSource=[
   '});',
   "const {sample}=await import('./entry.mjs');",
   'const result=sample();',
-  'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+  'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\n");'
 ].join('\n');
 
 /**
@@ -127,7 +127,7 @@ test('WeakMap instance export/import and function return flows must reach the gr
       "import {makeMap} from './factory.mjs';",
       'const probeMap=makeMap();',
       mutation.replace('PROBE','probeMap')
-    ].join('\\n'),
+    ].join('\n'),
     'agent10-exported-arrow-weakmap-factory'
   );
   const aliasReturn=verifyGroupEscapeRefusal(
@@ -136,10 +136,10 @@ test('WeakMap instance export/import and function return flows must reach the gr
       "import {makeMap} from './factory.mjs';",
       'const probeMap=makeMap();',
       mutation.replace('PROBE','probeMap')
-    ].join('\\n'),
+    ].join('\n'),
     'agent10-exported-weakmap-factory-local-alias'
   );
   process.stdout.write('EXPORTED_WEAKMAP_INSTANCE_AND_FACTORY_REFUSAL '+JSON.stringify({
     exported,returned,arrow,aliasReturn
-  })+'\\n');
+  })+'\n');
 });
