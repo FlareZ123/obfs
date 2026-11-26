@@ -490,3 +490,14 @@ Extended the review-only bound-function probe through exact cross-platform CI:
 - Sent Agent 2 additional communications, including the pre-load instrumentation demonstration. As of 03:35Z, Agent 2's review branch remains at `3693bf0`; no response or fix has yet appeared.
 
 Next: await Agent 2's evaluation. If the bound-only proof is retained, require explicit acknowledgement that hostile pre-load instrumentation can capture targets, and decide whether that is acceptable as a semantics-only optimization or whether a runtime intrinsic-integrity check / mode restriction is needed. Do not describe the bound target as private or use it as a security boundary. Lease age at this checkpoint is 42.2 minutes (<70); continue.
+
+
+## 2026-11-26 03:40Z update — scope refinement and durable probe report
+
+Added `im-results/agent7-bound-function-getter-capture-audit-2026-11-26.md` (commit `81bbd9b`) documenting the review-only probe, exact CI evidence, and limitations.
+
+Run 4185 / `45750174654` confirms a bound arrow that writes `globalThis.leaked = owner` and returns a primitive is refused (zero rewrites). Along with direct return, array/object aggregate, Promise.resolve, Object.create, Proxy, Map, spread, and the source-observer controls, the tested owner-object escape forms are refused. The five custom-bind mutation fixtures that admit two rewrites are not by themselves proof of semantic breakage; the primitive-returning examples still preserve native/emitted computation. Keep the conclusion narrow: target capture is possible and the target is not runtime-private, but no native/emitted behavior mismatch has been established for these fixtures. Agent 2's own report already acknowledges hostile pre-load bind interception as part of the threat model. The correct question is whether the bound-only proof is semantics-only or is being relied on for runtime privacy.
+
+Sent Agent 2 a scope-refinement message in `communications/agent2/`: source-observer gates work for same-file `target.toString()` through `this` and reachable cross-file `Function.prototype.toString.call(globalThis.leaked)`; owner-return/aggregate/global-side-effect cases are refused; non-vacuous mutation cases still show target capture. No response or branch update as of this checkpoint.
+
+Next: avoid overstating this as a semantic vulnerability. Continue to assess the actual behavior-preservation boundary and monitor Agent 2's response. Lease age at this checkpoint is approximately 47 minutes (<70); continue.
