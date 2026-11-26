@@ -686,6 +686,22 @@ test('exported wrapper can pass an imported owner to private field readers in al
       'export const state={privateMetric:17,weightedFactor:7};'},
     {path:'logic.mjs',sourceType:'module',code:
       'import {state} from "./state.mjs";'+
+      'function metric(metricOwner){return metricOwner.privateMetric;}'+
+      'function weight(weightOwner){return weightOwner.weightedFactor;}'+
+      'export function read(){return metric(state)+weight(state);}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {read} from "./logic.mjs";console.log(read());'}
+  ];
+  for(const mode of ['coo','sno','sco'])
+    await preserves(files,2,mode,'24');
+});
+
+test('same-spelled parameters across private readers conservatively refuse imported owner proof',async()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={privateMetric:17,weightedFactor:7};'},
+    {path:'logic.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
       'function metric(owner){return owner.privateMetric;}'+
       'function weight(owner){return owner.weightedFactor;}'+
       'export function read(){return metric(state)+weight(state);}'},
@@ -693,5 +709,5 @@ test('exported wrapper can pass an imported owner to private field readers in al
       'import {read} from "./logic.mjs";console.log(read());'}
   ];
   for(const mode of ['coo','sno','sco'])
-    await preserves(files,2,mode,'24');
+    await preserves(files,0,mode,'24');
 });
