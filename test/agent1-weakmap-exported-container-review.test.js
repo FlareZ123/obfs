@@ -155,3 +155,51 @@ for(const fixture of fixtures) {
     })+'\\n');
   });
 }
+
+
+test('private local WeakMap storage and non-exported factories do not disable the Storage proof',()=>{
+  const factorySource=[
+    'const privateStore=new WeakMap();',
+    'const privateHolder={};',
+    'privateHolder.map=new WeakMap();',
+    'const localFactory={makeMap(){return new WeakMap();}};',
+    'function* localGenerator(){yield new WeakMap();}',
+    'class Cache {',
+    '  set(key,value){privateStore.set(this,new Map([[key,value]]));}',
+    '  get(key){return privateStore.get(this).get(key);}',
+    '}',
+    'export {Cache};'
+  ].join('\n');
+  const mutateSource=[
+    "import {Cache} from './factory.mjs';",
+    'const cache=new Cache();',
+    "cache.set('answer',29);",
+    "if(cache.get('answer')!==29)throw new Error('private WeakMap behavior changed');"
+  ].join('\n');
+  const entrySource=[
+    "import './factory.mjs';",
+    "import './mutate.mjs';",
+    "export {sample} from './storage.mjs';"
+  ].join('\n');
+  const files=[
+    {path:'entry.mjs',code:entrySource},
+    {path:'factory.mjs',code:factorySource},
+    {path:'mutate.mjs',code:mutateSource},
+    {path:'storage.mjs',code:storageSource}
+  ];
+  const compiled=obfuscateFiles(files.map(file=>({...file,sourceType:'module'})),{
+    mode:'coo',seed:'agent1-private-weakmap-positive-control',
+    properties:false,identifiers:true,strings:false,closedWorld:true
+  });
+  const storage=compiled.files.find(file=>file.path==='storage.mjs');
+  assert.ok(storage);
+  assert.ok(storage.metrics.bindings>0,JSON.stringify({
+    storageMetrics:storage.metrics,
+    files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))
+  }));
+  const native=run(files.map(file=>({path:file.path,code:file.code})));
+  const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(emitted.capturedSource,native.capturedSource);
+  assert.equal(native.capturedSource,'');
+});
