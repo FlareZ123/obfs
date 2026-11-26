@@ -108,7 +108,7 @@ function hasWeakMapPrototypeExposure(ast) {
       statement.declaration:statement;
     if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
     for(const declarator of declaration.declarations) {
-      if(declarator.id.type!=='Identifier')continue;
+      if(declarator.id.type!=='Identifier'||!declarator.init)continue;
       const value=staticString(declarator.init);
       if(value!==null)topLevelStringConstants.set(declarator.id.name,value);
     }
@@ -873,14 +873,14 @@ function hasWeakMapPrototypeExposure(ast) {
         [...(info?.returnedFactories??[])].some(name=>weakMapFactories.has(name)));
     }
     if(node.type==='ObjectExpression') {
-      return (node.properties??[]).some(property=>
+      return (node.properties??[]).some((/** @type {AstNode} */ property)=>
         property.type==='SpreadElement'?
           containsExportedWeakMapCapability(property.argument):
         property.type==='Property'?
           containsExportedWeakMapCapability(property.value):false);
     }
     if(node.type==='ArrayExpression')
-      return (node.elements??[]).some(element=>containsExportedWeakMapCapability(element));
+      return (node.elements??[]).some((/** @type {AstNode|null|undefined} */ element)=>containsExportedWeakMapCapability(element));
     if(node.type==='CallExpression') {
       if(node.callee.type==='Identifier'&&
          (weakMapFactories.has(node.callee.name)||importedLocalNames.has(node.callee.name)))return true;
