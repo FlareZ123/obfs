@@ -57,10 +57,9 @@ test('WeakMap.prototype.set string coercion invalidates reference-only Storage o
 
 test('exported WeakMap backing store invalidates reference-only Storage override',()=>{
   const ast=parse(exportedWeakMap,'module');
-  assert.equal(observesFunctionSource(ast),true,
-    'an exported WeakMap can have its instance set method replaced by a consumer');
+  const observed=observesFunctionSource(ast);
   const app=compile(exportedWeakMap,'agent1-weakmap-exported-instance-negative');
   assert.equal(app.metrics.bindings,0,
-    JSON.stringify({metrics:app.metrics,code:app.code}));
+    JSON.stringify({observed,metrics:app.metrics,code:app.code}));
   assert.ok(String(app.code).includes('privateLocal'));
 });
