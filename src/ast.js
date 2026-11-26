@@ -95,7 +95,7 @@ function hasWeakMapPrototypeExposure(ast) {
   /** @type {Array<{root:string|null,ownerName:string|null,global:boolean,imported:boolean,exportedFunction:boolean,value:AstNode}>} */
   const memberWrites=[];
   const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
-  /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
+  /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,accessor:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
   const functionInfoByNode=new Map();
 
   /** @param {AstNode|null|undefined} node @returns {string|null} */
@@ -273,6 +273,17 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     return false;
   }
+  /** @param {string} name @returns {boolean} */
+  function resolvesToWeakMapContainer(name) {
+    const seen=new Set();
+    let current=name;
+    while(current&&!seen.has(current)) {
+      if(weakMapContainerOwners.has(current)||weakMapContainerInstances.has(current))return true;
+      seen.add(current);
+      current=objectAliases.get(current);
+    }
+    return false;
+  }
 
   let exposed=false;
   walk(ast,(node,parent,key,ancestors)=>{
@@ -327,11 +338,19 @@ function hasWeakMapPrototypeExposure(ast) {
       const variableOwner=[...ancestors].reverse().find(ancestor=>
         ancestor.type==='VariableDeclarator'&&ancestor.id?.type==='Identifier');
       const ownerName=name??classOwner?.id?.name??variableOwner?.id?.name??null;
+      const propertyKey=parent?.type==='Property'?
+        (parent.computed?staticString(parent.key):parent.key.type==='Identifier'?parent.key.name:staticString(parent.key)):null;
+      const proxyGetTrap=parent?.type==='Property'&&parent.method&&propertyKey==='get'&&
+        ancestors.some(ancestor=>(ancestor.type==='NewExpression'||ancestor.type==='CallExpression')&&
+          ancestor.callee?.type==='Identifier'&&ancestor.callee.name==='Proxy'&&
+          ancestor.arguments?.[1]?.start<=node.start&&ancestor.arguments[1].end>=node.end);
       const info={
         name,
         ownerName,
         exported:ancestors.some(ancestor=>
           ancestor.type==='ExportNamedDeclaration'||ancestor.type==='ExportDefaultDeclaration'),
+        accessor:parent?.type==='Property'&&parent.kind==='get'||
+          parent?.type==='MethodDefinition'&&parent.kind==='get'||proxyGetTrap,
         returnedFactories:new Set(),
         returnsWeakMap:false,
         returnValues:node.type==='ArrowFunctionExpression'&&node.body.type!=='BlockStatement'?
@@ -511,6 +530,10 @@ function hasWeakMapPrototypeExposure(ast) {
           }
         }
         if(info.exported)exposed=true;
+        if(info.accessor&&info.ownerName) {
+          weakMapContainerOwners.add(info.ownerName);
+          weakMapContainerInstances.add(info.ownerName);
+        }
       }
     }
   }
@@ -719,7 +742,7 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='MemberExpression') {
       const key=carrierStaticKey(node.property,node.computed);
-      if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name))
+      if(node.object.type==='Identifier'&&resolvesToWeakMapContainer(node.object.name))
         return carrierMaybe;
       const base=evaluateCarrierValue(node.object,environment,thisValue);
       if(base.kind==='container') {
