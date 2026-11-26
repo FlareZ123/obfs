@@ -75,17 +75,17 @@ test('server-side decode then POSIX/Win32 normalization can resolve encoded sepa
   }
 });
 
-test('HTML and XHTML preserve SRI-pinned scripts under post-decode POSIX/Win32 separator aliases',()=>{
-  for(const mode of modes) {
-    for(const extension of ['html','xhtml']) {
-      for(const alias of encodedAliases) {
+for(const mode of modes) {
+  for(const extension of ['html','xhtml']) {
+    for(const alias of encodedAliases) {
+      test('HTML and XHTML preserve SRI-pinned scripts: '+extension+' '+mode+' '+alias.name,()=>{
         const result=compile(alias.request,'public/index.'+extension,mode);
         assert.equal(result.emitted,result.source,
           extension+' '+mode+': '+alias.name+' '+alias.request);
-      }
+      });
     }
   }
-});
+}
 
 test('an encoded separator path resolving to a different script keeps positive rewrite yield',()=>{
   for(const mode of modes) {
