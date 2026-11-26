@@ -117,7 +117,9 @@ test('Object.getPrototypeOf(shadowed WeakMap.prototype) exposes the shared nativ
 const namedClassExpressionMutationSource=[
   'const Parent=class WeakMap extends globalThis.WeakMap {};',
   'class Child extends Parent {};',
-  'const nativeWeakMapPrototype=Object.getPrototypeOf(Object.getPrototypeOf(Child.prototype));',
+  'const childPrototype=Child.prototype;',
+  'const parentPrototype=Object.getPrototypeOf(childPrototype);',
+  'const nativeWeakMapPrototype=Object.getPrototypeOf(parentPrototype);',
   'const nativeWeakMapSet=nativeWeakMapPrototype.set;',
   'nativeWeakMapPrototype.set=function(key,value){',
   '  document.title=value;',
