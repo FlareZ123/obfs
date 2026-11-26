@@ -1438,3 +1438,36 @@ Identity Agent 4 was claimed at `2026-11-25T16:32:29.688Z`; orderly release is d
 - Original claimed_at: `2026-11-26T06:52:31.687838289Z`.
 - Actual runtime clock before this checkpoint: `2026-11-26T06:59:05.613356202Z`.
 - Elapsed: 6m34s; below 70 minutes. Continue work.
+
+
+## 2026-11-26T07:16Z checkpoint — integrated reader proof, source-contract review, and factory experiment
+
+### Integrated PR #379 evidence
+- PR #379 remains draft. Latest PR head at last check: `bafc473b1f5c1eb9776450d64a17c30fa3f4cb39`; main at last check: `ba0c620563b37a68d99b60daf7b3bcc3260c8733`. Mergeability was false after main moved. PR body and candidate `README.md` / `results/README.md` were still stale, citing old 74b2/3a3c pins, run 4188, and 11 failures. Agent 1 has been messaged with exact pins and evidence; do not edit its integration branch without coordination.
+- Full integrated run **4262 / 45772098857** at source `88c66048c01dde3ba54fbf1b2da14f65d490c087` completed RED:
+  - Ubuntu 5,454 tests: 5,420 pass / 9 fail / 25 skipped.
+  - Windows 5,454: 5,410 pass / 9 fail / 35 skipped.
+  - Both platforms have the same 9 failures, exactly a subset of baseline run **4253 / 45768179948** (main pin `20cf9ff08dada0d06b5ecf4870cb15699d8cecad`), with no new failure.
+  - The two baseline failures eliminated are `cross-module native ESM graph preserves direct named declaration reader calls` and `public-only source normalization retains a functional clone beside an ordinary minifier`.
+  - Remaining failures: bound-runtime-interception, bound-runtime-minifier-control, factory-object-flow, interfile, private-class-source-yield (COO/SNO), private-tuple-session, sno-bound-runtime-interception, source-stable-bound-export.
+  - JSDoc/type gates, benchmark, paired profiles, whole-process budget, and all three Ubuntu Chromium steps passed. Windows Chromium skipped after behavioral RED.
+- Focused reader-proof run **4266 / 45772753925** at latest test-only head `bafc473...` passed on Ubuntu, Windows, and macOS with strict JSDoc; full Node22 job skipped. It includes ESM negative controls for re-export, alias/storage, opaque callback, optional call, mixed tracked/imported owners, and direct helper source observation.
+- Focused SCO publication run **4264 / 45772487150** at `88c660...` passed on Ubuntu, Windows, and macOS with strict JSDoc; full Node22 job skipped. The 15 control-character cases now run in independent CLI invocations and use actual TAB/LF/CR inputs.
+- Commits after full source pin `88c660...` were test-only additions/fixture corrections; no production `src/` change followed the full run. Do not describe 4262 as full validation of the literal latest branch head; combine the source-pinned full receipt with focused receipts only, or obtain a fresh full run if the code tree changes.
+
+### Exported-reader source stability
+- Added intermediate report `im-results/agent4-exported-reader-source-contract-2026-11-26.md` (commit `ec131f2100f5f6a1521919d6e4e0e825f011dcd6`).
+- The remaining factory/interfile positive fixtures directly read protected keys inside exported function bodies. If exported-function source must remain byte-identical under host `Function.prototype.toString`, direct property-key renaming necessarily changes the observable source. A Node.js v22.16.0 reproduction confirms the built-in `Function.prototype.toString.call(fn)` differs after changing the member spelling; assigning a custom `fn.toString` does not affect the built-in.
+- The new private-reader proof avoids this by changing only a private direct-call-only helper; the exported wrapper source remains unchanged. Do not broaden it to exported readers without an explicit decision about whether `closedWorld:true` permits source changes for internal exports. Agent 1 received communications at `communications/agent1/20261126T070700Z_agent4-exported-reader-source-contract.md` and `communications/agent1/20261126T071200Z_agent4-fullgate-disposition.md`.
+- Agent 3 independently reviewed the narrow FunctionDeclaration proof and found no code-level false-safe; Agent 7 added an isolated owner re-export cycle TDZ witness, passing its targeted cross-file step on both OSes. Agent 3 separately warned against integrating an experimental class-yield proof until a class-field source-observer bypass is resolved.
+
+### Factory + private-reader experiment (test-only branch)
+- Created isolated branch `agent4/factory-private-reader-experiment-20261126` from PR head `bafc473...`.
+- Added `test/agent4-factory-private-reader-experiment.test.js` (latest commit `f47e8db043d02286c68930ad425f68b66744453a`). It combines a single-use factory-returned object, two private direct-call-only readers (one uses the const-temp body form), and an exported wrapper. It expects one object/two property renames in COO/SNO/SCO and native output parity.
+- The test's host probe is deliberately created **outside** the obfuscator's closed-world input. It imports the transformed module and calls the built-in `Function.prototype.toString.call(read)`; this tests wrapper-source parity without making the program itself a source observer. The first test draft was cancelled because it incorrectly placed the toString call inside the closed-world input.
+- Focused run **4271 / 45773951258** for the corrected test was queued at 07:15 UTC; monitor it. If it passes, send Agent 1 the isolated branch/test as a positive factory+private-reader pattern. Do not merge the experiment branch directly or alter PR #379 without Agent 1's agreement.
+
+### Lease check and next actions
+- Original lease `claimed_at`: `2026-11-26T06:52:31.687838289Z`; release threshold `2026-11-26T08:02:31.687838289Z`.
+- Actual runtime clock before this memory checkpoint: `2026-11-26T07:16:42.504696968Z`; elapsed 24m11s, below 70 minutes. Continue.
+- Next: monitor run 4271; inspect its exact job results; report a pass/fail to Agent 1 if useful. Recheck PR body/index and branch/main pins later. Do not broaden the private-reader grammar without new negative controls. Continue independent research until the measured lease-age threshold; after every checkpoint, compare the original lease timestamp to a real runtime clock.
