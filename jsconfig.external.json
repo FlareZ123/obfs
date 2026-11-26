@@ -1,6 +1,8 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/sco-control-char-publication.test.js",
+    "test/esm-url-control-char-guard.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
@@ -373,6 +375,7 @@
     "test/agent1-native-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.test.js",
     "test/agent1-host-held-callback-browser.js",
+    "test/esm-url-terminal-dot-callsite.test.js",
   ],
   "exclude": [
     "node_modules"
