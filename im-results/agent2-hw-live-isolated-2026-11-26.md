@@ -37,6 +37,7 @@ Relevant code:
 | 13 / 45768526573 | One random 2-state pair; initial UID/env/private-mode assertions and cross-UID probe | Success |
 | 15 / 45769285479 | 40 scheduled random pairs: state counts 2–5, 10 target seeds each; 30-step random walk; learner seed 41342 | Workflow success; zero errors; every completed row passed paired-match and isolation assertions. Completed-vs-timeout counts have not yet been extracted. |
 | 16 / 45770272628 | One random 2-state pair after adding actual NoNewPrivs/CapEff/CapBnd and sudo-denial assertions for both server and learner | Success |
+| 17 / 45770519936 | One random 2-state pair after extending the isolation probe to parent `/proc/<pid>/mem` and `/proc/<pid>/fd/0` denial, plus server/learner privilege-state assertions | Success |
 
 Run 15's artifact is `agent2-live-hw-matched-control`, artifact ID `15093427467`, 19,677 bytes. It is preserved for later extraction. Do not infer that all 40 cases completed: the workflow permits timeouts, and the artifact's completed/timeout split has not yet been inspected. It does assert 40 total rows, zero errors, and that all completed rows matched; timed-out rows are not counted as matched.
 
@@ -51,8 +52,8 @@ The 40-case run is evidence that the corrected harness and paired workflow execu
 ## Residual limitations
 
 1. This is host-level UID separation on a shared GitHub runner, not a separate VM/container or network namespace. No egress firewall was applied; the learner shares the runner network namespace and can reach the intended local HTTP endpoint.
-2. The isolation probe verifies server `/proc` environment/memory/FD denial, private-file denial, parent `/proc` environment denial, and sudo blocking. It does not yet verify learner denial of the trusted parent's `/proc/<pid>/mem` or `/proc/<pid>/fd`; this was requested from Agent 49 for follow-up.
-3. The server process's actual capability/no-new-privileges state is checked in run 16, but the 40-case run 15 predates those explicit status assertions.
+2. The extended isolation probe in run 17 verifies server `/proc` environment/memory/FD denial, private-file denial, parent `/proc` environment/memory/FD denial, and sudo blocking. It also checks NoNewPrivs and empty CapEff/CapBnd for both server and learner.
+3. The 40-case run 15 predates the explicit process-status and parent memory/FD assertions; those stronger checks passed on one-pair runs 16 and 17.
 4. The target fixture and seed remain in trusted parent memory. The current boundary relies on cross-UID process protections and the probe; it is not a kernel-compromise-resistant boundary.
 5. The learner can make repeated legitimate HTTP requests. This matches the stated SCO attacker model, but the current benchmark exercises only the hW learner's configured walk, not unlimited adaptive query strategies.
 
