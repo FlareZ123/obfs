@@ -1769,6 +1769,58 @@ function summarizeAmbientCallEffects(ast,sourceType) {
     return root.name==='module'&&(keys.length===0||keys[0]==='exports'||keys[0]===null);
   }
 
+  /**
+   * Resolve aliases to the global Function.prototype object. This is used to
+   * avoid assuming that a syntactic .bind call still resolves to the native
+   * intrinsic after in-program prototype mutation.
+   * @param {AstNode} value
+   * @param {Set<number>} [seen]
+   * @returns {boolean}
+   */
+  function isFunctionPrototypeObject(value,seen=new Set()) {
+    if(value.type==='MemberExpression'&&
+       staticPropertyKey(value.property,value.computed)==='prototype') {
+      const root=value.object;
+      if(root.type==='Identifier'&&root.name==='Function') {
+        return resolved.at(root.start)?.resolution.kind!=='local';
+      }
+      if(root.type==='MemberExpression'&&
+         staticPropertyKey(root.property,root.computed)==='Function') {
+        let globalRoot=root.object;
+        while(globalRoot.type==='MemberExpression')globalRoot=globalRoot.object;
+        if(globalRoot.type==='Identifier'&&HOST_GLOBAL_ROOT_NAMES.has(globalRoot.name)&&
+           resolved.at(globalRoot.start)?.resolution.kind!=='local')return true;
+      }
+    }
+    if(value.type==='Identifier') {
+      const reference=resolved.at(value.start);
+      if(reference?.resolution.kind!=='local')return false;
+      const bindingId=reference.resolution.bindingId;
+      if(seen.has(bindingId))return false;
+      const next=new Set(seen);
+      next.add(bindingId);
+      const initializer=initializerForBinding(bindingId);
+      return initializer?isFunctionPrototypeObject(initializer,next):false;
+    }
+    return false;
+  }
+
+  // Any in-program write to Function.prototype (or call receiving that
+  // prototype object) invalidates the native-bind assumption for .bind
+  // receiver privacy. This deliberately fails closed for reflection helpers
+  // such as defineProperty, Reflect.set, Object.assign and setPrototypeOf.
+  let hasFunctionPrototypeMutation=false;
+  walkAst(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+       isFunctionPrototypeObject(node.left.object)) {
+      hasFunctionPrototypeMutation=true;
+    }
+    if(node.type==='CallExpression'&&node.arguments.some(argument=>
+      isFunctionPrototypeObject(argument))) {
+      hasFunctionPrototypeMutation=true;
+    }
+  });
+
   // Bind method/getter function nodes to every statically known receiver at their
   // call/read sites. Iterate to a fixed point so this.method() and this.getter
   // chains inside a known method inherit the outer method's receiver.
@@ -1782,6 +1834,15 @@ function summarizeAmbientCallEffects(ast,sourceType) {
           if(addReceiverExpression(node,receiver))receiverMapChanged=true;
       }
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+        const callKey=staticPropertyKey(node.callee.property,node.callee.computed);
+        if(hasFunctionPrototypeMutation&&callKey==='bind') {
+          for(const target of callableNodesForValue(node.callee.object))
+            addReason(target,{
+              kind:'custom-function-prototype-bind-receiver',
+              start:node.start,
+              end:node.end
+            },'HostHeldCallable');
+        }
         const ownerFunction=enclosingFunction(node);
         const receiverCandidates=node.callee.object.type==='ThisExpression'||node.callee.object.type==='Super'?
           ownerFunction?receiverExpressionsByFunction.get(ownerFunction)??[]:[]:[node.callee.object];
