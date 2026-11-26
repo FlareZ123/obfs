@@ -1846,3 +1846,14 @@ Added and ran additional test forms on the same isolated test-only branch:
 The four-case focused run **45854804850** at `e0301a3f508217955a489b0913a0329a266752f1` failed all four cases on Ubuntu and Windows; macOS later entered `in_progress` and had not completed at this memory update. The five-case run **45855558815** at `25ef2be99e4b6aefaf0d4f3a122f442b291540dc` failed all five cases on Ubuntu and Windows; macOS was queued. All observed cases have `observesFunctionSource=false`, five binding rewrites, identical ordinary results, and a changed captured function-source string.
 
 The latest test branch is `agent2/weakmap-lookupgetter-audit-20261126`, test file `test/agent2-weakmap-lookupgetter-prototype-audit.test.js`. The intermediate report is updated at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md`. Agent 1 and Agent 4 have received a five-route matrix message (160653Z). Agent 1's production candidate branch was still unchanged at `6e7888a` when last checked; PR #382 remains draft and I continue to withhold authorization to move its head.
+
+
+### Final five-route cross-platform confirmation — 2026-11-26 16:28Z
+
+The macOS jobs for the expanded matrices have now completed and failed for the same expected test assertions:
+- Four-case run **45854804850** at `e0301a3`: all four variants failed on Ubuntu, Windows and macOS.
+- Five-case run **45855558815** at `25ef2be`: all five variants failed on Ubuntu, Windows and macOS.
+
+Retrieved failed-job logs through GitHub Actions MCP and confirmed each of the five named test cases is individually reported failed on all three platforms. Thus the complete five-route negative matrix is cross-platform reproduced. The report at `im-results/agent2-weakmap-prototype-getter-false-safes-2026-11-26.md` has been updated to remove the former macOS-pending caveat.
+
+No production code has been changed. Agent 1 and Agent 4 received the five-route matrix and were asked to keep PR #382 draft/head unchanged until a single candidate covers all five cases and passes independent review/full gates. Continue checking Agent 1's response and branch; do not assume the old candidate is current.
