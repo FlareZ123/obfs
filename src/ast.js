@@ -478,6 +478,18 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
     if(fn.async||fn.generator)return {safe:false,returnMaybe:false};
+    const returnExpression=fn.body?.type==='BlockStatement'&&fn.body.body?.length===1&&
+      fn.body.body[0]?.type==='ReturnStatement'?
+        fn.body.body[0].argument:fn.body?.type==='BlockStatement'?null:fn.body;
+    const directPrototypeReturn=returnExpression?.type==='MemberExpression'&&
+      memberKey(returnExpression)==='prototype'&&
+      returnExpression.object?.type==='MemberExpression'&&
+      memberKey(returnExpression.object)==='constructor'&&
+      returnExpression.object.object?.type==='Identifier'&&
+      returnExpression.object.object.name===paramName&&
+      !returnExpression.computed&&!returnExpression.object.computed&&
+      !returnExpression.optional&&!returnExpression.object.optional;
+    if(directPrototypeReturn)return {safe:true,returnMaybe:true};
     if(fn.body?.type==='BlockStatement')inspect(fn.body,null,null);
     else {
       inspect(fn.body,null,null);
@@ -1058,7 +1070,11 @@ function hasWeakMapPrototypeExposure(ast) {
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
           else base.properties.set(key,assigned);
-        } else if(base.kind==='maybe'&&carrierMayContainWeakMap(assigned)) {
+        } else if(base.kind==='maybe'&&(
+          carrierMayContainWeakMap(assigned)||['set','get','has','delete'].includes(key??'')
+        )) {
+          exposed=true;
+        } else if(base.kind==='weakmap'&&['set','get','has','delete'].includes(key??'')) {
           exposed=true;
         }
         visitCarrierExpression(node.left.object,environment,thisValue);

@@ -116,6 +116,44 @@ function verifyCarrierRefusal(fixture) {
   return evidence;
 }
 
+/**
+ * A WeakMap passed to a local prototype reader is not an escape when the
+ * returned prototype is discarded and the actually mutated prototype belongs
+ * to an unrelated ordinary object.
+ * @param {{name:string,setup:string,access:string}} fixture
+ */
+function verifySafeLocalReader(fixture) {
+  const lines = [
+    "function getPrototype(value){return value.constructor.prototype;}",
+    fixture.setup,
+    ...commonTail.map(line => line.replace('WEAK_MAP_VALUE', fixture.access))
+  ];
+  const source = lines.join('\n');
+  const observed = observesFunctionSource(parse(source, 'module'));
+  const compiled = obfuscateFiles([{
+    path: 'entry.mjs',
+    sourceType: 'module',
+    code: source
+  }], {
+    mode: 'coo',
+    seed: 'agent1-weakmap-discarded-prototype-' + fixture.name,
+    properties: false,
+    identifiers: true,
+    strings: false
+  });
+  const app = compiled.files.find(file => file.path === 'entry.mjs');
+  assert.ok(app);
+  const native = run(source);
+  const emitted = run(String(app.code));
+  const evidence = {fixture:fixture.name,observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,false,JSON.stringify(evidence));
+  assert.ok(app.metrics.bindings>=2,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(native.capturedSource,'',JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+  return evidence;
+}
+
 const carrierFixtures = [
   {
     name: 'object-member',
@@ -194,9 +232,17 @@ const carrierFixtures = [
   }
 ];
 
+const discardedLocalPrototypeFixtures=new Set([
+  'class-static-block-local-carrier',
+  'arrow-expression-local-carrier'
+]);
 for (const fixture of carrierFixtures) {
-  test('object/array carrier flow is conservatively refused: ' + fixture.name, () => {
-    const evidence = verifyCarrierRefusal(fixture);
+  const discardedLocalPrototype=discardedLocalPrototypeFixtures.has(fixture.name);
+  test((discardedLocalPrototype?
+    'discarded local prototype read remains renameable: ':
+    'object/array carrier flow is conservatively refused: ') + fixture.name, () => {
+    const evidence = discardedLocalPrototype?
+      verifySafeLocalReader(fixture):verifyCarrierRefusal(fixture);
     process.stdout.write('WEAKMAP_CONTAINER_REFUSED ' + JSON.stringify({
       fixture: evidence.fixture,
       observed: evidence.observed,
@@ -213,4 +259,29 @@ test('direct WeakMap instance argument remains a detected positive control', () 
     ...commonTail.slice(1)
   ].join('\n');
   assert.equal(observesFunctionSource(parse(source, 'module')), true);
+});
+
+
+test('a local prototype-return helper remains an escape when its result is mutated',()=>{
+  const source=[
+    "function getPrototype(value){return value.constructor.prototype;}",
+    'const weakMapPrototype=getPrototype(new WeakMap());',
+    ...commonTail.slice(1)
+  ].join('\n');
+  const observed=observesFunctionSource(parse(source,'module'));
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],{
+    mode:'coo',seed:'agent1-local-prototype-return-mutated',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(source);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
 });
