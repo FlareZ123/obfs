@@ -128,6 +128,11 @@ const carrierFixtures = [
     access: 'protoCarrier.instance'
   },
   {
+    name: 'class-static-field-initializer',
+    setup: 'class Carrier { static instance=new WeakMap(); } const protoCarrier=Carrier;',
+    access: 'protoCarrier.instance'
+  },
+  {
     name: 'class-static-block',
     setup: 'class Carrier { static { this.instance=new WeakMap(); } } const protoCarrier=Carrier;',
     access: 'protoCarrier.instance'
