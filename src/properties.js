@@ -681,6 +681,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Conversely, a value stored, returned, exported, or passed elsewhere can
   // expose its original body through Function#toString.
   const privateFunctionNodes=new Set(directInvokedArrows);
+  const privateClassMethodNodes=new Set();
   /** @type {{name:string,node:AstNode,decl:AstNode}[]} */
   const callableBindings=[];
   for(const node of functionDeclarations) {
@@ -813,7 +814,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       if(!safe)break;
     }
-    if(safe && constructed>0)privateFunctionNodes.add(method.value);
+    if(safe && constructed>0) {
+      privateFunctionNodes.add(method.value);
+      privateClassMethodNodes.add(method.value);
+    }
   }
 
   const aliases = new Set([rootName]);
@@ -1029,6 +1033,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
       !privateFunctionNodes.has(ancestor)))return null;
+    // Class-body expressions are source-visible through an exported class's
+    // Function#toString. Only the exact method node admitted above is private;
+    // field initializers, static blocks, computed keys and class expressions
+    // are outside this proof and must fail closed.
+    if(ancestors.some(ancestor=>
+      ['ClassDeclaration','ClassExpression'].includes(ancestor.type)) &&
+      !ancestors.some(ancestor=>privateClassMethodNodes.has(ancestor)))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
