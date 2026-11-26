@@ -183,10 +183,14 @@ test('private local WeakMap storage and non-exported factories do not disable th
     {path:'mutate.mjs',code:mutateSource},
     {path:'storage.mjs',code:storageSource}
   ];
+  const priorDebug=process.env.OBFS_DEBUG_WEAKMAP;
+  process.env.OBFS_DEBUG_WEAKMAP='1';
   const compiled=obfuscateFiles(files.map(file=>({...file,sourceType:'module'})),{
     mode:'coo',seed:'agent1-private-weakmap-positive-control',
     properties:false,identifiers:true,strings:false,closedWorld:true
   });
+  if(priorDebug===undefined)delete process.env.OBFS_DEBUG_WEAKMAP;
+  else process.env.OBFS_DEBUG_WEAKMAP=priorDebug;
   const storage=compiled.files.find(file=>file.path==='storage.mjs');
   assert.ok(storage);
   assert.ok(storage.metrics.bindings>0,JSON.stringify({
