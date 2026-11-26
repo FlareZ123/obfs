@@ -185,6 +185,9 @@ async function start(payload) {
   assert.ok(address && typeof address === 'object');
 
   process.stdout.write('READY ' + JSON.stringify({
+    pid: process.pid,
+    uid: process.getuid(),
+    environment_keys: Object.keys(process.env).sort(),
     origin: 'http://127.0.0.1:' + address.port,
     method_name: methodName,
     public_module_path: '/obfs/client.mjs',
