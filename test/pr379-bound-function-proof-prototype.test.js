@@ -85,11 +85,13 @@ function runEsm(source){
 }
 
 test('custom bind replacement preserves native/emitted execution and prevents owner rewrite',()=>{
-  const customBind='Function.prototype.bind=function(){'+
+  const customBind='const nativeBind=Function.prototype.bind;'+
+    'Function.prototype.bind=function(){'+
     'const target=this;return function(){return target().secretField;};};';
   const source=customBind+ownerPrefix+
-    'const internal=()=>owner;export const hot=internal.bind(null);'+
-    'process.stdout.write(String(hot())+"\\n");';
+    'const internal=()=>owner;const hot=internal.bind(null);'+
+    'const result=hot();Function.prototype.bind=nativeBind;'+
+    'process.stdout.write(String(result)+"\\n");';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'bound-function-proof-prototype',
     properties:true,identifiers:false,strings:false
