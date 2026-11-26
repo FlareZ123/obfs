@@ -85,3 +85,57 @@ test('private reader refuses when any call site supplies an untracked owner',()=
     assert.equal(state.metrics.properties,0,mode+': mixed tracked/untracked calls must refuse all keys');
   }
 });
+
+
+/**
+ * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<string>}
+ */
+async function runClassEsm(files){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-class-reader-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
+    await atomicWrite(path.join(root,'host-probe.mjs'),[
+      'import {result} from "./entry.mjs";',
+      'import {Reader} from "./state.mjs";',
+      'process.stdout.write(JSON.stringify([result,Function.prototype.toString.call(Reader)]));'
+    ].join('\n'));
+    const child=spawnSync(process.execPath,[path.join(root,'host-probe.mjs')],{
+      cwd:root,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return child.stdout.trim();
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+test('private reader nested in exported class static block remains source-stable',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'const privateRecord={secretAlpha:23};',
+      'export class Reader {',
+      '  static {',
+      '    function readAlpha(owner){return owner.secretAlpha;}',
+      '    this.value=readAlpha(privateRecord);',
+      '  }',
+      '}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {Reader} from "./state.mjs";',
+      'export const result=Reader.value;'
+    ].join('\n')}
+  ];
+  const native=await runClassEsm(files);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const transformed=obfuscateFiles(files,{mode,closedWorld:true,
+      seed:'class-private-reader-'+mode,strings:false,identifiers:false});
+    const state=transformed.files.find(file=>file.path==='state.mjs');
+    assert.ok(state,mode+': state module must be retained');
+    assert.equal(state.metrics.objects,0,mode+': class-contained reader must not be treated as a private source island');
+    assert.equal(state.metrics.properties,0,mode+': class source must remain unchanged');
+    assert.equal(await runClassEsm(transformed.files),native,
+      mode+': class behavior and host-visible class source must match');
+  }
+});
