@@ -22,9 +22,10 @@ function createPathInventory() {
  * The first three preserve existing lower/upper and observed macOS alias guards.
  * The fourth applies the pinned Unicode 17.0.0 default full case fold to the
  * complete string, including multi-code-point expansions. This catches
- * compositions whose different code points require different one-step keys
- * and is deterministic across Node versions. The table is generated from
- * Unicode's CaseFolding-17.0.0.txt by sims/generate-unicode-casefold-data.py.
+ * compositions whose different code points require different one-step keys.
+ * The fold mapping is pinned, while NFC normalization still follows the Node
+ * runtime's Unicode data. The table is generated from Unicode's
+ * CaseFolding-17.0.0.txt by sims/generate-unicode-casefold-data.py.
  * Existing heuristic keys remain because native filesystem behavior is not
  * proven to equal one Unicode version's default fold. Some names may be
  * conservatively refused even when a particular filesystem keeps them distinct.
