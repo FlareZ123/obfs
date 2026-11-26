@@ -2137,7 +2137,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     let nativeConstruction=false;
     let reassigned=false;
     let methodMutated=false;
+    let escaped=false;
+    const allowedMapReferences=new WeakSet();
     walk(ast,node=>{
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&node.callee.object.name===name&&
+         ['set','get'].includes(memberName(node.callee)))
+        allowedMapReferences.add(node.callee.object);
+    });
+    walk(ast,(node,parent)=>{
       if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
          node.id.name===name) {
         declarations++;
@@ -2154,8 +2162,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          memberName(node.callee)==='defineProperty'&&
          node.arguments[0]?.type==='Identifier'&&node.arguments[0].name===name&&
          sourceStringKey(node.arguments[1])==='set')methodMutated=true;
+      if(node.type==='ExportNamedDeclaration') {
+        const declaration=node.declaration;
+        if(declaration?.type==='VariableDeclaration'&&
+           declaration.declarations.some(item=>item.id.type==='Identifier'&&
+             item.id.name===name))escaped=true;
+        if(node.specifiers.some(specifier=>specifier.local?.type==='Identifier'&&
+           specifier.local.name===name))escaped=true;
+      }
+      if(node.type==='ExportDefaultDeclaration'&&
+         node.declaration?.type==='Identifier'&&node.declaration.name===name)
+        escaped=true;
+      if(node.type==='Identifier'&&node.name===name) {
+        if(parent?.type==='VariableDeclarator'&&parent.id===node)return;
+        if(allowedMapReferences.has(node))return;
+        escaped=true;
+      }
     });
-    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated;
+    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated&&!escaped;
   }
   /**
    * A Storage.prototype override that only stores its receiver/value pair in
