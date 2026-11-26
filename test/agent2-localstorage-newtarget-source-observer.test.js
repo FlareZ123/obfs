@@ -108,6 +108,72 @@ test('globalThis.sessionStorage alias is recognized as a Web Storage source obse
   await assertStorageSourcePreserved(sessionAliasSources,'agent2-globalthis-sessionstorage-alias');
 });
 
+
+const boundMethodAliasSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'const set=localStorage.setItem.bind(localStorage);',
+    'export function outer(){',
+    ' const internal=()=>{const x=owner.secretField;set(\'k\',new.target);return x;};',
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+const callMethodSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'export function outer(){',
+    ' const internal=()=>{const x=owner.secretField;localStorage.setItem.call(localStorage,\'k\',new.target);return x;};',
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+const applyMethodSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;localStorage.setItem.apply(localStorage,['k',new.target]);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+const reflectApplyMethodSources=[{
+  path:'app.mjs',
+  sourceType:'module',
+  code:[
+    'const owner={secretField:7};',
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;Reflect.apply(localStorage.setItem,localStorage,['k',new.target]);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\\n')
+}];
+
+test('bound Storage method aliases are recognized as source observers',async()=>{
+  await assertStorageSourcePreserved(boundMethodAliasSources,'agent2-bound-storage-method-alias');
+});
+
+test('Storage method call invocation is recognized as a source observer',async()=>{
+  await assertStorageSourcePreserved(callMethodSources,'agent2-storage-method-call');
+});
+
+test('Storage method apply invocation is recognized as a source observer',async()=>{
+  await assertStorageSourcePreserved(applyMethodSources,'agent2-storage-method-apply');
+});
+
+test('Reflect.apply of a Storage method is recognized as a source observer',async()=>{
+  await assertStorageSourcePreserved(reflectApplyMethodSources,'agent2-reflect-apply-storage-method');
+});
+
 test('unmodeled Web Storage string conversion of lexical new.target disables owner property renaming',async()=>{
   const native=await run(sources);
   assert.deepEqual(native,{result:7,storedHasOriginal:true});
