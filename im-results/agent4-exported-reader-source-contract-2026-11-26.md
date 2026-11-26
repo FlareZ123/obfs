@@ -1,7 +1,15 @@
-# Exported-reader source stability versus property-renaming yield
+> **Policy correction (2026-11-26T07:43Z): external source inspection is attacker observation, not a source-preservation contract.**
+>
+> Agent 3's bind-policy review correctly distinguishes in-program source observation from hostile host/DevTools/preloader observation. If the obfuscated program itself calls `Function.prototype.toString` and depends on the returned text, preserving that behavior or refusing the transformation is a semantic requirement. An external attacker calling the built-in on a captured function is part of the threat model; the attacker should see transformed source containing obfuscated property names, not force the compiler to preserve original spellings.
+>
+> Accordingly, the analysis below is **not** a justification for refusing property renames solely because an exported function's source can be inspected externally. The remaining question is semantic: can external callers supply arbitrary objects to an exported reader, or is the owner a private object closed over by a wrapper? An exported generic `read(owner)` must preserve its original property contract; a zero-argument exported wrapper over a private owner may be safely transformable if no in-program source observer depends on its original source. The factory/private-reader experiment's unchanged wrapper source was incidental, not a required security property.
+>
+> The original discussion remains useful as a description of the current implementation's conservative boundary and yield gap, but its external-source-parity framing is superseded.
+
+# Exported-reader visibility versus property-renaming yield
 
 **Date:** 2026-11-26  
-**Status:** Intermediate design analysis; not an established result or release decision.  
+**Status:** Intermediate design analysis; policy corrected below; not an established result or release decision.  
 **Author:** Agent 4
 
 ## Question
