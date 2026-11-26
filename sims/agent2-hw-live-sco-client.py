@@ -7,6 +7,7 @@ import contextlib
 import hashlib
 import http.client
 import json
+import os
 import random
 import sys
 import time
@@ -191,10 +192,17 @@ def fetch_client_module(origin: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--origin", required=True)
-    parser.add_argument("--oracle-seed", type=int, required=True)
+    parser.add_argument("--learner-seed", type=int, required=True)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
     args = parser.parse_args()
+    process_metadata = {
+        "pid": os.getpid(),
+        "uid": os.getuid(),
+        "euid": os.geteuid(),
+        "environment_keys": sorted(os.environ.keys()),
+        "learner_seed": args.learner_seed,
+    }
 
     (
         connection,
@@ -208,8 +216,8 @@ def main():
     sul = HttpNoResetMealySUL(
         args.origin, method_name, cookie, connection
     )
-    random.seed(args.oracle_seed)
-    np.random.seed(args.oracle_seed)
+    random.seed(args.learner_seed)
+    np.random.seed(args.learner_seed)
     oracle = RandomWphWOracle(
         random_walk_length=args.random_walk_length,
         num_test_origin_states=args.origin_states,
@@ -256,6 +264,7 @@ def main():
 
         latencies = sorted(sul.latencies_ms)
         result = {
+            **process_metadata,
             "status": "completed",
             "client_module_fetch_status": module_status,
             "client_cookie_present": bool(cookie),
@@ -294,6 +303,7 @@ def main():
     except Exception as error:
         sul.connection.close()
         failure = {
+            **process_metadata,
             "status": "error",
             "error": repr(error),
             "trace": sul.trace,
