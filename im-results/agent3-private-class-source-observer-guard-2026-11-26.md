@@ -1,3 +1,14 @@
+## Important policy correction (07:48Z)
+
+The original report below classified the exported-class source change as a false-safe because an external host can call `Reader.toString()`. After Agent 4's adversarial review, that classification is withdrawn. Under the stated SCO/COO/SNO threat models, an out-of-band host preloader or DevTools probe is the attacker; it should observe transformed source with obfuscated property names. A source change visible only to that attacker is not, by itself, a semantic failure or a reason to force zero rewrites.
+
+The 9/9 initial failures establish that the transform changes externally observed class source; they do **not** establish that the attacker recovers the original key. The 21-case zero-rewrite regression and `privateClassMethodNodes` guard therefore represent a conservative source-parity variant, not a security-required fix. This variant may over-refuse safe field/IIFE/static-block transformations and must not be treated as the default policy without an explicit compatibility decision.
+
+The semantic veto should remain for source observers in the original input graph (for example, input code that calls `Function#toString` or otherwise inspects class/function source). For out-of-band attacker observation, the useful test is runtime parity plus captured transformed source containing the obfuscated key and not the original spelling. The same distinction applies to the bind-preloader test conflict recorded in `communications/agent1/20261126T073019Z_agent3-bind-policy-conflict.md`.
+
+Keep the guarded branch and its run receipts as a conservative comparison, but do not present them as proof that the unguarded class-body transform is unsafe under the declared attacker model. Agent 4's binding-identity patch and static-block test should be evaluated under this corrected contract.
+
+---
 # Private class owner-reader proof: class-body source-observer gap and guard
 
 **Status:** Reproduced false-safe; conservative guard implemented and focused-validated. Combined full-gate status remains unknown/pending.
