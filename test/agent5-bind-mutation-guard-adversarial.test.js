@@ -103,12 +103,11 @@ test('native bind with no Function.prototype exposure remains safe',()=>{
 });
 
 
-test('per-file summary misses a sibling ESM module that mutates Function.prototype.bind',async()=>{
+test('per-file summary misses a sibling CommonJS module that mutates Function.prototype.bind',async()=>{
   const fs=require('node:fs/promises');
   const os=require('node:os');
   const path=require('node:path');
   const {spawnSync}=require('node:child_process');
-  const {pathToFileURL}=require('node:url');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-sibling-mutation-'));
   try {
     const mutator=[
@@ -122,29 +121,30 @@ test('per-file summary misses a sibling ESM module that mutates Function.prototy
       '};'
     ].join('\n');
     const entry=[
-      "import './mutator.mjs';",
-
+      "require('./mutator.cjs');",
+      '(function run(){',
       'const owner={secretField:7};',
       'const internal=()=>owner.secretField;',
       'const hot=internal.bind(null);',
       'const result=hot();',
-      'globalThis.__result=result;'
+      'globalThis.__result=result;',
+      '})();'
     ].join('\n');
-    await fs.writeFile(path.join(root,'mutator.mjs'),mutator);
-    await fs.writeFile(path.join(root,'entry.mjs'),entry);
+    await fs.writeFile(path.join(root,'mutator.cjs'),mutator);
+    await fs.writeFile(path.join(root,'entry.cjs'),entry);
     const runner=[
       "globalThis.external=value=>{globalThis.__captured=Function.prototype.toString.call(value);};",
-      "await import(process.argv[1]);",
+      "require(process.argv[1]);",
       "process.stdout.write(JSON.stringify({captured:globalThis.__captured,result:globalThis.__result}));"
     ].join('\n');
     const child=spawnSync(process.execPath,[
-      '--input-type=module','-e',runner,pathToFileURL(path.join(root,'entry.mjs')).href
+      '-e',runner,path.join(root,'entry.cjs')
     ],{encoding:'utf8',timeout:15000});
     assert.equal(child.status,0,child.stderr||child.error?.message);
     const runtime=JSON.parse(child.stdout);
     assert.match(runtime.captured,/owner\.secretField/);
     assert.equal(runtime.result,7);
-    const summary=summarizeAmbientCallEffects(parse(entry,'module'),'module')
+    const summary=summarizeAmbientCallEffects(parse(entry,'commonjs'),'commonjs')
       .summaries.find(item=>item.bindingNames.includes('internal'));
     assert.ok(summary);
     assert.equal(summary.safe,true,JSON.stringify(summary));
