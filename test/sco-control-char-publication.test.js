@@ -134,19 +134,27 @@ test('SCO publishes the WHATWG URL target and withholds POSIX decoys for C0 spec
 
     const probe=await probeSco(root,requestNames);
     if(!probe.listening) {
-      assert.match(probe.stderr,/SCO .*import path unsupported|noncanonical ESM import|URL pathname.*control/u,
-        'A fail-closed startup refusal must identify the unsupported ESM pathname');
+      assert.match(probe.stderr,/SCO noncanonical ESM import path unsupported:/u,
+        'A fail-closed startup refusal must identify the noncanonical ESM pathname');
       return;
     }
 
-    const observed=cases.map(item=>({
-      id:item.id,
-      target:probe.results?.get(item.target)?.status,
-      decoy:probe.results?.get(item.decoy)?.status
+    const observed=cases.map(item=>{
+      const target=probe.results?.get(item.target);
+      const targetBody=target?.body??'';
+      return {
+        id:item.id,
+        target:target?.status,
+        targetHasUrlMarker:targetBody.includes('__urlTargets'),
+        targetHasNoDecoyMarker:!targetBody.includes('__posixDecoys'),
+        decoy:probe.results?.get(item.decoy)?.status
+      };
+    });
+    const expected=cases.map(item=>({
+      id:item.id,target:200,targetHasUrlMarker:true,targetHasNoDecoyMarker:true,decoy:404
     }));
-    const expected=cases.map(item=>({id:item.id,target:200,decoy:404}));
     assert.deepEqual(observed,expected,
-      'Native ESM resolves the URL target; SCO must not publish the distinct POSIX-selected decoy');
+      'Native ESM resolves the URL target; SCO must return URL-target bytes and never the POSIX decoy');
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
