@@ -429,7 +429,7 @@ function hasWeakMapPrototypeExposure(ast) {
   /**
    * @param {AstNode} fn
    * @param {string} paramName
-   * @returns {{safe:boolean,returnMaybe:boolean}}
+   * @returns {{safe:boolean,returnMaybe:boolean,returnsParameter:boolean,returnsPrototype:boolean}}
    */
   function localReaderParameter(fn,paramName) {
     let safe=true;
@@ -481,6 +481,10 @@ function hasWeakMapPrototypeExposure(ast) {
     const returnExpression=fn.body?.type==='BlockStatement'&&fn.body.body?.length===1&&
       fn.body.body[0]?.type==='ReturnStatement'?
         fn.body.body[0].argument:fn.body?.type==='BlockStatement'?null:fn.body;
+    const directIdentityReturn=returnExpression?.type==='Identifier'&&
+      returnExpression.name===paramName;
+    if(directIdentityReturn)
+      return {safe:true,returnMaybe:false,returnsParameter:true,returnsPrototype:false};
     const directPrototypeReturn=returnExpression?.type==='MemberExpression'&&
       memberKey(returnExpression)==='prototype'&&
       returnExpression.object?.type==='MemberExpression'&&
@@ -489,26 +493,34 @@ function hasWeakMapPrototypeExposure(ast) {
       returnExpression.object.object.name===paramName&&
       !returnExpression.computed&&!returnExpression.object.computed&&
       !returnExpression.optional&&!returnExpression.object.optional;
-    if(directPrototypeReturn)return {safe:true,returnMaybe:true};
+    if(directPrototypeReturn)
+      return {safe:true,returnMaybe:true,returnsParameter:false,returnsPrototype:true};
     if(fn.body?.type==='BlockStatement')inspect(fn.body,null,null);
     else {
       inspect(fn.body,null,null);
       if(containsIdentifier(fn.body,paramName))returnMaybe=true;
     }
-    return {safe,returnMaybe:safe&&returnMaybe};
+    return {safe,returnMaybe:safe&&returnMaybe,returnsParameter:false,returnsPrototype:false};
   }
-  /** @type {Map<string,{safeParameters:Set<number>,returnMaybeParameters:Set<number>}>} */
+  /** @type {Map<string,{safeParameters:Set<number>,returnMaybeParameters:Set<number>,returnParameterIndices:Set<number>,prototypeReturnParameters:Set<number>}>} */
   const localFunctionSummaries=new Map();
   for(const [name,fn] of localFunctionNodes) {
     if(exportedFunctionNames.has(name)||localBindingCounts.get(name)!==1||
        reassignedLocalFunctions.has(name))continue;
-    const summary={safeParameters:new Set(),returnMaybeParameters:new Set()};
+    const summary={
+      safeParameters:new Set(),
+      returnMaybeParameters:new Set(),
+      returnParameterIndices:new Set(),
+      prototypeReturnParameters:new Set()
+    };
     for(let index=0;index<(fn.params??[]).length;index++) {
       const parameter=fn.params[index];
       if(parameter?.type!=='Identifier')continue;
       const result=localReaderParameter(fn,parameter.name);
       if(result.safe)summary.safeParameters.add(index);
       if(result.safe&&result.returnMaybe)summary.returnMaybeParameters.add(index);
+      if(result.safe&&result.returnsParameter)summary.returnParameterIndices.add(index);
+      if(result.safe&&result.returnsPrototype)summary.prototypeReturnParameters.add(index);
     }
     localFunctionSummaries.set(name,summary);
   }
@@ -948,9 +960,15 @@ function hasWeakMapPrototypeExposure(ast) {
       if(node.callee.type==='Identifier') {
         const summary=localFunctionSummaries.get(node.callee.name);
         if(summary) {
+          for(const index of summary.returnParameterIndices)
+            return evaluateCarrierValue(node.arguments[index],environment,thisValue);
           for(const index of summary.returnMaybeParameters) {
-            if(carrierMayContainWeakMap(evaluateCarrierValue(node.arguments[index],environment,thisValue)))
-              return carrierMaybe;
+            const argumentValue=evaluateCarrierValue(node.arguments[index],environment,thisValue);
+            const isPlainContainer=argumentValue.kind==='container'&&!argumentValue.unknown&&
+              !argumentValue.properties.has('constructor');
+            if(summary.prototypeReturnParameters.has(index)&&isPlainContainer)
+              return carrierOther;
+            if(carrierMayContainWeakMap(argumentValue))return carrierMaybe;
           }
         }
       }
@@ -1044,7 +1062,11 @@ function hasWeakMapPrototypeExposure(ast) {
       for(let index=0;index<(node.arguments??[]).length;index++) {
         const argument=node.arguments[index];
         const value=evaluateCarrierValue(argument,environment,thisValue);
-        const provenPrivateReader=summary?.safeParameters.has(index)&&value.kind==='weakmap';
+        const isPlainPrototypeReaderInput=summary?.prototypeReturnParameters.has(index)&&
+          value.kind==='container'&&!value.unknown&&!value.properties.has('constructor');
+        const provenPrivateReader=summary?.safeParameters.has(index)&&(
+          value.kind==='weakmap'||summary.returnParameterIndices.has(index)||isPlainPrototypeReaderInput
+        );
         if(carrierMayContainWeakMap(value)&&!provenPrivateReader)exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
       }
