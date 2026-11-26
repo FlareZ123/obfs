@@ -239,3 +239,36 @@ The new patch's code changes account for the first three closures: it merges cla
 The first workflow attempt [45901001167](https://github.com/FlareZ123/obfs/actions/runs/45901001167) is not a security result: it checked out the same source patch but the candidate did not yet contain this browser test file, so the test step failed with `MODULE_NOT_FOUND`. The valid exact-source challenge is 45901694325.
 
 This is meaningful partial progress, not completion. The two remaining browser paths must be closed while retaining the ESM exported-factory positive control and local helper precision. Full Node, browser, performance, and broader threat-model gates are still required before any release claim.
+
+
+## Addendum — experimental closure, Node differential residuals, and precision control
+
+The experimental branch `agent4/agent1-cross-boundary-fix-browser-challenge-20261126` was extended with two additional bounded rules:
+
+- immutable top-level string constant resolution for computed global constructor keys;
+- explicit `Reflect.get` handling for `prototype` and `__proto__` in the WeakMap prototype-chain analysis.
+
+It also adds conservative handling for conditional class heritage and same-name derived-class depth collisions. Latest test branch head: `eaa6bc42a9149adfdaccfdb52effc61c761bd013`.
+
+### Browser acceptance
+
+Run [45903512341](https://github.com/FlareZ123/obfs/actions/runs/45903512341) passed the full five-scenario COO/SCO safe-mode browser matrix, the exported ESM factory positive control, the direct-prototype and subclass-parent Chromium controls, and strict external JSDoc. This is the latest browser receipt for the experimental branch.
+
+### Focused Node differential still finds two gaps
+
+The focused Agent 7 Node suite was run on the same branch across Ubuntu, Windows and macOS in [45903429703](https://github.com/FlareZ123/obfs/actions/runs/45903429703). It still fails two fixture families in COO, SNO and SCO:
+
+1. **Block-shadow container:** `const carrier={instance:new WeakMap()}; {const carrier={};} const nativePrototype=Object.getPrototypeOf(carrier.instance);`. The analyzer loses the outer container's WeakMap value across the inner block shadow.
+2. **Try-environment join:** `let carrier={}; try {carrier={instance:new WeakMap()};} catch {} const nativePrototype=Object.getPrototypeOf(carrier.instance);`. The analyzer does not conservatively join the possible WeakMap-containing assignment across the try/catch boundary.
+
+Each failing mode reports four Storage binding rewrites, preserves the application result, and exposes changed captured function source. The previous `nested-derived-class-name-collision` and `conditional-class-heritage` fixture failures were closed by the conservative minimum-depth merge and conditional-heritage alias prepass. The remaining two are scope/environment-flow problems, not browser prototype extraction.
+
+### Positive-yield control
+
+The focused Agent 4 subclass-own-parent control passed across Ubuntu, Windows and macOS in [45903710177](https://github.com/FlareZ123/obfs/actions/runs/45903710177). It confirms that mutating a derived class's own prototype is not automatically treated as mutation of native `WeakMap.prototype`, and safe local helper renaming remains enabled for that fixture.
+
+### Integration cautions
+
+The top-level string-constant resolver is intentionally narrow but is not yet a full lexical binding resolver. Add a negative control where a nested `constructorKey` shadows a top-level `const constructorKey='WeakMap'` before integrating it; the current own-parent control does not test that shadowing case. The `recordWeakMapDerivedConstructor` minimum-depth merge is likewise a conservative name-based approximation, not binding identity.
+
+The experimental branch therefore closes all five demonstrated browser paths and two additional Node fixture paths, but it is **not a complete fix**: block-shadow and try/catch environment joins remain false-safe. Preserve the positive-yield control and require a scope-aware binding/value model plus control-flow environment join before claiming completion. Release remains blocked.
