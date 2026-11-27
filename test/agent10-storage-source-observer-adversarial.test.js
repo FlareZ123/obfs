@@ -17,7 +17,7 @@ const {atomicWrite}=require('../src/atomic');
  * The method bodies live on Storage.prototype so that destructuring and
  * descriptor/Reflect extraction exercise the same callable.
  * @param {Source[]} files
- * @returns {Promise<{result:number,storedHasOriginal:boolean}>}
+ * @returns {Promise<{result:number,storedHasOriginal:boolean,storedTrace:{storedKey:string|null,storedValue:string|null,observedKey:string|null}}>}
  */
 async function run(files){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-storage-observer-adversarial-'));
@@ -35,7 +35,7 @@ async function run(files){
       'globalThis.window=globalThis;',
       'const {outer}=await import(process.argv[1]);',
       'const result=new outer();',
-      "process.stdout.write(JSON.stringify({result:result.result,storedHasOriginal:String(globalThis.__stored).includes('secretField')||String(globalThis.__storedKey).includes('secretField')||String(globalThis.__observedKey).includes('secretField')}));"
+      "process.stdout.write(JSON.stringify({result:result.result,storedHasOriginal:String(globalThis.__stored).includes('secretField')||String(globalThis.__storedKey).includes('secretField')||String(globalThis.__observedKey).includes('secretField'),storedTrace:{storedKey:globalThis.__storedKey??null,storedValue:globalThis.__stored??null,observedKey:globalThis.__observedKey??null}}));"
     ].join('\n');
     const child=spawnSync(process.execPath,[
       '--input-type=module','-e',script,pathToFileURL(path.join(root,'app.mjs')).href
@@ -69,7 +69,8 @@ async function assertStorageObserver(setup,invocation,seed){
     ].join('\n')
   }];
   const native=await run(files);
-  assert.deepEqual(native,{result:7,storedHasOriginal:true});
+  assert.equal(native.result,7);
+  assert.equal(native.storedHasOriginal,true);
   const compiled=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed,
     properties:true,identifiers:false,strings:false
@@ -179,7 +180,8 @@ test('cross-file imported Storage method alias retains source-observer provenanc
     }
   ];
   const native=await run(files);
-  assert.deepEqual(native,{result:7,storedHasOriginal:true});
+  assert.equal(native.result,7);
+  assert.equal(native.storedHasOriginal,true);
   const compiled=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'agent10-storage-cross-file-import',
     properties:true,identifiers:false,strings:false
@@ -221,7 +223,8 @@ test('cross-file Storage method provenance survives named reexports',async()=>{
     }
   ];
   const native=await run(files);
-  assert.deepEqual(native,{result:7,storedHasOriginal:true});
+  assert.equal(native.result,7);
+  assert.equal(native.storedHasOriginal,true);
   const compiled=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'agent10-storage-cross-file-reexport',
     properties:true,identifiers:false,strings:false
@@ -270,7 +273,8 @@ test('Storage method extraction with primitive-only values retains positive prop
     ].join('\n')
   }];
   const native=await run(files);
-  assert.deepEqual(native,{result:7,storedHasOriginal:false});
+  assert.equal(native.result,7);
+  assert.equal(native.storedHasOriginal,false);
   const compiled=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'agent10-storage-extraction-primitive-positive',
     properties:true,identifiers:false,strings:false
@@ -287,4 +291,32 @@ test('Storage method extraction with primitive-only values retains positive prop
   assert.equal(app.metrics.properties,1,
     JSON.stringify({native,actual,propertyRenames:app.metrics.properties,source:app.code}));
   assert.deepEqual(actual,native);
+});
+
+/**
+ * Native mutation control: a local binding-only rename preserves the public
+ * return value and the historical substring summary, but changes the exact
+ * function source captured by Storage. Thus that summary is not a parity oracle.
+ */
+test('Storage exact-source oracle detects source-only edits invisible to substring summary',async()=>{
+  const original=[
+    'const owner={secretField:7};',
+    'const {setItem}=localStorage;',
+    'export function outer(){',
+    " const internal=()=>{const x=owner.secretField;setItem.call(localStorage,'k',new.target);return x;};",
+    ' return {result:internal()};',
+    '}'
+  ].join('\n');
+  const mutated=original.replaceAll('internal','renamedInternal');
+  const [first,second]=await Promise.all([
+    run([{path:'app.mjs',sourceType:'module',code:original}]),
+    run([{path:'app.mjs',sourceType:'module',code:mutated}])
+  ]);
+  assert.equal(first.result,7);
+  assert.equal(second.result,7);
+  assert.equal(first.storedHasOriginal,true);
+  assert.equal(second.storedHasOriginal,true);
+  assert.ok(first.storedTrace.storedValue?.includes('const internal'));
+  assert.ok(second.storedTrace.storedValue?.includes('const renamedInternal'));
+  assert.notDeepEqual(first.storedTrace,second.storedTrace);
 });
