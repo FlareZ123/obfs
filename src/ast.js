@@ -1205,6 +1205,8 @@ function hasWeakMapPrototypeExposure(ast) {
   const carrierMaybe={kind:'maybe'};
   /** @type {CarrierValue} */
   const carrierOther={kind:'other'};
+  /** @type {WeakMap<AstNode,CarrierValue>} */
+  const classExpressionValues=new WeakMap();
   /** @returns {CarrierContainer} */
   function carrierContainer() {
     return {kind:'container',properties:new Map(),unknown:false};
@@ -1388,6 +1390,9 @@ function hasWeakMapPrototypeExposure(ast) {
       return carrierOther;
     }
     if(node.type==='ThisExpression')return thisValue;
+    if(node.type==='ClassExpression')
+      return classExpressionValues.get(node)??
+        (containsWeakMapInstanceValue(node)?carrierMaybe:carrierOther);
     if(node.type==='NewExpression') {
       if(isWeakMapConstructor(node.callee))return carrierWeakMap;
       if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
@@ -1710,13 +1715,22 @@ function hasWeakMapPrototypeExposure(ast) {
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
     if(node.type==='ClassExpression') {
-      // Class expressions have the same class-definition phases as class
-      // declarations. A named expression's identifier is local to the class;
-      // never export that temporary binding into its enclosing scope.
+      // Build the class in an isolated class-name scope, but publish its
+      // static carrier value to the enclosing expression's value consumer.
+      // The synthetic name contains a NUL and cannot alias a JS identifier.
       const scoped=forkCarrierEnvironment(environment);
-      const declaration=/** @type {AstNode} */ ({...node,type:'ClassDeclaration'});
-      visitCarrierStatement(declaration,scoped,thisValue);
       const localClassName=node.id?.type==='Identifier'?node.id.name:null;
+      const internalName='\\u0000obfs-class-value-'+node.start+'-'+node.end;
+      const declaration=/** @type {AstNode} */ ({
+        ...node,type:'ClassDeclaration',
+        id:{type:'Identifier',name:internalName,start:node.start,end:node.start},
+        __classExpressionInnerName:localClassName
+      });
+      visitCarrierStatement(declaration,scoped,thisValue);
+      let classValue=scoped.get(internalName)??carrierMaybe;
+      const previous=classExpressionValues.get(node);
+      if(previous)classValue=mergeCarrierValues(previous,classValue);
+      classExpressionValues.set(node,classValue);
       for(const name of environment.keys()) {
         if(name===localClassName)continue;
         environment.set(name,scoped.get(name)??carrierOther);
@@ -2189,6 +2203,8 @@ function hasWeakMapPrototypeExposure(ast) {
       const staticValue=carrierContainer();
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
+      if(typeof statement.__classExpressionInnerName==='string')
+        environment.set(statement.__classExpressionInnerName,staticValue);
       const elements=statement.body.body??[];
       /** @type {AstNode[]} */
       const instanceFields=[];
