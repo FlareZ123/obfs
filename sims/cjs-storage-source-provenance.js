@@ -253,6 +253,24 @@ function traceCjsStorageSourceSinks(files){
   }
 
   /**
+   * An unmodeled call/statement can mutate any escaped local record. Refuse
+   * to keep a stale plain-record provenance proof. Preserve object identity
+   * so every alias observes the same invalidation.
+   * @param {Value} value
+   * @param {string} reason
+   * @param {Set<Value>} [visited]
+   * @returns {void}
+   */
+  function invalidateRecord(value,reason,visited=new Set()){
+    if(value.kind!=='record'||visited.has(value))return;
+    visited.add(value);
+    if(value.fields)for(const child of value.fields.values())
+      invalidateRecord(child,reason,visited);
+    value.kind='unknown';
+    value.trace=[reason];
+  }
+
+  /**
    * @param {import('../src/ast').AstNode} assignment
    * @param {Map<string,Value>} env
    * @param {Set<string>} shadowed
@@ -279,6 +297,14 @@ function traceCjsStorageSourceSinks(files){
       findings.push({file,start:assignment.start,end:assignment.end,
         key,receiver:receiver.kind,value:value.kind,classification,
         receiverTrace:receiver.trace,valueTrace:value.trace});
+    }
+    if(receiver.kind==='record'){
+      // A property write kills a previous literal-field proof. Do not replace
+      // it with a new "definitely Storage" claim, since aliases, accessors and
+      // other control paths remain outside this prototype's admitted grammar.
+      if(key&&receiver.fields)receiver.fields.set(key,
+        unknown(file+':mutable property '+key));
+      else invalidateRecord(receiver,file+':computed/unknown property write');
     }
   }
 
@@ -314,8 +340,16 @@ function traceCjsStorageSourceSinks(files){
         }
         continue;
       }
-      if(statement.type!=='ExpressionStatement'||statement.expression.type!=='AssignmentExpression')
+      if(statement.type==='FunctionDeclaration'||statement.type==='EmptyStatement')continue;
+      if(statement.type==='ExpressionStatement'&&
+         statement.expression.type==='Literal'&&
+         typeof statement.expression.value==='string')continue;
+      if(statement.type!=='ExpressionStatement'||statement.expression.type!=='AssignmentExpression'){
+        // An opaque call can mutate a record/its nested fields via an alias.
+        for(const value of env.values())invalidateRecord(value,
+          name+':opaque top-level statement '+statement.type);
         continue;
+      }
       const assignment=statement.expression;
       if(assignment.operator!=='=')continue;
       const lhs=assignment.left;
