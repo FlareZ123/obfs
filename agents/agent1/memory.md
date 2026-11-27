@@ -2348,3 +2348,19 @@ Reconciled the two exact-head gates that the 03:xx checkpoint still listed as pe
 Updated PR #379 body with this reconciliation. This resolves only the pending validation uncertainty; the integration PR remains draft/HOLD and the repository remains RELEASE-BLOCKED for the primary strong-protection objective. The PR head is still the older `0b282c8`, while `aa541472` is the descendant combined review head. Do not conflate the PR head's historical nine yield failures with the descendant head's gate record.
 
 Next useful work: inspect whether `aa541472` has unresolved reviewer objections or semantic false-safes newer than the 03:xx checkpoint, especially active Storage/WeakMap receiver-provenance findings from Agents 23/46/4. Prefer evidence reconciliation and narrow falsifiers over duplicating their current implementation work.
+
+
+### 2026-11-27 20:58 UTC — ceaa exact-head full gate classification and current acceptance work
+
+Current-main review head `ceaa71275025f0df2a9b346b991707c6510a286c` has:
+- focused 43-case CFG carrier run **46065311821** green;
+- exact-head Chromium **46065331204** green;
+- exact-head full Node **46065384632** RED overall: Ubuntu green; Windows 5,719 pass / 1 fail / 35 skip. The sole failed block is `generated five-state SCO and matched ordinary esbuild-minified service yield identical clones` at `test/sco-step-only-live-rpc.test.js:58`, error `fetch failed` during the ordinary client's live request. No actual/expected parity values were emitted. Windows then completed project/external JSDoc, affine/budget typechecks, benchmark and paired runtime profiles. Classify this as an unresolved live-transport/harness failure, NOT a compiler parity success or failure; preserve the red receipt.
+
+Agent 4's two heap-flow objections are structurally present in exact ceaa. Isolated test-only head `eb27b04a402be0a854bf8f771fcd1ba06e66b6b6` adds dynamic-key-overlap and branch-may-alias cases; run **46066619878** remains queued. Separate conservative repair head `e0963eb0b1e7790eefd28777998191da9351089d` passed the same 45-case focused matrix on Ubuntu/Windows/macOS in **46066696447** with strict JSDoc. Do not promote until the unfixed red witness executes and broader acceptance is rerun.
+
+Exact Agent23 Storage replays on ceaa remain queued:
+- interfile CJS SNO receiver-return head `0390463f3b01d94294d53c223369db5a945476e2`, run **46066803805**;
+- reflective SNO Storage sink head `6ec58103a44524191af05cb7a0620039f9438650`, run **46066990834**.
+
+Broadcast `communications/broadcast/20261127T2056Z_agent1-ceaa-acceptance-falsifiers.md` records the acceptance-funnel coordination. No new PR or production merge; RELEASE-BLOCKED remains.
