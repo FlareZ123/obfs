@@ -1671,6 +1671,37 @@ function hasWeakMapPrototypeExposure(ast) {
       carrierMaybe:carrierOther);
   }
   /**
+   * Computed keys in binding/assignment patterns execute after the RHS has
+   * been evaluated. Defaults execute only on undefined: keep both paths.
+   * @param {AstNode|null|undefined} pattern
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @returns {void}
+   */
+  function visitCarrierPatternKeyEffects(pattern,environment,thisValue) {
+    if(!pattern)return;
+    if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.computed)
+          visitCarrierExpression(property.key,environment,thisValue);
+        visitCarrierPatternKeyEffects(
+          property.type==='RestElement'?property.argument:property.value,
+          environment,thisValue);
+      }
+    } else if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[])
+        visitCarrierPatternKeyEffects(element,environment,thisValue);
+    } else if(pattern.type==='RestElement') {
+      visitCarrierPatternKeyEffects(pattern.argument,environment,thisValue);
+    } else if(pattern.type==='AssignmentPattern') {
+      visitCarrierPatternKeyEffects(pattern.left,environment,thisValue);
+      const bypass=forkCarrierEnvironment(environment);
+      const withDefault=forkCarrierEnvironment(environment);
+      visitCarrierExpression(pattern.right,withDefault,thisValue);
+      joinCarrierEnvironments(environment,bypass,withDefault);
+    }
+  }
+  /**
    * @param {AstNode|null|undefined} node
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
@@ -1748,13 +1779,24 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(node.type==='AssignmentExpression') {
+      // The LHS reference (including computed key) is evaluated before RHS.
+      // Capture its base before RHS expressions can rebind the owner.
+      let memberBase=carrierOther;
+      let memberKeyName=null;
+      if(node.left.type==='MemberExpression') {
+        visitCarrierExpression(node.left.object,environment,thisValue);
+        memberBase=evaluateCarrierValue(node.left.object,environment,thisValue);
+        if(node.left.computed)
+          visitCarrierExpression(node.left.property,environment,thisValue);
+        memberKeyName=carrierStaticKey(node.left.property,node.left.computed);
+      }
       visitCarrierExpression(node.right,environment,thisValue);
       const assigned=evaluateCarrierValue(node.right,environment,thisValue);
       if(node.left.type==='Identifier') {
         environment.set(node.left.name,assigned);
       } else if(node.left.type==='MemberExpression') {
-        const base=evaluateCarrierValue(node.left.object,environment,thisValue);
-        const key=carrierStaticKey(node.left.property,node.left.computed);
+        const base=memberBase;
+        const key=memberKeyName;
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
           else base.properties.set(key,assigned);
@@ -1765,8 +1807,8 @@ function hasWeakMapPrototypeExposure(ast) {
         } else if(base.kind==='weakmap'&&['set','get','has','delete'].includes(key??'')) {
           exposed=true;
         }
-        visitCarrierExpression(node.left.object,environment,thisValue);
       } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
+        visitCarrierPatternKeyEffects(node.left,environment,thisValue);
         bindCarrierPattern(node.left,assigned,environment);
       }
       return;
@@ -1810,6 +1852,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='VariableDeclaration') {
       for(const declaration of node.declarations??[]) {
         visitCarrierExpression(declaration.init,environment,thisValue);
+        visitCarrierPatternKeyEffects(declaration.id,environment,thisValue);
         bindCarrierPattern(declaration.id,
           evaluateCarrierValue(declaration.init,environment,thisValue),environment);
       }
