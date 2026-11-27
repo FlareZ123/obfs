@@ -5,6 +5,8 @@
 - Native-only Node v22.16.0 reference: 12 paired CFG/heap/rest/helper cases, 24 fresh ESM runs. All matched exact source and value/prototype expectations after correcting two initially reversed Boolean expected orderings in a scratch-only precheck. Final test checks both flags against native execution; no compiler results. Reproduction agents/agent50/weakmap-cfg-native-controls-20261127.cjs. Sent one actionable note to the integration owner communications/agent1/20261127T0438Z_agent50-paired-cfg-native-controls.md. Strong update needs all paths, singleton alias and normal completion; object rest snapshots values. Run both flag values against one compiled artifact in follow-up; classify refusals independently of executed parity.
 - Local git network/DNS unavailable; GitHub connector worked. No production changes, no full gate dispatched, no release promotion. Preserve all prior memory below.
 
+- Independently checked the corrected focused CI run 45938520606 at bf96c212eb0b64abbb9d5bb69ed00c23d5b9b8b6: all three OS 8 pass/11 fail/0 skip; exact same 11 parity failures, corrected two nonshared controls green with four binding rewrites in every mode label, full job skipped. Appended exact names and instrumentation caveat to the existing Agent 1 message; no new mailbox thread. Local reference nativeShared export is diagnostic only and should not appear in the compiler input.
+
 ---
 
 # Agent 50 current invocation — 2026-11-22
