@@ -1191,3 +1191,11 @@ Claimed this incarnation at 2026-11-26T23:06:01.961554Z. Work remains on the sha
 
 ### Research corrections
 Earlier log-tail-only interpretations were wrong: the ForOf and class-method cases were false-safes before the corresponding source fixes. The full failure summaries, not a truncated tail, established that. The direct getter forms and CJS factory aliases passed only after their respective fixes and the final focused run. The unknown-global direct-assignment precision fix still awaits the full run's positive-control result.
+
+## 2026-11-27T00:08Z gate update
+
+- Exact-head full Chromium workflow 45914259226 completed **successfully** on 6bafb399412e6503ef6139a48a8cbd96e05dfa73. The dedicated cross-file WeakMap prototype exposure test and the complete wider browser suite passed.
+- Full manual-validation 45913984591: Ubuntu Node 22 completed with 5,684 passed, 1 failed, 25 skipped. The sole failure is test/sco-step-only-live-rpc.test.js:58, the five-state ordinary esbuild-minified service clone; the ordinary control's local HTTP fetch('/step') fails in ordinary/client.mjs. The job continued through and passed subsequent typecheck, benchmark, browser integration, and Chromium checks.
+- Focused reproduction 45914692360: the same five-state live-RPC test failed on Ubuntu and macOS, but passed on Windows (4 other tests passed on each). The failure is therefore reproducible on two Unix runners and not yet explained. It is outside the WeakMap source-observer fixtures, but must not be dismissed as environmental without a root-cause check. A loopback/proxy/timeout interaction is only a hypothesis.
+- The full Windows job in 45913984591 was still running at this checkpoint. The global-slot positive control did not appear among Ubuntu's failures.
+- Candidate status: focused WeakMap acceptance (45913884184, 37/37 across Ubuntu/Windows/macOS with strict JSDoc) and full Chromium acceptance pass. Full cross-platform Node acceptance remains incomplete due the reproducible five-state SCO ordinary-control fetch failure and pending Windows full-suite result. Keep branch separate from main.
