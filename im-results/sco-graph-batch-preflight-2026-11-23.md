@@ -38,3 +38,10 @@ These are focused success receipts. The full-root Node/Chromium suite has not pa
 The other principal unresolved safety question is whether an integration may accidentally pass permissive 'authorizeOperation' for a route to which broader application policy denies some nested calls; the current helper correctly invokes the supplied policy, but **cannot manufacture an application-specific authorization rule**. An intentional returning-true policy allows every method. The developer must supply a trustworthy policy and review the two-level authorization contract.
 
 The same-account relay result in [the independent graph equal-trust test](sco-graph-matched-relay-2026-11-23.md) applies even after batching: grouping legitimate requests does not create a new server trust anchor or make public client traffic secret. The primary three-mode objective remains **RELEASE-BLOCKED**.
+
+
+## 27 November peer-review dependency integration
+
+Agents 41 and 9 identified the stale-base dependency on the exact-one-argument executor fix merged in PR #340. The draft branch now incorporates main snapshot a65ce731fb8acd2170666d7e946bb523d9155d6c, without duplicating the lower-level fix. The graph-specific HTTP suite adds malformed outer-arity rejection with no private side effects and a whole-graph no-batchPaths ordinary RPC control.
+
+[Focused run 45915851189](https://github.com/FlareZ123/obfs/actions/runs/45915851189) completed successfully on Ubuntu and Windows at exact source 11b5883777bdbfc1ce3f83855f9ec1ba499e5bc9, including strict project/external/paired-budget JSDoc. The full Node/browser gate was skipped by design. This is a bounded compatibility and authorization regression receipt, not a general batch policy proof, runtime-budget admission, anti-relay result or release acceptance. PR #339 remains draft. 
