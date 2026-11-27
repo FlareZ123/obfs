@@ -144,6 +144,41 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   }
   /** @type {Set<string>} */
   const protectedPaths=new Set();
+  /**
+   * The observable function may be re-exported by a separate ESM barrel.
+   * Preserve every statically re-exported upstream module as a conservative
+   * may-source closure; an unrecoverable export identity cannot justify
+   * rewriting source that a native coercion can reveal.
+   * @param {string} initialPath
+   * @returns {void}
+   */
+  function protectReexportClosure(initialPath) {
+    const queue=[initialPath];
+    /** @type {Set<string>} */
+    const visited=new Set();
+    while(queue.length) {
+      const current=/** @type {string} */ (queue.pop());
+      if(visited.has(current))continue;
+      visited.add(current);
+      const candidate=modules.get(current);
+      if(!candidate)continue;
+      protectedPaths.add(current);
+      const candidateAst=parse(/** @type {string} */ (candidate.code),'module');
+      for(const statement of candidateAst.body??[]) {
+        if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)||
+           statement.source?.type!=='Literal'||
+           typeof statement.source.value!=='string')continue;
+        const specifier=statement.source.value;
+        if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+           /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+           hasUrlPathnameNormalizationHazard(specifier)||
+           hasTerminalUrlDotSegment(specifier))continue;
+        const upstream=path.posix.normalize(
+          path.posix.join(path.posix.dirname(current),specifier));
+        if(modules.has(upstream))queue.push(upstream);
+      }
+    }
+  }
   for(const [filename,file] of modules) {
     const ast=parse(/** @type {string} */ (file.code),'module');
     /** @type {Map<string,Set<string>>} */
@@ -214,6 +249,58 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     }while(aliasesChanged);
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
+    /** @type {Set<string>} */
+    const locallyImmutablePrimitive=new Set();
+    for(const statement of ast.body??[]) {
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const entry of statement.declarations??[]) {
+        if(entry.id.type==='Identifier'&&entry.init?.type==='Literal')
+          locallyImmutablePrimitive.add(entry.id.name);
+      }
+    }
+    /**
+     * Proven inert operands cannot source-coerce an imported callable. Every
+     * other unmodeled operand could be a function wrapped in an object, an
+     * array or an interprocedural return. For a verified native DOMString
+     * sink, fail closed for every potentially callable imported ESM producer
+     * rather than guessing a safe provenance edge.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function isInertSinkOperand(node) {
+      if(!node)return false;
+      if(node.type==='Literal')return true;
+      if(node.type==='Identifier')return provenPrimitive.has(node.name)||
+        provenStrings.has(node.name)||locallyImmutablePrimitive.has(node.name);
+      if(node.type==='UnaryExpression'&&
+         ['!','typeof','void','+','-','~'].includes(node.operator))return true;
+      if(node.type==='BinaryExpression')return true;
+      if(node.type==='TemplateLiteral')return node.expressions.every(
+        isInertSinkOperand);
+      if(node.type==='ConditionalExpression')return
+        isInertSinkOperand(node.consequent)&&isInertSinkOperand(node.alternate);
+      if(node.type==='LogicalExpression')return
+        isInertSinkOperand(node.left)&&isInertSinkOperand(node.right);
+      return false;
+    }
+    /**
+     * @param {import('./ast').AstNode|null|undefined} operand
+     * @returns {void}
+     */
+    function protectImportedCallableSource(operand) {
+      const direct=importedOrigin(operand);
+      if(direct.size) {
+        for(const origin of direct)protectReexportClosure(origin);
+        return;
+      }
+      if(isInertSinkOperand(operand))return;
+      // Incomplete provenance must never be interpreted as proof of safety.
+      // Only imported nonprimitive candidates participate; a separately
+      // proved-primitive import remains eligible for unrelated obfuscation.
+      for(const origins of importedOrigins.values()) {
+        for(const origin of origins)protectReexportClosure(origin);
+      }
+    }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {Set<string>} */
     function importedOrigin(node) {
       if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
@@ -274,13 +361,12 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          node.left.type==='MemberExpression'&&
          node.left.object.type==='Identifier'&&
          domValues.has(node.left.object.name)) {
-        for(const origin of importedOrigin(node.right))protectedPaths.add(origin);
+        protectImportedCallableSource(node.right);
       }
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
          node.callee.object.type==='Identifier'&&
          htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
-        for(const origin of importedOrigin(node.arguments[0]))
-          protectedPaths.add(origin);
+        protectImportedCallableSource(node.arguments[0]);
       }
     });
   }
