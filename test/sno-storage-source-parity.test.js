@@ -652,3 +652,56 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+/**
+ * Acceptance oracle, intentionally independent from the descriptive
+ * expected-mismatch witness above. A compiler can refuse a source-bearing
+ * callback yet still rename an unrelated private binding. This gate demands
+ * both actual Web Storage DOMString equality and nonvacuous safe work.
+ *
+ * The native-only mutation control establishes that exact source text,
+ * rather than just a returned value or a substring flag, is compared.
+ */
+test('SNO named Storage setter strict exact-source parity and unrelated rename yield',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const sourceSensitive=37;return sourceSensitive;}',
+    'function independent(){const independentLocal=11;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.namedSourceParity=inspect;',
+    'const result={stored:localStorage.getItem("namedSourceParity"),',
+    '  propertyValue:localStorage.namedSourceParity,',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+
+  // This native fixture changes only the function's local variable spelling.
+  // Executable values must stay equal while the observable Storage string
+  // changes, proving the acceptance oracle rejects a value-only comparison.
+  const renamedSource=source.replaceAll('sourceSensitive','differentName');
+  const original=await runSnoDifferential(
+    source,'sno-named-strict-original','obfs-sno-named-strict-original-');
+  const nativeMutation=await runSnoDifferential(
+    renamedSource,'sno-named-strict-mutation','obfs-sno-named-strict-mutation-');
+  assert.equal(original.native.value,37);
+  assert.equal(nativeMutation.native.value,37);
+  assert.equal(original.native.independent,11);
+  assert.equal(nativeMutation.native.independent,11);
+  assert.equal(original.native.stored,original.native.propertyValue);
+  assert.equal(nativeMutation.native.stored,nativeMutation.native.propertyValue);
+  assert.notEqual(original.native.stored,nativeMutation.native.stored,
+    'native named setter must expose changed exact callback source');
+
+  // A blanket file-wide refusal would pass source parity vacuously.
+  // Keep unrelated independent() identifiers obfuscated on admission.
+  assert.ok(original.bindings>=1,
+    'source-protected SNO entry must retain at least one unrelated rename');
+  assert.ok(!original.protectedCode.includes('independentLocal'),
+    'safe independent binding must actually be renamed');
+  assert.deepEqual(original.emitted,original.native,
+    'SNO named Storage setter must preserve the entire native JSON result');
+});
