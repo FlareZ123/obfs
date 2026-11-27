@@ -1709,6 +1709,17 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
+    if(node.type==='ClassExpression') {
+      // Class expressions have the same class-definition phases as class
+      // declarations. A named expression's identifier is local to the class;
+      // never export that temporary binding into its enclosing scope.
+      const scoped=forkCarrierEnvironment(environment);
+      const declaration=/** @type {AstNode} */ ({...node,type:'ClassDeclaration'});
+      visitCarrierStatement(declaration,scoped,thisValue);
+      for(const name of environment.keys())
+        environment.set(name,scoped.get(name)??carrierOther);
+      return;
+    }
     if(functionTypes.has(node.type)) {
       if(!functionClosureEnvironments.has(node))
         functionClosureEnvironments.set(node,environment);
