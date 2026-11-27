@@ -221,6 +221,12 @@ function traceCjsStorageSourceSinks(files){
           env.set(d.id.name,evaluate(d.init,env,localNames,fn.file,next));
         continue;
       }
+      if(statement.type==='ExpressionStatement'&&
+         statement.expression.type==='AssignmentExpression'&&
+         statement.expression.operator==='='){
+        observe(statement.expression,env,localNames,fn.file);
+        continue;
+      }
       if(statement.type==='ReturnStatement'&&statement.argument&&!returned)
         return evaluate(statement.argument,env,localNames,fn.file,next);
       return unknown(fn.file+':opaque function statement '+statement.type);
@@ -344,6 +350,15 @@ function traceCjsStorageSourceSinks(files){
       if(statement.type==='ExpressionStatement'&&
          statement.expression.type==='Literal'&&
          typeof statement.expression.value==='string')continue;
+      if(statement.type==='ExpressionStatement'&&statement.expression.type==='CallExpression'){
+        // Execute only literal, bounded local calls for their observed effects.
+        // Always kill record proofs afterwards: an unknown callee could mutate
+        // any alias of an object passed into it.
+        evaluate(statement.expression,env,shadowed,name,new Set());
+        for(const value of env.values())invalidateRecord(value,
+          name+':potentially effectful top-level call');
+        continue;
+      }
       if(statement.type!=='ExpressionStatement'||statement.expression.type!=='AssignmentExpression'){
         // An opaque call can mutate a record/its nested fields via an alias.
         for(const value of env.values())invalidateRecord(value,
