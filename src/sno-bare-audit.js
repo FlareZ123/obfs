@@ -318,7 +318,10 @@ function directBareImports(files) {
  * @returns {void}
  */
 function assertDefaultEsmResolverContext() {
-  const unsupported=/^(?:--conditions(?:=.*)?|-C|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
+  // --no-addons removes the ESM node-addons condition; the isolated helper
+  // does not inherit process.execArgv, so its conditional-export selection
+  // could otherwise differ from the runtime being audited.
+  const unsupported=/^(?:--conditions(?:=.*)?|-C|--no-addons|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
   const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-(?:r|C))/gu)||[];
   // Node also accepts an environment variable for symlink-preserving module
   // resolution. The audit canonicalizes its future roots with realpath; if
