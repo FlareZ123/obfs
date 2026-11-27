@@ -11,7 +11,7 @@ const execFileAsync=promisify(execFile);
 
 /** @typedef {{path:string,code:string|Buffer,sourceType:'script'|'asset'}} Source */
 
-/** @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'|'bound-call'|'opaque-bound-call'} split @returns {Source[]} */
+/** @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'|'bound-call'|'opaque-bound-call'|'destructured-bound'} split @returns {Source[]} */
 function fixture(split){
   const client='document.documentElement.dataset.documentWriteSri="loaded";'+
     'globalThis.documentWriteSri="parser-written script bytes carry exact hash";';
@@ -40,6 +40,9 @@ function fixture(split){
       'const op=globalThis.writerMethod||"bind";'+
         'const writer=document.write[op](document);writer('+
         JSON.stringify(first+second)+');' :
+    split==='destructured-bound' ?
+      'const {write}=document;const writer=write.bind(document);writer('+
+        JSON.stringify(first+second)+');' :
       'const writer=document.write;writer.call(document,'+
         JSON.stringify(first+second)+');';
   return [
@@ -52,7 +55,7 @@ function fixture(split){
 /**
  * Real browser navigation verifies the SRI integrity check of parser-inserted
  * scripts and the necessity of conserving pinned source bytes.
- * @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'|'bound-call'|'opaque-bound-call'} split
+ * @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'|'bound-call'|'opaque-bound-call'|'destructured-bound'} split
  * @returns {Promise<{nativeLoaded:true,protectedLoaded:true,unsafeBlocked:true}>}
  */
 async function runFixture(split){
@@ -139,6 +142,7 @@ async function main(){
   await runFixture('alias-call');
   await runFixture('bound-call');
   await runFixture('opaque-bound-call');
+  await runFixture('destructured-bound');
 }
 
 if(require.main===module)main().catch(error=>{
