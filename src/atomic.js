@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
+const {performance} = require('node:perf_hooks');
 
 
 /**
@@ -16,14 +17,20 @@ const {randomUUID} = require('node:crypto');
  * @returns {Promise<T>}
  */
 async function withLock(lockPath,action,options={}) {
+  const timeoutMs=options.timeoutMs??5000;
+  // NaN makes a deadline comparison permanently false and can strand a
+  // publisher behind an occupied lock. Require a finite nonnegative budget.
+  if(!Number.isFinite(timeoutMs)||timeoutMs<0)
+    throw new TypeError('timeoutMs must be a finite nonnegative number');
   await fs.mkdir(path.dirname(lockPath),{recursive:true});
-  const deadline=Date.now()+(options.timeoutMs??5000);
+  // Use elapsed monotonic time: wall-clock adjustments must not extend lock contention.
+  const deadline=performance.now()+timeoutMs;
   /** @type {import('node:fs/promises').FileHandle} */
   let lock;
   for(;;) {
     try { lock=await fs.open(lockPath,'wx',0o600); break; }
     catch(error) {
-      if(/** @type {NodeJS.ErrnoException} */(error).code!=='EEXIST'||Date.now()>=deadline)throw error;
+      if(/** @type {NodeJS.ErrnoException} */(error).code!=='EEXIST'||performance.now()>=deadline)throw error;
       await new Promise(resolve=>setTimeout(resolve,35));
     }
   }

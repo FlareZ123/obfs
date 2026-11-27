@@ -54,8 +54,12 @@ function createScoBatchMethod(methods,options={}) {
       !Object.hasOwn(call,'args') || typeof call.method!=='string' ||
       !registry.has(call.method) || !Array.isArray(call.args));
   /** @type {(calls:RpcBatchCall[])=>Promise<RpcBatchResult[]>} */
-  const execute=async calls=>{
-    if(!validCalls(calls)) {
+  const execute=async function(calls){
+    // A recognized helper receives one outer RPC argument. The HTTP
+    // preflight deliberately skips malformed arity; without this check,
+    // JavaScript would ignore surplus arguments while still executing the
+    // first argument's inner operations without their policy review.
+    if(arguments.length!==1||!validCalls(calls)) {
       throw new TypeError('Invalid or oversized RPC batch');
     }
     /** @type {RpcBatchResult[]} */

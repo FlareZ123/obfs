@@ -335,3 +335,53 @@ The previously mis-targeted Agent38 runs `45144780684` and `45144833430` are exc
 Both correctly targeted runs are **8 failures / 1 positive-control pass on Ubuntu and Windows**. The eight failures cover object and array destructuring for Number, Boolean, BigInt and Symbol primitives when the host preloader mutates their prototype getters/iterators to supply Function. The positive control confirms ordinary primitive arithmetic retains one safe private-field rewrite. Logs explicitly show `OBFS_FOCUSED_TEST: test/cross-file-boxed-primitive-host-pattern.test.js` and all nine test results.
 
 This is now source-paired evidence that the frozen PR #332 and current-main source both fail the complete Number/Boolean/BigInt/Symbol boxed-primitive pattern matrix. It replaces the earlier mis-targeted 45144780684/45144833430 runs, which executed the default safe-record suite and are not evidence for this matrix.
+
+### 23 November 2026 23:50 UTC: boxed-primitive matrix revalidated against latest main
+
+To check whether later mainline changes had closed the earlier primitive-pattern gap, I copied the exact nine-case test file from Agent38's prior test-only branch onto a fresh branch based on main commit `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5` (branch `agent11/boxed-primitive-current-main-20261123`). The compiler blobs under test were current-main `src/ast.js=c227e6e604635a42663af745fd0cfb194b215a67` and `src/cross-properties.js=7298df722d65f545dcb7b55c81cb6b8e101ce6b7`; no compiler source was changed.
+
+Focused two-platform [run 45292181431](https://github.com/FlareZ123/obfs/actions/runs/45292181431), exact test-branch head `b47934251e86c8e6166db584cb5a784f99338b92`, is **8 failures / 1 pass on Ubuntu and Windows**. The eight failures are all semantic differentials: Number, Boolean, BigInt and Symbol each fail under both object and array destructuring. Native output is `[53,["secretField"],53]`; emitted output contains a seed-renamed owner key and a null lookup. The independent ordinary-arithmetic control passes and retains one private-field rewrite. The focused job confirms the exact test path in `OBFS_FOCUSED_TEST`; this is a targeted donor regression, not a full-main acceptance run.
+
+This fresh pin supersedes reliance on the earlier 45146233899 current-main test branch for present-main status. It confirms that the intervening `cross-properties.js` changes did not close the host-controlled boxed-primitive destructuring gap. It does not establish a complete BoxedPrimitive provenance model, and it does not change the source-observer integration NO-GO or RELEASE-BLOCKED decisions. No production code or PR was changed.
+
+### 23 November 2026 23:55 UTC: PrimitiveString / ForIn matrix revalidated against latest main
+
+The exact ten-case test `test/cross-file-for-in-string-iterator-host-control.test.js` was copied from Agent38's prior test-only commit onto the same fresh main-based donor branch `agent11/boxed-primitive-current-main-20261123`. The focused [two-platform run 45292800791](https://github.com/FlareZ123/obfs/actions/runs/45292800791), exact head `970a4f690c9c486f2b0b58812dfe39c870f7a606`, is **8 failures / 2 passes on Ubuntu and Windows**.
+
+Eight semantic failures cover:
+- ForIn declaration and assignment array-pattern bindings invoking the host-modified String iterator;
+- StringKey provenance through alias assignment, local identity-function return, and object-field storage;
+- an imported ESM identity-return edge;
+- a direct member read invoking a host-installed String getter; and
+- direct array destructuring from the primitive string literal.
+
+The two positive controls pass: reading the own `length` property from a ForIn StringKey and using a plain ForIn identifier without destructuring. In each red case, native output is `[53,["secretField"],53]`; emitted output contains a seed-renamed property and null lookup. The exact focused path is recorded in `OBFS_FOCUSED_TEST`.
+
+This current-main run and [boxed Number/Boolean/BigInt/Symbol run 45292181431](https://github.com/FlareZ123/obfs/actions/runs/45292181431) both use the same compiler-source pin from main `27572fc13ed8f04b3ec6f98d95f1a60b98454ec5`, with only test files added. Together they provide current-main evidence for primitive-string and other boxed-primitive host capability sources while preserving positive-yield controls. This remains a narrow Node ESM compatibility donor, not a complete source/effect analysis or full acceptance. No compiler source or PR changed; the NO-GO / RELEASE-BLOCKED decisions remain unchanged.
+
+### 23 November 2026 23:56 UTC: primitive prototype method-dispatch matrix revalidated against latest main
+
+The six-case `test/cross-file-primitive-prototype-method-host-callback.test.js` was copied onto the same current-main-based donor branch. Focused two-platform [run 45292983468](https://github.com/FlareZ123/obfs/actions/runs/45292983468), exact branch head `b9017ab54bdc7cad029bdf4757bb52595f969a96`, is **4 failures / 2 passes on Ubuntu and Windows**.
+
+Host mutation of `String.prototype.toString`, `Number.prototype.toString`, `Boolean.prototype.toString`, and `BigInt.prototype.toString` causes the transformed cross-file owner key to be renamed; the hidden importer then reads null instead of 53. The `Symbol.prototype.toString` case and ordinary primitive-arithmetic rewrite control pass. The focused logs confirm the exact test path and six-test result.
+
+This current-main run complements the two pattern matrices above: BoxedPrimitive exposure is not limited to destructuring/member reads; primitive prototype method dispatch can also be replaced by a host-provided callable. This does not establish that all primitive methods are source observers in all environments: the result is conditional on the hostile preloader, and a trusted-intrinsics contract would be a distinct assumption. Under the repository's stated hostile runtime models, pristine prototype dispatch cannot be presumed. No compiler source or PR changed; the integration NO-GO / RELEASE-BLOCKED decisions remain unchanged.
+
+### 24 November 2026 00:00 UTC: boxed-primitive direct-member provenance matrix
+
+To isolate the direct-member-read sink and test whether non-string primitive provenance survives the interprocedural shapes named in the objective, I added `test/cross-file-boxed-primitive-member-host-control.test.js` to the same main-based donor branch. It tests Number, Boolean, BigInt and Symbol primitives through five origins/flows: direct literal, assignment alias, local identity return, object-field storage, and imported ESM identity return. A host-only preload installs a getter for `callback` on each corresponding primitive prototype, returning `Function`; the resulting callback constructs a dynamic importer of the renamed ESM owner.
+
+Focused two-platform [run 45293453450](https://github.com/FlareZ123/obfs/actions/runs/45293453450), exact branch head `596ab4221caef68f0025a1bf1bcf0a723e585cab`, is **20 failures / 1 pass on Ubuntu and Windows**. Every one of the 4 primitive kinds × 5 provenance flows produces native `[53,["secretField"],53]` but emitted output with a seed-renamed owner key and null lookup. The sole ordinary-arithmetic positive control passes and retains one private-field rewrite.
+
+This establishes a stronger bounded donor result than the earlier direct-literal pattern matrix: the host-controlled getter source is not limited to one primitive type or one local syntax shape; it survives aliases, local function returns, shared object-field storage and a cross-file ESM identity-return edge. It remains a test of one property-getter capability under an explicit host preloader, not a complete soundness proof for all primitive operations. No compiler source or PR changed. The source-observer integration NO-GO / RELEASE-BLOCKED decisions remain unchanged.
+
+### 24 November 2026 00:13 UTC: direct getter side-effect controls narrow the callable-flow gap
+
+Two additional current-main focused tests isolate the host getter's own execution from use of its returned value:
+
+- [Run 45295210042](https://github.com/FlareZ123/obfs/actions/runs/45295210042), `test/cross-file-primitive-prototype-getter-side-effect.test.js`: **5/5 green on Ubuntu and Windows**. For Number, Boolean, BigInt and Symbol, an unlisted prototype getter starts a dynamic import and logs `Object.keys(state)` during the getter itself, then returns non-callable `0`. The app merely discards the value with `void`; the transformed graph preserves the host observation and `crossFile.properties===0`. The ordinary arithmetic control retains one property rewrite.
+- [Run 45294821796](https://github.com/FlareZ123/obfs/actions/runs/45294821796), `test/cross-file-primitive-prototype-getter-unused-binding.test.js`: **5/5 green on Ubuntu and Windows**. The same side-effecting getter is assigned to an unused local binding; transformed output remains equal and the owner-key rewrite is vetoed. The arithmetic positive control passes.
+
+Together with the 20/21-red direct-member callable-provenance run [45293453450](https://github.com/FlareZ123/obfs/actions/runs/45293453450), this narrows the current-main failure: a primitive prototype getter is conservatively refused when its result is discarded or merely stored unused, but the same kind of getter value can escape through a binding and be invoked, after which the property pass renames the exported owner. The missing case is not merely "primitive member access"; it is preservation of the host-effect/callable provenance when the read result is subsequently used as a callable through aliases, returns, fields and ESM identity edges.
+
+Methodological correction: an exploratory `String.length` positive-control assertion in runs 45293993691/45294227831 observed `crossFile.properties===0`; the failure was the test's yield expectation, not a native/emitted semantic mismatch. It was replaced by the known arithmetic control before runs 45295210042 and 45294821796. No claim is made that the current pass preserves String own-length property yield. This distinction should remain visible when designing a scoped fix.

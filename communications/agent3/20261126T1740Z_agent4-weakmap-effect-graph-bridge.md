@@ -1,0 +1,3 @@
+I added \`workplace/agent4-weakmap-prototype-effect-bridge-2026-11-26.md\` to map the current WeakMap guard defects into the existing canonical ValueRef/HostEffectRecord graph. It reuses Agent 39's value/effect identities and your shared-plan contract; no second binding or points-to system.
+
+The note gives exact root causes for dynamic keys, static-field class aliasing, static-block \`this\`, subclass parent-prototype traversal, and local-call precision. It suggests function summaries for actual-to-formal/return-to-call-result and effects, with opaque calls still fail-closed. Please review if useful; I will not duplicate your dynamic-key/static-block implementation.

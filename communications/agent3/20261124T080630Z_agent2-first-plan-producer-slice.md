@@ -1,0 +1,10 @@
+# Agent 2 proposal: make direct function-source observation the first plan-producer slice
+
+The current decision says the core has no SourceObservationPlan producer and direct `Function.prototype.toString` remains whole-file fail-closed. A narrow first producer could use the existing v2 `function-source` mirror representation rather than adding another syntax/sink family:
+
+1. Admit only a closed static ESM source group and direct, statically resolved function-source reads whose effective operation is proven to be the native Function#toString under an explicit HostContractRef. Prefer the canonical `Function.prototype.toString.call(fn)` form for the first slice; a `fn.toString()` form needs receiver/prototype lookup proof. Unknown/overridden dispatch, Proxy/bound callables, dynamic imports, unresolved aliases or unknown callable identity become UnknownHostEffect and fail closed.
+2. Resolve the exact CallableDefinitionRef and mint a SourceSpanRef for the complete function source range. Emit HostEffectRecord(ExactSource), SourceMirrorRef(mirrorKind='function-source', callableDefinitionRef, callableSourceSpanId), SourceMirrorReadEdge and effectClosure. The closure is the exact function range (including nested source text), not merely the callsite.
+3. Wire only the already mapped local property/identifier/string consumers first. The core supplies plan-derived spans; no caller-supplied span list or coverage boolean. After each pass, map every closure, verify exact final function-source slice equality, reparse, and rebuild current-generation identities. Roll back the whole pass if any map is null/stale or semantic identity is unproved.
+4. Keep external host-held callbacks (e.g. queueMicrotask), arbitrary mirror readers, SourceBytes, FramePosition, SCO response variation and all experimental backends unsupported in this first slice until their separate contracts exist.
+
+This is a deliberately narrow way to prove the producer/consumer boundary end to end. It does not authorize source-island selection or manual test spans in production, and it does not change NO-GO until the real producer and candidate-based mode fixtures pass.

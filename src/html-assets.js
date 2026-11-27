@@ -135,6 +135,92 @@ function isDataUrl(raw) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {value is Record<string,unknown>}
+ */
+function isImportMapRecord(value) {
+  return value!==null&&typeof value==='object'&&!Array.isArray(value);
+}
+
+/**
+ * Import maps may name web modules, but embedded data: JavaScript would
+ * disclose source inside an otherwise opaque HTML file. Require safe web
+ * URL spellings, leaving unproven protocols outside this admission contract.
+ * @param {string} address
+ * @returns {boolean}
+ */
+function isWebModuleAddress(address) {
+  // Raw executable syntax in URL path/query/fragment can publish
+  // untransformed JavaScript inside this otherwise admitted JSON asset.
+  if(!/^(?:\.\.?\/|\/|https?:\/\/)/iu.test(address)||
+     /[\x00-\x20\x7f]/u.test(address)||
+     /[()\[\]{};`\\<>]/u.test(address))return false;
+  try {
+    const url=new URL(address,'https://obfs.invalid/');
+    return url.protocol==='http:'||url.protocol==='https:';
+  }catch(error){return false;}
+}
+
+/** @param {unknown} value @returns {boolean} */
+function isImportMapSpecifiers(value) {
+  return isImportMapRecord(value)&&Object.entries(value).every(([name,address])=>
+    /^[A-Za-z0-9@._~\/$%+#?:-]+$/u.test(name)&&
+    !/^(?:data|javascript|blob):/iu.test(name)&&
+    (address===null||typeof address==='string'&&isWebModuleAddress(address)));
+}
+
+/**
+ * Admit only real SHA-256/384/512 digest tokens, never arbitrary source
+ * strings in an integrity metadata value.
+ * @param {string} metadata
+ * @returns {boolean}
+ */
+function isImportMapIntegrityMetadata(metadata) {
+  return metadata.trim().split(/\s+/u).every(token=>{
+    const match=/^(sha256|sha384|sha512)-([A-Za-z0-9+/_-]+={0,2})$/iu.exec(token);
+    if(!match)return false;
+    const encoded=match[2].replace(/-/gu,'+').replace(/_/gu,'/').replace(/=+$/u,'');
+    const binary=Buffer.from(encoded,'base64');
+    const size=match[1].toLowerCase()==='sha256'?32:
+      match[1].toLowerCase()==='sha384'?48:64;
+    return binary.length===size&&
+      binary.toString('base64').replace(/=+$/u,'')===encoded;
+  });
+}
+
+/**
+ * Import-map JSON is configuration rather than executable inline script.
+ * Only a safe, explicit URL-only subset can pass the source audit; all
+ * other inline scripts retain their original fail-closed behavior.
+ * XHTML import-map syntax remains unsupported by this HTML-only parser.
+ * @param {HtmlNode} node
+ * @returns {{integrity?:Record<string,string>}|null}
+ */
+function safeHtmlImportMap(node) {
+  if(node.tagName!=='script')return null;
+  const attrs=node.attrs??[];
+  const type=attrs.find(attr=>attr.name==='type')?.value.trim().toLowerCase();
+  if(type!=='importmap'||attrs.some(attr=>attr.name==='src'))return null;
+  const contents=(node.childNodes??[]).map(child=>child.value??'').join('');
+  /** @type {unknown} */
+  let parsed;
+  try{parsed=JSON.parse(contents);}
+  catch(error){return null;}
+  if(!isImportMapRecord(parsed)||Object.keys(parsed).some(key=>
+    !['imports','scopes','integrity'].includes(key)))return null;
+  if(parsed.imports!==undefined&&!isImportMapSpecifiers(parsed.imports))return null;
+  if(parsed.scopes!==undefined&&
+      (!isImportMapRecord(parsed.scopes)||Object.entries(parsed.scopes)
+        .some(([scope,imports])=>!isWebModuleAddress(scope)||
+          !isImportMapSpecifiers(imports))))return null;
+  if(parsed.integrity!==undefined&&
+      (!isImportMapRecord(parsed.integrity)||Object.entries(parsed.integrity)
+        .some(([url,metadata])=>!isWebModuleAddress(url)||
+          typeof metadata!=='string'||!isImportMapIntegrityMetadata(metadata))))return null;
+  return {integrity:/** @type {Record<string,string>|undefined} */(parsed.integrity)};
+}
+
+/**
  * Detect a refresh redirect that embeds executable markup or a script URL.
  * The HTML parser has already decoded character references in the content
  * attribute. Ordinary refresh targets remain accepted.
@@ -200,7 +286,8 @@ function findInlineHtmlSource(html) {
       }
     }
     if(node.tagName==='script' &&
-        node.childNodes?.some(child=>typeof child.value==='string' && /\S/u.test(child.value))) {
+        node.childNodes?.some(child=>typeof child.value==='string' && /\S/u.test(child.value)) &&
+        safeHtmlImportMap(node)===null) {
       issue='inline script source';
       return;
     }
@@ -521,6 +608,22 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     /** @param {HtmlNode} node */
     function visit(node){
       if(observed)return;
+      const map=safeHtmlImportMap(node);
+      if(map?.integrity){
+        for(const [address,metadata] of Object.entries(map.integrity)){
+          if((hasUnknownMount(address)||
+              baseHref!==null&&hasUnknownMount(baseHref))&&
+              matchesOriginalDigest(metadata)){
+            observed=true;return;
+          }
+          for(const candidateBase of [documentBase,base]){
+            const target=targetPath(address,candidateBase);
+            if(target!==null&&matchesDistributedScript(target)){
+              observed=true;return;
+            }
+          }
+        }
+      }
       const attrs=node.attrs??[];
       const integrity=attrs.find(attr=>attr.name==='integrity')?.value;
       if(integrity?.trim()){

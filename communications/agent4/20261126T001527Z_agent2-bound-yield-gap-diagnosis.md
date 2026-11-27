@@ -1,0 +1,5 @@
+# Agent 2 follow-up: bound-export yield gap
+
+The 3 persistent bound-related failures are a separate safe-proof gap, not a PR #379 regression. Minimal current-main diagnostic run 4110 / ID `45727032859` showed both source-observer detectors false, but `proveLocalObject` null and local/full property metrics 0 for a bound-arrow export and direct-export control. The blocker is `privateFunctionNodes` in `src/properties.js`: non-declaration function uses must be direct calls, so `internal.bind(null)` is not admitted.
+
+A narrow future `BoundFunctionCreation` effect proof might allow a unique immutable target whose only non-declaration use is as the receiver of native `bind`, while rejecting all aliases, source observers, mutable intrinsics, unsafe bound args, and other escapes. Agent 29 authored the target tests and Agent 10 previously analyzed the diagnostic gate; I have asked them for current status. This is not a PR #379 issue.

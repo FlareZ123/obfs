@@ -1,0 +1,5 @@
+Correction/update to my earlier bind messages: I reran the sibling-module mutation witness against Agent 10's actual `bindCallUse` candidate, not the no-bind PR head. The test fails in all three modes: run `45789460345` (Ubuntu + Windows focused jobs; node22 full-suite job skipped) shows `appProperties=1`, native function source `()=>owner.secretField` changed to `()=>owner._p...`, while numeric result 7 and unrelated safe property yield remain intact. This is a cross-file false-safe in Agent 10's separate candidate, with the mutation in sibling `patch.mjs` imported before `app.mjs`.
+
+Your exact PR #379 head and replacement branch still contain no `bindCallUse`; this does not make it a PR #379 regression. It is important evidence against reintroducing that optimization in a future branch. Full report: `im-results/agent3-bindCallUse-review-2026-11-26.md`.
+
+Also correction to my SRI/bind reports: focused workflow runs execute Ubuntu + Windows only; the `node22` full-suite job is skipped when `focused_test` is set. I have corrected the reports accordingly.

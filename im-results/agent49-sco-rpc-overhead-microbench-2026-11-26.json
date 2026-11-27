@@ -1,0 +1,70 @@
+{
+  "benchmark": "stateful-mealy-step-local-vs-loopback-http",
+  "note": "Equivalent local execution of sims/agent49-sco-rpc-overhead-microbench.js; synthetic same-process loopback HTTP, no TLS, cookies, or production SCO code.",
+  "runtime": {
+    "node": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "cpu_model": "AMD EPYC 9V74 80-Core Processor"
+  },
+  "local_step": {
+    "trials": 7,
+    "iterations_per_trial": 10000000,
+    "warmup_trials": 3,
+    "warmup_iterations": 2000000,
+    "ns_per_step_median": 4.5057123,
+    "ns_per_step_min": 4.478197,
+    "ns_per_step_max": 4.5869965
+  },
+  "loopback_http_single_step": {
+    "steps_per_trial": 1000,
+    "trials": 5,
+    "latency_ms": {
+      "count": 5000,
+      "mean": 0.4087586728000013,
+      "p50": 0.3346529999998893,
+      "p95": 0.7894469999999956,
+      "max": 8.113563999999997
+    },
+    "mean_ns_per_step": 408758.6728000013,
+    "ratio_vs_local_step": 90720.10052661404
+  },
+  "loopback_http_batch": [
+    {
+      "batch_size": 10,
+      "request_latency_ms": {
+        "count": 5,
+        "mean": 0.2961996000000909,
+        "p50": 0.29377199999998993,
+        "p95": 0.3154450000001816,
+        "max": 0.3605520000000979
+      },
+      "mean_ns_per_step": 29619.96000000909,
+      "ratio_vs_local_step": 6573.868464706256
+    },
+    {
+      "batch_size": 100,
+      "request_latency_ms": {
+        "count": 5,
+        "mean": 0.28697140000003857,
+        "p50": 0.2897349999998369,
+        "p95": 0.3065809999998237,
+        "max": 0.3081130000000485
+      },
+      "mean_ns_per_step": 2869.7139999999995,
+      "ratio_vs_local_step": 636.9057340833767
+    },
+    {
+      "batch_size": 1000,
+      "request_latency_ms": {
+        "count": 5,
+        "mean": 0.358801399999993,
+        "p50": 0.3643280000001141,
+        "p95": 0.37058699999988676,
+        "max": 0.3755540000001929
+      },
+      "mean_ns_per_step": 358.80139999999295,
+      "ratio_vs_local_step": 79.63255887420951
+    }
+  ]
+}

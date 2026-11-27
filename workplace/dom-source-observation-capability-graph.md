@@ -2,6 +2,7 @@
 
 **Status:** design proposal; not an implemented or validated source-observer fix.  
 **Evidence:** `im-results/domstring-property-setter-source-matrix-2026-11-23.md`  
+**Storage method evidence:** `im-results/agent19-sco-create-handler-storage-source-2026-11-23.md`  
 **Test donor:** branch `agent19/domstring-property-setter-final-20261123`
 
 ## Problem statement
@@ -13,6 +14,7 @@ The Chromium witness currently covers:
 - nine reflective/aliased setter dispatch cases;
 - a cross-file ESM producer/consumer assignment;
 - `Element.insertAdjacentHTML` argument index 1;
+- native `Storage.setItem` argument indices 0 and 1, captured-native `Reflect.apply` dispatch, and a same-named userland `setItem` positive control;
 - positive controls for primitives, ordinary-object properties, own data-property shadowing, own custom-accessor shadowing, Proxy storage, and Proxy brand-check behavior.
 
 The current mainline has a receiver-provenance-aware URL property-setter pattern in `src/ast.js::observesFunctionSource`, but no corresponding DOM setter family or `insertAdjacentHTML` rule. The complete evidence and limitations are in the report.
@@ -39,7 +41,8 @@ A conceptual record:
  *   receiver: string,
  *   member: string,
  *   argumentIndex: number|null,
- *   conversion: string
+ *   conversion: string,
+ *   dispatchIdentity: 'native'|'captured-native'|'userland'|'unknown'
  * }} SourceSink
  *
  * @typedef {{
@@ -112,6 +115,58 @@ Examples:
 Trusted Types enforcement and default policies can change whether a string conversion is accepted or rejected. The current parser-setter tests explicitly run with Trusted Types enforcement absent. Keep that environmental assumption explicit.
 
 A source sink exists only if the actual selected setter/method path applies a conversion that can expose the function source. Do not infer it merely from a member name.
+
+### Method-call dispatch: Storage DOMString arguments
+
+The createScoHandler witness adds a method-call sink that must use the same capability graph, not a method-name-only exception. The actual single-file request path currently measures observesFunctionSource(parse(source,'module')) as false, emits per-request Unicode spelling changes and private-binding renames, and exposes those changes when Chromium's native Storage conversion stringifies the function value.
+
+#### Receiver provenance
+
+Add a distinct Storage receiver family:
+- global localStorage and sessionStorage;
+- window.localStorage / window.sessionStorage and globalThis equivalents;
+- aliases whose origin is proven to be one of those Storage objects;
+- unknown or shadowed identifiers remain UnknownHost/Userland until resolved.
+
+Do not infer Storage from a variable name or a .setItem spelling. An ordinary userland object with a same-named method is a required positive control.
+
+#### Effective callable identity
+
+A method call is a source sink only when the effective callable and receiver are proven. Extend the current descriptor-state model with a method-dispatch lattice, for example:
+- NativeInheritedMethod;
+- CapturedNativeMethod;
+- OwnDataMethod;
+- OwnAccessorMethod;
+- PrototypePatchedMethod;
+- UserlandMethod;
+- UnknownDispatch.
+
+Track prior own-property writes, Object.defineProperty / Reflect.defineProperty, Storage.prototype mutation, captured method aliases, destructuring, bind, call, apply, and Reflect.apply. The native method must receive a genuine Storage receiver; Proxy wrappers need separate brand-check and forwarding analysis. A custom method that merely happens to be named setItem is not the native sink. A custom wrapper that calls a captured native Storage.prototype.setItem is a source sink at that inner call.
+
+#### Conversion and function hooks
+
+Storage.setItem converts both its key argument (index 0) and value argument (index 1) to DOMString. Either position can therefore receive a function object. The extended browser witness exercises both positions in one module: the function is first passed as argument 0 (key) and then as argument 1 (value). A captured Storage.prototype.setItem alias invoked through Reflect.apply also exposes source. A same-named userland setItem stores a function reference and retains a private-rewrite positive control. Own overrides, prototype patching, call/apply/bind variants, and cross-file dispatch remain open.
+
+For an object/function input, the relevant conversion path is ToPrimitive with string hint followed by ToString. Track the effective Symbol.toPrimitive, toString, and valueOf hooks, including own properties, prototype changes, accessors, and hook bodies that may call native Function.prototype.toString. Do not equate "custom hook returns a primitive" with "no source observation": a hook may read native function source as a side effect and then return a constant. If the hook body or effective dispatch is unresolved, preserve the source conservatively.
+
+The existing five-case Storage conversion control report is a useful bounded input to this analysis:
+- own toString returning a primitive;
+- own Symbol.toPrimitive returning a primitive;
+- direct Function.prototype.toString.call bypass;
+- JavaScript prototype override;
+- patched Function.prototype.toString delegating to the native method.
+
+The own-hook cases are also positive-yield controls: the current conservative file veto can decline unrelated renaming even when the effective hook does not expose source. The native direct bypass and patched-native-delegation cases are source-observing. Keep these effects distinct.
+
+#### Keep method calls separate from named-property writes
+
+Storage named-property assignment (storage[key] = value) is a separate dispatch path from Storage.setItem(key,value). The computed property key first has ECMAScript ToPropertyKey semantics; the Storage named-property setter then has its own Web IDL value conversion. Do not collapse this into the setItem method rule. Verify both the spec dispatch and browser behavior before admitting it. The current request-time witness says nothing about this named-property path.
+
+#### SCO request-time integration
+
+A source-observation plan must be computed once and consumed by every mutation stage. In the pinned handler, the group-level interfileSourceObserver expression does not call observesFunctionSource for a single-file group; varyLiteralSpellings nevertheless calls the boolean observer and receives false, then obfuscateFiles runs with identifiers/properties enabled. The new browser witness proves that this combination changes a source-observed function in the actual HTTP request path.
+
+Do not repair this with a blanket .setItem ban or a whole-file veto as the final design. The preferred plan preserves the observed function's exact source span and its lexical/owner closure while still rewriting unrelated private bindings in the same module. The per-request spelling pass, identifier pass, property pass, and any later wrapper insertion must all consume the same plan.
 
 ### 4. Function and owner may-flow
 

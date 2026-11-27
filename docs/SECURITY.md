@@ -598,6 +598,29 @@ content. XML DTDs other than a simple `<!DOCTYPE html>` and XML stylesheet
 processing instructions remain conservative refusals. Benign XML data
 may remain byte-identical while associated JavaScript is transformed.
 
+HTML import maps (`<script type="importmap">`) can attach an
+`integrity` JSON map to imported ESM module URLs, including dependencies
+without a directly integrity-annotated `<script src>` tag. The HTML asset
+audit now admits only JSON import maps containing explicitly recognized
+`imports`, `scopes`, and `integrity` fields, URL-like specifier names,
+HTTP(S) or relative web module URLs, and SHA-256/384/512 metadata. Inline
+`data:` and `javascript:` module mappings, raw JavaScript source in
+specifier names, arbitrary inline JSON scripts, malformed metadata and
+unsupported URL schemes are conservatively refused. Even with an ordinary
+HTTP(S) or relative URL scheme, raw JavaScript punctuation in an import-map
+URL path, query, or fragment causes refusal: that text otherwise discloses
+untransformed source in the distributed HTML despite never executing. Normal
+alphanumeric query and fragment labels remain accepted. Encoded script
+source hidden in otherwise ordinary-looking URL text remains an unresolved
+finite-audit boundary. A local or
+original-digest-matched module integrity commitment preserves the original
+module response bytes in COO/SNO/SCO, including SCO route-prefix aliases;
+it may sacrifice otherwise valid obfuscation yield. XHTML import maps and
+unreviewed deployment-time import-map rewriting are outside this bounded
+HTML-only proof. The dedicated real Chromium
+`test/html-importmap-integrity-browser.js` checks native, preserved and
+byte-mutated counterfactual module loading.
+
 For SRI, the compiler resolves document-relative URLs, query and fragment
 decorations, escaped path characters, possible HTML `<base href>` candidates,
 and a scoped XML `xml:base` where relevant. A configured SCO route prefix

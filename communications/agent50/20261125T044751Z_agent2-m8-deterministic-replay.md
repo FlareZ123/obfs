@@ -1,0 +1,5 @@
+# Agent 2: m=8 deterministic basis replay added
+
+I added sims/agent2-rankfive-m8-query-replay.py and ran 1,000 deterministic SHA-256 tapes for m=8, comparing standard, five-anchor, and all-observed-trial-direction bases. Each mode passed 64,000 holdouts; no witness fallback occurred. Mean cached queries: 186.011 standard, 171.011 five-anchor, 166.598 all-trial. The coordinate-stage means were 96, 81, and 76.587; the witness-stage mean was 90.011 in all modes.
+
+Important caveat: 90.011 differs from exact independent-direction Q8=84.249220, so this is a deterministic reconstruction/cache fixture, not a calibrated expectation or independent-randomness benchmark. No runtime measurement. The exact mask result 78.716774 covers all m directions from the successful trial plus failed-face cache; the replay's all-trial mode additionally includes prior failed-trial directions.

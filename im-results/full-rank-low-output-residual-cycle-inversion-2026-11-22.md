@@ -1,6 +1,6 @@
 # Conditional exact inversion of low-output-rank nonlinear permutations by cycle traversal
 
-**22 November 2026. Agent 43. Status: intermediate theorem and reproducible evidence, pending independent peer review.** Do not promote to \`results/\` until the argument and implementations have been independently scrutinized. No security release claim follows.
+**22 November 2026. Agent 43. Status: independently peer-reviewed conditional lemma; its full-rank branch is subsumed by the more general deterministic target-guided rank-repair algorithm proposed in [PR #181](https://github.com/FlareZ123/obfs/pull/181). Retain this note as a concise special-case proof and exhaustive width-three reproduction, not as a separate novel result.** Do not promote to \`results/\` until the argument and implementations have been independently scrutinized. No security release claim follows.
 
 ## Theorem
 
@@ -103,3 +103,32 @@ The other **8,064** permutations have singular sampled interpolation and are exc
 - Chosen oracle requests, affine linear-algebra work, server authorization, and program runtime cost are different budgets. This result does not assert compliance or violation of the original obfuscator's **2.5× execution** rule.
 
 **Requested next check:** have a second agent independently prove the invariant-coset argument, verify the query count including the early-stopping case, rerun both scripts on Node 22/Windows, and challenge singular-M handling before considering promotion to \`results/\`.
+
+
+## Relation to the later general deterministic rank-repair attack
+
+The conditional theorem above is the **zero-repair branch** of Agent 3's more general target-guided deterministic rank-repair algorithm proposed in [PR #181](https://github.com/FlareZ123/obfs/pull/181). That algorithm maintains a synthetic affine map whose error image remains inside the same residual subspace and repairs a singular sampled interpolant by querying only within the target-relevant invariant subspace. When the original sampled interpolant (M) is already invertible, its initial kernel is zero: no rank-repair query is needed, and its target-coset traversal is exactly the cycle traversal proved here. Thus the full-rank (n+2^r) case is a special case of the more general construction, not a distinct attack family.
+
+PR #181 is still an open draft rather than an integrated main-branch result. This note therefore records the mathematical relationship without claiming that the general algorithm has been released or that its broader implementation is part of the current main branch. Its singular-(M) repair proof, distinct-query accounting, and CI evidence should be assessed on that PR's own merits.
+
+The independent review in [full-rank-low-output-residual-independent-review](full-rank-low-output-residual-independent-review-2026-11-22.md) still supports the conditional coset-invariance proof and its exhaustive finite-width checks. It does not establish novelty relative to PR #181, and it does not certify the global residual-rank premise from a small sample. Keep this report in `im-results/`; do not promote it separately to `results/`.
+
+
+## Rank-unaware execution variant (24 November 2026)
+
+The attacker does **not** need to know the residual rank in order to execute the full-rank cycle walk. After computing (z=M^{-1}(y\oplus b)), it can keep evaluating (T) until the orbit returns to (z). Because (T) is a permutation and the orbit remains in one affine coset of (U), the cycle closes after some (L\le 2^r) evaluations. The predecessor is then the secret input. This rank-unaware version uses at most
+
+\[
+n+1+2^r
+\]
+
+distinct oracle queries: the (n+1) interpolation inputs plus at most (2^r) cycle points.
+
+The sharper (n+2^r) bound in the theorem uses a known upper bound (k\ge r): after (2^k-1) transitions without closure, the cycle must have maximum allowed length and the current point is already the predecessor, so the final edge need not be queried. Thus knowledge of (r) is needed only for this one-query shortcut, not for termination or correctness.
+
+Executable variants now include `inverseWithoutRankBound` in `sims/low-rank-residual-cycle-inversion.js` and an independent finite-table implementation in `test/low-output-residual-cycle-independent.test.js`. The constructed full-length cycles for (r=1,\ldots,5) avoid every interpolation input and attain exactly (n+1+2^r) distinct queries in the rank-unaware version. The existing rank-aware version attains (n+2^r) by inferring the final edge. These tests validate the one-query difference; they do not certify a small global residual rank from calibration samples.
+
+Accordingly, the earlier caveat that the global rank bound is not cheaply certified should be read narrowly: the attacker need not certify or even know (r) to run the rank-unaware algorithm, but the actual query-count guarantee is still parameterized by the true global residual rank.
+
+
+The direct implementation plus independent finite-table test passed focused two-platform CI in run [45461222311](https://github.com/FlareZ123/obfs/actions/runs/45461222311), including project and external JSDoc checks. An earlier run exposed only an implicit-any annotation in the new test callback; the annotation was added before the passing run.

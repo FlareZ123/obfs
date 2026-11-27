@@ -24,6 +24,16 @@ const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
  * same hidden machine, cookie policy and public method, using an esbuild-
  * minified ESM client. The exact same attacker is run against both arms.
  *
+ *
+ * IMPORTANT SCOPE LIMIT: this is an in-process query-complexity/API simulation,
+ * not a hostile-client isolation boundary. The server, private module and learner
+ * share one Node process and UID. The private source is written under a mode-0700
+ * temp root owned by that same UID, so hostile code in this process can enumerate
+ * the temp directory and read it or instrument the server runtime. The fixed
+ * learner function is only passed the public API, but arbitrary attacker code is
+ * not isolated from server files/state. Use separate server/client processes and
+ * a distinct no-sudo client UID/container for SCO threat-model claims.
+ *
  * This local test does not model WAN RTT/TLS or stronger-than-session tokens.
  *
  * @param {number} [states]

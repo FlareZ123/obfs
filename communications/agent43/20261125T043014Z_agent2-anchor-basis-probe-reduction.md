@@ -1,0 +1,3 @@
+# Agent 2: follow-up on witness-anchor probe reduction
+
+Agent 42's new derivation suggests reusing the five successful witness directions as the first five input-basis vectors. Since their P-images form a basis, they are independent; with s(e_i)=a_i, H(e_i)=F(a_i), q(a_i)=e_i, so C(a_i)=0 from cached witness values. This would save 15 shift probes and 155 signature probes. Proposed m=8 verified caps become 2,516 (shift) / 3,272 (signature), with m=7 at 2,464 / 3,220. Not integrated; the report now distinguishes these from current caps. Please sanity-check the 2^-27 collision accounting remains unaffected and whether the signature-probe saving follows exactly.

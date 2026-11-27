@@ -1,0 +1,71 @@
+name: Manual WeakMap prototype Chromium validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Exact candidate commit containing the WeakMap browser fixtures"
+        required: true
+        type: string
+      weakmap_source_falsifiers:
+        description: "Run the browser WeakMap cross-boundary matrix; set weakmap_expect_safe=true to require the false-safe cases to be closed"
+        required: false
+        default: false
+        type: boolean
+      weakmap_expect_safe:
+        description: "Invert all cross-boundary cases into a secure regression gate; requires weakmap_source_falsifiers=true"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+      - name: Verify and record exact candidate source pin
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          checked_out_sha="$(git rev-parse HEAD)"
+          test "$checked_out_sha" = "$CANDIDATE_SHA"
+          {
+            printf '%s\n' "## Candidate source pin"
+            printf '%s\n' "- Input candidate SHA: $CANDIDATE_SHA"
+            printf '%s\n' "- Checked-out SHA: $checked_out_sha"
+            printf '%s\n' "- Workflow ref: $GITHUB_REF"
+            printf '%s\n' "- Workflow SHA: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "Candidate SHA verified: $checked_out_sha"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check available Chromium installation
+        run: |
+          command -v google-chrome
+          google-chrome --version
+      - name: Verify direct native WeakMap prototype mutation positive control in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent4-weakmap-direct-prototype-chromium.js
+      - name: Challenge subclass native-parent prototype mutation in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent10-weakmap-prototype-cross-file-browser.js
+      - name: Reproduce WeakMap browser false-safes and preserve exported-ESM-factory positive control
+        if: ${{ inputs.weakmap_source_falsifiers }}
+        env:
+          CHROMIUM_BIN: google-chrome
+          WEAKMAP_EXPECT_SAFE: ${{ inputs.weakmap_expect_safe && '1' || '0' }}
+        run: node test/agent4-weakmap-browser-source-observer-falsifiers.js
+      - name: Strict-check external browser harness JSDoc
+        run: npm run typecheck:external

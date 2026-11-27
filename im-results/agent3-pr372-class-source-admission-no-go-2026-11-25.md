@@ -1,0 +1,68 @@
+# PR #372 private-class source admission: consolidated candidate no-go
+
+**Date:** 2026-11-25  
+**Candidate:** PR #372, head `499060b780fc1b355df7d9610711f77280217276`  
+**Disposition:** keep draft / blocked / unmerged. This is an evidence synthesis, not a production fix or a release-security result.
+
+## Executive finding
+
+The new private-class admission proves a narrow in-AST property: the class binding and its one instance do not escape through the admitted source grammar. It does **not** prove that the active source unit is unobservable. Three source-pinned compiler counterexamples now cover distinct host-observation channels:
+
+1. sloppy CommonJS wrapper ExactSource;
+2. strict CommonJS wrapper FramePosition;
+3. strict ESM module-evaluation FramePosition.
+
+The class and instance remain local in these fixtures; the exported value is primitive. The observed failures are not class-instance escapes. They arise because an external host callback can observe the active enclosing module/wrapper frame, which the AST-local class/function privacy proof does not model.
+
+## Candidate-only evidence
+
+| Channel | Candidate source/test pin | Candidate result | Baseline control | Platform boundary |
+|---|---|---|---|---|
+| Sloppy CJS wrapper ExactSource | PR source/test commit `93a68ddbf7ddd84f164b303f2d78c0414d1281b8`; current PR head `499060b...` is a report-only descendant | Run [45544329858](https://github.com/FlareZ123/obfs/actions/runs/45544329858): **3/3 failures per OS** across COO/SNO/SCO. A preloaded host callback captures the wrapper via `arguments.callee.caller` and reads `Function#toString`; the generated property spelling is visible. | [45544336152](https://github.com/FlareZ123/obfs/actions/runs/45544336152): **3/3 pass per OS** on current-main control. | Ubuntu + Windows |
+| Strict CJS wrapper FramePosition | Same PR source/test pin `93a68dd...`; report-only PR head `499060b...` | Run [45544342871](https://github.com/FlareZ123/obfs/actions/runs/45544342871): **3/3 failures per OS** across COO/SNO/SCO. Native frame column 163; emitted column 165; values match. | [45544348695](https://github.com/FlareZ123/obfs/actions/runs/45544348695): **3/3 pass per OS** on current-main control. | Ubuntu + Windows |
+| Strict ESM module-frame FramePosition | Candidate parent PR head `499060b...`; test-only witness commit `b67a24b76217c7a39af7f7421c00ea3514cd22dd` adds one test file | Run [45545516250](https://github.com/FlareZ123/obfs/actions/runs/45545516250): one property rewrite; native frame 1:153, emitted frame 1:133; values 21/21. | Baseline source `c41b591cbe989ca4b6d86eca93700471df9e9ba7`, test-only commit `c6ada9e5c063cf4f147b3d2ebf10fa1a9669e420); [45545522393](https://github.com/FlareZ123/obfs/actions/runs/45545522393): zero rewrites; both frames 1:153. | Ubuntu Chromium; Windows browser step skipped, JSDoc passed |
+
+For the first two rows, workflow metadata confirms runs 45544329858 and 45544342871 checked out `93a68dd...`, which extended the tests to SCO. Current PR head `499060b...` changes only the intermediate report, so it contains the exact tested source/test tree but is not literally the workflow checkout SHA. This pin distinction is recorded in PR comment 7153359499.
+
+The ESM row is Agent 9's **actual compiler differential**, not merely a runtime probe. The test-only branch adds only `test/agent9-private-class-frameposition-browser.test.js` to the candidate or baseline source snapshot. See `im-results/agent9-private-class-frameposition-esm-2026-11-25.md`.
+
+## Source-level review
+
+The candidate's `privateClassNodes` admission is deliberately narrow: top-level non-exported ClassDeclaration, no superclass, a class body containing exactly one ordinary non-static/non-computed MethodDefinition, a zero-argument synchronous method body containing exactly one ReturnStatement with one member-return, one unique const instance, and only direct zero-argument method calls. The exact one-element class-body check excludes static blocks, static/instance fields, accessors and additional methods from the admitted class shape. The existing tests reject direct/indirect exports, aliases, method extraction/binding, prototype/reflection and other instance uses. Within this admitted grammar, independent review found no additional class-instance escape.
+
+The missing fact is different: **active source-unit visibility is not equivalent to callable/value escape**.
+
+- CommonJS execution adds an implicit module wrapper function that is not an AST ancestor represented in the candidate's private-function/class sets.
+- ESM module evaluation has a top-level activation frame even though the module is strict and has no user-visible wrapper function object.
+- A synchronous unknown host callback can observe the active frame through Error.stack; a sloppy callback can additionally recover a sloppy CommonJS caller and read its Function#toString.
+- The same callback need not receive the class, instance, method, or any callable value. The class and instance can remain local while the module frame is still observed.
+
+The shared proposal `workplace/source-observer-carrier-effect-contract-2026-11-23.md` already identifies non-function activation frames (script/module evaluation, class static-block and eval) and requires a generic ActivationRef/FrameRef rather than a function-only definition map. This is an unimplemented proposed contract, not an accepted compiler architecture.
+
+## Repair experiments are not acceptance
+
+Agent 9's report records a separate experimental path:
+- per-occurrence property-span padding preserves tested property-only strict CJS and ESM FramePosition cases while retaining one rewrite;
+- a strict-source gate refuses the tested sloppy-CJS class case;
+- the identifier span-preserving prototype repairs the tested +16-column identifier regression;
+- Agent 10's lazy appended string helper now passes focused Chromium FramePosition/value-parity tests (runs 45551675346 and 45551689833 are separate focused receipts), but the Node string-only preloader differential and full-pipeline source-observer validation remain pending.
+
+On Agent 10's isolated branch head `ff8f48f75e70a613bd8803538c595b24bdc332f7`, I independently ran the two existing PR #372 CJS source-observer tests: focused runs 45553652117 and 45553658587 both passed on Ubuntu and Windows. This supports the strict-source gate refusing the sloppy-CJS ExactSource fixture and property-span padding preserving the strict-CJS FramePosition fixture. These are focused property-path results, not full acceptance. The current performance fixture test/agent10-string-frameposition-performance.test.js measures Node dynamic-import parse+execute for one string-table entry and accumulates text.length rather than checking exact decoded string content. It does not measure a large table with only one executed literal (the helper decodes the whole table on first use), nor browser runtime. Agent 3 sent this coverage review in communications/agent10/20261125T053100Z_agent3-string-performance-review.md. These are unmeasured budget risks, not evidence of a measured >2.5× result. Agent 10's unfocused full manual-validation run 45553797812 on the same head has now failed both node22 Ubuntu and Windows jobs. Both platforms report benchmark hot-object property metrics 0 vs expected >=1, local-parameter-value-profile objects 0 vs 1, browser-integration parameter-owner objects 0 vs 1, and esm-observation-browser private-declaration-reader properties 0 vs 2. The common source-level cause appears to be hasUnprovedSourceContainer rejecting every FunctionDeclaration ancestor, while privateFunctionNodes only admits const-bound function expressions/arrows and the private class method. Current main lacks this new guard. This is a cross-platform existing-positive-case coverage regression; a bounded FunctionDeclaration proof or a deliberate compatibility-policy/test update is needed before acceptance.
+
+The experiments are not integrated into PR #372 and do not resolve exact-source observation for strict sources, all host effects, every source shape, classic-script helper exposure, or the 2.5× budget. Earlier focused run 45550792190 on head `6ec6bdb...` was focused-only (node22 skipped); the current full run 45553797812 is the first unfocused node22 gate observed on this prototype branch. See `im-results/agent9-private-class-frameposition-esm-2026-11-25.md` and Agent 10's prototype reports.
+
+A separate Node ESM runtime-only probe is preserved at `sims/node-esm-module-frame-observation.js`, with focused test `test/node-esm-module-frame-observation.test.js` and report `im-results/agent3-node-esm-module-frame-observation-2026-11-25.md`. Focused run [45551053941](https://github.com/FlareZ123/obfs/actions/runs/45551053941) passed Ubuntu/Windows on Node 22.23.4. This validates the runtime observation mechanism only; it is not another compiler differential.
+
+## Separate confirmed compatibility risk in Agent 10's isolated string prototype
+
+This is **not** a current PR #372 regression because the prototype branch is not integrated. The sourceType=script path does not use the appended lazy FunctionDeclaration helper used by module/CJS files. It emits a top-level global-lexical `const` table plus an inline loop that decodes the entire array in place.
+
+An actual compiler/environment differential on the isolated prototype confirms a COO classic-script failure: run 45555224846 on both Ubuntu and Windows emitted table name `_o08f6dcbe3e72`; predeclaring that name with `const` in a prior classic script makes the transformed script throw `SyntaxError: Identifier '_o08f6dcbe3e72' has already been declared`, while the native source runs. The same emitted table is readable by a later classic script through the global lexical environment after the inline decode loop, exposing the full plaintext string array. The corrected safe-behavior run 45555342775 failed on both Ubuntu and Windows: the collision subcase observed the duplicate-declaration SyntaxError, and the extraction subcase confirmed that evaluating the generated table identifier succeeds instead of throwing, returning the decoded array. This is confirmed on actual obfuscator output.
+
+This is a confirmed COO `sourceType=script` compatibility/runtime-extraction regression in Agent 10's isolated string prototype, not part of the current PR #372 candidate evidence. Earlier messages that described a global FunctionDeclaration helper apply to the module/CJS lazy-helper path, not this classic-script path; that mechanism description was corrected in `communications/agent10/20261125T054000Z_agent3-classic-script-table-correction.md`. Do not generalize ESM/CJS lazy-helper results to classic scripts; disabling this strategy for `sourceType=script` is the conservative fallback until a non-global private table design is proven.
+
+## Decision and next evidence
+
+Keep PR #372 draft, blocked and unmerged. A future candidate must choose and enforce an explicit host/runtime trust contract or model the active module/wrapper frames and unknown-host effects. It must then run exact-source-pinned native/emitted controls for COO/SCO/SNO, real Node and browser execution where applicable, all supported source containers, and the complete behavioral/adversarial/performance acceptance gate. A property-only focused green, span-preserving experiment, or zero-rewrite refusal is not by itself acceptance.
+
+This synthesis does not prove that every class proof is impossible, that every source observer is in scope, or that the broader strong-protection threat model has been solved. It establishes that the current PR candidate has three independently evidenced source-observation regressions and remains **NO-GO / RELEASE-BLOCKED**.

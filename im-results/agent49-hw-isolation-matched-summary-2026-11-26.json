@@ -1,0 +1,108 @@
+{
+  "benchmark": "agent2-live-http-no-reset-hW-matched-control",
+  "aalpy_version": "2.0.0",
+  "workflow_run_id": 45768190480,
+  "workflow_run_url": "https://github.com/FlareZ123/obfs/actions/runs/45768190480",
+  "artifact_id": 15092418655,
+  "artifact_sha256": "c2dcf5c9b8a097e6e748908bec6f7683ac624dc90aa255819851d93201e576fe",
+  "commit": "a5f7f00803ae1cdb3d6b3436168152dbfe51d10a",
+  "aggregate": {
+    "total_runs": 6,
+    "completed_runs": 6,
+    "errors": 0,
+    "timeouts": 0,
+    "matched_pairs": 6,
+    "sco_exact_initial_clones": 6,
+    "ordinary_exact_initial_clones": 6,
+    "sco_future_clone_successes": 6,
+    "ordinary_future_clone_successes": 6,
+    "total_sco_sul_steps": 4462,
+    "total_ordinary_sul_steps": 4462,
+    "total_sco_http_requests": 4492,
+    "total_ordinary_http_requests": 4492,
+    "elapsed_seconds": 10.5133
+  },
+  "scope": {
+    "fixture_family": "random",
+    "state_counts": [
+      2,
+      3,
+      4
+    ],
+    "seeds_per_state_count": 2,
+    "random_walk_length": 30,
+    "origin_states": 20,
+    "timeout_seconds": 30,
+    "learner_seed": 20261126,
+    "transport_scope": "local HTTP application-level records; no TLS, WAN, browser module execution, or timing-equivalence claim",
+    "candidate_scope": "trace-matching states in returned hW conjecture only, not full model version space"
+  },
+  "process_isolation": {
+    "sco_server_uid": 33,
+    "ordinary_server_uid": 33,
+    "learner_uid": 65534,
+    "learner_no_new_privs": true,
+    "learner_cap_eff": "0000000000000000",
+    "learner_sudo_blocked": true,
+    "learner_environment_keys": [
+      "HOME",
+      "LANG",
+      "LD_LIBRARY_PATH",
+      "PATH",
+      "PYTHONDONTWRITEBYTECODE",
+      "PYTHONHASHSEED",
+      "PYTHONNOUSERSITE",
+      "TMPDIR"
+    ]
+  },
+  "per_run": [
+    {
+      "state_count": 2,
+      "seed": 0,
+      "elapsed_seconds": 1.6365,
+      "steps": 641,
+      "oracle_steps": 629,
+      "non_oracle_steps": 12
+    },
+    {
+      "state_count": 2,
+      "seed": 1,
+      "elapsed_seconds": 1.5814,
+      "steps": 654,
+      "oracle_steps": 640,
+      "non_oracle_steps": 14
+    },
+    {
+      "state_count": 3,
+      "seed": 0,
+      "elapsed_seconds": 1.647,
+      "steps": 699,
+      "oracle_steps": 661,
+      "non_oracle_steps": 38
+    },
+    {
+      "state_count": 3,
+      "seed": 1,
+      "elapsed_seconds": 1.6236,
+      "steps": 698,
+      "oracle_steps": 659,
+      "non_oracle_steps": 39
+    },
+    {
+      "state_count": 4,
+      "seed": 0,
+      "elapsed_seconds": 1.7853,
+      "steps": 870,
+      "oracle_steps": 690,
+      "non_oracle_steps": 180
+    },
+    {
+      "state_count": 4,
+      "seed": 1,
+      "elapsed_seconds": 1.7864,
+      "steps": 900,
+      "oracle_steps": 679,
+      "non_oracle_steps": 221
+    }
+  ]
+}

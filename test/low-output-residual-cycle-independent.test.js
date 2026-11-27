@@ -2,6 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const {inverseWithFullRankInterpolation,inverseWithoutRankBound}=require('../sims/low-rank-residual-cycle-inversion');
 
 /**
  * Independently check the conditional n+2^r oracle-inversion theorem using
@@ -151,6 +152,53 @@ function invert(oracleTable,width,rank,target) {
 }
 
 /**
+ * Rank-unaware independent cycle walk. The attacker receives the target
+ * output, not the secret input, and follows the induced permutation until
+ * the orbit returns to its start.
+ *
+ * @param {number[]} oracleTable
+ * @param {number} width
+ * @param {number} targetOutput
+ * @returns {{eligible:boolean,preimage:number|null,queries:number,cycleSteps:number}}
+ */
+function invertWithoutRankBound(oracleTable,width,targetOutput) {
+  const domain=1<<width;
+  /** @type {Map<number,number>} */
+  const ledger=new Map();
+  /** @param {number} x @returns {number} */
+  function call(x) {
+    if(!ledger.has(x))ledger.set(x,oracleTable[x]);
+    return /** @type {number} */(ledger.get(x));
+  }
+  const intercept=call(0);
+  const columns=Array.from({length:width},(_,bit)=>call(1<<bit)^intercept);
+  const inverse=Array(domain).fill(-1);
+  for(let x=0;x<domain;x++){
+    const image=linear(columns,x);
+    if(inverse[image]!==-1)return {
+      eligible:false,preimage:null,queries:ledger.size,cycleSteps:0
+    };
+    inverse[image]=x;
+  }
+  const z=inverse[targetOutput^intercept];
+  let state=z;
+  let cycleSteps=0;
+  const visited=new Set([z]);
+  for(;;){
+    const next=inverse[call(state)^intercept];
+    cycleSteps++;
+    if(next===z)return {
+      eligible:true,preimage:state,queries:ledger.size,cycleSteps
+    };
+    if(visited.has(next))return {
+      eligible:false,preimage:null,queries:ledger.size,cycleSteps
+    };
+    visited.add(next);
+    state=next;
+  }
+}
+
+/**
  * @returns {{seed:number,instances:number,eligible:number,singular:number,targets:number,
  *  successful:number,maxQueries:number,violations:number,byWidthRank:{
  *    width:number,rank:number,eligible:number,singular:number,targets:number,maxQueries:number}[]}}
@@ -229,6 +277,36 @@ test('the stated traversal procedure attains n+2^r distinct queries on full cycl
   }
 });
 
+test('full-rank cycle inversion can run without knowing the residual rank',()=>{
+  for(let rank=1;rank<=5;rank++){
+    const {table,width,target}=maximalCycle(rank);
+    const outcome=invertWithoutRankBound(table,width,table[target]);
+    assert.equal(outcome.eligible,true);
+    assert.equal(outcome.preimage,target);
+    assert.equal(outcome.cycleSteps,1<<rank);
+    // Without a known rank cap, the final return edge must be queried.
+    assert.equal(outcome.queries,width+1+(1<<rank));
+  }
+});
+
+test('simulation implementation matches known- and unknown-rank full-cycle bounds',()=>{
+  for(let rank=1;rank<=5;rank++){
+    const {table,width,target}=maximalCycle(rank);
+    /** @type {(x:number)=>number} */
+    const oracle=x=>table[x];
+    const known=inverseWithFullRankInterpolation(width,rank,oracle,table[target]);
+    const unknown=inverseWithoutRankBound(width,oracle,table[target]);
+    assert.ok(known);
+    assert.ok(unknown);
+    assert.equal(known.secret,target);
+    assert.equal(unknown.secret,target);
+    assert.equal(known.queries,width+(1<<rank));
+    assert.equal(unknown.queries,width+1+(1<<rank));
+    assert.equal(known.cycleSteps,(1<<rank)-1);
+    assert.equal(unknown.cycleSteps,1<<rank);
+  }
+});
+
 test('n+1 calibration calls cannot certify the hidden global residual rank',()=>{
   const {table,width,target}=maximalCycle(1);
   const affine=Array.from({length:1<<width},(_,x)=>x);
@@ -249,4 +327,4 @@ test('independent finite-table coset-cycle inversion, all small widths and ranks
   console.log('LOW_OUTPUT_RESIDUAL_CYCLE_PEER '+JSON.stringify(result));
 });
 
-module.exports={verify,invert,sourcePermutation};
+module.exports={verify,invert,invertWithoutRankBound,sourcePermutation};

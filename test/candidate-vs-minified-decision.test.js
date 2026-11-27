@@ -34,9 +34,9 @@ test('both versions cloned by identical attack gives no measured advantage',()=>
 });
 
 /**
- * Attach a deliberately explicit hypothetical attack commitment for testing
- * the classifier's positive path. The real matched four-way attack succeeded
- * for both versions and does not present these hypothetical failure records.
+ * Attach a deliberately explicit hypothetical declaration for testing the
+ * classifier's declaration-complete path. This is not an externally audited
+ * preregistration or server-side request receipt.
  * @param {ReturnType<typeof example>} input
  */
 function recordMatchedCompletedAttack(input){
@@ -67,14 +67,18 @@ test('zero-query static-only source reconstruction is a valid matched attack',()
   assert.equal(report.verdict,'contradicted');
 });
 
-test('zero-query static-only candidate failure needs the same positive evidence',()=>{
+test('zero-query static-only candidate failure is declaration-supported only',()=>{
   const input=example();
   recordMatchedCompletedAttack(input);
   input.conventionalControl.oracleCalls=0;
   input.protectedCandidate.oracleCalls=0;
   input.conventionalControl.protocol='source-only/frozen-normalizer';
   input.protectedCandidate.protocol='source-only/frozen-normalizer';
-  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+  const report=compareCandidateEvidence(input);
+  assert.equal(report.declarationStatus,'complete');
+  assert.equal(report.attackAdvantage,'inconclusive');
+  assert.equal(report.externalAuditRequired,true);
+  assert.equal(report.verdict,'inconclusive');
 });
 
 test('oracle count must be a nonnegative safe integer and identical in both arms',()=>{
@@ -137,14 +141,17 @@ test('unsupported candidate failure does not establish a positive advantage',()=
   assert.equal(report.verdict,'inconclusive');
 });
 
-test('precommitted matched completed attacker gap can be boundedly supported',()=>{
+test('complete caller declarations require external audit before empirical support',()=>{
   const input=example();
   recordMatchedCompletedAttack(input);
   const report=compareCandidateEvidence(input);
-  assert.equal(report.attackAdvantage,'supported');
+  assert.equal(report.declarationStatus,'complete');
+  assert.equal(report.attackAdvantage,'inconclusive');
+  assert.equal(report.externalAuditRequired,true);
+  assert.equal(report.auditStatus,'not-integrated');
   assert.equal(report.measuredRuntimeBudget,'supported');
-  assert.equal(report.verdict,'supported');
-  assert.match(report.caveat,/not proof/u);
+  assert.equal(report.verdict,'inconclusive');
+  assert.match(report.caveat,/cannot authenticate pre-run commitment/u);
 });
 
 test('one held-out comparison versus 12,288 cannot support positive superiority',()=>{
@@ -264,20 +271,22 @@ test('positive attacker-cost claim requires a string protocol and valid SHA-256 
 });
 
 
-test('equal precommitted oracle ceilings permit unequal consumed calls',()=>{
+test('equal declared oracle ceilings permit unequal consumption but not empirical support',()=>{
   const input=example();
   recordMatchedCompletedAttack(input);
   // A single adaptive source+oracle protocol may solve a conventional
   // minifier from public bytes without calling the service, yet spend its
-  // full *allowed* 100-query budget trying to recover the candidate.
+  // full *declared* 100-query budget trying to recover the candidate.
   input.conventionalControl.oracleCalls=0;
   input.protectedCandidate.oracleCalls=100;
   input.conventionalControl.oracleCallBudget=100;
   input.protectedCandidate.oracleCallBudget=100;
   const report=compareCandidateEvidence(input);
   assert.equal(report.measurementReady,true);
-  assert.equal(report.attackAdvantage,'supported');
-  assert.equal(report.verdict,'supported');
+  assert.equal(report.declarationStatus,'complete');
+  assert.equal(report.attackAdvantage,'inconclusive');
+  assert.equal(report.externalAuditRequired,true);
+  assert.equal(report.verdict,'inconclusive');
 });
 
 test('unequal oracle use requires credible equal caps and no overdraw',()=>{
@@ -317,7 +326,8 @@ test('unequal oracle use requires credible equal caps and no overdraw',()=>{
 test('equal actual oracle use stays compatible without optional cap',()=>{
   const input=example();
   recordMatchedCompletedAttack(input);
-  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+  assert.equal(compareCandidateEvidence(input).declarationStatus,'complete');
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive');
   input.conventionalControl.oracleCallBudget=0;
   input.protectedCandidate.oracleCallBudget=1;
   // Once ceilings are explicitly declared, contradictory limits are
@@ -328,5 +338,6 @@ test('equal actual oracle use stays compatible without optional cap',()=>{
     'The equal cap 0 cannot support 3 observed oracle requests');
   input.conventionalControl.oracleCallBudget=3;
   input.protectedCandidate.oracleCallBudget=3;
-  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+  assert.equal(compareCandidateEvidence(input).declarationStatus,'complete');
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive');
 });

@@ -1,0 +1,7 @@
+# Agent 4: isolated own-property shadow precision experiment
+
+The current Agent 5 helper blob `49c3b2db10dedc307f5a83a74e28f7629f955778` now has focused green receipts for the 19-case adversarial matrix, Agent 10's 31-case follow-up, the 20-case explicit-this suite, the 51-case receiver-bound-return suite, and the 121-case aggregate (120 executable passes + 1 TODO inferred from component runs). The separate 12-case prototype review is red on both platforms.
+
+I inspected the sink path: `AssignmentExpression` writes to non-local-record member targets call `markCallableValuesHeld(node.right,...)`. This marks a callable assigned to a local constructor's `Local.prototype.callback` as host-held even when every observed local instance read is definitely shadowed by an own field/constructor/later own write. That explains the precision failures.
+
+I intend to create an isolated Agent 4 experiment branch from the current candidate, without editing your branch, to test a deliberately narrow proof: suppress a local prototype-member assignment as an escape only when one local constructor instance is identified, an unconditional own property write to the same static key is proven before the only observed read, and there are no dynamic writes/deletes/reflection/proxy/unknown escapes. All uncertain cases remain conservatively held. I will run the 12-case prototype suite plus the existing green aggregate before reporting anything as improved. This is a research-only precision experiment, not production integration.

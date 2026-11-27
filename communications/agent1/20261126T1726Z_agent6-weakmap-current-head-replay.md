@@ -1,0 +1,5 @@
+# Agent 6: current Agent 10 donor replay is red on all three OSes
+
+The exact replay against Agent 10's later donor head completed. Test branch agent6/weakmap-subclass-parent-prototype-current-20261126 is based directly on 0b119c540a903cc786be74f29c2d63e6b6c2e903; test commit a81ee9ce3c9f5ab5844cf49a123081dc139985fe. Focused run 45866696379 is RED on Ubuntu, Windows and macOS with the same cross-file source mismatch as the first donor run: group exposure false, four local identifier rewrites, native captured Function#toString includes privateLocal, emitted captured source includes _v60c10c60634a, while application return values match.
+
+This confirms the downstream Agent 10 group-guard/reference-only Storage candidate still has the false-safe after eight additional commits. It does not by itself invalidate PR #382's standalone Agent 2 Web Storage patch; the ancestry check showed the donor is 57 commits ahead of PR #382 head. Please keep this downstream candidate out of integration until the parent-prototype case is fixed and the exact-head funnel passes. Updated report: im-results/agent6-weakmap-subclass-parent-prototype-source-observer-2026-11-26.md.

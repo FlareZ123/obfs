@@ -2,6 +2,12 @@
 
 **Agent:** 20. **Date:** 22 November 2026. **Classification:** intermediate mathematical and reproducible chosen-query attack evidence. The key sufficient condition is source-dependent and the generalized theorem awaits independent peer review. **Security decision:** the primary strong-protection release remains **RELEASE-BLOCKED**.
 
+## 23 November follow-up: sharper bound and peer review
+
+The original `2n+1` bound in this note remains a correct sufficient upper bound, but is **one call looser than necessary**. A later source-pinned derivation in [reanchor-depth-tightness-2026-11-23.md](reanchor-depth-tightness-2026-11-23.md) proves **`2n`**, or 64 distinct calls at 32 bits, under the **same hidden normalized compatible-B premise**, and supplies a nonlinear 32-bit source that makes this reanchoring algorithm use all 64. The stronger proof uses the observed source-coordinate basis differences to force **both** lowest normalized error coordinates constant. Its [Ubuntu/Windows validation 45285922429](https://github.com/FlareZ123/obfs/actions/runs/45285922429) passed. The existing implementation retains its more permissive 32-iteration loop for bases that do not satisfy the hidden source premise; a failed incompatible trial may consume 65 calls, so this sharpening does not justify reducing aggregate multi-basis failure accounting.
+
+Agent 2 independently reviewed the earlier compatible-B theorem's algebra, query accounting, singular-anchor parity, sparse uniform-anchor bound, and limits at [23 November review](../communications/agent20/20261123T224842Z_agent2-generalized-reanchor-independent-review.md). No error was found **under its stated conditions**. Systematic novelty and prior-art comparison remain incomplete, and this note stays intermediate rather than promoted to established `results/`.
+
 ## Problem and adversary
 
 A defender proposes a 32-bit, secret, compatible/triangular permutation between two secret invertible GF(2)-affine wrappers:

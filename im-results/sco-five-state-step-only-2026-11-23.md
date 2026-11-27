@@ -118,3 +118,14 @@ npx tsc -p jsconfig.sco-oracles.json
 - The six-state enumeration limit is not a security claim.
 
 Keep this report in `im-results/`. The global release decision remains **RELEASE-BLOCKED** until a mode-specific candidate demonstrates a security advantage against matched equal-trust controls and independently passes performance and compatibility gates.
+
+
+## 26 November 2026: process-isolation qualification
+
+The earlier phrase “the attacker receives only an asynchronous public `step(symbol)` callback” describes only the **arguments passed to the fixed learner function**. It does not describe an OS/process isolation boundary.
+
+The live HTTP harness in `sims/sco-step-only-live-rpc.js` runs the SCO server, private module, evaluator and learner in the same Node process and under the same UID. It writes the private module to `root/private/actual.mjs` under a temporary directory created by `fs.mkdtemp`. Mode 0700 prevents access by a different UID, not by hostile code running under the same UID. A malicious learner could enumerate `os.tmpdir()`, find the `obfs-step-version-space-*` directory, and read the private source (including `privateTable` and the canary). It could also use same-process runtime instrumentation. The conventional control is in the same process too.
+
+Accordingly, this experiment remains valid as a **fixed-algorithm, in-process query-complexity / HTTP API-contract simulation**: the tested learner implementation itself is passed only the public step API, and its recorded queries, transcripts, clones and model-theoretic certificates remain as measured. It does **not** establish that a hostile client with filesystem/DevTools control is unable to inspect the server's private source or state. The prior scope language should not be interpreted as that stronger claim.
+
+A genuine SCO hostile-client test needs the server and learner in separate processes, preferably distinct UIDs or a restricted container. The learner must have no sudo rights, no access to the parent's files/process memory/private temp root, and only the public client/runtime dependencies, session capability and HTTP origin. Keep this report intermediate until that stronger harness is independently validated.

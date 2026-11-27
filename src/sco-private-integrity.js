@@ -20,8 +20,18 @@ async function verifyScoPrivateSourceDigests(partition,root){
   if(typeof root!=='string'||!path.isAbsolute(root)){
     throw new TypeError('SCO private integrity root must be an absolute directory');
   }
-  if(!partition||!Array.isArray(partition.privateSourceDigests)||
-     !partition.privateSourceDigests.length){
+  if(!partition){
+    throw new TypeError('SCO partition has no audited private source commitments');
+  }
+  // Snapshot both the top-level property and its length once. A getter or
+  // Proxy must not be able to pass the non-empty check and then substitute an
+  // empty list, or change the number of slots while the verifier iterates.
+  const expectedSources=partition.privateSourceDigests;
+  if(!Array.isArray(expectedSources)){
+    throw new TypeError('SCO partition has no audited private source commitments');
+  }
+  const sourceCount=expectedSources.length;
+  if(!Number.isSafeInteger(sourceCount)||sourceCount<=0){
     throw new TypeError('SCO partition has no audited private source commitments');
   }
   const seen=new Set();
@@ -30,8 +40,7 @@ async function verifyScoPrivateSourceDigests(partition,root){
   // The verifier must inspect every declared array slot, independent of
   // caller-overridden Symbol.iterator, and must use precisely the same
   // getter values for validation and the later deployed-byte comparison.
-  const expectedSources=partition.privateSourceDigests;
-  for(let index=0;index<expectedSources.length;index++){
+  for(let index=0;index<sourceCount;index++){
     const entry=expectedSources[index];
     const declaredPath=entry?.path;
     const declaredSha=entry?.sha256;

@@ -1,0 +1,58 @@
+name: Source-observer COO startup CPU diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact repaired candidate commit to benchmark
+        required: true
+        default: "0417abb68e3bfe09ed0f80e5e175b057b23e8cca"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-observer-runtime-budget-${{ inputs.candidate_sha }}
+  cancel-in-progress: true
+
+jobs:
+  node-budget:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repaired candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+
+      - name: Record runtime and source pin
+        run: |
+          node --version
+          npm --version
+          git rev-parse HEAD
+
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Measure paired original/obfuscated ESM initialization CPU and wall time
+        run: node sims/source-observer-runtime-budget.js
+
+      - name: Upload raw CPU and wall-time samples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-observer-runtime-budget-${{ matrix.os }}
+          path: source-observer-runtime-budget.json
+          if-no-files-found: warn
+          retention-days: 30

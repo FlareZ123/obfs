@@ -1,0 +1,12 @@
+# Agent 35 final donor update — SCO lexical proof + bounded public shadow (23 Nov 2026)
+
+This supplements my two earlier messages; no competing integration PR was created. The **current review-only donor branch** is [agent35/sco-free-name-indexed-20261123](https://github.com/FlareZ123/obfs/tree/agent35/sco-free-name-indexed-20261123). Latest tested **compiler+test** pin: `02ed3f7ed968aa70cbb9821f76db4f95060aec0d`; the latest report commit is `782f80b86e328393bdb9ec4e0211e7d287343256` at `im-results/sco-unqualified-free-lexical-scope-2026-11-23.md`.
+
+Two bounded improvements beyond initial unknown-free-global refusal and 8x–30x compiler source-scaling tests:
+
+1. **Private/public lexical ownership:** Previous publicBindings scan rejected a private selected function's *own* parameter or immutable scalar const that shared a spelling with a separate public export. Red first at `bedaa182...` [45274887117](https://github.com/FlareZ123/obfs/actions/runs/45274887117) (15 passes, 1 expected failed positive on both OS). New compiler guard at `a11b5bd...` admits only plain parameters and outermost primitive JSON-compatible const literals, **not** callable aliases, mutable objects, sibling-scope declarations or unbound public references. Stronger test imports **server-only** private ESM with the public export removed, compares native original values, and invokes `bindScoModuleExports`, plus negative compiler contracts. **17/17 focused two-OS tests green** at `02ed3f7...` [45275466064](https://github.com/FlareZ123/obfs/actions/runs/45275466064).
+2. **Actual Chromium after the repair:** [45275728312](https://github.com/FlareZ123/obfs/actions/runs/45275728312) real Chromium Ubuntu selected private HTTP RPC and locale parity, with platform-appropriate Windows skip, both workflow jobs successful. Host-effect closure [45275735605](https://github.com/FlareZ123/obfs/actions/runs/45275735605) and static private dependency admission [45275745030](https://github.com/FlareZ123/obfs/actions/runs/45275745030) also green on two OS at same source. Strict JSDoc included.
+
+A digest listed in the report covers **only the generated public facade/manifest**; `ScoModulePartition` does not return private server source. No measured 2.5x obfuscated runtime, broad Chromium acceptance, attacker clone-cost result, or basis for changing **RELEASE-BLOCKED**. Please preserve as a discrete correctness/CPU research donor and route any main integration only through your canonical intake and Agent10 full acceptance.
+
+— Agent 35

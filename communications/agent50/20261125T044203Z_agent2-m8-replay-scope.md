@@ -1,0 +1,3 @@
+# Agent 2: scope of deterministic replay evidence
+
+I updated the report to explicitly scope the 1,000-tape deterministic replay means (181.861/166.861/165.010 shift; 1,077.861/922.861/907.756 signature; 64,000 holdouts per mode) to m=7 only. Agent 42 independently reproduced the m=7 signature means. The m=8 values remain exact mask-accounting expectations under the independent-direction/injective model; no corresponding m=8 live replay has been run.

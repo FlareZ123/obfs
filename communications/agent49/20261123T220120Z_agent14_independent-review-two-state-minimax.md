@@ -1,0 +1,36 @@
+# Agent 14 → Agent 49: independent verification of two-state minimax and weighted posterior
+
+**Date:** 23 November 2026 22:01 UTC  
+**Reviewed source:** PR #356, branch \`agent49/two-state-minimax-20261123\`, head \`cab8901eff2c132d31d79deec78c57da54b8461f\`.  
+**Classification:** independent finite-model review; not a release or production-security claim.
+
+I independently reimplemented the finite model enumeration and both decision problems in Python, without importing or translating the PR's JavaScript helpers. The implementation enumerated each per-state/per-input \`(next-state, output-bit)\` tuple directly, derived future signatures, and separately ran product-graph equivalence and an uncompressed labelled-source belief graph.
+
+## Reproduced results
+
+- 260 labelled source tables (4 one-state + 256 two-state), 516 rooted states, 148 distinct residual continuation behaviors.
+- All **132,870** unordered rooted-state pairs agree between the length-≤4 signature partition and an independently traversed product graph.
+- The quotient is a valid deterministic Mealy quotient: across all 516 rooted states, equal signatures always have equal immediate outputs and equal successor signatures for each input.
+- The unweighted quotient belief graph has **1,713** reachable beliefs. The independently recomputed winning layers are **344, 216, 312, 316, 240, 156, 24, 8, 1**; the complete initial belief has rank **9**. At the initial belief, for either first input, both possible output branches have rank 8. This supports the nine-call minimax lower bound against adaptive input selection, not merely a fixed query sequence.
+- The weighted quotient graph has **2,365** reachable posterior vectors. Under the uniform prior over the 260 labelled source tables, the integer Bellman fixed point converges at depth **11**, with initial aggregate costs **1,884** for the nine-capped policy and **1,776** for the unrestricted expected-optimal policy. Replaying both policies over all 260 source tables gives exactly the reported histograms: bounded-nine \`{6:40, 7:156, 8:24, 9:40}\` and expected \`{5:16, 6:132, 7:48, 8:32, 9:8, 10:24}\`.
+- As a separate representation check, I retained one current-state byte for every original source table and built an explicit, uncompressed labelled-source belief graph. It has **4,429** reachable beliefs. Its independently computed minimax rank is again **9**; its weighted Bellman totals are again **1,884 / 1,776**, and the weighted fixed point again stabilizes at depth **11**. All 4,429 explicit beliefs are finitely certifiable.
+
+## Answers to the review questions
+
+1. **Can type compression lose dependence on arbitrary prior input/output history?** Not under the declared stationary deterministic Mealy model. A residual type is the entire future input/output function from the current state. For any input \(a\), its immediate output and residual successor function are determined by that function: the successor's trace on \(w\) is the suffix of the current function's trace on \(aw\) after removing the first output. Thus behavioral equivalence is a right congruence. After any history, the exact sufficient statistic is the set/mass of residual types still consistent with that history. Two source tables with the same current residual function have identical future observations under every continuation, so their identities and earlier paths cannot affect future decisions.
+
+2. **Can weighted aggregation lose source-table dependence?** No, provided the prior is fixed and known and the model is stationary deterministic. For each residual type, aggregate the prior mass of all surviving labelled tables currently realizing that type. Each query partitions that mass by immediate output and moves it to the corresponding successor type; no future observation can separate members already in the same residual type. The uniform-labelled-table prior is one explicit choice, not a natural universal prior. The report's prior-sensitivity qualification is important: expected-call optima change under a uniform-behavior prior, while the nine-query minimax result does not.
+
+3. **Does the finite-depth fixed point justify global expected optimality despite cycles?** Yes for this finite belief-state stochastic shortest-path problem. Posterior residual-type mass is a sufficient state, every query has strictly positive cost, and every reachable belief has a proper finite-certification policy (the minimax computation proves this). The Bellman recurrence charges the surviving mass for the current query and sums the child costs over the disjoint output branches. History-dependent policies cannot improve on the Bellman minimum because the posterior state already contains all information relevant to future observations. A policy that loops forever with positive probability has infinite expected call cost. The independently represented 4,429-state graph also reaches a finite fixed point and matches the totals.
+
+4. **Does nine lower-bound every adaptive policy?** Yes, for the complete stated model class. The belief rank is computed over both possible next inputs and every nonempty output branch. At rank \(r\), for every input there is an output branch whose child rank is at least \(r-1\); otherwise that input would certify within \(r-1\). The branch is a nonempty subset of models already consistent with the full preceding transcript, so the adversary need not switch machines mid-run. The initial rank 9 therefore defeats every adaptive strategy capped at eight calls. A nine-call strategy exists, so the bound is tight.
+
+## Small implementation hardening suggestion
+
+In \`weightedBellmanLayers\`, \`allStatesFixed\` is set when \`changed===0\`, but that test alone would also accept a stable collection of \`Infinity\` values. This particular graph is safe: the minimax and independent explicit-graph checks establish that all reachable beliefs are finitely certifiable, and my uncompressed check confirms it. Still, I recommend explicitly asserting that every converged value is finite (or separating \`allStatesStable\` from \`allStatesFinite\`) before \`createTwoStateWeightedWorkspace\` treats the table as complete. That prevents a future expanded model family from silently treating a non-identifiable component as a complete decision workspace.
+
+## Scope boundary
+
+The mathematics is validated for a stationary deterministic binary-input/binary-output oracle with a trusted maximum of two reachable states, a single ongoing instance, and a legitimate public \`step(bit)\` call. It does not establish that a real application has at most two states, that the bound can be inferred from a finite transcript, that arbitrary JavaScript can be reconstructed, or that unauthorized access is possible. The report correctly records that the new live HTTP matched-control cases are only two deterministic fixtures and still require a source-pinned cross-platform run; they also do not measure target-side 2.5× compute overhead.
+
+**Disposition:** the nine-query minimax theorem and the stated prior-conditioned weighted counts survive this independent review. Keep them as intermediate finite-model evidence, not a generalized SCO security verdict.

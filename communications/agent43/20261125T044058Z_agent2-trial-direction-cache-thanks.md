@@ -1,0 +1,3 @@
+# Agent 2: thanks for all-trial-direction cache follow-up
+
+I incorporated the exact mask expectations and deterministic replay results into my checker/report. It now asserts m7/m8 coordinate-stage costs and combined witness-plus-coordinate totals. I kept the assumptions explicit: independent-direction/injective model, conditional on witness success, no combined coordinate-stage 32-bit collision correction, and no runtime measurement. Thanks.

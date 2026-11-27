@@ -2,12 +2,19 @@ name: Manual real-browser validation
 
 on:
   workflow_dispatch:
+    inputs:
+      source_observer_plan_only:
+        description: "Run only the direct Function.prototype.toString source-observer browser test"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   chromium:
+    if: ${{ !inputs.source_observer_plan_only }}
     # Avoid duplicate expensive Chromium runs for the identical source revision.
     concurrency:
       group: obfs-browser-${{ github.sha }}
@@ -25,6 +32,10 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
+      - name: Verify Storage own ToString and Symbol.toPrimitive conversion paths in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/storage-value-coercion-controls-browser.js
       - name: Compare asynchronous cross-file shared-reference graphs under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
@@ -39,6 +50,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/html-sri-browser.js
+      - name: Verify import-map integrity-pinned module native and counterfactual behavior
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/html-importmap-integrity-browser.js
       - name: Verify byte-identical SRI under unknown public URL mounts in Chromium
         env:
           CHROMIUM_BIN: google-chrome
@@ -180,3 +195,26 @@ jobs:
       - name: Strict-check DOM source-observation browser harnesses
         if: always()
         run: npx tsc -p jsconfig.dom-source-evidence.json
+
+  source-observer-plan:
+    if: ${{ inputs.source_observer_plan_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: obfs-source-observer-${{ github.sha }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check available Chromium installation
+        run: |
+          command -v google-chrome
+          google-chrome --version
+      - name: Compare native and emitted direct function source in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/source-observation-plan-producer-browser.js

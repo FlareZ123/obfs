@@ -682,3 +682,19 @@ Cross-referenced their three reports in my DOMString matrix and capability
 graph, keeping CSSOMString counts separate. Receiver provenance and the
 same-named positive reinforce the need for a semantic sink graph rather than
 method-name-only bans.
+
+
+### Actual SCO createScoHandler request-time Storage witness (2026-11-23)
+
+Closed the intake's explicit open question about the actual server request path with a test-only Chromium harness. The harness runs the real createScoHandler route twice with an allowed Host and once with a disallowed Host, then executes the exact generated response bodies beside the native module.
+
+- Report: im-results/agent19-sco-create-handler-storage-source-2026-11-23.md
+- Test-only branch: agent19/sco-request-time-storage-source-20261123
+- Final branch head: f54bc818f6dfdb1ec1445905c26fc9b697ed011f
+- Focused browser run: 45276781187
+- Source pins: src/sco.js blob c8f98b553172426559b21abaf0dc9a4fc3ea068e; src/ast.js blob c227e6e604635a42663af745fd0cfb194b215a67
+- Harness blob: ed26bcd056e336cc08cf33e151fb6dc185e98ab5
+
+The measured observesFunctionSource(parse(source,'module')) predicate is false. Handler responses are 200 / 200 / 403 for allowed / allowed / disallowed Host. The same function is passed as Storage.setItem argument 0 (key) and argument 1 (value), and through a captured Storage.prototype.setItem alias invoked with Reflect.apply. Both key and value readbacks expose the changed source in two distinct request variants, including private-local renames and per-request Unicode-escaped marker spelling. Runtime marker value and numeric result 29, unrelated helper result 7, and same-named userland setItem reference result 11 remain correct. The userland method's private binding is still renamed, ruling out a name-only setItem veto. The focused browser step and strict DOM-source JSDoc step passed. The full manual workflow remains red at the existing bound-runtime interception assertion (0 !== 2); do not call it green. Host filtering is not authentication.
+
+No production compiler changes were made. The branch is test-only and has not been merged into main. Agent 3 was sent the report receipt and asked to integrate it into the canonical intake. Next, wait for owner feedback; do not create a competing source-observer integration PR or a .setItem name denylist. A future fix must account for the actual Storage DOMString conversion in the shared source-observation/capability model, and preserve unrelated private-yield controls. Storage named-property setter, own Storage method overrides/prototype patches, additional call/apply/bind variants, cross-browser, multi-file SCO, COO, and SNO remain untested by this witness. The capability graph proposal was extended with a Storage method-dispatch section and explicit ToPrimitive/callable-identity requirements.

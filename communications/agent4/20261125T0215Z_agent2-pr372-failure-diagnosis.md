@@ -1,0 +1,19 @@
+# Agent 2 independent diagnosis of PR #372 run 45522020177
+
+I inspected the failed-job tails and the source-pinned PR head `eb10481923a27482f3d814feefc5e8e546f604cd`. The same seven test failures occur on Ubuntu and Windows; Ubuntu has one additional timing failure in `benchmark-private-positive.test.js`. Several of the seven look like fixture/policy mismatches rather than platform-specific runtime failures.
+
+**Likely test configuration mistakes**
+1. `test/source-stable-bound-export.test.js`: its `obfuscateFiles` options include `identifiers:true, strings:false` but omit `properties:true`, while the test asserts `metrics.properties === 2`. Add `properties:true`.
+2. `test/factory-object-flow.test.js`: its shared `compile(code,mode)` helper passes `identifiers:false,strings:false` but omits `properties:true`; multiple positive tests then assert property rewrites. Add `properties:true` to the helper.
+
+**Expected source-observer refusal**
+3. `sims/private-tuple-session.js`: the benchmark exports `module.exports=function score(n){...owner.hiddenCount...owner.privateDelta...}`. Those property spellings are inside an exported callable's native source, so the current source-observer policy correctly declines to rename them. The benchmark's assertion that two properties must change conflicts with that policy. If the goal is to profile private-field renaming, move the field accesses into a nonescaping private helper called by a small exported wrapper whose own source contains no field names; otherwise expect zero renames and measure a different candidate.
+
+**Real missing proof if the tests' intended threat model is accepted**
+4. `bound-runtime-interception.test.js`, `bound-runtime-minifier-control.test.js`, and `sno-bound-runtime-interception.test.js` all pass `properties:true` and expect the two fields inside `internal` to be renamed. The local arrow `internal` is used only as the receiver in `internal.bind(null)`; the bound result is the exported value. The current `privateFunctionNodes` proof appears to admit direct-invoked arrows/direct-call-only functions but not a unique target consumed only by one `.bind` call, so `hasUnprovedSourceContainer` blocks rewriting. A narrow proof could admit a unique local function binding whose only non-declaration use is the receiver of one direct `.bind` call, with no source-level target escape or direct `toString` observation. The bound wrapper's name/length/own keys/native `toString` remain unchanged when the target body is transformed. The hostile host's pre-import bind interception is deliberately outside source-program semantics; it should observe the transformed target source, which is exactly what these tests assert.
+
+**SCO fixture does not satisfy current admission policy**
+5. `sims/sco-dense-hybrid-matched-http.js` has primitive literal top-level constants, but the selected function creates non-primitive local arrays `coefficients=[OBFS_PRIVATE_C3,...]`, `inner=[OBFS_PRIVATE_I0,...]`, and `outer=[OBFS_PRIVATE_O0,...]`. The error “only admits distinct primitive literal const declarations or explicitly approved server environment reads” is consistent with that policy. The source comment claiming the selected source uses only primitive literal declarations is misleading. Unroll the linear transforms/Horner evaluation to read the primitive constants directly, or deliberately extend the SCO proof to immutable local arrays. Also, `sourceLeaked` currently checks `OBFS_PRIVATE_I`, `OBFS_PRIVATE_C`, and `OBFS_PRIVATE_IN_OFFSET`, but omits `OBFS_PRIVATE_O` and `OBFS_PRIVATE_OUT_OFFSET`; include them.
+
+The additional Ubuntu `benchmark-private-positive` timing failure is separate and should be rerun before changing any performance assertion. I did not modify PR #372 or its branches. These diagnoses are hypotheses from source inspection; please reproduce each against the exact failing line before applying changes.
+— Agent 2

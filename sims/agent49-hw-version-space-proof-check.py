@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Independent finite checks of the hW Mealy version-space proof.
+
+No Z3 dependency. Exhaustive machines/quotients/connectivity through 3 states;
+exhaustive prefix checks through 2 states plus a deterministic 1/181 sample at
+3 states; exhaustive product comparisons for strongly connected minimal 1- and
+2-state machines. This does not validate the benchmark harness or JavaScript.
+"""
+import json
+from collections import deque
+from itertools import product
+
+
+def machines(n):
+    for d in product(range(n), repeat=2*n):
+        delta = [list(d[2*s:2*s+2]) for s in range(n)]
+        for o in product(range(2), repeat=2*n):
+            yield delta, [list(o[2*s:2*s+2]) for s in range(n)]
+
+
+def connected(delta):
+    n = len(delta)
+    for root in range(n):
+        seen, todo = {root}, [root]
+        while todo:
+            for target in delta[todo.pop()]:
+                if target not in seen:
+                    seen.add(target); todo.append(target)
+        if len(seen) != n: return False
+    return True
+
+
+def partition(delta, output):
+    part = [0] * len(delta)
+    while True:
+        ids, refined = {}, []
+        for s in range(len(delta)):
+            sig = (tuple(output[s]), tuple(part[delta[s][a]] for a in range(2)))
+            if sig not in ids: ids[sig] = len(ids)
+            refined.append(ids[sig])
+        if refined == part: return part
+        part = refined
+
+
+def quotient(delta, output):
+    part = partition(delta, output)
+    reps = {}
+    for s, c in enumerate(part): reps.setdefault(c, s)
+    classes = sorted(reps)
+    remap = {c: i for i, c in enumerate(classes)}
+    qd = [[remap[part[delta[reps[c]][a]]] for a in range(2)] for c in classes]
+    qo = [list(output[reps[c]]) for c in classes]
+    return qd, qo, part
+
+
+def connectivity_certificate(delta, root):
+    """BFS order gives lower-index parents; reverse BFS gives ranks to root."""
+    n, order, seen = len(delta), [root], {root}
+    for s in order:
+        for t in delta[s]:
+            if t not in seen: seen.add(t); order.append(t)
+    if len(order) != n: return None
+    remap = {old: new for new, old in enumerate(order)}
+    rd = [[remap[delta[old][a]] for a in range(2)] for old in order]
+    rev = [[] for _ in range(n)]
+    for s in range(n):
+        for t in delta[s]: rev[t].append(s)
+    dist, todo = [None]*n, deque([root]); dist[root] = 0
+    while todo:
+        t = todo.popleft()
+        for p in rev[t]:
+            if dist[p] is None: dist[p] = dist[t]+1; todo.append(p)
+    if any(x is None for x in dist): return None
+    rank = [dist[old] for old in order]
+    for s in range(1, n):
+        assert any(p < s and rd[p][a] == s for p in range(s) for a in range(2))
+        assert any(rank[rd[s][a]] < rank[s] for a in range(2))
+    return order, rank
+
+
+def separation_pairs(trace, max_depth=4, max_pairs=100_000):
+    pairs = set()
+    for depth in range(1, min(max_depth, len(trace))+1):
+        groups = {}
+        for start in range(len(trace)-depth+1):
+            x = tuple(int(trace[start+j][0]) for j in range(depth))
+            y = tuple(int(trace[start+j][1]) for j in range(depth))
+            groups.setdefault(x, {}).setdefault(y, []).append(start)
+        for outputs in groups.values():
+            if len(outputs) < 2: continue
+            reps = {y: positions[0] for y, positions in outputs.items()}
+            for y, positions in outputs.items():
+                others = [rep for other, rep in reps.items() if other != y]
+                for i in positions:
+                    for j in others:
+                        if i != j: pairs.add((min(i,j), max(i,j)))
+                        if len(pairs) >= max_pairs: return sorted(pairs)
+    return sorted(pairs)
+
+
+def shortest_difference(da, oa, db, ob, sa, sb):
+    todo, seen = deque([(sa,sb,0)]), {(sa,sb)}
+    while todo:
+        a,b,d = todo.popleft()
+        for x in range(2):
+            if oa[a][x] != ob[b][x]: return d+1
+            pair = (da[a][x], db[b][x])
+            if pair not in seen: seen.add(pair); todo.append((*pair,d+1))
+    return None
+
+
+def main():
+    counts, certs, quotient_edges = {}, 0, 0
+    prefix_traces = prefix_pairs = 0
+    for n in (1,2,3):
+        total = sc_count = min_count = sc_min = 0
+        for index, (delta, output) in enumerate(machines(n)):
+            total += 1; is_sc = connected(delta); part = partition(delta, output)
+            is_min = len(set(part)) == n
+            sc_count += is_sc; min_count += is_min; sc_min += is_sc and is_min
+            for root in range(n):
+                assert (connectivity_certificate(delta, root) is not None) == is_sc
+                certs += 1
+            qd, qo, part = quotient(delta, output)
+            assert len(set(partition(qd, qo))) == len(qd)
+            if is_sc: assert connected(qd)
+            for s in range(n):
+                for a in range(2):
+                    c = part[s]
+                    assert output[s][a] == qo[c][a]
+                    assert part[delta[s][a]] == qd[c][a]
+                    quotient_edges += 1
+            if n <= 2 or index % 181 == 0:
+                for initial in range(n):
+                    for length in range(5):
+                        for word in product(range(2), repeat=length):
+                            state, states, trace = initial, [initial], []
+                            for x in word:
+                                trace.append((str(x),str(output[state][x])))
+                                state = delta[state][x]; states.append(state)
+                            prefix_traces += 1
+                            for i,j in separation_pairs(trace):
+                                assert states[i] != states[j]
+                                prefix_pairs += 1
+        counts[str(n)] = {"machines":total,"strongly_connected":sc_count,
+                          "minimal":min_count,"strongly_connected_and_minimal":sc_min}
+
+    eligible = {n:[(d,o) for d,o in machines(n) if connected(d) and len(set(partition(d,o)))==n]
+                for n in (1,2)}
+    product_counts, total_pairs, diff_pairs = {}, 0, 0
+    for n, left in eligible.items():
+        for m, right in eligible.items():
+            tested = distinguished = maximum = 0
+            for da,oa in left:
+                for db,ob in right:
+                    for sa in range(n):
+                        for sb in range(m):
+                            tested += 1
+                            d = shortest_difference(da,oa,db,ob,sa,sb)
+                            if d is not None:
+                                distinguished += 1; assert d <= n*m
+                                maximum = max(maximum,d)
+            total_pairs += tested; diff_pairs += distinguished
+            product_counts[f"{n}x{m}"] = {"state_pairs_tested":tested,
+                "distinguishable_pairs":distinguished,"maximum_shortest_difference":maximum,
+                "N_times_k_bound":n*m}
+    print(json.dumps({"machine_counts":counts,"connectivity_certificates_checked":certs,
+        "quotient_homomorphism_edges_checked":quotient_edges,
+        "trace_prefix_traces_checked":prefix_traces,
+        "trace_prefix_inequalities_checked":prefix_pairs,
+        "product_state_pairs_checked":total_pairs,"product_distinguishable_pairs":diff_pairs,
+        "product_bounds":product_counts,
+        "scope":"all machines/quotients/connectivity through 3 states; prefix traces exhaustive through 2 states plus deterministic 1/181 3-state sample; product pairs exhaustive through 2 states",
+        "interpretation":"finite cross-checks only; not a proof of the benchmark harness or arbitrary JavaScript behavior"},
+        indent=2,sort_keys=True))
+
+
+if __name__ == '__main__': main()

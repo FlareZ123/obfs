@@ -78,8 +78,14 @@ test('Blob options source observer preserves COO/SNO native output',()=>{
 test('primitive Blob options preserve genuinely renamed private fields',()=>{
   const original='const owner={hiddenCount:41,secretDelta:2};'+
     'new Blob([],{type:"text/plain",endings:"transparent"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'module.exports=owner.hiddenCount+owner.secretDelta;';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
+  /** @param {string} code @returns {number} */
+  const numericValue=code=>{
+    const module={exports:/** @type {unknown} */ (null)};
+    new Function('module',code)(module);
+    return /** @type {number} */ (module.exports);
+  };
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const emitted=obfuscateFiles([{
       path:'blob-positive.cjs',sourceType:'commonjs',code:original
@@ -87,6 +93,29 @@ test('primitive Blob options preserve genuinely renamed private fields',()=>{
       properties:true,identifiers:false,strings:false});
     assert.equal(emitted.files[0].metrics.properties,2,mode);
     assert.doesNotMatch(String(emitted.files[0].code),/hiddenCount|secretDelta/u);
-    assert.equal(execute(String(emitted.files[0].code)),execute(original));
+    assert.equal(numericValue(String(emitted.files[0].code)),numericValue(original));
+  }
+});
+
+test('primitive Blob options do not justify rewriting exported callable source',()=>{
+  const original='const owner={hiddenCount:41,secretDelta:2};'+
+    'new Blob([],{type:"text/plain",endings:"transparent"});'+
+    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+  assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
+  /** @param {string} code */
+  const callableSource=code=>{
+    const module={exports:/** @type {unknown} */ (null)};
+    new Function('module',code)(module);
+    return Function.prototype.toString.call(module.exports);
+  };
+  const originalSource=callableSource(original);
+  for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
+    const emitted=obfuscateFiles([{
+      path:'blob-exported.cjs',sourceType:'commonjs',code:original
+    }],{mode,seed:'blob-primitive-exported',closedWorld:true,
+      properties:true,identifiers:false,strings:false});
+    assert.equal(emitted.files[0].metrics.properties,0,mode);
+    assert.equal(execute(String(emitted.files[0].code)),execute(original),mode);
+    assert.equal(callableSource(String(emitted.files[0].code)),originalSource,mode);
   }
 });

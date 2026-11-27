@@ -95,3 +95,10 @@ npx tsc -p jsconfig.sco-oracles.json
 This shows that a small, deterministic, low-entropy stateful SCO API can be behaviorally cloned from a modest number of legitimate calls even without a reset endpoint, if the attacker knows a correct small state bound. The matched conventional service yields the same result, so the generated facade provides no observed incremental resistance in this experiment.
 
 The 64 MiB enumeration and sub-second local timings are attacker-side costs, not target-side execution measurements. No claim is made about the 2.5× target runtime constraint. The experiment does not demonstrate arbitrary code deobfuscation, source reconstruction, key extraction, browser compatibility, or improved SCO protection. Keep the overall release decision **RELEASE-BLOCKED** until a candidate demonstrates a mode-specific security advantage against matched controls and independently passes performance and compatibility gates.
+
+
+## 26 November 2026: process-isolation qualification
+
+The statement that the fixed learner is given only a public `step(symbol)` callback refers to its function arguments, not an OS/process boundary. The live HTTP harness in `sims/sco-step-only-live-rpc.js` runs the SCO server, private module, evaluator and learner in the same Node process and UID. Its private module is written under a mode-0700 temporary directory owned by that same UID. Hostile code running as the learner could enumerate the temp directory and read `private/actual.mjs`; same-process runtime instrumentation is also outside the test's controls.
+
+The measured four-state query counts, semantic transcripts, continuation clones and conditional model-theoretic statements remain valid for the fixed learner implementation. The harness does not establish resistance to a hostile client with filesystem/DevTools access. A real SCO attacker-boundary test requires a separate server process and a separate no-sudo client UID/container with no access to server files or memory. This is an intermediate in-process query-complexity/API test, not a process-isolated security experiment.

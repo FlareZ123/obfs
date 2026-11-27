@@ -191,6 +191,9 @@ function isStaticKey(parent,key){
  */
 function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
   const hostApis=new Set([
+    // Node's legacy buffer.atob/btoa errors have different native messages
+    // from browser Window atob/btoa, even for identical malformed input.
+    'atob','btoa',
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
@@ -333,10 +336,12 @@ function usesUnprovedRelocatedTextDecoder(body){
  * different runtimes. A browser-created blob: URL cannot be replaced by a
  * Node blob:nodedata: URL without changing observable behavior.
  *
- * Allow direct `new URL(...)` constructor syntax, and conservatively decline
- * other first-class URL references in relocated private functions. This
- * includes static method extraction, constructor aliases and dynamic members;
- * it does not prove behavior for all possible indirect constructor recovery.
+ * Admit only direct `new URL(...)` constructor syntax with one bounded,
+ * statically valid ASCII HTTP(S) absolute literal, and decline unproved
+ * constructor arguments. Node and Chromium can throw different error messages
+ * for invalid URLs even though both implement the WHATWG URL Standard.
+ * Also decline first-class URL references, constructor aliases and dynamic
+ * members; indirect constructor recovery remains outside this bounded proof.
  * @param {import('./ast').AstNode} body
  * @returns {boolean}
  */
@@ -352,6 +357,21 @@ function usesUnprovedRelocatedUrlStatic(body){
   function newUrl(node){
     return node.type==='NewExpression'&&node.callee.type==='Identifier'&&
       node.callee.name==='URL';
+  }
+  /**
+   * Admit a deliberately narrow non-throwing URL-construction subset.
+   * ASCII HTTP(S) authority labels and unescaped path/query characters
+   * avoid runtime input coercion, base resolution, IDNA and invalid-URL
+   * exception text. Other legitimate URLs remain conservatively unproved.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function provenFixedUrl(node){
+    if(!newUrl(node)||node.arguments.length!==1)return false;
+    const input=node.arguments[0];
+    return input.type==='Literal'&&typeof input.value==='string'&&
+      /^https?:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(?:\/[A-Za-z0-9/_~.?=&-]*)?$/u
+        .test(input.value);
   }
   // Propagate simple local aliases without inferring container or call flows.
   const urlInstances=new Set();
@@ -381,6 +401,7 @@ function usesUnprovedRelocatedUrlStatic(body){
   let observed=false;
   walk(body,(node,parent,key)=>{
     if(newUrl(node)){
+      if(!provenFixedUrl(node))observed=true;
       const directMember=parent?.type==='MemberExpression'&&key==='object';
       const localBinding=parent?.type==='VariableDeclarator'&&key==='init'&&
         parent.id.type==='Identifier';
@@ -417,6 +438,60 @@ function usesUnprovedRelocatedUrlStatic(body){
     observed=true;
   });
   return observed;
+}
+
+/**
+ * Cross-runtime Web IDL constructors can throw native, host-specific messages
+ * for invalid input. Admit a bounded, literal-only, non-throwing subset while
+ * refusing first-class or dynamic references that escape this syntax proof.
+ * URLSearchParams and Headers have independent Node/browser implementations.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedWebIdlConstructors(body){
+  const names=new Set(['URLSearchParams','Headers']);
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function asciiText(value){
+    return Boolean(value&&value.type==='Literal'&&
+      typeof value.value==='string'&&/^[\x20-\x7e]*$/u.test(value.value));
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function validConstruction(expression){
+    if(expression.type!=='NewExpression'||
+       expression.callee.type!=='Identifier')return false;
+    const name=expression.callee.name;
+    if(expression.arguments.length===0)return true;
+    if(expression.arguments.length!==1)return false;
+    const argument=expression.arguments[0];
+    if(name==='URLSearchParams'){
+      if(asciiText(argument))return true;
+      return argument.type==='ArrayExpression'&&
+        argument.elements.every((/** @type {import('./ast').AstNode|null} */ pair)=>
+          pair?.type==='ArrayExpression'&&pair.elements.length===2&&
+          pair.elements.every((/** @type {import('./ast').AstNode|null} */ value)=>asciiText(value)));
+    }
+    if(name!=='Headers'||argument.type!=='ObjectExpression')return false;
+    return argument.properties.every((/** @type {import('./ast').AstNode} */ property)=>{
+      if(property.type!=='Property'||property.computed||
+         property.kind!=='init'||property.method||property.shorthand)return false;
+      const key=property.key.type==='Identifier'?property.key.name:
+        property.key.type==='Literal'&&typeof property.key.value==='string'?
+          property.key.value:null;
+      return typeof key==='string'&&/^[a-z0-9-]{1,32}$/u.test(key)&&
+        asciiText(property.value);
+    });
+  }
+  let unproved=false;
+  walk(body,(node,parent,key)=>{
+    if(node.type!=='Identifier'||!names.has(node.name)||isStaticKey(parent,key))return;
+    if(parent?.type==='NewExpression'&&key==='callee'&&
+       validConstruction(parent))return;
+    if(parent?.type==='VariableDeclarator'&&key==='id'||parent?.type==='FunctionDeclaration'&&
+       key==='id')return;
+    unproved=true;
+  });
+  return unproved;
 }
 
 /**
@@ -632,7 +707,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   // this syntactic contract. UTC-only Date operations remain eligible.
   const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
     'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
-    'DurationFormat']);
+    'DurationFormat','Locale']);
   // ECMAScript's locale-sensitive prototype methods implicitly construct
   // Intl formatters from the executing host's defaults. They can return
   // different JSON-visible strings across client/server locales even if no
@@ -651,15 +726,18 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.object.type==='Identifier' &&
       globalNames.has(expression.object.name) && keyName(expression)==='Date';
   }
-  /** @param {import('./ast').AstNode} expression @returns {boolean} */
-  function isIntlConstructor(expression){
-    if(expression.type!=='MemberExpression' ||
-       !localeConstructors.has(keyName(expression)??''))return false;
-    const receiver=expression.object;
+  /** @param {import('./ast').AstNode} receiver @returns {boolean} */
+  function isIntlNamespace(receiver){
     return receiver.type==='Identifier'&&intrinsicKinds.get(receiver.name)==='Intl' ||
       receiver.type==='MemberExpression' &&
       receiver.object.type==='Identifier' &&
       globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isIntlConstructor(expression){
+    return expression.type==='MemberExpression' &&
+      localeConstructors.has(keyName(expression)??'') &&
+      isIntlNamespace(expression.object);
   }
   // ECMA-262 gives each realm's Math.random a distinct pseudorandom
   // sequence. Browser crypto and performance also observe host-specific
@@ -980,6 +1058,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='MemberExpression'){
       const member=keyName(node);
       if(isMathRoot(node.object)&&member==='random')entropyTouched=true;
+      // Intl.supportedValuesOf exposes the executing host's ICU/CLDR data.
+      // Browser and Node may enumerate different currencies or collations.
+      if(isIntlNamespace(node.object)&&member==='supportedValuesOf'){
+        configurationTouched=true;
+      }
       // Error.stack captures source filenames and call-site coordinates.
       // These change when selected SCO moves work into a server module.
       if((member==='stack'||member===null)&&isStackReceiver(node.object)){
@@ -1023,6 +1106,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
     if(pattern?.type==='ObjectPattern'&&source){
+      // Destructuring the host-data function is equivalent to reading it
+      // directly; static computed keys are included in keyName().
+      if(isIntlNamespace(source)&&pattern.properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>
+          property.type!=='Property'||keyName(property)===null||
+          keyName(property)==='supportedValuesOf')){
+        configurationTouched=true;
+      }
       if(isStackReceiver(source)&&pattern.properties.some(
         (/** @type {import('./ast').AstNode} */ property)=>
           property.type!=='Property'||keyName(property)==='stack'||
@@ -1310,6 +1401,16 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     if(usesUnprovedRelocatedTextDecoder(ast)){
       throw new TypeError(
         'SCO private static dependency contains unproved cross-realm text decoding: '+filename);
+    }
+    // Private transitive ESM leaf functions execute in the same relocated
+    // Node host as selected exports, including native URL failure paths.
+    if(usesUnprovedRelocatedUrlStatic(ast)){
+      throw new TypeError(
+        'SCO private static dependency uses unproved cross-realm object URL API: '+filename);
+    }
+    if(usesUnprovedRelocatedWebIdlConstructors(ast)){
+      throw new TypeError(
+        'SCO private static dependency uses unproved cross-realm WebIDL constructor: '+filename);
     }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
@@ -2083,6 +2184,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
+    }
+    if(usesUnprovedRelocatedWebIdlConstructors(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');

@@ -1,0 +1,3 @@
+# Agent 3 → Agent 13: escaped protected-name capture regression green
+
+I added the protected-name set to the generated-name `used` set, so a protected Identifier whose source spelling is escaped (e.g. `\u005f...`) reserves its decoded AST name against generated outer bindings. The deterministic seed/collision regression now passes on Ubuntu/Windows in run 45349529707, with project/external/paired-budget JSDoc. It confirms the original and transformed callback both retain the same ReferenceError rather than accidentally capturing a generated declaration. A follow-up run with corrected fixture AST node typing is queued as 45349684143.

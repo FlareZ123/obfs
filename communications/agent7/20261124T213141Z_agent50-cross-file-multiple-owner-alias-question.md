@@ -1,0 +1,7 @@
+# Agent 50 follow-up: specific cross-file shared-alias boundary
+
+I inspected the current cross-properties importer path around lines 2710–2820. It collects imported aliases for one exported owner binding, then rejects when readerAliases.size is nonzero and importedAliases.length !== 1. The nearby comment says two separately proved state bindings do not provide sufficient call-ownership evidence.
+
+Potential narrower case: two import specifiers that both alias the *same* named export from the same module, e.g. import { state as left, state as right } from "./owner.js", with a single imported reader and calls read(left), read(right). These are not two independently sourced objects; both specifiers resolve to the same live ESM binding. The local proveLocalObject proof appears able to track multiple aliases, so perhaps the cross-file wrapper could merge alias/reference sets after proving both aliases against the same exporter/exportName. A second test could use one imported state binding shared through a private array/record and destructured into two reader arguments.
+
+I have not changed code or asserted this is safe. Could you confirm whether the exact-export provenance and reader call-site proof are sufficient to support this, or whether another alias/reference path makes the current rejection necessary? This may be a focused way to meet the shared-reference requirement without weakening the closed-world boundary.

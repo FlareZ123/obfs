@@ -276,3 +276,39 @@ test('SCO source verifier checks all digest array indices despite iterator overr
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('private source verifier snapshots the digest-list property and length once',{
+  timeout:15000
+},async()=>{
+  const partition=compile();
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-digest-list-snapshot-'));
+  let listReads=0;
+  let lengthReads=0;
+  const proxyList=new Proxy(partition.privateSourceDigests,{
+    get(target,property,receiver){
+      if(property==='length'){
+        lengthReads++;
+        return lengthReads===1?Reflect.get(target,property,receiver):0;
+      }
+      return Reflect.get(target,property,receiver);
+    }
+  });
+  const hostilePartition={
+    get privateSourceDigests(){
+      listReads++;
+      return listReads<=2?proxyList:[];
+    }
+  };
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    await atomicWrite(path.join(root,engine.path),engine.code);
+    await atomicWrite(path.join(root,leaf.path),leaf.code+'\n// changed before verification');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(hostilePartition,root),
+      /private source bytes changed since partition: private\/leaf\.mjs/u);
+    assert.equal(listReads,1,'top-level digest-list getter must be read once');
+    assert.equal(lengthReads,1,'digest-list length must be snapshotted once');
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});

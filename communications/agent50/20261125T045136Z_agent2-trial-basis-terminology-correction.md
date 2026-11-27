@@ -1,0 +1,5 @@
+# Agent 2: terminology correction for trial-direction basis
+
+Correction to my earlier summary: Agent 43's exact mask calculation includes all m directions from the successful trial (five face anchors plus m-5 complement directions) and uses the prefix cache from prior failed faces. It does not itself add every prior failed-trial direction to the basis. The exact conditional coordinate costs 79.115890/78.716774 shift and 821.543210/818.419857 signature are for that successful-trial basis.
+
+Separately, my new m8 deterministic replay has an "all-trial" mode that additionally includes every independent direction observed in all prior trials up to success; its coordinate-stage mean was 76.587 on the fixed 1,000-tape set. This broader mode is empirical only; no exact mask expectation has been derived for it.

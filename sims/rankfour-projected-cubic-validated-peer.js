@@ -2,12 +2,23 @@
 
 const assert = require('node:assert/strict');
 const {createHash,randomBytes} = require('node:crypto');
-const {learn,evaluate} = require('./rankfour-projected-cubic-rescue');
+const {learn,evaluate,SignatureSpanOverflowError} = require('./rankfour-projected-cubic-rescue');
 const {learnBoundedDegreeOracle} = require('./bounded-degree-oracle-functional-clone');
 
 /** @typedef {ReturnType<typeof learnBoundedDegreeOracle>} LowerModel */
 /** @typedef {{bits:number,degree:2|3,projected:number[],cubic:number[],lower:LowerModel,queries:number,trials:number}} FastModel */
-/** @typedef {{bits:number,degree:2|3,projected:number[],cubic:number[],lower:LowerModel,queries:number,trials:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
+/** @typedef {{bits:number,degree:2|3,projected:number[],cubic:number[],lower:LowerModel,queries:number,trials:number,fastQueries:number,verificationQueries:number,verificationSamples:number,verificationCap:number,verificationDelta:number,verificationAttempted:boolean,verificationPassed:boolean,falseAcceptanceBound:number,fallbackUsed:boolean,fallbackReason:string|null,exactByInterpolation:boolean,verificationMismatchAt?:number|null,fallbackQueries?:number}} ValidatedModel */
+
+/** @param {LowerModel} model @returns {boolean} */
+function hasNonzeroCubicCoefficient(model) {
+  return model.coefficients.some(([mask,coefficient])=>{
+    if(coefficient===0)return false;
+    let weight=0;
+    for(let value=mask;value!==0;value&=value-1)weight++;
+    return weight===3;
+  });
+}
+
 
 /** @param {number} seed @returns {()=>number} */
 function seeded(seed) {
@@ -96,14 +107,50 @@ function cloneProjectedCubicValidated(
   drawVerify = secureWord,
   delta = 1e-10
 ) {
-  assert.ok(Number.isInteger(n) && n >= 3 && n <= 32);
+  if(!Number.isInteger(n)||n<4||n>32)
+    throw new RangeError('Cubic wrapper requires 4..32 input bits');
   assert.ok(Number.isFinite(delta) && delta > 0 && delta < 1);
   const {ask,cache} = cachedOracle(oracle,n);
   const sampleLimit = Math.ceil(Math.log(delta) / Math.log(43 / 64));
   const verificationCap = Math.ceil(Math.log(delta) / Math.log(7 / 8));
   const fastCap = 7 * sampleLimit + 6 * n + 8 + masksThroughWeight(n,2).length;
   const fallbackCap = fastCap + verificationCap + masksOfWeight(n,3).length;
-  const fastModel = /** @type {FastModel} */ (learn(ask,n,drawWitness,delta));
+  /** @type {FastModel|null} */
+  let fastModel = null;
+  try {
+    fastModel = /** @type {FastModel} */ (learn(ask,n,drawWitness,delta));
+  } catch(error) {
+    if(!(error instanceof SignatureSpanOverflowError))throw error;
+    const fastQueries=cache.size;
+    const beforeFallback=cache.size;
+    const exactLower=learnBoundedDegreeOracle(ask,n,3);
+    const fallbackQueries=cache.size-beforeFallback;
+    assert.ok(cache.size<=fallbackCap,
+      'Validated cubic clone exceeded its conservative signature-overflow fallback cap');
+    return {
+      bits:n,
+      degree:hasNonzeroCubicCoefficient(exactLower)?3:2,
+      projected:[],
+      cubic:[],
+      lower:exactLower,
+      queries:cache.size,
+      trials:error.trials,
+      fastQueries,
+      verificationQueries:0,
+      verificationSamples:0,
+      verificationCap,
+      verificationDelta:delta,
+      verificationAttempted:false,
+      verificationPassed:false,
+      falseAcceptanceBound:0,
+      fallbackUsed:true,
+      fallbackReason:'signature-span-overflow',
+      verificationMismatchAt:null,
+      fallbackQueries,
+      exactByInterpolation:true
+    };
+  }
+  if(fastModel===null)throw new Error('Cubic learner returned no model');
   const fastQueries = cache.size;
   const beforeVerification = cache.size;
   const inputMask = n === 32 ? 0xffffffff : (2 ** n - 1);
@@ -129,6 +176,7 @@ function cloneProjectedCubicValidated(
       verificationSamples,
       verificationCap,
       verificationDelta:delta,
+      verificationAttempted:true,
       verificationPassed:true,
       falseAcceptanceBound:delta,
       fallbackUsed:false,
@@ -143,7 +191,7 @@ function cloneProjectedCubicValidated(
   assert.ok(cache.size <= fallbackCap,'Validated cubic clone exceeded its conservative query cap');
   return {
     bits:n,
-    degree:2,
+    degree:hasNonzeroCubicCoefficient(exactLower)?3:2,
     projected:[],
     cubic:[],
     lower:exactLower,
@@ -154,6 +202,7 @@ function cloneProjectedCubicValidated(
     verificationSamples,
     verificationCap,
     verificationDelta:delta,
+    verificationAttempted:true,
     verificationPassed:false,
     falseAcceptanceBound:0,
     fallbackUsed:true,
@@ -192,9 +241,22 @@ function degreeTwoSource(input) {
   return (x ^ (((x & 3) === 3) ? 64 : 0)) >>> 0;
 }
 
+/** @param {number} input @returns {number} */
+function rankFiveSignatureOverflowSource(input) {
+  const x=input&0x7ff;
+  return (x ^
+    (((x&7)===7)?64:0) ^
+    (((x&11)===11)?128:0) ^
+    (((x&19)===19)?256:0) ^
+    (((x&13)===13)?512:0) ^
+    (((x&21)===21)?1024:0))>>>0;
+}
+
 /** @returns {object} */
 function main() {
   const delta = 1e-10;
+  assert.throws(()=>cloneProjectedCubicValidated(input=>input,3),RangeError,
+    'the wrapper must reject widths unsupported by the fast learner');
   const verificationCap = Math.ceil(Math.log(delta) / Math.log(7 / 8));
   assert.equal(verificationCap,173);
   assert.ok(Math.pow(7/8,172) > delta);
@@ -246,12 +308,27 @@ function main() {
   );
   assert.equal(validated.fallbackUsed,true);
   assert.equal(validated.fallbackReason,'verification-mismatch');
+  assert.equal(validated.degree,3,'exact fallback metadata must retain the genuine cubic degree');
   assert.notEqual(validated.verificationMismatchAt,null);
   assert.ok(validated.verificationSamples <= 173);
   assert.equal(validated.exactByInterpolation,true);
   for (let input = 0; input < 128; input++) {
     assert.equal(evaluate(validated,input),silentRankFivePermutationSource(input));
   }
+
+  const overflowSource=rankFiveSignatureOverflowSource;
+  const overflowValidated=cloneProjectedCubicValidated(
+    overflowSource,11,fixedDirections(directions),seeded(0x44a202624),delta
+  );
+  assert.equal(overflowValidated.fallbackUsed,true);
+  assert.equal(overflowValidated.fallbackReason,'signature-span-overflow');
+  assert.equal(overflowValidated.verificationAttempted,false);
+  assert.equal(overflowValidated.verificationSamples,0);
+  assert.equal(overflowValidated.exactByInterpolation,true);
+  assert.equal(overflowValidated.degree,3);
+  assert.equal(overflowValidated.queries,232);
+  for(let input=0;input<2048;input++)
+    assert.equal(evaluate(overflowValidated,input),overflowSource(input));
 
   const n32SampleLimit = Math.ceil(Math.log(delta) / Math.log(43 / 64));
   const n32FastCap = 7 * n32SampleLimit + 6 * 32 + 8 + masksThroughWeight(32,2).length;
@@ -270,6 +347,10 @@ function main() {
       fallbackReason:validated.fallbackReason,verificationMismatchAt:validated.verificationMismatchAt,
       verificationSamples:validated.verificationSamples,queries:validated.queries,exactAll128:true,
       sourceAndRawCandidateArePermutations:true},
+    signatureOverflowFallback:{fallbackReason:overflowValidated.fallbackReason,
+      fastQueries:overflowValidated.fastQueries,fallbackQueries:overflowValidated.fallbackQueries,
+      queries:overflowValidated.queries,verificationAttempted:overflowValidated.verificationAttempted,
+      exactAll2048:true},
     n32QueryCaps:{fast:n32FastCap,verifiedFast:n32FastCap+verificationCap,fallback:n32FallbackCap}
   };
   console.log('RANKFOUR_PROJECTED_CUBIC_REED_MULLER_VALIDATED_CLONE ' + JSON.stringify(result));

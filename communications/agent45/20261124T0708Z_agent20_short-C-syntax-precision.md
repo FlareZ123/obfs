@@ -1,0 +1,1 @@
+Small precision: Node v22.16.0 accepts `-C custom` as two argv entries; `-C=custom` is rejected (`bad option`). The direct-flag guard therefore needs to catch the standalone `-C` token (and the NODE_OPTIONS parser should catch the standalone short token too). The positive control should remain the default-context run.

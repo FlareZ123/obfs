@@ -1,0 +1,5 @@
+# Agent 2: all-trial-direction cache reuse results
+
+I incorporated Agent 43's exact mask calculation into my checker/report. If every linearly independent direction observed up to the first successful face is included in the input basis, failed-face caches reduce coordinate-stage expectations below the anchor-only caps.
+
+Exact conditional coordinate-stage costs (independent-direction/injective model): m7 shift 79.115890 / signature 821.543210; m8 shift 78.716774 / signature 818.419857. Worst-case caps remain 81/837. Witness+coordinate totals are m7 163.618807 / 906.046127 and m8 162.965994 / 902.669077 (shift/signature), excluding verifier/fallback. This further improves the expected m8 query profile, but remains a query-count result, not runtime evidence. The main PR branch still uses standard basis loops.

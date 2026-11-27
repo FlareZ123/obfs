@@ -1,0 +1,5 @@
+# Agent 7: scope the shared control guard to the URL pathname
+
+One precision point for the implementation: the CLI intentionally strips query/fragment before selecting the file. A TAB/LF/CR occurring only after the first ? or # does not change the URL pathname, so the shared path-control helper should inspect the pathname portion (substring before first ?/#), not reject controls in a harmless query/fragment. The graph-proof resolvers already refuse query/fragment specifiers, so checking the whole string there is also safe.
+
+Also reject decoded C0/DEL characters in each CLI path segment after decodeURIComponent; that prevents percent-encoded controls from becoming filesystem names. The SCO request-path decoder can reject decoded controls as defense in depth, though the main publication fix must happen before selection.

@@ -1,0 +1,147 @@
+name: Manual Agent 2 live HTTP SCO hW benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      min_states:
+        description: "Minimum target state count (2-12)"
+        required: false
+        default: 2
+        type: number
+      max_states:
+        description: "Maximum target state count (2-12)"
+        required: false
+        default: 5
+        type: number
+      seeds:
+        description: "Deterministic seeds per target state count (1-20)"
+        required: false
+        default: 2
+        type: number
+      timeout_seconds:
+        description: "Per-fixture learner timeout"
+        required: false
+        default: 30
+        type: number
+      random_walk_length:
+        description: "RandomWphWOracle random walk length"
+        required: false
+        default: 30
+        type: number
+      origin_states:
+        description: "RandomWphWOracle test origin-state count"
+        required: false
+        default: 20
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  live-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONHASHSEED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Install pinned hW implementation
+        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6
+      - name: Verify isolated server user
+        run: |
+          test "$(sudo -n -u nobody -- /usr/bin/id -u)" = "65534"
+      - name: Check server and Python harness syntax
+        run: |
+          node --check sims/agent2-hw-live-sco-server.js
+          python -m py_compile \
+            sims/agent2-hw-live-sco-client.py \
+            sims/agent2-hw-live-sco-benchmark.py \
+            sims/agent2-hw-no-reset-benchmark.py
+      - name: Test exact evaluator semantics
+        run: python sims/test_agent2_hw_no_reset_evaluator.py
+      - name: Run isolated live HTTP SCO hW benchmark
+        env:
+          MIN_STATES: ${{ inputs.min_states || 2 }}
+          MAX_STATES: ${{ inputs.max_states || 5 }}
+          SEEDS: ${{ inputs.seeds || 2 }}
+          TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 30 }}
+          RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
+          ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
+        run: |
+          python sims/agent2-hw-live-sco-benchmark.py \
+            --min-states "$MIN_STATES" --max-states "$MAX_STATES" \
+            --seeds "$SEEDS" --timeout-seconds "$TIMEOUT_SECONDS" \
+            --random-walk-length "$RANDOM_WALK_LENGTH" \
+            --origin-states "$ORIGIN_STATES" \
+            > live-hw-results.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          result = json.loads(Path("live-hw-results.json").read_text())
+          min_states = int(os.environ["MIN_STATES"])
+          max_states = int(os.environ["MAX_STATES"])
+          seeds = int(os.environ["SEEDS"])
+          expected = (max_states - min_states + 1) * seeds
+          assert result["aalpy_version"] == "2.0.0"
+          assert result["scope"]["state_counts"] == [min_states, max_states]
+          assert result["total_runs"] == expected
+          assert result["completed_runs"] + result["timeouts"] + result["errors"] == expected
+          assert result["completed_runs"] > 0
+          for row in result["results"]:
+              if row["status"] != "completed":
+                  continue
+              assert row["server_user_isolated"] is True, row
+              assert row["source_disclosed"] is False, row
+              assert row["session_cookie_issued"] is True, row
+              assert row["session_token_in_public_module"] is False, row
+              assert row["client_module_fetch_status"] == 200, row
+              assert row["client_cookie_present"] is True, row
+              assert row["method_name_published"] is True, row
+              assert row["client_method_name_matches"] is True, row
+              assert row["client_module_source_disclosed"] is False, row
+              assert row["unauthorized_status"] == 403, row
+              assert row["reset_status"] == 404, row
+              assert row["partition_names"] == ["step"], row
+              assert row["pre_calls"] == row["post_calls"] == 1, row
+              assert row["query_calls"] == row["sul_num_queries"] == 0, row
+              assert row["steps_total"] == row["http_step_calls"] == row["sul_num_steps"], row
+              assert row["steps_total"] == row["steps_oracle"] + row["steps_non_oracle"], row
+              stats = row["server_stats"]
+              assert stats["http_requests"] == row["steps_total"] + 4, row
+              assert stats["rpc_requests"] == row["steps_total"] + 1, row
+              assert stats["client_module_requests"] == 2, row
+              assert stats["authorized_rpc_requests"] == row["steps_total"], row
+              assert stats["unauthorized_rpc_requests"] == 1, row
+              assert len(row["fixture_digest"]) == 64, row
+              assert len(row["trace_digest"]) == 64, row
+          print("LIVE_HTTP_HW_SUMMARY", json.dumps({
+              "runs": result["total_runs"],
+              "completed": result["completed_runs"],
+              "timeouts": result["timeouts"],
+              "errors": result["errors"],
+              "exact_initial_clones": result["exact_initial_clone_successes"],
+              "future_clone_successes": result["future_clone_successes"],
+              "candidate_end_unambiguous": result["candidate_end_behavior_unambiguous_runs"],
+              "ambiguous_initial_behavior": result["ambiguous_initial_behavior_runs"],
+              "ambiguous_future_behavior": result["ambiguous_future_behavior_runs"],
+              "false_future_convergences": result["false_future_convergences"],
+              "total_sul_steps": result["total_sul_steps"],
+              "total_http_requests": result["total_http_requests"],
+              "elapsed_seconds": result["elapsed_seconds"],
+          }, sort_keys=True))
+          PY
+      - name: Preserve live HTTP evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent2-live-http-hw-benchmark
+          path: live-hw-results.json

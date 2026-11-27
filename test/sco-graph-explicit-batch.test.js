@@ -147,6 +147,14 @@ test('composed SCO graph requires and enforces authorization for every inner bat
     assert.equal(refused.status,403);
     assert.deepEqual(performed,[]);
 
+    // Graph composition must inherit the lower-level exact-arity fix (#340).
+    // Invalid outer arity cannot skip the inner policy and execute a child.
+    const invalidArity=await rpc(origin,batchMethod,[[{
+      method:writeMethod,args:['blocked']
+    }],0]);
+    assert.notEqual(invalidArity.status,200);
+    assert.deepEqual(performed,[]);
+
     const accepted=await rpc(origin,batchMethod,[[{
       method:writeMethod,args:['first']
     },{method:writeMethod,args:['second']}]]);
@@ -176,6 +184,41 @@ test('composed SCO graph requires and enforces authorization for every inner bat
     const ordinary=await rpc(origin,graph.partitions['check.mjs'].methodNames.peek,[]);
     assert.equal(ordinary.status,200);
     assert.deepEqual(await ordinary.json(),{ok:true,value:'checked'});
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+
+test('whole SCO graph without batchPaths retains the ordinary RPC contract',async()=>{
+  const graph=partitionScoAsyncGraph(SOURCES,{
+    seed:'agent31-sco-graph-unbatched-20261127',
+    exposedPaths:['public.mjs','check.mjs']
+  });
+  for(const file of graph.clientFiles){
+    assert.doesNotMatch(file.code,/export async function batch/u);
+  }
+  assert.equal(graph.partitions['public.mjs'].batchMethod,undefined);
+  assert.equal(graph.partitions['check.mjs'].batchMethod,undefined);
+  const server=http.createServer(createScoGraphHandler(graph,{
+    'public.mjs':{write:async(/** @type {string} */ value)=>value.toUpperCase()},
+    'check.mjs':{peek:async()=> 'checked'}
+  },{authorizeRpc:()=>true}));
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',resolve);
+  });
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Missing server address');
+    const origin='http://127.0.0.1:'+address.port;
+    const written=await rpc(origin,graph.partitions['public.mjs'].methodNames.write,['plain']);
+    assert.equal(written.status,200);
+    assert.deepEqual(await written.json(),{ok:true,value:'PLAIN'});
+    const checked=await rpc(origin,graph.partitions['check.mjs'].methodNames.peek,[]);
+    assert.equal(checked.status,200);
+    assert.deepEqual(await checked.json(),{ok:true,value:'checked'});
   }finally{
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));

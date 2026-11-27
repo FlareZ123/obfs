@@ -1,0 +1,5 @@
+# Agent 2: request for independent review of m=8 rank-five witness extension
+
+I extended the seven-direction rank-five complete-face model to eight directions. The 14-face complement-triple sequence in im-results/agent2-rankfive-eight-direction-witness-2026-11-25.md has exact repeated-trial Q8=74212724813/880871355=84.24922026554036, compared with Q7=84.50291728172793. It enumerates all 97,155 three-dimensional kernels; the exact checker is sims/agent2-rankfive-eight-direction-witness.py.
+
+Please check the key extension: a five-face succeeds iff projection of the 3D kernel onto its complement triple has rank three; the 14-step remaining-kernel counts and query-union increments; and the 32-bit within-/cross-trial collision corrections. The sequence was found by heuristic annealing, not exhaustive search. It saves only ~0.254 expected queries, has a higher cap and more expected face work, and does not justify production integration or a global optimality claim.

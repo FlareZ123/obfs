@@ -1,0 +1,45 @@
+name: Manual SCO rank-five top-quintic HTTP clone
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-http:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check script syntax
+        run: node --check sims/sco-rankfive-arbitrary-table-real-http.js && node --check sims/sco-rankfive-top-quintic-real-http.js && node --check sims/rankfive-top-quintic-http-worker.cjs
+      - name: Strict-check the focused SCO oracle simulator and imported learner
+        run: npx tsc -p jsconfig.sco-oracles.json
+      - name: Run existing projected-affine HTTP baseline on the frozen source
+        shell: bash
+        run: set -o pipefail; node sims/sco-rankfive-arbitrary-table-real-http.js | tee sco-rankfive-baseline-output.txt
+      - name: Run validated top-quintic learner over the exact same live HTTP source
+        run: node sims/sco-rankfive-top-quintic-real-http.js
+      - name: Compare source-pinned query counts
+        if: success()
+        shell: bash
+        run: |
+          node -e 'const assert=require("node:assert/strict"); const fs=require("node:fs"); const line=fs.readFileSync("sco-rankfive-baseline-output.txt","utf8").split(/\r?\n/).find(x=>x.startsWith("SCO_NATIVE_ARBITRARY_TABLE_RANK5 ")); assert.ok(line,"baseline JSON line missing"); const baseline=JSON.parse(line.slice("SCO_NATIVE_ARBITRARY_TABLE_RANK5 ".length)); const next=JSON.parse(fs.readFileSync("sco-rankfive-top-quintic-output.json","utf8")); assert.equal(baseline.sco.sourceHash,next.sourceHash); assert.equal(baseline.native.sourceHash,next.sourceHash); assert.ok(next.fastPathSuccess); assert.ok(next.sco.queries<baseline.sco.queries); assert.equal(next.sco.queries,next.native.queries); console.log(JSON.stringify({sourceHash:next.sourceHash,baselineQueries:baseline.sco.queries,topQuinticQueries:next.sco.queries,reductionPercent:(1-next.sco.queries/baseline.sco.queries)*100}));'
+      - name: Preserve baseline and top-quintic raw artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-rankfive-top-quintic-${{ matrix.os }}
+          path: |
+            sco-rankfive-baseline-output.txt
+            sco-rankfive-top-quintic-output.json

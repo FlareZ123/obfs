@@ -98,7 +98,48 @@ The exact peel performs 16,896 local basis-pair defect evaluations per instance:
 
 These are evaluations of the reconstructed function, not additional server queries.
 
-The bilinear defect certificate is exact under the degree-two promise. The tested compatible-triangular family also completed all 32 peel stages in every trial. We do not claim that this particular greedy candidate ordering is complete for every arbitrary degree-two permutation; the general candidate-selection question remains open.
+The bilinear defect certificate is exact under the degree-two promise. The exact greedy peel also has a structural completeness argument for **every two-sided affine-wrapped compatible triangular permutation satisfying that degree promise** (next section); its success is not merely an empirical property of the sampled generator. This does **not** assert candidate-selection completeness for arbitrary degree-two permutations outside the compatible-triangular family.
+
+## Completeness theorem for the promised triangular family
+
+This is a **composition of two existing facts**, not a new claimed lower bound: the general global-derivative flag existence theorem in [the affine differential flag record](affine-differential-flag-oracle-inversion-2026-11-23.md) and exact finite certification of all quadratic polar defects above. It strengthens the candidate-selection status of this particular attack implementation relative to the original sampled-only wording.
+
+**Theorem (exact greedy chosen-query inversion).** Let \(F:\mathbb F_2^n\to\mathbb F_2^n\) have the promised form
+
+\[
+F(x)=a\oplus B\,P(Ax\oplus b),
+\quad
+P_j(z)=z_j\oplus g_j(z_0,\ldots,z_{j-1}),
+\]
+
+where \(A,B\) are invertible binary matrices, \(a,b\) are arbitrary translations, and the *entire vector map* \(F\) has Boolean algebraic degree at most two. Its complete chosen-input truth function can be learned from \(1+n+\binom n2\) queries (529 for \(n=32\)); given those coefficients, the exact-defect/greedy-flag algorithm in this experiment recovers the unique preimage of **every** target, with no further calls to the oracle. Every exact nonzero output-mask choice admitted by the algorithm can be extended; no backtracking is needed.
+
+**Proof of nonstalling:** Let \(U\ne\{0\}\) be any current input linear subspace. Choose the least index \(j\) for which some \(h\in U\) has \((Ah)_j=1\). By minimality, all vectors in \(AU\) have zero coordinates below \(j\). The \(j\)-th triangular coordinate therefore changes by exactly \((Ah)_j\), independently of the basepoint:
+
+\[
+P_j(A(x\oplus h)\oplus b)\oplus P_j(Ax\oplus b)=(Ah)_j.
+\]
+
+Taking the public output mask \(m\) with \(m^TB=e_j^T\), the scalar derivative \(m^T(F(x\oplus h)\oplus F(x))\) is constant in \(x\) for every \(h\in U\), and not identically zero on \(U\). Thus a valid nonzero exact-derivative mask exists at **every** nonzero \(U\), irrespective of the earlier greedy choices.
+
+The implementation starts with \(U_0=V_0=\mathbb F_2^n\) and preserves the invariant
+
+\[
+F(U_k)\oplus F(0)=V_k
+\]
+
+as an equality of sets, with \(V_k\) a linear subspace of dimension \(n-k\). At stage \(k\), bilinearity of the quadratic second difference makes the basis-pair span exactly equal to *all* possible defects along \(U_k\). The computed orthogonal complement therefore contains precisely the masks whose scalar derivatives are constant for every basepoint and every direction in \(U_k\). The mask constructed in the previous paragraph belongs to this complement and has nonzero restriction to \(V_k\). The routine \`independentRestrictions\` chooses independent restrictions of a complement basis on \(V_k\), so **at least one** candidate has nonzero restriction. For any candidate with nonzero restriction, surjectivity \(F(U_k)=F(0)\oplus V_k\) makes its input derivative nonzero as well. Hence the greedy loop can always split the kernels:
+
+\[
+U_{k+1}=\ker(m_k^T(F(\,\cdot\,)\oplus F(0))|_{U_k}),
+\qquad V_{k+1}=V_k\cap\ker(m_k^T).
+\]
+
+The exact derivative property ensures that the first kernel is linear, and bijectivity of \(F\) gives \(F(U_{k+1})\oplus F(0)=V_{k+1}\); both dimensions drop by one. Induction reaches the zero input subspace in exactly \(n\) stages. During inversion, each stored input toggle changes its corresponding output-mask equation while all later toggles lie in the earlier kernels and cannot disturb equations already solved. After \(n\) stages all independent output equations match, so the produced input is the unique inverse of the target; the implementation also checks the full cloned output equality. QED.
+
+**Evidence versus premise:** This is an algebraic corollary under the *source-proven quadratic and triangular structure promises*, not an inference of those promises from 529 sampled queries. The previously source-pinned exhaustive width-four census checked every nonzero input subspace across all 32,768 arbitrary triangular permutations, independently of this polynomial learner; see \`sims/compatible-derivative-greedy-exhaustive.js\`. The new independent full-quadratic gate regression in \`test/exact-quadratic-greedy-general-gates.test.js\` exercises arbitrary lower-prefix linear and pairwise terms, beyond the fixture's one-product gate. A degree-three sparse triangular gate remains an explicit negative control: its 529 low-weight outputs can agree with identity even when an unqueried value differs. No finite transcript here proves the degree promise for an unknown arbitrary oracle.
+
+The theorem removes the prior *greedy candidate-selection* uncertainty **inside the promised affine-triangular quadratic family**. It does not prove general inversion for unrelated quadratic permutations, a practical inversion oracle budget when the degree/triangular promises are absent, or any strengthening of the obfuscator under its attacker models.
 
 ## Reproduction results
 
@@ -152,7 +193,7 @@ The existing `sims/quadratic-radical-target-inversion.js` is complementary. Its 
 
 1. The 529-query theorem applies to Boolean algebraic degree at most two. It does not automatically apply to arbitrary JavaScript, arbitrary permutations, or the repository's integer-polynomial Rivest family.
 2. Exact defect certification depends on the degree-two promise. For higher Boolean degree, the defect is no longer bilinear; a higher-order certificate or a different exact interpolation strategy is required.
-3. The inversion peel additionally relies on the compatible triangular/linear-sandwich structure. The 64-instance success is strong empirical evidence for the repository generator, not a universal theorem for every quadratic permutation.
+3. The greedy exact peel is complete under the specifically promised affine-wrapped compatible-triangular degree-two structure, as proved above, but no such completeness is asserted for arbitrary quadratic permutations.
 4. The radical-codimension comparison is configuration-specific: the existing radical solver's current cap is 16, while these fixtures lie outside it.
 5. The result rules out this low-degree oracle family as a confidentiality mechanism under chosen-query access. It does not establish a break of the general JavaScript obfuscator or resolve all SCO/COO/SNO threat models.
 

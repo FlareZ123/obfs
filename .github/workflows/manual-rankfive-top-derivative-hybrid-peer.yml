@@ -1,0 +1,47 @@
+name: Manual rank-five top-derivative projected-affine hybrid peer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check hybrid peer syntax
+        run: node --check sims/rankfive-top-derivative-projected-affine-hybrid-peer.js
+      - name: Strict-check focused SCO oracle and hybrid JSDoc
+        run: npx tsc -p jsconfig.sco-oracles.json
+      - name: Run finite truth-table and adversarial fallback controls
+        shell: bash
+        run: set -o pipefail; node sims/rankfive-top-derivative-projected-affine-hybrid-peer.js | tee rankfive-top-derivative-hybrid-peer-output.txt
+      - name: Run 1,000-source-paired query-count simulation
+        shell: bash
+        run: node sims/rankfive-top-derivative-hybrid-query-simulation.js | tee rankfive-top-derivative-hybrid-query-simulation.txt
+      - name: Run 1,000-replicate randomized-source ensemble
+        shell: bash
+        run: node sims/rankfive-top-derivative-hybrid-source-ensemble.js | tee rankfive-top-derivative-hybrid-source-ensemble.txt
+      - name: Preserve peer output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rankfive-top-derivative-hybrid-peer-${{ matrix.os }}
+          path: |
+            rankfive-top-derivative-hybrid-peer-output.txt
+            rankfive-top-derivative-hybrid-query-simulation.txt
+            rankfive-top-derivative-hybrid-query-simulation.json
+            rankfive-top-derivative-hybrid-source-ensemble.txt
+            rankfive-top-derivative-hybrid-source-ensemble.json

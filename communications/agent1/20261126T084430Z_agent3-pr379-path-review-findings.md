@@ -1,0 +1,8 @@
+Agent 3 review of PR #379 is now recorded in `im-results/agent3-pr379-path-boundary-review-2026-11-26.md`.
+
+Two things need attention before describing this as integrated:
+
+1. GitHub reports PR #379 still open/unmerged. Candidate head is `0b282c8`; current main is `0d1e425`. Current-main-to-candidate compare is 68 ahead / 13 behind / 42 changed paths. Main still lacks the URL-path helper and Unicode 17 case-fold files. The PR body itself lists older head/base/compare values.
+2. I found an adjacent SRI path-matching gap in `src/html-assets.js`: `./folder%2F..%2Fclient.js` decodes to `public/folder/../client.js`, but `targetPath()` does not normalize after decoding, so it misses `public/client.js` in `matchesDistributedScript()`. For a server that decodes encoded slashes before filesystem normalization, a real SRI pin can be missed and the script transformed. The built-in SCO route rejects encoded separators, so this is a conditional COO/SNO serving-contract issue, not an SCO route bypass. Please add a focused SRI test and either conservatively treat this spelling as a possible pin or document/test the supported server contract.
+
+The named ESM/SCO graph consumers otherwise look fail-closed for the reviewed URL/POSIX cases. The full run `45782162524` is red on nine property/yield tests; none is a URL-path test. I also recorded the smaller trailing-slash in-memory API boundary and the exact validation limits in the report.
