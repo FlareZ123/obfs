@@ -104,6 +104,120 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Find ESM producer files whose imported values reach a proven browser
+ * DOMString/TrustedHTML coercion sink in another supplied module. Protect the
+ * producer's function source byte-for-byte while leaving unrelated primitive
+ * modules eligible for local obfuscation.
+ *
+ * This intentionally recognizes only exact relative imports and narrow DOM
+ * receiver provenance. Unknown receivers do not trigger a name-only veto.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @param {Map<string,Set<string>>} importedPrimitives
+ * @param {Map<string,Map<string,string>>} importedStrings
+ * @returns {Set<string>}
+ */
+function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
+  const modules=new Map(files.filter(file=>file.sourceType==='module'&&
+    typeof file.code==='string').map(file=>[file.path,file]));
+  /** @type {Set<string>} */
+  const protectedPaths=new Set();
+  for(const [filename,file] of modules) {
+    const ast=parse(/** @type {string} */ (file.code),'module');
+    /** @type {Map<string,string>} */
+    const importedOrigins=new Map();
+    for(const statement of ast.body??[]) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const specifier=statement.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+         hasUrlPathnameNormalizationHazard(specifier)||
+         hasTerminalUrlDotSegment(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      if(!modules.has(target))continue;
+      for(const spec of statement.specifiers??[]) {
+        if(spec.local?.type==='Identifier')importedOrigins.set(spec.local.name,target);
+      }
+    }
+    if(!importedOrigins.size)continue;
+    const provenPrimitive=importedPrimitives.get(filename)??new Set();
+    const provenStrings=importedStrings.get(filename)??new Map();
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function importedOrigin(node) {
+      if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
+         provenStrings.has(node.name))return null;
+      return importedOrigins.get(node.name)??null;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isDocument(node) {
+      return Boolean(node?.type==='Identifier'&&node.name==='document');
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function member(node) {
+      if(node?.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    const domValues=new Set();
+    const htmlStreams=new Set();
+    const htmlWriters=new Set();
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+          node.id:null;
+        const value=node.type==='VariableDeclarator'?node.init:null;
+        if(!binding||!value)return;
+        if(value.type==='Identifier'&&domValues.has(value.name)&&
+           !domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+        if(value.type==='CallExpression'&&value.callee.type==='MemberExpression') {
+          const owner=value.callee.object;
+          const method=member(value.callee);
+          if(isDocument(owner)&&
+             ['createElement','createTextNode','getElementById','querySelector'].
+               includes(method??'')&&!domValues.has(binding.name)) {
+            domValues.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&domValues.has(owner.name)&&
+             /^stream(?:Append|Prepend|Before|After|ReplaceWith)?HTML(?:Unsafe)?$/u.
+               test(method??'')&&!htmlStreams.has(binding.name)) {
+            htmlStreams.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&htmlStreams.has(owner.name)&&
+             method==='getWriter'&&!htmlWriters.has(binding.name)) {
+            htmlWriters.add(binding.name);changed=true;
+          }
+        }
+        if(value.type==='MemberExpression'&&isDocument(value.object)&&
+           member(value)==='body'&&!domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+      });
+    }while(changed);
+    walk(ast,node=>{
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression'&&
+         node.left.object.type==='Identifier'&&
+         domValues.has(node.left.object.name)) {
+        const origin=importedOrigin(node.right);
+        if(origin)protectedPaths.add(origin);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&
+         htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
+        const origin=importedOrigin(node.arguments[0]);
+        if(origin)protectedPaths.add(origin);
+      }
+    });
+  }
+  return protectedPaths;
+}
+
+/**
  * Conservatively detect a bounded CommonJS flow where one supplied module
  * exports or contains a function that can return native Web Storage and a
  * statically linked sibling writes a potentially callable value through an
