@@ -277,10 +277,10 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       if(node.type==='BinaryExpression')return true;
       if(node.type==='TemplateLiteral')return node.expressions.every(
         isInertSinkOperand);
-      if(node.type==='ConditionalExpression')return
-        isInertSinkOperand(node.consequent)&&isInertSinkOperand(node.alternate);
-      if(node.type==='LogicalExpression')return
-        isInertSinkOperand(node.left)&&isInertSinkOperand(node.right);
+      if(node.type==='ConditionalExpression')return (
+        isInertSinkOperand(node.consequent)&&isInertSinkOperand(node.alternate));
+      if(node.type==='LogicalExpression')return (
+        isInertSinkOperand(node.left)&&isInertSinkOperand(node.right));
       return false;
     }
     /**
