@@ -1368,31 +1368,56 @@ function hasWeakMapPrototypeExposure(ast) {
         value=mergeCarrierValues(value,states[index].get(name)??carrierOther,memo);
       target.set(name,value);
     }
-    // A single concrete post-join container cannot encode aliases that exist
-    // on only some predecessors. When two bindings alias in any predecessor
-    // but not all predecessors, retain soundness by marking both joined
-    // containers as having an unknown overlapping slot. Static field reads
-    // then conservatively include MaybeWeakMap via carrierLookupValue.
+    // A single concrete post-join container cannot encode aliases that
+    // exist on only some predecessors. Equivalently, a binding must become
+    // unknown iff the set of bindings aliasing it differs between any two
+    // predecessor states. Compare entire alias partitions instead of the
+    // O(bindingCount² * predecessorCount) Cartesian pair loop. All groups are
+    // enumerated in a common ordered name sequence, so equal memberships
+    // have identical collision-free JSON signatures even if state Maps
+    // were populated in different insertion orders.
     const ordered=[...names];
-    for(let leftIndex=0;leftIndex<ordered.length;leftIndex++) {
-      for(let rightIndex=leftIndex+1;rightIndex<ordered.length;rightIndex++) {
-        const leftName=ordered[leftIndex];
-        const rightName=ordered[rightIndex];
-        let aliasSome=false;
-        let aliasAll=true;
-        for(const state of states) {
-          const left=state.get(leftName)??carrierOther;
-          const right=state.get(rightName)??carrierOther;
-          const aliases=left.kind==='container'&&right.kind==='container'&&left===right;
-          aliasSome=aliasSome||aliases;
-          aliasAll=aliasAll&&aliases;
+    /** @type {Map<string,number>} */
+    const internedGroups=new Map();
+    let nextGroupId=1;
+    /** @param {string[]} members @returns {number} */
+    function internGroup(members) {
+      const signature=JSON.stringify(members);
+      const prior=internedGroups.get(signature);
+      if(prior!==undefined)return prior;
+      const id=nextGroupId++;
+      internedGroups.set(signature,id);
+      return id;
+    }
+    /** @type {Map<string,number>[]} */
+    const aliasPartitions=states.map(state=>{
+      /** @type {Map<CarrierValue,string[]>} */
+      const groups=new Map();
+      /** @type {Map<string,number>} */
+      const assignment=new Map();
+      for(const name of ordered) {
+        const value=state.get(name)??carrierOther;
+        if(value.kind!=='container') {
+          // Noncontainers do not alias another binding at this boundary.
+          assignment.set(name,internGroup([name]));
+          continue;
         }
-        if(!aliasSome||aliasAll)continue;
-        const joinedLeft=target.get(leftName);
-        const joinedRight=target.get(rightName);
-        if(joinedLeft?.kind==='container')joinedLeft.unknown=true;
-        if(joinedRight?.kind==='container')joinedRight.unknown=true;
+        const members=groups.get(value)??[];
+        members.push(name);
+        groups.set(value,members);
       }
+      for(const members of groups.values()) {
+        const id=internGroup(members);
+        for(const name of members)assignment.set(name,id);
+      }
+      return assignment;
+    });
+    for(const name of ordered) {
+      const reference=aliasPartitions[0].get(name);
+      if(aliasPartitions.every(partition=>partition.get(name)===reference))
+        continue;
+      const joined=target.get(name);
+      if(joined?.kind==='container')joined.unknown=true;
     }
   }
   /**
