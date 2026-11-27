@@ -1890,6 +1890,44 @@ function hasWeakMapPrototypeExposure(ast) {
     return false;
   }
   /**
+   * A return or throw within a loop/switch may bypass statements after the
+   * enclosing construct. Bare break is consumed by the nearest loop/switch;
+   * bare continue is consumed by a loop but escapes a switch. Labeled exits
+   * are conservatively treated as potentially escaping. Ignore function
+   * declarations/expressions: their bodies are not executed at definition.
+   * @param {AstNode|null|undefined} statement
+   * @param {boolean} continueExits
+   * @returns {boolean}
+   */
+  function carrierMayEscapeConstruct(statement,continueExits) {
+    if(!statement)return false;
+    if(statement.type==='ReturnStatement'||statement.type==='ThrowStatement')
+      return true;
+    if(statement.type==='BreakStatement')return Boolean(statement.label);
+    if(statement.type==='ContinueStatement')
+      return continueExits||Boolean(statement.label);
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some(child=>
+        carrierMayEscapeConstruct(child,continueExits));
+    if(statement.type==='IfStatement')
+      return carrierMayEscapeConstruct(statement.consequent,continueExits)||
+        carrierMayEscapeConstruct(statement.alternate,continueExits);
+    if(statement.type==='TryStatement')
+      return carrierMayEscapeConstruct(statement.block,continueExits)||
+        carrierMayEscapeConstruct(statement.handler?.body,continueExits)||
+        carrierMayEscapeConstruct(statement.finalizer,continueExits);
+    if(statement.type==='LabeledStatement')
+      return carrierMayEscapeConstruct(statement.body,continueExits);
+    if(statement.type==='SwitchStatement')
+      return (statement.cases??[]).some(branch=>
+        (branch.consequent??[]).some(child=>
+          carrierMayEscapeConstruct(child,continueExits)));
+    if(['ForStatement','ForInStatement','ForOfStatement',
+        'WhileStatement','DoWhileStatement'].includes(statement.type))
+      return carrierMayEscapeConstruct(statement.body,false);
+    return false;
+  }
+  /**
    * Possible abrupt exits must retain their carrier state as an alternative
    * to the path which executes subsequent siblings. "Not definitely abrupt"
    * does not mean "definitely falls through"; e.g. a catch may resume when
@@ -1911,6 +1949,13 @@ function hasWeakMapPrototypeExposure(ast) {
         carrierMayAbrupt(statement.finalizer);
     if(statement.type==='LabeledStatement')
       return carrierMayAbrupt(statement.body);
+    if(statement.type==='SwitchStatement')
+      return (statement.cases??[]).some(branch=>
+        (branch.consequent??[]).some(child=>
+          carrierMayEscapeConstruct(child,true)));
+    if(['ForStatement','ForInStatement','ForOfStatement',
+        'WhileStatement','DoWhileStatement'].includes(statement.type))
+      return carrierMayEscapeConstruct(statement.body,false);
     return false;
   }
   /**
