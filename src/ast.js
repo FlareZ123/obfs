@@ -1928,6 +1928,50 @@ function hasWeakMapPrototypeExposure(ast) {
     return false;
   }
   /**
+   * Detect loop-body exits that skip the current loop's update expression,
+   * and continues that still require it. Breaks from nested switch/loop
+   * bodies are consumed there; only breaks at the current loop level skip
+   * its update. Return/throw may escape all levels. We deliberately regard
+   * labeled break/continue as possible skips unless resolved elsewhere.
+   * Closures and class declarations do not execute their bodies here.
+   * @param {AstNode|null|undefined} node
+   * @param {'skip'|'continue'} kind
+   * @param {number} [breakDepth=0]
+   * @param {number} [loopDepth=0]
+   * @returns {boolean}
+   */
+  function carrierLoopControl(node,kind,breakDepth=0,loopDepth=0) {
+    if(!node)return false;
+    if(functionTypes.has(node.type)||node.type==='ClassDeclaration'||
+       node.type==='ClassExpression')return false;
+    if(node.type==='ReturnStatement'||node.type==='ThrowStatement')
+      return kind==='skip';
+    if(node.type==='BreakStatement')
+      return kind==='skip'&&(Boolean(node.label)||breakDepth===0);
+    if(node.type==='ContinueStatement')
+      return kind==='skip'?Boolean(node.label):
+        !node.label&&loopDepth===0;
+    const isLoop=['ForStatement','ForInStatement','ForOfStatement',
+      'WhileStatement','DoWhileStatement'].includes(node.type);
+    const isBreakable=isLoop||node.type==='SwitchStatement';
+    const childBreakDepth=breakDepth+(isBreakable?1:0);
+    const childLoopDepth=loopDepth+(isLoop?1:0);
+    for(const value of Object.values(node)) {
+      if(Array.isArray(value)) {
+        for(const child of value) {
+          if(child&&typeof child==='object'&&typeof child.type==='string'&&
+             carrierLoopControl(child,kind,childBreakDepth,childLoopDepth))
+            return true;
+        }
+      } else if(value&&typeof value==='object'&&
+               typeof value.type==='string'&&
+               carrierLoopControl(value,kind,childBreakDepth,childLoopDepth)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  /**
    * Possible abrupt exits must retain their carrier state as an alternative
    * to the path which executes subsequent siblings. "Not definitely abrupt"
    * does not mean "definitely falls through"; e.g. a catch may resume when
@@ -2177,7 +2221,24 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
-      if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
+      if(statement.update) {
+        const maySkip=carrierLoopControl(statement.body,'skip');
+        if(!maySkip) {
+          visitCarrierExpression(statement.update,loopEnv,thisValue);
+        } else {
+          // Break/return/throw skips the for-update; an ordinary continue
+          // executes it. Preserve the skipped-update state instead of
+          // allowing a write in an unreachable update to kill a live map.
+          const skippedUpdate=forkCarrierEnvironment(loopEnv);
+          const definitelySkips=carrierDefinitelyAbrupt(statement.body)&&
+            !carrierLoopControl(statement.body,'continue');
+          if(!definitelySkips) {
+            const updated=forkCarrierEnvironment(loopEnv);
+            visitCarrierExpression(statement.update,updated,thisValue);
+            joinCarrierEnvironments(loopEnv,skippedUpdate,updated);
+          }
+        }
+      }
       /** @type {Map<string,CarrierValue>} */
       const postLoop=new Map();
       for(const [name,value] of loopEnv)
