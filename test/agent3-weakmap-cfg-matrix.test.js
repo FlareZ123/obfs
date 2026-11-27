@@ -218,6 +218,14 @@ const cases=[
 ['call-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
 ['call-optional-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target?.[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
 ['call-sequence-callee-before-arg','let carrier={instance:{}};function target(_v){};(carrier.instance={},target)((carrier.instance=new WeakMap(),0));','carrier.instance'],
+// Class expressions, like class declarations, execute instance field values
+// only when an instance is constructed, not when the class is defined.
+['class-expression-field-deferred','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};','carrier.instance'],
+['class-expression-field-deferred-object','const carrier={instance:new WeakMap()};const registry={Holder:class{x=(carrier.instance={});}};','carrier.instance'],
+['class-expression-field-deferred-factory','const carrier={instance:new WeakMap()};function factory(){return class{x=(carrier.instance={});}}const Holder=factory();','carrier.instance'],
+['class-expression-field-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance=new Ordinary());};new Holder();','carrier.instance'],
+['class-expression-field-deferred-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());};','carrier.instance'],
+['class-expression-computed-key-definition','let carrier={};const Holder=class{[(carrier.instance=new WeakMap(),"x")]=0;};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
