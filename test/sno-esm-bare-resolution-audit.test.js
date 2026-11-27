@@ -296,6 +296,70 @@ test('ESM audit refuses NODE_PRESERVE_SYMLINKS before symlinked package-resoluti
   });
 });
 
+
+test('ESM audit refuses --no-addons when the helper would resolve the wrong condition',async()=>{
+  await fixture(async temp=>{
+    const source=path.join(temp,'source','app');
+    const output=path.join(temp,'output','app');
+    const guarded=path.join(temp,'guarded','app');
+    const shared=path.join(temp,'shared');
+    await atomicWrite(path.join(shared,'native.mjs'),'export default 1000;');
+    await writeApplication(source);
+    /** @param {string} root @param {number} fallback */
+    async function conditionalPackage(root,fallback) {
+      const pkg=path.join(root,'node_modules',packageName);
+      await atomicWrite(path.join(pkg,'package.json'),JSON.stringify({
+        type:'module',
+        exports:{'.':{'node-addons':'./native-scope/native.mjs',default:'./fallback.mjs'}}
+      }));
+      await atomicWrite(path.join(pkg,'fallback.mjs'),
+        'export default '+String(fallback)+';');
+      await fs.symlink(shared,path.join(pkg,'native-scope'),
+        process.platform==='win32'?'junction':'dir');
+    }
+    await conditionalPackage(path.join(temp,'source'),103);
+    await conditionalPackage(path.join(temp,'output'),107);
+    await conditionalPackage(path.join(temp,'guarded'),107);
+    await main('sno',['--root',source,'--entry','entry.cjs',
+      '--out',output,'--seed','sno-no-addons-conditional-control']);
+
+    /** @param {string} file */
+    const runNative=file=>{
+      const child=spawnSync(process.execPath,['--no-addons','-e',
+        'process.stdout.write(String(require(process.argv[1])))',file],{
+          encoding:'utf8',timeout:15000,env:{...process.env,NODE_OPTIONS:''}
+        });
+      if(child.error)throw child.error;
+      assert.equal(child.status,0,child.stderr);
+      return Number(child.stdout);
+    };
+    assert.equal(runNative(path.join(source,'entry.cjs')),116);
+    assert.equal(runNative(path.join(output,'sno-entry.cjs')),120);
+    const args=['--root',source,'--entry','entry.cjs','--out',guarded,
+      '--seed','sno-no-addons-conditional-control','--audit-bare-esm'];
+    const script=[
+      'const {main}=require('+JSON.stringify(require.resolve('../src/cli'))+');',
+      'main("sno",'+JSON.stringify(args)+').then(',
+      '()=>{process.stderr.write("audit admitted changed dependency");process.exitCode=71;},',
+      'error=>{if(!/does not model custom loaders/u.test(String(error.message))){',
+      'process.stderr.write(String(error.stack||error));process.exitCode=72;',
+      '}else process.stdout.write("refused");});'
+    ].join('\n');
+    for(const {description,flags,options} of [
+      {description:'direct argv',flags:['--no-addons'],options:''},
+      {description:'inherited NODE_OPTIONS',flags:[],options:'--no-addons'}
+    ]) {
+      const child=spawnSync(process.execPath,[...flags,'-e',script],{
+        encoding:'utf8',timeout:30000,env:{...process.env,NODE_OPTIONS:options}
+      });
+      if(child.error)throw child.error;
+      assert.equal(child.status,0,description+': '+child.stderr);
+      assert.equal(child.stdout,'refused',description);
+    }
+    await assert.rejects(fs.stat(path.join(guarded,'sno-entry.cjs')),{code:'ENOENT'});
+  });
+});
+
 test('ESM audit rejects short -C conditions in direct argv and inherited NODE_OPTIONS',()=>{
   // The resolver helper is a child process: it inherits NODE_OPTIONS but not
   // the compiler's process.execArgv. Both forms must be refused explicitly.
