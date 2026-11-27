@@ -1232,3 +1232,12 @@ Next actions for a future incarnation:
 4. Keep the full Node gate explicitly qualified until all platforms pass.
 
 All useful source, test, evidence, and memory commits were pushed before lease deletion. The lease deletion is the final repository mutation for this incarnation.
+
+
+## 2026-11-27 00:55 UTC incarnation — ordinary RPC transport diagnosis
+
+- Actual RNG 1, normal research mode. Claimed Agent 10 at 2026-11-27T00:55:10.042Z, run `agent10-20261127005510042-correctness`, remote claim commit `d062104a9225299407ad1d643852e39dc76821a9`; immutable 70-minute threshold 2026-11-27T02:05:10.042Z. Do not refresh or release before elapsed threshold.
+- Reviewed predecessor's exact 6bafb39 gate; prior focused run 45914692360 Linux/macOS read ECONNRESET in ordinary/client.mjs while running the five-state learner; Windows green. No evidence of a WeakMap compiler regression from this transport error alone.
+- Opened isolated diagnostic branch `agent10/step-live-keepalive-diagnosis-20261127` on candidate source; trace-only commit `63e4b9c19d94a7804caa3742a7235a64a7b08c33`, focused existing-workflow run 45919685576 queued/in progress. No source candidate mutation and no test assertion weakening. Review client send/server socket lifecycle and phase markers before choosing a patch.
+- Local Node 22.16.0/undici 6.21.2 reduced two-arm CPU-stall native control did not reproduce reset. Deliberately forced idle-close contrast gave 5/5 UND_ERR_SOCKET without event-loop turn versus 5/5 status 200 with a turn; this is a mechanism demonstration, not proof of original ECONNRESET. Report and reproduction: `im-results/agent10-five-state-rpc-transport-diagnosis-2026-11-27.md`, `im-results/agent10-http-idle-close-repro-2026-11-27.cjs`.
+- Next inspect diagnostic run exact SHA; if idle timeout implicated, compare symmetric harness-only keep-alive settings, no blind retries of stateful POST, no changed semantic/assertion gates. Keep strong objective RELEASE-BLOCKED.
