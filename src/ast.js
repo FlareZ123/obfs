@@ -1720,7 +1720,7 @@ function hasWeakMapPrototypeExposure(ast) {
       // The synthetic name contains a NUL and cannot alias a JS identifier.
       const scoped=forkCarrierEnvironment(environment);
       const localClassName=node.id?.type==='Identifier'?node.id.name:null;
-      const internalName='\\u0000obfs-class-value-'+node.start+'-'+node.end;
+      const internalName='\u0000obfs-class-value-'+node.start+'-'+node.end;
       const declaration=/** @type {AstNode} */ ({
         ...node,type:'ClassDeclaration',
         id:{type:'Identifier',name:internalName,start:node.start,end:node.start},
