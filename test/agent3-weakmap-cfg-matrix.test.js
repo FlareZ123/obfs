@@ -133,6 +133,9 @@ const tail='\nconst nativeSet=nativePrototype.set;\n'+
 for(const [name,setup,access] of cases) {
   test('CFG carrier semantic parity: '+name,()=>{
     const nativeShared=Function('"use strict";\n'+setup+'\nreturn Object.getPrototypeOf('+access+')===WeakMap.prototype;')();
+    if(['switch-matched-selector-effect','switch-unmatched-selector-effect',
+        'switch-selector-after-default'].includes(name))
+      assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
     const group=hasWeakMapPrototypeExposure(mutationAst);
