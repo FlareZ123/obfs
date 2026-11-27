@@ -139,7 +139,17 @@ const cases=[
 // Catch-variable abstract provenance must use the post-expression throw edge.
 ['throw-sequence-updated-member','let result;const carrier={};try{throw (carrier.instance=new WeakMap(),carrier.instance);}catch(e){result=e;}','result'],
 ['throw-call-updated-member','let result;let carrier={};function fill(){carrier={instance:new WeakMap()};}try{throw (fill(),carrier.instance);}catch(e){result=e;}','result'],
-['throw-sequence-ordinary-control','class Ordinary{} let result;const carrier={};try{throw (carrier.instance=new Ordinary(),carrier.instance);}catch(e){result=e;}','result']
+['throw-sequence-ordinary-control','class Ordinary{} let result;const carrier={};try{throw (carrier.instance=new Ordinary(),carrier.instance);}catch(e){result=e;}','result'],
+// Native computed-key, heritage and constructor-callee evaluation occurs at
+// definition/use time. The effect interpreter must visit these expressions.
+['eval-order-object-computed-key','let carrier={};const o={[(carrier.instance=new WeakMap(),"x")]:0};','carrier.instance'],
+['eval-order-class-static-field-key','let carrier={};class Holder{static [(carrier.instance=new WeakMap(),"x")]=0;}','carrier.instance'],
+['eval-order-class-method-key','let carrier={};class Holder{static [(carrier.instance=new WeakMap(),"x")](){}}','carrier.instance'],
+['eval-order-assignment-lhs-key','let carrier={};const o={};o[(carrier.instance=new WeakMap(),"x")]=0;','carrier.instance'],
+['eval-order-destructure-key','let carrier={};const source={x:0};let x;({[(carrier.instance=new WeakMap(),"x")]:x}=source);','carrier.instance'],
+['eval-order-class-extends-expression','let carrier={};class Holder extends (carrier.instance=new WeakMap(),Object){}','carrier.instance'],
+['eval-order-new-callee-expression','let carrier={};class Holder{}new (carrier.instance=new WeakMap(),Holder)();','carrier.instance'],
+['eval-order-object-ordinary-control','class Ordinary{}let carrier={};const o={[(carrier.instance=new Ordinary(),"x")]:0};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
