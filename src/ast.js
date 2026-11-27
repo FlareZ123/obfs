@@ -1697,8 +1697,13 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
-    if(!getter)return;
-    target.properties.set(key,functionMayReturnWeakMap(getter.value)?
+    const setter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='set');
+    if(!getter&&!setter)return;
+    // The native descriptor remains an accessor across later writes, even
+    // if a helper assigns to its property or the setter does nothing.
+    target.accessors.add(key);
+    target.properties.set(key,getter&&functionMayReturnWeakMap(getter.value)?
       carrierMaybe:carrierOther);
   }
   /**
