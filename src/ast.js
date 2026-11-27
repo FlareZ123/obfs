@@ -3498,7 +3498,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // A detached writer method can be invoked with Function#call/apply or
   // Reflect.apply. Track simple source-visible aliases conservatively.
   const documentWriterRoots=new Set();
-  // Track DOM script/link-element creation and aliases for opaque integrity keys.
+  // Track DOM-created and queried script/link candidates through aliases for opaque integrity keys.
   const sriElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
@@ -3548,11 +3548,17 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       value.computed&&method===null;
   }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function createsSriBearingElement(value) {
+  function canProduceSriBearingElement(value) {
     if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
        !isDocumentReceiver(value.callee.object))return false;
     const method=value.callee.computed ? staticString(value.callee.property) :
       value.callee.property.type==='Identifier'?value.callee.property.name:null;
+    // A native Document query can return a pre-existing script/link with
+    // integrity metadata set through an opaque key. Do not infer that a
+    // CSS selector excludes these elements: the host can replace the query
+    // method before this script runs.
+    if(method==='getElementById'||method==='querySelector'||
+       value.callee.computed&&method===null)return true;
     if(method!=='createElement'&&method!=='createElementNS')return false;
     const tagArg=value.arguments[method==='createElement'?0:1];
     const tag=tagArg?.type==='SpreadElement'?null:tagArg?staticString(tagArg):null;
@@ -3561,7 +3567,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function isSriBearingElementTarget(value) {
     return value?.type==='Identifier' && sriElementRoots.has(value.name) ||
-      createsSriBearingElement(value);
+      canProduceSriBearingElement(value);
   }
   let changed;
   do {
@@ -3587,7 +3593,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
       // The Node process builtin is available from a CJS require and from
       // ESM namespace/default imports as well as from the global object.
-      if(binding?.type==='Identifier' && createsSriBearingElement(initial) &&
+      if(binding?.type==='Identifier' && canProduceSriBearingElement(initial) &&
          !sriElementRoots.has(binding.name)) {
         sriElementRoots.add(binding.name);
         changed=true;
