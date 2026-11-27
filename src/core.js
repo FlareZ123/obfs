@@ -150,6 +150,13 @@ function hasCommonJsStorageFactorySourceSink(files) {
         hasStorageFactory=true;
       if(node.type==='AssignmentExpression'&&node.operator==='='&&
          node.left.type==='MemberExpression') {
+        const receiver=node.left.object;
+        const commonJsExportReceiver=
+          receiver.type==='Identifier'&&receiver.name==='exports' ||
+          receiver.type==='MemberExpression'&&!receiver.computed&&
+            receiver.object.type==='Identifier'&&receiver.object.name==='module'&&
+            receiver.property.type==='Identifier'&&receiver.property.name==='exports';
+        if(commonJsExportReceiver)return;
         const value=node.right;
         if(value.type==='Identifier'||value.type==='FunctionExpression'||
            value.type==='ArrowFunctionExpression'||value.type==='CallExpression')
