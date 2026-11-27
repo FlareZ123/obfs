@@ -120,7 +120,13 @@ const cases=[
 ['both-branches-return-dead-overwrite','let carrier={instance:{}};function fill(){if(Math.random()>0.5){carrier.instance=new WeakMap();return;}else{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
 ['if-true-throw-dead-overwrite','let carrier={instance:{}};try{if(true){carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
 ['nested-block-throw-dead-overwrite','let carrier={instance:{}};try{{carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
-['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance']
+['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
+// Accessor descriptors are not own data slots: writes may invoke a no-op setter.
+// Order matters because getters and setters coalesce to one native descriptor.
+['accessor-getter-then-setter','const carrier={get instance(){return new WeakMap();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['accessor-setter-then-getter','const carrier={set instance(v){},get instance(){return new WeakMap();}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+// Native-negative yield control ensures an overbroad veto is not misreported as a pass.
+['accessor-ordinary-no-weakmap','class Ordinary{} const carrier={get instance(){return new Ordinary();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
