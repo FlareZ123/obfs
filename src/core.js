@@ -119,6 +119,29 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   const modules=new Map(files.filter(file=>file.sourceType==='module'&&
     typeof file.code==='string').map(file=>[file.path,file]));
+  /** @type {Map<string,Set<string>>} */
+  const callableExportOrigins=new Map();
+  for(const [producerPath,producer] of modules) {
+    const producerAst=parse(/** @type {string} */ (producer.code),'module');
+    for(const statement of producerAst.body??[]) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name) {
+        const origins=callableExportOrigins.get(declaration.id.name)??new Set();
+        origins.add(producerPath);
+        callableExportOrigins.set(declaration.id.name,origins);
+      }
+      if(declaration?.type==='VariableDeclaration') {
+        for(const entry of declaration.declarations??[]) {
+          if(entry.id.type!=='Identifier'||!entry.init||
+             !['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(entry.init.type))continue;
+          const origins=callableExportOrigins.get(entry.id.name)??new Set();
+          origins.add(producerPath);
+          callableExportOrigins.set(entry.id.name,origins);
+        }
+      }
+    }
+  }
   /** @type {Set<string>} */
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
@@ -135,9 +158,22 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          hasTerminalUrlDotSegment(specifier))continue;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(filename),specifier));
-      if(!modules.has(target))continue;
       for(const spec of statement.specifiers??[]) {
-        if(spec.local?.type==='Identifier')importedOrigins.set(spec.local.name,target);
+        if(spec.local?.type!=='Identifier')continue;
+        if(modules.has(target)) {
+          importedOrigins.set(spec.local.name,target);
+          continue;
+        }
+        // Build/test harnesses may relocate an otherwise closed supplied ESM
+        // graph after compilation. When the syntactic relative path therefore
+        // cannot match an input path, accept only a unique direct callable
+        // export bearing the imported name; ambiguity remains unproved.
+        if(spec.type==='ImportSpecifier') {
+          const exposed=spec.imported.name??spec.imported.value;
+          const origins=typeof exposed==='string'?
+            callableExportOrigins.get(exposed):undefined;
+          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+        }
       }
     }
     if(!importedOrigins.size)continue;
