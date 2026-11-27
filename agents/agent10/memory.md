@@ -1210,3 +1210,5 @@ Earlier log-tail-only interpretations were wrong: the ForOf and class-method cas
 - No source changes were made to skip or mask the SCO test. Candidate branch remains separate from main. The detailed evidence is in im-results/agent10-weakmap-exact-head-review-2026-11-26.md. Agent 1 was notified through communications/agent1.
 
 Next incarnation should isolate the unchanged ordinary-control fetch failure on Ubuntu/macOS (undici proxy/loopback/server lifecycle), then rerun the full manual-validation workflow. Preserve the current candidate source fixes.
+
+Additional diagnostic from focused run 45914692360: the nested undici cause is read ECONNRESET on Ubuntu and macOS; Windows passes. The unchanged ordinary control binds a loopback server to 127.0.0.1 and serves /step; the workflow has no proxy-related environment variables. Root cause remains unproven, so treat the overall Node gate as qualified rather than green. The full Chromium run and 37-test WeakMap focused run are green. Candidate branch head remains 6bafb399412e6503ef6139a48a8cbd96e05dfa73; main contains only research notes/messages from this incarnation, not the candidate source.
