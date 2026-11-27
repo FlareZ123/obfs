@@ -104,6 +104,156 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Find ESM producer files whose imported values reach a proven browser
+ * DOMString/TrustedHTML coercion sink in another supplied module. Protect the
+ * producer's function source byte-for-byte while leaving unrelated primitive
+ * modules eligible for local obfuscation.
+ *
+ * This intentionally recognizes only exact relative imports and narrow DOM
+ * receiver provenance. Unknown receivers do not trigger a name-only veto.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @param {Map<string,Set<string>>} importedPrimitives
+ * @param {Map<string,Map<string,string>>} importedStrings
+ * @returns {Set<string>}
+ */
+function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
+  const modules=new Map(files.filter(file=>file.sourceType==='module'&&
+    typeof file.code==='string').map(file=>[file.path,file]));
+  /** @type {Map<string,Set<string>>} */
+  const callableExportOrigins=new Map();
+  for(const [producerPath,producer] of modules) {
+    const producerAst=parse(/** @type {string} */ (producer.code),'module');
+    for(const statement of producerAst.body??[]) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name) {
+        const origins=callableExportOrigins.get(declaration.id.name)??new Set();
+        origins.add(producerPath);
+        callableExportOrigins.set(declaration.id.name,origins);
+      }
+      if(declaration?.type==='VariableDeclaration') {
+        for(const entry of declaration.declarations??[]) {
+          if(entry.id.type!=='Identifier'||!entry.init||
+             !['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(entry.init.type))continue;
+          const origins=callableExportOrigins.get(entry.id.name)??new Set();
+          origins.add(producerPath);
+          callableExportOrigins.set(entry.id.name,origins);
+        }
+      }
+    }
+  }
+  /** @type {Set<string>} */
+  const protectedPaths=new Set();
+  for(const [filename,file] of modules) {
+    const ast=parse(/** @type {string} */ (file.code),'module');
+    /** @type {Map<string,string>} */
+    const importedOrigins=new Map();
+    for(const statement of ast.body??[]) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const specifier=statement.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+         hasUrlPathnameNormalizationHazard(specifier)||
+         hasTerminalUrlDotSegment(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      for(const spec of statement.specifiers??[]) {
+        if(spec.local?.type!=='Identifier')continue;
+        if(modules.has(target)) {
+          importedOrigins.set(spec.local.name,target);
+          continue;
+        }
+        // Build/test harnesses may relocate an otherwise closed supplied ESM
+        // graph after compilation. When the syntactic relative path therefore
+        // cannot match an input path, accept only a unique direct callable
+        // export bearing the imported name; ambiguity remains unproved.
+        if(spec.type==='ImportSpecifier') {
+          const exposed=spec.imported.name??spec.imported.value;
+          const origins=typeof exposed==='string'?
+            callableExportOrigins.get(exposed):undefined;
+          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+        }
+      }
+    }
+    if(!importedOrigins.size)continue;
+    const provenPrimitive=importedPrimitives.get(filename)??new Set();
+    const provenStrings=importedStrings.get(filename)??new Map();
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function importedOrigin(node) {
+      if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
+         provenStrings.has(node.name))return null;
+      return importedOrigins.get(node.name)??null;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isDocument(node) {
+      return Boolean(node?.type==='Identifier'&&node.name==='document');
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function member(node) {
+      if(node?.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    const domValues=new Set();
+    const htmlStreams=new Set();
+    const htmlWriters=new Set();
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+          node.id:null;
+        const value=node.type==='VariableDeclarator'?node.init:null;
+        if(!binding||!value)return;
+        if(value.type==='Identifier'&&domValues.has(value.name)&&
+           !domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+        if(value.type==='CallExpression'&&value.callee.type==='MemberExpression') {
+          const owner=value.callee.object;
+          const method=member(value.callee);
+          if(isDocument(owner)&&
+             ['createElement','createTextNode','getElementById','querySelector'].
+               includes(method??'')&&!domValues.has(binding.name)) {
+            domValues.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&domValues.has(owner.name)&&
+             /^stream(?:Append|Prepend|Before|After|ReplaceWith)?HTML(?:Unsafe)?$/u.
+               test(method??'')&&!htmlStreams.has(binding.name)) {
+            htmlStreams.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&htmlStreams.has(owner.name)&&
+             method==='getWriter'&&!htmlWriters.has(binding.name)) {
+            htmlWriters.add(binding.name);changed=true;
+          }
+        }
+        if(value.type==='MemberExpression'&&isDocument(value.object)&&
+           member(value)==='body'&&!domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+      });
+    }while(changed);
+    walk(ast,node=>{
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression'&&
+         node.left.object.type==='Identifier'&&
+         domValues.has(node.left.object.name)) {
+        const origin=importedOrigin(node.right);
+        if(origin)protectedPaths.add(origin);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&
+         htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
+        const origin=importedOrigin(node.arguments[0]);
+        if(origin)protectedPaths.add(origin);
+      }
+    });
+  }
+  return protectedPaths;
+}
+
+/**
  * Conservatively detect a bounded CommonJS flow where one supplied module
  * exports or contains a function that can return native Web Storage and a
  * statically linked sibling writes a potentially callable value through an
@@ -2087,6 +2237,9 @@ function obfuscateFiles(files, options = {}) {
     collectImportedFunctionArrays(prepared) : new Map();
   const importedStorageMethodAliases=prepared.length>1 ?
     collectImportedStorageMethodAliases(prepared) : new Map();
+  const esmDomSourceProducers=prepared.length>1&&options.closedWorld ?
+    esmDomSourceProducerPaths(prepared,importedPrimitiveProof,importedStringProof) :
+    new Set();
   // Parse the supplied JavaScript files once for source-observer analysis.
   // The WeakMap prototype is shared across modules, so an exposure in any
   // supplied file must invalidate reference-only Storage proofs in siblings.
@@ -2145,11 +2298,17 @@ function obfuscateFiles(files, options = {}) {
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
-  if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
+  if((remoteSourceObserver||hostLockSourceObserver||esmDomSourceProducers.size) &&
+      allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) : {files:prepared,objects:0,properties:0};
+  // Cross-file property rewriting can mutate a protected producer even when
+  // the observing consumer is a different module. Disable only that group
+  // transform; unaffected files below still retain their local obfuscation.
+  const cross = !remoteSourceObserver&&!esmDomSourceProducers.size &&
+      options.closedWorld && options.properties !== false ?
+    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) :
+    {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2185,6 +2344,7 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
+    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
@@ -2195,7 +2355,7 @@ function obfuscateFiles(files, options = {}) {
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
@@ -2211,7 +2371,7 @@ function obfuscateFiles(files, options = {}) {
     const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
@@ -2227,7 +2387,7 @@ function obfuscateFiles(files, options = {}) {
     const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Native graph requires a module/CommonJS without cross-file source observation');
       }
       if(nativeNames.some(name=>expressionNames.includes(name))) {
@@ -2248,7 +2408,7 @@ function obfuscateFiles(files, options = {}) {
     const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Branch blocks require a module/CommonJS without cross-file source observation');
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
@@ -2265,7 +2425,7 @@ function obfuscateFiles(files, options = {}) {
     const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
-      if(sourceType==='script'||remoteSourceObserver){
+      if(sourceType==='script'||fileSourceObserver){
         throw new TypeError('Statement flow requires a module/CommonJS without cross-file source observation');
       }
       if(statementNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2287,7 +2447,7 @@ function obfuscateFiles(files, options = {}) {
     const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         const wasmRefusalReason=prepared.length>1
           ?'Wasm i32 requires a module/CommonJS without cross-file source observation'
           :'requires a module/CommonJS without function-source observation';
@@ -2314,7 +2474,7 @@ function obfuscateFiles(files, options = {}) {
     const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
       }
       if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2340,7 +2500,7 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+    if (!fileSourceObserver &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
@@ -2352,7 +2512,7 @@ function obfuscateFiles(files, options = {}) {
       ast = parse(code,sourceType);
     }
     let bindings=0;
-    if(!remoteSourceObserver && options.identifiers!==false) {
+    if(!fileSourceObserver && options.identifiers!==false) {
       const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
       code=renamed.code;
       bindings=renamed.bindings;
@@ -2361,7 +2521,7 @@ function obfuscateFiles(files, options = {}) {
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
-    if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
+    if (shouldEncodeStrings && !unsafeDecoderIntrinsic && !fileSourceObserver) {
       const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
       code = modified.code;
       literals = modified.count;
