@@ -1253,7 +1253,9 @@ function hasWeakMapPrototypeExposure(ast) {
   function carrierLookupValue(container,key) {
     if(container.kind!=='container')return carrierOther;
     if(key!==null) {
-      if(container.properties.has(key))return container.properties.get(key)??carrierOther;
+      const known=container.properties.get(key)??carrierOther;
+      if(container.properties.has(key))
+        return container.unknown?mergeCarrierValues(known,carrierMaybe):known;
       return container.unknown?carrierMaybe:carrierOther;
     }
     let value=carrierOther;
@@ -1343,6 +1345,32 @@ function hasWeakMapPrototypeExposure(ast) {
       for(let index=1;index<states.length;index++)
         value=mergeCarrierValues(value,states[index].get(name)??carrierOther,memo);
       target.set(name,value);
+    }
+    // A single concrete post-join container cannot encode aliases that exist
+    // on only some predecessors. When two bindings alias in any predecessor
+    // but not all predecessors, retain soundness by marking both joined
+    // containers as having an unknown overlapping slot. Static field reads
+    // then conservatively include MaybeWeakMap via carrierLookupValue.
+    const ordered=[...names];
+    for(let leftIndex=0;leftIndex<ordered.length;leftIndex++) {
+      for(let rightIndex=leftIndex+1;rightIndex<ordered.length;rightIndex++) {
+        const leftName=ordered[leftIndex];
+        const rightName=ordered[rightIndex];
+        let aliasSome=false;
+        let aliasAll=true;
+        for(const state of states) {
+          const left=state.get(leftName)??carrierOther;
+          const right=state.get(rightName)??carrierOther;
+          const aliases=left.kind==='container'&&right.kind==='container'&&left===right;
+          aliasSome=aliasSome||aliases;
+          aliasAll=aliasAll&&aliases;
+        }
+        if(!aliasSome||aliasAll)continue;
+        const joinedLeft=target.get(leftName);
+        const joinedRight=target.get(rightName);
+        if(joinedLeft?.kind==='container')joinedLeft.unknown=true;
+        if(joinedRight?.kind==='container')joinedRight.unknown=true;
+      }
     }
   }
   /**
