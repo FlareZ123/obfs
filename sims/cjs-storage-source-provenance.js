@@ -291,9 +291,12 @@ function traceCjsStorageSourceSinks(files){
       propertyName(lhs.property);
     const receiver=evaluate(lhs.object,env,shadowed,file,new Set());
     const value=evaluate(assignment.right,env,shadowed,file,new Set());
-    // Only potential source-bearing RHS is a diagnostic candidate. Primitive
-    // controls still expose their preserved-yield admission boundary.
-    if(receiver.kind==='storage'||value.kind==='callable'){
+    // Unknown receiver effects remain visible even for primitive inputs:
+    // missing source text is not proof that an opaque host method/accessor
+    // cannot inspect caller frames or mutate the ambient program. Primitive
+    // controls on *proved* native Storage retain a separate diagnostic class.
+    if(receiver.kind==='storage'||receiver.kind==='unknown'||
+       value.kind==='callable'){
       /** @type {SourceSink['classification']} */
       let classification='unknown-host';
       if(receiver.kind==='storage'&&value.kind==='callable')classification='source-sensitive';
