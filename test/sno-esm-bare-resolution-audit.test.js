@@ -258,6 +258,44 @@ test('ESM audit refuses custom conditions, loaders and symlink-preservation mode
 });
 
 
+
+test('ESM audit refuses NODE_PRESERVE_SYMLINKS before symlinked package-resolution drift',async()=>{
+  await fixture(async temp=>{
+    const real=path.join(temp,'real');
+    const source=path.join(real,'source');
+    const output=path.join(real,'output');
+    const guarded=path.join(real,'guarded');
+    const publicDir=path.join(temp,'public');
+    const alias=path.join(publicDir,'source-alias');
+    await writeApplication(source);
+    await writePackage(real,103,401);
+    await writePackage(publicDir,107,401);
+    await fs.mkdir(publicDir,{recursive:true});
+    await fs.symlink(source,alias,process.platform==='win32'?'junction':'dir');
+    const previous=process.env.NODE_PRESERVE_SYMLINKS;
+    process.env.NODE_PRESERVE_SYMLINKS='1';
+    try {
+      // The program is loaded by require() from a Node -e invocation,
+      // rather than as a symlink-canonicalized main entrypoint.
+      if(process.platform!=='win32') {
+        assert.equal(execute(path.join(alias,'entry.cjs')),120);
+      }
+      await main('sno',['--root',alias,'--entry','entry.cjs','--out',output,
+        '--seed','sno-esm-preserve-symlink-control']);
+      assert.equal(execute(path.join(output,'sno-entry.cjs')),116);
+      await assert.rejects(
+        main('sno',['--root',alias,'--entry','entry.cjs','--out',guarded,
+          '--seed','sno-esm-preserve-symlink-control','--audit-bare-esm']),
+        /does not model custom loaders/u
+      );
+      await assert.rejects(fs.stat(path.join(guarded,'sno-entry.cjs')),{code:'ENOENT'});
+    } finally {
+      if(previous===undefined)delete process.env.NODE_PRESERVE_SYMLINKS;
+      else process.env.NODE_PRESERVE_SYMLINKS=previous;
+    }
+  });
+});
+
 test('ESM audit rejects short -C conditions in direct argv and inherited NODE_OPTIONS',()=>{
   // The resolver helper is a child process: it inherits NODE_OPTIONS but not
   // the compiler's process.execArgv. Both forms must be refused explicitly.
