@@ -92,7 +92,11 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
     await atomicWrite(privateFile,originalSource);
     const privateModule=await import(pathToFileURL(privateFile).href);
     const methods=bindScoModuleExports(partition,privateModule);
-    const activeServer=http.createServer(createScoHandler([partition.clientFile],{
+    // The loopback servers share an event loop with synchronous learner scans.
+    // Keep the same bounded idle window in both control arms to avoid racing
+    // the default 5s expiry during those scans. This is harness-only policy.
+    const localHttpOptions={keepAliveTimeout:60_000};
+    const activeServer=http.createServer(localHttpOptions,createScoHandler([partition.clientFile],{
       remoteMethods:methods,
       authorizeRpc:request=>request.headers.cookie==='session=approved',
       authorizeOperation:(request,method,args)=>
@@ -132,7 +136,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
     assert.equal(api.reset,undefined,'Reset unexpectedly published');
 
     if(matchedControl){
-      const ordinaryHandler=http.createServer((request,response)=>{
+      const ordinaryHandler=http.createServer(localHttpOptions,(request,response)=>{
         if(request.method!=='POST'||request.url!=='/step'){
           response.statusCode=404;response.end();return;
         }

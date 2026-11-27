@@ -1,0 +1,287 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { test } = require('node:test');
+const { obfuscateFiles } = require('../src');
+const { observesFunctionSource, parse } = require('../src/ast');
+
+const commonTail = [
+  'const weakMapPrototype=getPrototype(WEAK_MAP_VALUE);',
+  'const nativeWeakMapSet=weakMapPrototype.set;',
+  'weakMapPrototype.set=function(key,value){',
+  '  document.title=value;',
+  '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+  '};',
+  "const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,'setItem');",
+  'const captured=new WeakMap();',
+  'function inspect(){const privateLocal=29;return privateLocal;}',
+  'function independent(){const independentLocal=7;return independentLocal;}',
+  'export function sample(){',
+  '  Object.defineProperty(Storage.prototype,"setItem",{',
+  '    ...descriptor,',
+  '    value:function(_key,value){captured.set(this,value);}',
+  '  });',
+  "  localStorage.setItem('weakmap-container-source',inspect);",
+  '  return {value:inspect(),independent:independent()};',
+  '}'
+];
+
+/**
+ * Execute a generated ESM module with Web Storage and Document.title shims.
+ * @param {string} moduleSource
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function run(moduleSource) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'obfs-weakmap-container-'));
+  try {
+    fs.writeFileSync(path.join(directory, 'entry.mjs'), moduleSource, 'utf8');
+    const runner = [
+      'class Storage {',
+      '  constructor(){this.data=new Map();}',
+      '  setItem(key,value){this.data.set(String(key),String(value));}',
+      '}',
+      'globalThis.Storage=Storage;',
+      'globalThis.localStorage=new Storage();',
+      'let documentTitle="";',
+      'globalThis.document={};',
+      'Object.defineProperty(globalThis.document,"title",{',
+      '  get(){return documentTitle;},',
+      '  set(value){documentTitle=String(value);}',
+      '});',
+      "const {sample}=await import('./entry.mjs');",
+      'const result=sample();',
+      'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+    ].join('\n');
+    fs.writeFileSync(path.join(directory, 'runner.mjs'), runner, 'utf8');
+    const child = spawnSync(process.execPath, [path.join(directory, 'runner.mjs')], {
+      cwd: directory,
+      encoding: 'utf8',
+      timeout: 15000
+    });
+    assert.equal(child.status, 0, child.stderr || child.error?.message);
+    return /** @type {{result:{value:number,independent:number},capturedSource:string}} */ (
+      JSON.parse(child.stdout)
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+/**
+ * @param {{name:string,setup:string,access:string}} fixture
+ */
+function verifyCarrierRefusal(fixture) {
+  const lines = [
+    "function getPrototype(value){return value.constructor.prototype;}",
+    fixture.setup,
+    ...commonTail.map(line => line.replace('WEAK_MAP_VALUE', fixture.access))
+  ];
+  const source = lines.join('\n');
+  const observed = observesFunctionSource(parse(source, 'module'));
+  const compiled = obfuscateFiles([{
+    path: 'entry.mjs',
+    sourceType: 'module',
+    code: source
+  }], {
+    mode: 'coo',
+    seed: 'agent3-weakmap-container-' + fixture.name,
+    properties: false,
+    identifiers: true,
+    strings: false
+  });
+  const app = compiled.files.find(file => file.path === 'entry.mjs');
+  assert.ok(app);
+  const native = run(source);
+  const emitted = run(String(app.code));
+  const evidence = {
+    fixture: fixture.name,
+    observed,
+    metrics: app.metrics,
+    native,
+    emitted,
+    source: app.code
+  };
+
+  // The direct source-observer recognizer may independently recognize the
+  // constructor chain; the important invariant is that the emitted source is preserved.
+  assert.equal(app.metrics.bindings,0, JSON.stringify(evidence));
+  assert.deepEqual(emitted.result, native.result);
+  assert.ok(native.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource, native.capturedSource, JSON.stringify(evidence));
+  assert.ok(emitted.capturedSource.includes('privateLocal'), JSON.stringify(evidence));
+  return evidence;
+}
+
+/**
+ * A WeakMap passed to a local prototype reader is not an escape when the
+ * returned prototype is discarded and the actually mutated prototype belongs
+ * to an unrelated ordinary object.
+ * @param {{name:string,setup:string,access:string}} fixture
+ */
+function verifySafeLocalReader(fixture) {
+  const lines = [
+    "function getPrototype(value){return value.constructor.prototype;}",
+    fixture.setup,
+    ...commonTail.map(line => line.replace('WEAK_MAP_VALUE', fixture.access))
+  ];
+  const source = lines.join('\n');
+  const observed = observesFunctionSource(parse(source, 'module'));
+  const compiled = obfuscateFiles([{
+    path: 'entry.mjs',
+    sourceType: 'module',
+    code: source
+  }], {
+    mode: 'coo',
+    seed: 'agent1-weakmap-discarded-prototype-' + fixture.name,
+    properties: false,
+    identifiers: true,
+    strings: false
+  });
+  const app = compiled.files.find(file => file.path === 'entry.mjs');
+  assert.ok(app);
+  const native = run(source);
+  const emitted = run(String(app.code));
+  const evidence = {fixture:fixture.name,observed,metrics:app.metrics,native,emitted,source:app.code};
+  assert.equal(observed,false,JSON.stringify(evidence));
+  assert.ok(app.metrics.bindings>=2,JSON.stringify(evidence));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(native.capturedSource,'',JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+  return evidence;
+}
+
+const carrierFixtures = [
+  {
+    name: 'object-member',
+    setup: 'const protoCarrier={instance:new WeakMap()};',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'array-index',
+    setup: 'const protoCarrier=[new WeakMap()];',
+    access: 'protoCarrier[0]'
+  },
+  {
+    name: 'nested-object-member',
+    setup: 'const protoCarrier={nested:{instance:new WeakMap()}};',
+    access: 'protoCarrier.nested.instance'
+  },
+  {
+    name: 'object-destructure',
+    setup: 'const protoCarrier={instance:new WeakMap()}; const {instance:map}=protoCarrier;',
+    access: 'map'
+  },
+  {
+    name: 'array-destructure',
+    setup: 'const protoCarrier=[new WeakMap()]; const [map]=protoCarrier;',
+    access: 'map'
+  },
+  {
+    name: 'member-assignment',
+    setup: 'const protoCarrier={}; protoCarrier.instance=new WeakMap();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'container-alias',
+    setup: 'const protoCarrier={instance:new WeakMap()}; const alias=protoCarrier;',
+    access: 'alias.instance'
+  },
+  {
+    name: 'spread-copy',
+    setup: 'const inner={instance:new WeakMap()}; const protoCarrier={...inner};',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'computed-static-member',
+    setup: 'const protoCarrier={instance:new WeakMap()};',
+    access: "protoCarrier['instance']"
+  },
+  {
+    name: 'function-returned-container-binding',
+    setup: 'function makeCarrier(){const carrier={instance:new WeakMap()};return carrier;} const protoCarrier=makeCarrier();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'function-returned-member-assigned-container',
+    setup: 'function makeCarrier(){const carrier={};carrier.instance=new WeakMap();return carrier;} const protoCarrier=makeCarrier();',
+    access: 'protoCarrier.instance'
+  },
+  {
+    name: 'class-static-block-local-carrier',
+    setup: 'class Carrier { static { const carrier={instance:new WeakMap()}; getPrototype(carrier.instance); } } const ordinary=Object.create({constructor:function Custom(){}});',
+    access: 'ordinary'
+  },
+  {
+    name: 'arrow-expression-local-carrier',
+    setup: 'const protoCarrier={instance:new WeakMap()}; const get=()=>getPrototype(protoCarrier.instance); get(); const ordinary=Object.create({constructor:function Custom(){}});',
+    access: 'ordinary'
+  },
+  {
+    name: 'object-destructuring-assignment-carrier',
+    setup: 'let map; const protoCarrier={instance:new WeakMap()}; ({instance:map}=protoCarrier);',
+    access: 'map'
+  },
+  {
+    name: 'array-destructuring-assignment-carrier',
+    setup: 'let map; const protoCarrier=[new WeakMap()]; [map]=protoCarrier;',
+    access: 'map'
+  }
+];
+
+const discardedLocalPrototypeFixtures=new Set([
+  'class-static-block-local-carrier',
+  'arrow-expression-local-carrier'
+]);
+for (const fixture of carrierFixtures) {
+  const discardedLocalPrototype=discardedLocalPrototypeFixtures.has(fixture.name);
+  test((discardedLocalPrototype?
+    'discarded local prototype read remains renameable: ':
+    'object/array carrier flow is conservatively refused: ') + fixture.name, () => {
+    const evidence = discardedLocalPrototype?
+      verifySafeLocalReader(fixture):verifyCarrierRefusal(fixture);
+    process.stdout.write('WEAKMAP_CONTAINER_REFUSED ' + JSON.stringify({
+      fixture: evidence.fixture,
+      observed: evidence.observed,
+      bindings: evidence.metrics.bindings,
+      nativeSource: evidence.native.capturedSource,
+      emittedSource: evidence.emitted.capturedSource
+    }) + '\n');
+  });
+}
+
+test('direct WeakMap instance argument remains a detected positive control', () => {
+  const source = [
+    'const weakMapPrototype=Object.getPrototypeOf(new WeakMap());',
+    ...commonTail.slice(1)
+  ].join('\n');
+  assert.equal(observesFunctionSource(parse(source, 'module')), true);
+});
+
+
+test('a local prototype-return helper remains an escape when its result is mutated',()=>{
+  const source=[
+    "function getPrototype(value){return value.constructor.prototype;}",
+    'const weakMapPrototype=getPrototype(new WeakMap());',
+    ...commonTail.slice(1)
+  ].join('\n');
+  const observed=observesFunctionSource(parse(source,'module'));
+  const compiled=obfuscateFiles([{
+    path:'entry.mjs',sourceType:'module',code:source
+  }],{
+    mode:'coo',seed:'agent1-local-prototype-return-mutated',
+    properties:false,identifiers:true,strings:false
+  });
+  const app=compiled.files.find(file=>file.path==='entry.mjs');
+  assert.ok(app);
+  const native=run(source);
+  const emitted=run(String(app.code));
+  const evidence={observed,metrics:app.metrics,native,emitted};
+  assert.equal(observed,true,JSON.stringify(evidence));
+  assert.equal(app.metrics.bindings,0,JSON.stringify(evidence));
+  assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(evidence));
+  assert.equal(emitted.capturedSource,native.capturedSource,JSON.stringify(evidence));
+});

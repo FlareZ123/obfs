@@ -9,11 +9,12 @@ const original=[
   'const owner={hiddenCount:11,privateDelta:5};',
   'const tuple=[false,"metadata",owner,null];',
   'const alias=tuple[2];',
-  'module.exports=function score(n){',
+  'function score(n){',
   '  let sum=0;',
   '  for(let i=0;i<n;i++)sum=(sum+((alias.hiddenCount+i)&255)+owner.privateDelta)|0;',
   '  return sum;',
-  '};'
+  '}',
+  'module.exports=score(operations);'
 ].join('\n');
 
 /** @param {number[]} values @returns {number} */
@@ -33,11 +34,14 @@ function median(values){
  */
 function executeCold(code,count){
   const begin=performance.now();
-  const context=createContext({module:{exports:null}});
-  const script=new Script(code,{filename:'tuple-session.cjs'});
-  script.runInContext(context,{timeout:15000});
-  const score=/** @type {(n:number)=>number} */(context.module.exports);
-  const value=score(count);
+  const context=createContext({operations:count});
+  const module={exports:{}};
+  const require=()=>{throw new Error('Unexpected require in private tuple profile');};
+  const wrapperSource='(function(exports,require,module,__filename,__dirname){\n'+code+'\n})';
+  const script=new Script(wrapperSource,{filename:'tuple-session.cjs'});
+  const wrapper=/** @type {Function} */(script.runInContext(context,{timeout:15000}));
+  wrapper.call(module.exports,module.exports,require,module,'/virtual/tuple-session.cjs','/virtual');
+  const value=/** @type {number} */(module.exports);
   return {ms:performance.now()-begin,value};
 }
 
@@ -82,7 +86,7 @@ function runProfile(){
     sourceBytes:Buffer.byteLength(original),
     outputBytes:Buffer.byteLength(protectedSource),
     renamedProperties:file.metrics.properties,
-    timing:'11 alternating trials, each fresh V8 context and JS parse/compile + one complete callable session; no build I/O',
+    timing:'11 alternating trials, each fresh V8 context and JS parse/compile + one complete private callable execution; no build I/O',
     rows};
 }
 

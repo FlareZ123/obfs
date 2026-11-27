@@ -135,3 +135,45 @@ test('reserved and Unicode filesystem document segments are URL-encoded before S
     }
   }
 });
+
+
+test('HTML and XHTML preserve SRI pins through encoded-slash dot-segment aliases',()=>{
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    for(const extension of ['html','xhtml']) {
+      const result=compile('public/client.js','public/index.'+extension,
+        './folder%2F..%2Fclient.js',mode);
+      assert.equal(result.emitted,result.source,
+        extension+' '+mode+': decoded slash and dot segments must match the pinned file');
+    }
+  }
+});
+
+test('unrelated encoded-slash dot-segment SRI paths retain positive transformation yield',()=>{
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    const result=compile('public/client.js','public/index.html',
+      './folder%2F..%2Fother.js',mode);
+    assert.notEqual(result.emitted,result.source,
+      mode+': unrelated decoded path must not suppress transformation');
+  }
+});
+
+
+test('HTML and XHTML preserve SRI pins through encoded-backslash Win32 dot-segment aliases',()=>{
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    for(const extension of ['html','xhtml']) {
+      const result=compile('public/client.js','public/index.'+extension,
+        './folder%5C..%5Cclient.js',mode);
+      assert.equal(result.emitted,result.source,
+        extension+' '+mode+': decoded Win32 separators must match the pinned file');
+    }
+  }
+});
+
+test('unrelated encoded-backslash Win32 paths retain positive transformation yield',()=>{
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    const result=compile('public/client.js','public/index.html',
+      './folder%5C..%5Cother.js',mode);
+    assert.notEqual(result.emitted,result.source,
+      mode+': unrelated decoded Win32 path must not suppress transformation');
+  }
+});

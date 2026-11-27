@@ -1,15 +1,16 @@
 'use strict';
 
 const path = require('node:path');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
-const {renameLocalProperties,collectBindings} = require('./properties');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface,hasWeakMapPrototypeExposure} = require('./ast');
+const {renameLocalProperties,collectBindings,hasUnmodeledNativeBindGlobalReference} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays,collectImportedStorageMethodAliases} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -38,9 +39,10 @@ const {canonicalAllowedHosts}=require('./hosts');
  * checks the host and could perform arbitrary effects.
  *
  * This deliberately excludes opaque assets, scripts, bare package imports,
- * URL/query/fragment specifiers, case-mismatched filenames, and undeclared
- * dependencies. Module cycles are safe for this boundary because each module
- * body starts with its own guard, irrespective of evaluation order.
+ * URL/query/fragment and encoded specifiers, repeated-separator paths,
+ * case-mismatched filenames, and undeclared dependencies. Module cycles are
+ * safe for this boundary because each module body starts with its own guard,
+ * irrespective of evaluation order.
  *
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {boolean}
@@ -56,7 +58,7 @@ function completeGuardedModuleGraph(files) {
       const specifier=statement.source.value;
       if(typeof specifier!=='string' ||
           (!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-          /[?#%\\\\]/u.test(specifier))return false;
+          /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
       const target=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
       if(!known.has(target))return false;
     }
@@ -158,7 +160,7 @@ function staticallyImportedEsmTargets(files) {
       if(!source||source.type!=='Literal'||typeof source.value!=='string')continue;
       const specifier=source.value;
       if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-         /[?#%\\\\]/u.test(specifier))continue;
+         /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))continue;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
@@ -189,7 +191,7 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
     if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-       /[?#%\\]/u.test(specifier))return false;
+       /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
     const target=path.posix.normalize(
       path.posix.join(path.posix.dirname(filename),specifier));
     return knownJavaScript.has(target);
@@ -1981,6 +1983,23 @@ function obfuscateFiles(files, options = {}) {
       byPath.set(selectedPath,names.slice());
     }
   }
+  // Snapshot every selected function list before reading the lazy closedWorld
+  // option: its getter may mutate caller-owned selection arrays.
+  // Admit the narrow native-bind target proof only for a closed source graph
+  // whose files satisfy the strict top-level fn.bind(null) grammar and have no
+  // unresolved ambient identifiers or imports. This is a rewrite-eligibility
+  // proof, not source secrecy: a hostile host preloader can capture the
+  // already-transformed target function.
+  const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
+    prepared.every(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return false;
+      const inputAst=parse(file.code,file.sourceType);
+      return !hasUnsafeNativeBindMutationSurface(inputAst)&&
+        !hasUnmodeledNativeBindGlobalReference(inputAst,file.sourceType==='commonjs')&&
+        !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
+        !(file.sourceType==='commonjs'&&
+          hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
+    });
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(allowedHosts?.length && options.closedWorld &&
@@ -1989,9 +2008,9 @@ function obfuscateFiles(files, options = {}) {
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
   assertReviewedOpaqueAssets(prepared,options.reviewedOpaqueAssets);
-  // A function declared in one ESM/classic-script file may have its source
-  // observed by another supplied file. File-local proofs cannot see that
-  // consumer, so preserve all original source spellings across the file group.
+  // Function source can be observed locally or by another supplied file.
+  // Analyze every file, seeding cross-file import provenance where available,
+  // before any source-coordinate or identifier rewrite is permitted.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
   const importedPrimitiveProof=prepared.length>1 && options.closedWorld ?
@@ -2002,28 +2021,47 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
-  // Declared HTML script/modulepreload SRI metadata also observes the exact
-  // served JavaScript bytes. If the HTML asset is preserved, every emitted
-  // integrity-pinned script must retain its source hash.
-  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
-    prepared.some(file=>
-    file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
-      prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path))));
-  // A single-file host lock is still a source-coordinate rewrite. Local AST
-  // transforms can independently decline Function/source observers, but the
-  // wrapper itself has no later per-transform guard. Reuse the same broad
-  // source-observer proof used for multi-file publication so Error.stack,
-  // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
-    prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
-      observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path)));
+  const importedStorageMethodAliases=prepared.length>1 ?
+    collectImportedStorageMethodAliases(prepared) : new Map();
+  // Parse the supplied JavaScript files once for source-observer analysis.
+  // The WeakMap prototype is shared across modules, so an exposure in any
+  // supplied file must invalidate reference-only Storage proofs in siblings.
+  const hasPinnedSource=hasPinnedLocalJavaScriptIntegrity(prepared);
+  const sourceObserverFiles=(!hasPinnedSource||Boolean(allowedHosts?.length))?
+    prepared.flatMap(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return [];
+      return [{file,ast:parse(file.code,file.sourceType)}];
+    }):[];
+  // A different module can publish a WeakMap instance or a factory that
+  // the source-observer module later imports. Summarize the complete supplied
+  // graph, not only modules that independently look like source observers.
+  const classicScriptAsts=sourceObserverFiles.filter(({file})=>
+    file.sourceType==='script').map(({ast})=>ast);
+  // Browser classic scripts in one output group share one realm and one
+  // global lexical environment. Analyze their ordered top-level statements
+  // together so a carrier declared in one file cannot disappear at the
+  // boundary before a sibling reads or mutates WeakMap.prototype.
+  const sharedClassicScriptWeakMapExposure=classicScriptAsts.length>1?
+    hasWeakMapPrototypeExposure({
+      type:'Program',start:0,end:0,
+      body:classicScriptAsts.flatMap(ast=>ast.body??[])
+    }):false;
+  const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
+    sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
+  let remoteSourceObserver=hasPinnedSource;
+  let hostLockSourceObserver=false;
+  for(const {file,ast} of sourceObserverFiles) {
+    const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
+    const functionSource=observesFunctionSource(ast,
+      importedStringProof.get(file.path),importedCloneProof.get(file.path),
+      importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+      importedUrlStaticProof.get(file.path),
+      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure);
+    if(distributed||functionSource)remoteSourceObserver=true;
+    if(functionSource)hostLockSourceObserver=true;
+    if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
+  }
+  hostLockSourceObserver=Boolean(allowedHosts?.length)&&hostLockSourceObserver;
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
@@ -2045,7 +2083,7 @@ function obfuscateFiles(files, options = {}) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2184,7 +2222,10 @@ function obfuscateFiles(files, options = {}) {
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
-        throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
+        const wasmRefusalReason=prepared.length>1
+          ?'Wasm i32 requires a module/CommonJS without cross-file source observation'
+          :'requires a module/CommonJS without function-source observation';
+        throw new TypeError('Wasm i32 declined: '+wasmRefusalReason);
       }
       if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
           nativeNames.includes(name)||branchNames.includes(name)||statementNames.includes(name))) {
@@ -2237,7 +2278,7 @@ function obfuscateFiles(files, options = {}) {
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        renameLocalProperties(code,ast,{seed:salt,closedWorld:options.closedWorld===true,allowBoundFunctionTargets});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
