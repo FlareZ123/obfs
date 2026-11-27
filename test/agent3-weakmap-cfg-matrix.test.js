@@ -120,7 +120,12 @@ const cases=[
 ['both-branches-return-dead-overwrite','let carrier={instance:{}};function fill(){if(Math.random()>0.5){carrier.instance=new WeakMap();return;}else{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
 ['if-true-throw-dead-overwrite','let carrier={instance:{}};try{if(true){carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
 ['nested-block-throw-dead-overwrite','let carrier={instance:{}};try{{carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
-['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance']
+['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
+// Agent 4 source-review falsifiers: a dynamic write can overlap a statically
+// known slot, and two bindings can retain a may-alias relation on only one
+// branch predecessor. Both native executions reach WeakMap.prototype.
+['dynamic-key-overlaps-known-slot','const carrier={slot:{}};const key=(()=>"slot")();carrier[key]=new WeakMap();','carrier.slot'],
+['branch-may-alias-after-join','const shared={slot:{}};let a=shared;let b=shared;if(Math.random()<0)b={slot:{}};a.slot=new WeakMap();','b.slot']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
