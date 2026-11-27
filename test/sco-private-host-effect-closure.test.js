@@ -823,7 +823,30 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new globalThis.TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
     "const {TextDecoder:Decoder}=globalThis;return new Decoder('gbk').decode(Uint8Array.of(0xff));",
     "const root=globalThis;return new root['TextDecoder']('gbk').decode(Uint8Array.of(0xff));",
-    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));"
+    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));",
+    "const Decoder=(new TextDecoder('utf-8')).constructor;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8');const Decoder=decoder.constructor;return new Decoder('gbk').decode(Uint8Array.of(0xff));",
+    "const Decoder=Reflect.get(new TextDecoder('utf-8'),'constructor');return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const Decoder=Object.getPrototypeOf(new TextDecoder('utf-8')).constructor;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8');return decoder['constructor']('windows-1252');",
+    "const wrapper={decoder:new TextDecoder('utf-8')};return new wrapper.decoder.constructor('windows-1252').decode(Uint8Array.of(0x80));",
+    "function unrelated(){const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}return decoder.decode(Uint8Array.of(66));",
+    "if(true){const decoder=new TextDecoder('utf-8');decoder.decode(Uint8Array.of(65));}return decoder.decode(Uint8Array.of(66));",
+    "const decoder=new TextDecoder('utf-8');decoder.encoding='custom';return decoder.decode(Uint8Array.of(65));",
+    "const decoder=new TextDecoder('utf-8');decoder.fatal++;return decoder.decode(Uint8Array.of(65));",
+    "try{return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(0x80));}catch(error){return error.message;}",
+    "try{return new TextDecoder('utf-8').decode('bad');}catch(error){return error.message;}",
+    "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(0x80));",
+    "return new TextDecoder('utf-8').decode('bad');",
+    "const decoder=new TextDecoder('utf-8');return decoder.decode(null);",
+    "return new TextDecoder('utf-8').decode([]);",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});return decoder.decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});const alias=decoder;return alias.decode(Uint8Array.of(0x80));",
+    "return new TextDecoder('utf-8',{fatal:true}).decode(bytes);",
+    "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65),{stream:true});",
+    "const input='bad';return new TextDecoder('utf-8').decode(input);",
+    "const input=[];const decoder=new TextDecoder('utf-8');return decoder.decode(input);",
+    "const data='bad';const decoder=new TextDecoder('UTF8');const alias=decoder;return alias.decode(data);"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
@@ -834,7 +857,7 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     ),/unproved cross-realm text decoding/u,body);
     for(const transitive of [false,true]){
       assert.throws(()=>partitionGraph(body,transitive),
-        /unproved cross-realm text decoding/u,
+        /unproved cross-realm text decoding|realm-local prototype access|unproved runtime loader via constructor/u,
         body+' transitive='+transitive);
     }
   }
@@ -843,7 +866,19 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new TextDecoder('utf-8').decode(Uint8Array.of(65,66));",
     "return new TextDecoder('UTF8',{fatal:true}).decode(Uint8Array.of(65));",
     "return new TextDecoder('utf-8',{ignoreBOM:true}).decode(Uint8Array.of(65));",
-    "const record={TextDecoder:41};return record.TextDecoder;"
+    "const record={TextDecoder:41};return record.TextDecoder;",
+    "const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65,66));",
+    "const decoder=new TextDecoder('UTF8');const alias=decoder;return alias.decode(Uint8Array.of(65,66));",
+    "function nested(){const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}return nested();",
+    "{const decoder=new TextDecoder('utf-8');return decoder.decode(Uint8Array.of(65));}",
+    "return new TextDecoder('utf-8').encoding;",
+    "const decoder=new TextDecoder('UTF8',{fatal:true});return decoder.fatal;",
+    "const decoder=new TextDecoder('utf-8',{ignoreBOM:true});return decoder.ignoreBOM;",
+    "const decoder=new TextDecoder('UTF8');const alias=decoder;return alias['encoding'];",
+    "return new TextDecoder('UTF8',{fatal:false}).decode(Uint8Array.of(0x80));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});return decoder.decode(Uint8Array.of(65));",
+    "const decoder=new TextDecoder('utf-8',{fatal:true});const alias=decoder;return alias.decode(Uint8Array.of(66));",
+    "const decoder=new TextDecoder('utf-8');const value=decoder.encoding;return value;"
   ];
   for(const body of safe){
     const code='export async function protectedOp(){'+body+'}'+

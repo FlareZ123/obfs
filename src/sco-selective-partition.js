@@ -304,6 +304,20 @@ function usesUnprovedRelocatedTextDecoder(body){
     return value!==null&&['utf-8','utf8','unicode-1-1-utf-8'].includes(value.toLowerCase());
   }
   let unproved=false;
+  // Native TextDecoder error messages are host-specific even when the UTF-8
+  // decoding table agrees. A catch anywhere in this selected function can
+  // observe these messages or throwables through lexical aliases. Without
+  // a typed-input and exception-provenance proof, decline the whole bounded
+  // catch/decoder combination instead of silently changing error behavior.
+  let catchesNativeDecoder=false;
+  let constructsNativeDecoder=false;
+  walk(body,node=>{
+    if(node.type==='CatchClause')catchesNativeDecoder=true;
+    if(node.type==='NewExpression'&&decoderRoot(node.callee)){
+      constructsNativeDecoder=true;
+    }
+  });
+  if(catchesNativeDecoder&&constructsNativeDecoder)unproved=true;
   walk(body,(node,parent,key)=>{
     const binding=node.type==='VariableDeclarator'?node.id:
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
@@ -325,6 +339,171 @@ function usesUnprovedRelocatedTextDecoder(body){
          key==='id'))return;
     if(parent?.type==='NewExpression'&&parent.callee===node&&
        parent.arguments.length<=2&&provedUtf8(parent.arguments[0]))return;
+    unproved=true;
+  });
+  // A freshly constructed UTF-8 decoder is still a host-native object.
+  // Its .constructor, prototype, or first-class escape can recreate a
+  // legacy decoder that bypasses the literal-label check above. Admit
+  // direct decode calls and primitive scalar getter reads through proved
+  // immutable aliases. Other instance uses need a stronger proof.
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function isDirectInstance(value){
+    return Boolean(value?.type==='NewExpression'&&decoderRoot(value.callee));
+  }
+  const instanceBindings=collectBindings(body);
+  // Unique names alone are insufficient. A const inside an unrelated
+  // function or block cannot establish the provenance of an outer free
+  // identifier with the same spelling. Record the lexical owner for every
+  // admitted alias, and require every use to occur inside that scope.
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const instanceAliases=new Map();
+  /** @type {Set<import('./ast').AstNode>} */
+  const provedInstanceDeclarations=new Set();
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const instanceConstructors=new Map();
+  /**
+   * A fresh UTF-8 decoder with an absent or literal false fatal option has
+   * the default replacement behavior, so malformed *bytes* do not throw.
+   * Unknown option values are not a proof of non-fatal decoding.
+   * @param {import('./ast').AstNode|undefined} constructor
+   * @returns {boolean}
+   */
+  function provedNonFatal(constructor){
+    if(constructor?.type!=='NewExpression')return false;
+    const options=constructor.arguments[1];
+    if(options===undefined)return true;
+    if(options.type!=='ObjectExpression')return false;
+    for(const property of options.properties){
+      if(property.type!=='Property'||property.kind!=='init'||property.method||
+         property.computed&&staticString(property.key)===null)return false;
+      const name=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:
+          staticString(property.key);
+      if(name==='fatal'&&
+         !(property.value.type==='Literal'&&property.value.value===false)){
+        return false;
+      }
+    }
+    return true;
+  }
+  /**
+   * A plain identifier may hold a string, record or detached value. The
+   * runtime-specific type error message is then observable even without a
+   * local catch. Until interprocedural argument-type proofs exist, admit
+   * only explicit byte views with literal byte elements, or omitted input.
+   * @param {import('./ast').AstNode|undefined} input
+   * @returns {boolean}
+   */
+  function provedByteInput(input){
+    if(input===undefined)return true;
+    const elementBytes=/** @param {import('./ast').AstNode} element @returns {boolean} */
+      element=>element.type==='Literal'&&typeof element.value==='number'&&
+        Number.isInteger(element.value)&&element.value>=0&&element.value<=255;
+    if(input.type==='CallExpression'&&
+       input.callee.type==='MemberExpression'&&!input.callee.computed&&
+       input.callee.object.type==='Identifier'&&
+       input.callee.object.name==='Uint8Array'&&
+       input.callee.property.type==='Identifier'&&
+       input.callee.property.name==='of')return input.arguments.every(elementBytes);
+    return input.type==='NewExpression'&&input.callee.type==='Identifier'&&
+      input.callee.name==='Uint8Array'&&input.arguments.length===1&&
+      input.arguments[0].type==='ArrayExpression'&&
+      input.arguments[0].elements.every(
+        /** @param {import('./ast').AstNode|null} element */
+        element=>element!==null&&element.type!=='SpreadElement'&&
+          elementBytes(element));
+  }
+  /**
+   * Prove that all input bytes are ASCII. UTF-8 ASCII cannot cause a native
+   * fatal decoding error for a newly constructed decoder without streaming
+   * state. Other byte grammars remain conservatively unproved.
+   * @param {import('./ast').AstNode|undefined} input
+   * @returns {boolean}
+   */
+  function provedAsciiInput(input){
+    return Boolean(input?.type==='CallExpression'&&
+      input.callee.type==='MemberExpression'&&
+      !input.callee.computed&&
+      input.callee.object.type==='Identifier'&&
+      input.callee.object.name==='Uint8Array'&&
+      input.callee.property.type==='Identifier'&&
+      input.callee.property.name==='of'&&
+      input.arguments.every(/** @param {import('./ast').AstNode} item */ item=>
+        item.type==='Literal'&&typeof item.value==='number'&&
+        Number.isInteger(item.value)&&item.value>=0&&item.value<=0x7f));
+  }
+  let aliasesChanged=true;
+  while(aliasesChanged){
+    aliasesChanged=false;
+    walk(body,(node,parent,_key,ancestors)=>{
+      if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+         parent.kind!=='const'||node.id.type!=='Identifier'||
+         instanceBindings.get(node.id.name)!==1)return;
+      const scope=ancestors[ancestors.length-2];
+      // A direct const statement in a lexical block has a bounded owner.
+      // For-head lexical environments require their own scope proof.
+      if(!scope||!['BlockStatement','Program'].includes(scope.type)||
+         !Array.isArray(scope.body)||!scope.body.includes(parent))return;
+      const source=node.init;
+      const sourceScope=source?.type==='Identifier'?
+        instanceAliases.get(source.name):undefined;
+      if(!isDirectInstance(source)&&
+         !(sourceScope&&ancestors.includes(sourceScope)))return;
+      provedInstanceDeclarations.add(node);
+      if(!instanceAliases.has(node.id.name)){
+        instanceAliases.set(node.id.name,scope);
+        const origin=isDirectInstance(source)?source:
+          source?.type==='Identifier'?instanceConstructors.get(source.name):undefined;
+        if(origin)instanceConstructors.set(node.id.name,origin);
+        aliasesChanged=true;
+      }
+    });
+  }
+  walk(body,(node,parent,key,ancestors)=>{
+    const aliasScope=node.type==='Identifier'?instanceAliases.get(node.name):undefined;
+    if(!isDirectInstance(node)&&!aliasScope)return;
+    if(node.type==='Identifier'&&isStaticKey(parent,key))return;
+    // An identically spelled free identifier outside a nested const's
+    // lexical scope must never inherit its constructor provenance.
+    if(aliasScope&&!ancestors.includes(aliasScope)){
+      unproved=true;
+      return;
+    }
+    if(parent?.type==='VariableDeclarator'&&
+       provedInstanceDeclarations.has(parent)&&(key==='id'||key==='init'))return;
+    if(parent?.type==='MemberExpression'&&key==='object'){
+      const member=parent.computed?staticString(parent.property):
+        parent.property.type==='Identifier'?parent.property.name:null;
+      const user=ancestors[ancestors.length-2];
+      if(member==='decode'&&
+         user?.type==='CallExpression'&&user.callee===parent){
+        // Native TypeError messages differ whenever the actual input is not
+        // an ArrayBuffer/View. A mere identifier has no reliable runtime
+        // type proof. Require a directly constructed, literal byte view.
+        const input=user.arguments[0];
+        if(!provedByteInput(input)){
+          unproved=true;
+          return;
+        }
+        // With fatal:true or dynamic fatal options, even valid ArrayBuffer
+        // views can contain malformed UTF-8. An observed native TypeError
+        // message would change across the relocation boundary. Permit only
+        // a new decoder with static ASCII bytes and no streaming options.
+        const constructor=isDirectInstance(node)?node:
+          node.type==='Identifier'?instanceConstructors.get(node.name):undefined;
+        if(!provedNonFatal(constructor)&&
+           (!provedAsciiInput(input)||user.arguments.length>1))unproved=true;
+        return;
+      }
+      // WHATWG-defined native decoder getters return immutable primitives.
+      // Restrict them to a direct return or simple initializer so a write
+      // target, destructuring assignment or first-class instance escape
+      // cannot be mistaken for an observational scalar read.
+      if(['encoding','fatal','ignoreBOM'].includes(member??'')&&
+         (user?.type==='ReturnStatement'&&user.argument===parent ||
+          user?.type==='VariableDeclarator'&&user.init===parent&&
+            user.id.type==='Identifier'))return;
+    }
     unproved=true;
   });
   return unproved;
