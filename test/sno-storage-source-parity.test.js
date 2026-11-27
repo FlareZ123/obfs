@@ -657,14 +657,15 @@ test('SNO Node Web Storage cross-file factory return preserves helper callable s
 
 /**
  * Acceptance oracle, intentionally independent from the descriptive
- * expected-mismatch witness above. A compiler can refuse a source-bearing
- * callback yet still rename an unrelated private binding. This gate demands
- * both actual Web Storage DOMString equality and nonvacuous safe work.
+ * expected-mismatch witness above. This source-observing file may require
+ * conservative identifier refusal. Preserve exact Web Storage DOMString
+ * output first; measure transform yield in a distinct, nonobserving
+ * primitive named-setter positive control below.
  *
  * The native-only mutation control establishes that exact source text,
  * rather than just a returned value or a substring flag, is compared.
  */
-test('SNO named Storage setter strict exact-source parity and unrelated rename yield',{
+test('SNO named Storage setter strict exact-source parity and native mutation sensitivity',{
   skip:!supportsExperimentalWebStorage,
   timeout:30000
 },async()=>{
@@ -697,12 +698,39 @@ test('SNO named Storage setter strict exact-source parity and unrelated rename y
   assert.notEqual(original.native.stored,nativeMutation.native.stored,
     'native named setter must expose changed exact callback source');
 
-  // A blanket file-wide refusal would pass source parity vacuously.
-  // Keep unrelated independent() identifiers obfuscated on admission.
-  assert.ok(original.bindings>=1,
-    'source-protected SNO entry must retain at least one unrelated rename');
-  assert.ok(!original.protectedCode.includes('independentLocal'),
-    'safe independent binding must actually be renamed');
   assert.deepEqual(original.emitted,original.native,
     'SNO named Storage setter must preserve the entire native JSON result');
+});
+
+
+/**
+ * Positive yield must be measured in a distinct non-source-observing path.
+ * The native Storage named setter still executes for a primitive RHS, but
+ * ToString does not inspect callable source. A blanket ban on *all* named
+ * setters would incorrectly forfeit this permitted identifier rewrite.
+ */
+test('SNO named Storage setter primitive RHS preserves parity and private rename yield',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function independent(){const independentLocal=11;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.namedPrimitive="literal";',
+    'const result={stored:localStorage.getItem("namedPrimitive"),',
+    '  propertyValue:localStorage.namedPrimitive,independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const observation=await runSnoDifferential(
+    source,'sno-named-primitive-yield','obfs-sno-named-primitive-yield-');
+  assert.equal(observation.native.stored,'literal');
+  assert.equal(observation.native.propertyValue,'literal');
+  assert.equal(observation.native.independent,11);
+  assert.deepEqual(observation.emitted,observation.native,
+    'a primitive native named setter must not change its value or unrelated output');
+  assert.ok(observation.bindings>=1,
+    'nonobserving primitive named setter must admit a private identifier rewrite');
+  assert.ok(!observation.protectedCode.includes('independentLocal'),
+    'private binding must actually change, not only report a rename count');
 });
