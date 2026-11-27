@@ -95,6 +95,12 @@ const cases=[
 ['switch-case-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;carrier.instance={};}}fill();','carrier.instance'],
 ['switch-case-nested-if-break','const carrier={instance:{}};switch(0){case 0:if(true){carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
 ['switch-case-fallthrough-preserves','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();case 1:break;}','carrier.instance'],
+// Executing a case selector can invoke a user-defined accessor or implicit
+// coercion hook. The private function source must remain stable after these.
+['switch-defineproperty-accessor','const carrier={instance:{}};const observer={};Object.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-defineproperties-accessor','const carrier={instance:{}};const observer={};Object.defineProperties(observer,{v:{get(){carrier.instance=new WeakMap();return 1;}}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-reflect-defineproperty-accessor','const carrier={instance:{}};const observer={};Reflect.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-selector-implicit-string-hook','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "1";}};switch(0){case ""+key:break;}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -149,7 +155,10 @@ for(const [name,setup,access] of cases) {
         'switch-selector-after-default','switch-early-match-skips-later-selector',
         'switch-case-break-dead-write','switch-case-throw-dead-write',
         'switch-case-return-dead-write','switch-case-nested-if-break',
-        'switch-case-fallthrough-preserves'].includes(name))
+        'switch-case-fallthrough-preserves',
+        'switch-defineproperty-accessor','switch-defineproperties-accessor',
+        'switch-reflect-defineproperty-accessor',
+        'switch-selector-implicit-string-hook'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(name==='switch-benign-nonliteral-selector')
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
