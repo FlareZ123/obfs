@@ -102,7 +102,17 @@ const cases=[
 ['callback-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};}[1].forEach(fill);','carrier.instance'],
 ['getter-captured-write','let carrier={};const obj={get value(){carrier={instance:new WeakMap()};return 0;}};void obj.value;','carrier.instance'],
 ['switch-case-break-write','let carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();break;case 1:carrier.instance={};}','carrier.instance'],
-['nested-branch-heap','let carrier={instance:{}};if(true){if(true){carrier.instance=new WeakMap();}else{carrier.instance={};}}else{carrier.instance={};}','carrier.instance']
+['nested-branch-heap','let carrier={instance:{}};if(true){if(true){carrier.instance=new WeakMap();}else{carrier.instance={};}}else{carrier.instance={};}','carrier.instance'],
+// Eight native-negative controls: preserve at least some meaningful private
+// rewrite yield, not just all-or-nothing refusal on every control-flow shape.
+['if-true-definite-overwrite','const carrier={instance:new WeakMap()};if(true)carrier.instance={};','carrier.instance'],
+['if-false-else-definite-overwrite','const carrier={instance:new WeakMap()};if(false){}else carrier.instance={};','carrier.instance'],
+['ternary-true-definite-overwrite','const carrier={instance:new WeakMap()};true?(carrier.instance={}):0;','carrier.instance'],
+['logical-and-true-definite-overwrite','const carrier={instance:new WeakMap()};true&&(carrier.instance={});','carrier.instance'],
+['logical-nullish-definite-overwrite','const carrier={instance:new WeakMap()};null??(carrier.instance={});','carrier.instance'],
+['same-object-aliased-overwrite','const carrier={instance:new WeakMap()};const alias=carrier;alias.instance={};','carrier.instance'],
+['direct-local-helper-definite-overwrite','const carrier={instance:new WeakMap()};function clear(){carrier.instance={};}clear();','carrier.instance'],
+['unread-getter-should-not-write','let carrier={instance:{}};const unused={get value(){carrier={instance:new WeakMap()};return 0;}};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
