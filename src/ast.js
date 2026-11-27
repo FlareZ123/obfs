@@ -1907,7 +1907,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='ContinueStatement')
       return continueExits||Boolean(statement.label);
     if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
-      return (statement.body??[]).some(child=>
+      return (statement.body??[]).some((/** @type {AstNode} */ child)=>
         carrierMayEscapeConstruct(child,continueExits));
     if(statement.type==='IfStatement')
       return carrierMayEscapeConstruct(statement.consequent,continueExits)||
@@ -1919,8 +1919,8 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='LabeledStatement')
       return carrierMayEscapeConstruct(statement.body,continueExits);
     if(statement.type==='SwitchStatement')
-      return (statement.cases??[]).some(branch=>
-        (branch.consequent??[]).some(child=>
+      return (statement.cases??[]).some((/** @type {AstNode} */ branch)=>
+        (branch.consequent??[]).some((/** @type {AstNode} */ child)=>
           carrierMayEscapeConstruct(child,continueExits)));
     if(['ForStatement','ForInStatement','ForOfStatement',
         'WhileStatement','DoWhileStatement'].includes(statement.type))
@@ -1950,8 +1950,8 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='LabeledStatement')
       return carrierMayAbrupt(statement.body);
     if(statement.type==='SwitchStatement')
-      return (statement.cases??[]).some(branch=>
-        (branch.consequent??[]).some(child=>
+      return (statement.cases??[]).some((/** @type {AstNode} */ branch)=>
+        (branch.consequent??[]).some((/** @type {AstNode} */ child)=>
           carrierMayEscapeConstruct(child,true)));
     if(['ForStatement','ForInStatement','ForOfStatement',
         'WhileStatement','DoWhileStatement'].includes(statement.type))
