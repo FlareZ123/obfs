@@ -147,3 +147,43 @@ test('prototype rejects duplicate CJS paths and non-CommonJS inputs',()=>{
     {path:'x.mjs',sourceType:'module',code:'export const x=0;'}
   ]),/CommonJS/);
 });
+
+
+test('prototype must not call a mutated record field proven plain after Storage grafting',()=>{
+  const findings=inspect([
+    "'use strict';",
+    'function inspect(){return 16;}',
+    'const holder={receiver:{}};',
+    'holder.receiver=globalThis.localStorage;',
+    'holder.receiver.named=inspect;'
+  ].join('\n'));
+  assert.equal(findings.length>=1,true);
+  assert.equal(findings.at(-1).classification,'unknown-host',
+    'mutable field provenance cannot reuse original inert object-literal proof');
+});
+
+test('prototype must invalidate an aliased holder after member reassignment',()=>{
+  const findings=inspect([
+    "'use strict';",
+    'function inspect(){return 17;}',
+    'const holder={receiver:{}};',
+    'const alias=holder;',
+    'alias.receiver=globalThis.localStorage;',
+    'holder.receiver.named=inspect;'
+  ].join('\n'));
+  assert.equal(findings.at(-1).classification,'unknown-host',
+    'shared record identity must see field invalidation through any alias');
+});
+
+test('prototype must conservatively invalidate a local record after opaque host callback',()=>{
+  const findings=inspect([
+    "'use strict';",
+    'function inspect(){return 18;}',
+    'const holder={receiver:{}};',
+    'opaqueHostMutate(holder);',
+    'holder.receiver.named=inspect;'
+  ].join('\n'));
+  assert.equal(findings.length,1);
+  assert.equal(findings[0].classification,'unknown-host',
+    'unmodeled callback could install a Storage receiver into escaped record');
+});
