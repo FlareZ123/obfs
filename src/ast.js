@@ -1738,6 +1738,9 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(node.type==='NewExpression') {
+      // The constructor reference (including a computed property key) runs
+      // before constructor arguments and may mutate reaching carrier state.
+      visitCarrierExpression(node.callee,environment,thisValue);
       for(const argument of node.arguments??[]) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
@@ -1746,6 +1749,13 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(node.type==='AssignmentExpression') {
+      // ECMAScript resolves a member reference, including computed property
+      // key effects, before evaluating its assigned RHS.
+      if(node.left.type==='MemberExpression') {
+        visitCarrierExpression(node.left.object,environment,thisValue);
+        if(node.left.computed)
+          visitCarrierExpression(node.left.property,environment,thisValue);
+      }
       visitCarrierExpression(node.right,environment,thisValue);
       const assigned=evaluateCarrierValue(node.right,environment,thisValue);
       if(node.left.type==='Identifier') {
@@ -1763,7 +1773,6 @@ function hasWeakMapPrototypeExposure(ast) {
         } else if(base.kind==='weakmap'&&['set','get','has','delete'].includes(key??'')) {
           exposed=true;
         }
-        visitCarrierExpression(node.left.object,environment,thisValue);
       } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
         bindCarrierPattern(node.left,assigned,environment);
       }
@@ -1773,6 +1782,9 @@ function hasWeakMapPrototypeExposure(ast) {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
         else if(property.type==='Property') {
+          // Computed object keys are executed before property values.
+          if(property.computed)
+            visitCarrierExpression(property.key,environment,thisValue);
           visitCarrierExpression(property.value,environment,thisValue);
           // A source-visible getter can be invoked by any later property
           // read or reflection. Union its captured outer-binding effects with
@@ -2063,10 +2075,16 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ClassDeclaration') {
+      // The heritage expression is evaluated when defining a class, before
+      // computed class element names and static initializers.
+      visitCarrierExpression(statement.superClass,environment,thisValue);
       const staticValue=carrierContainer();
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
       for(const element of statement.body.body??[]) {
+        // Both static and instance computed names execute at definition.
+        if(element.computed)
+          visitCarrierExpression(element.key,environment,thisValue);
         if(element.type==='PropertyDefinition') {
           const thisValue=element.static?staticValue:carrierOther;
           visitCarrierExpression(element.value,environment,thisValue);
@@ -2106,9 +2124,11 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ThrowStatement') {
+      // The thrown value is determined after its expression's side effects.
+      // Snapshotting first can lose a WeakMap created by a comma/call effect.
+      visitCarrierExpression(statement.argument,environment,thisValue);
       if(throwCollector)
         throwCollector.push(evaluateCarrierValue(statement.argument,environment,thisValue));
-      visitCarrierExpression(statement.argument,environment,thisValue);
       return;
     }
     if(statement.type==='TryStatement') {
