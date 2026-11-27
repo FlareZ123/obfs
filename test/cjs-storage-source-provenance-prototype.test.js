@@ -187,3 +187,39 @@ test('prototype must conservatively invalidate a local record after opaque host 
   assert.equal(findings[0].classification,'unknown-host',
     'unmodeled callback could install a Storage receiver into escaped record');
 });
+
+
+test('prototype follows call arguments into a local source-sensitive Storage sink',()=>{
+  const findings=inspect([
+    "'use strict';",
+    'function inspect(){return 19;}',
+    'function save(receiver,value){receiver.namedSource=value;}',
+    'save(localStorage,inspect);'
+  ].join('\n'));
+  assert.equal(findings.length,1,
+    'a top-level call can execute a named setter hidden in a callee body');
+  assert.equal(findings[0].classification,'source-sensitive');
+  assert.equal(findings[0].receiver,'storage');
+  assert.equal(findings[0].value,'callable');
+});
+
+test('prototype follows cross-file CJS exported sink parameter provenance',()=>{
+  const helper=[
+    "'use strict';",
+    'exports.save=function save(receiver,value){receiver.namedSource=value;};'
+  ].join('\n');
+  const entry=[
+    "'use strict';",
+    "const {save}=require('./helper.cjs');",
+    'function inspect(){return 20;}',
+    'save(globalThis.localStorage,inspect);'
+  ].join('\n');
+  const findings=traceCjsStorageSourceSinks([
+    {path:'entry.cjs',code:entry},{path:'helper.cjs',code:helper}
+  ]);
+  assert.equal(findings.length,1,
+    'source-sensitive sink inside helper must be found via exported call');
+  assert.equal(findings[0].file,'helper.cjs');
+  assert.equal(findings[0].classification,'source-sensitive');
+  assert.ok(findings[0].receiverTrace.some(x=>x.includes('localStorage')));
+});
