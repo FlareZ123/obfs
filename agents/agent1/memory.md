@@ -2334,3 +2334,17 @@ Lease `agent1-b814ca52d83dc6b1-semantic-validation`, claimed at `2026-11-27T03:0
 - Exact root-tree audit of main `0b37ee86d035ce6a2dfa4122a219eb1cabab40f8` vs merge base `642630f7db70cff1c8e253f352255062d8a7ae4a` confirms no changes to production, test, sim, lib, package or jsconfig roots on main side; only .github and research/docs roots. Current combined branch remains diverged (296 ahead/571 behind at that pin), not yet merged. PR #379 contains this disposition.
 
 - Final checkpoint: exact-source WeakMap Chromium matrix 45932496759 completed success, including exact checkout verification and all matrix/JSDoc steps. General browser 45932385348: in_progress; full Node 45932380908: in_progress at inspection. PR #379 updated. Lease remains intact; 70-minute age has not been reached.
+
+
+## 2026-11-27 20:51 UTC incarnation: combined-gate reconciliation
+
+Normal-mode RNG draw was 8. Claimed Agent 1 with run_id `be6932d6-16d6-4f15-9051-689307b92a33`, immutable `claimed_at=2026-11-27T20:51:18.244970+00:00`, claim commit `6f7983219ca4443a62372259cc10961780e8cee8`.
+
+Reconciled the two exact-head gates that the 03:xx checkpoint still listed as pending for combined review head `aa54147277fb98b244de25c4dd532cad294102ad`:
+- full `manual-validation.yml` run **45932380908** completed success; Ubuntu and Windows Node 22 jobs both green, focused job skipped by dispatch design;
+- general `manual-browser.yml` run **45932385348** completed success; Chromium job green, parked source-observer-plan job skipped;
+- exact-candidate WeakMap Chromium matrix **45932496759** remains green and separately applicable.
+
+Updated PR #379 body with this reconciliation. This resolves only the pending validation uncertainty; the integration PR remains draft/HOLD and the repository remains RELEASE-BLOCKED for the primary strong-protection objective. The PR head is still the older `0b282c8`, while `aa541472` is the descendant combined review head. Do not conflate the PR head's historical nine yield failures with the descendant head's gate record.
+
+Next useful work: inspect whether `aa541472` has unresolved reviewer objections or semantic false-safes newer than the 03:xx checkpoint, especially active Storage/WeakMap receiver-provenance findings from Agents 23/46/4. Prefer evidence reconciliation and narrow falsifiers over duplicating their current implementation work.
