@@ -124,6 +124,14 @@ const cases=[
 ['loop-return-before-clear','const carrier={instance:{}};function fill(){for(let i=0;i<1;i++){carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
 ['switch-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};switch(0){case 0:break;}carrier.instance=new Ordinary();','carrier.instance'],
 ['loop-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};for(let i=0;i<1;i++){break;}carrier.instance=new Ordinary();','carrier.instance'],
+// Loop update expressions are skipped after break/return/throw, but run after
+// continue. A dead update must not erase a live WeakMap carrier.
+['for-update-after-break-skipped','const carrier={instance:{}};for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();break;}','carrier.instance'],
+['for-update-after-return-skipped','const carrier={instance:{}};function fill(){for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();return;}}fill();','carrier.instance'],
+['for-update-after-throw-skipped','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();throw 1;}}catch{}','carrier.instance'],
+['for-update-after-nested-break-skipped','const carrier={instance:{}};for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();if(true)break;}','carrier.instance'],
+['for-update-after-continue-runs','class Ordinary{} const carrier={instance:{}};for(let i=0;i<1;(carrier.instance=new Ordinary()),i++){carrier.instance=new WeakMap();continue;}','carrier.instance'],
+['dowhile-condition-after-break-skipped','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -189,11 +197,15 @@ for(const [name,setup,access] of cases) {
         'switch-case-try-catch-finally-break-early',
         'try-catch-both-paths-abrupt',
         'switch-return-before-clear','switch-throw-before-clear',
-        'switch-if-return-before-clear','loop-return-before-clear'].includes(name))
+        'switch-if-return-before-clear','loop-return-before-clear',
+        'for-update-after-break-skipped','for-update-after-return-skipped',
+        'for-update-after-throw-skipped','for-update-after-nested-break-skipped',
+        'dowhile-condition-after-break-skipped'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(['switch-benign-nonliteral-selector',
         'try-catch-finally-resumes-positive',
-        'switch-break-followed-ordinary','loop-break-followed-ordinary'].includes(name))
+        'switch-break-followed-ordinary','loop-break-followed-ordinary',
+        'for-update-after-continue-runs'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
