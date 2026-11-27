@@ -158,7 +158,14 @@ const cases=[
 ['optional-call-skips-argument','const carrier={instance:new WeakMap()};null?.method(carrier.instance={});','carrier.instance'],
 ['instance-field-init-deferred','const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance={});}','carrier.instance'],
 ['instance-field-init-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance=new Ordinary());}new Holder();','carrier.instance'],
-['for-of-rhs-effect-precedes-iteration','let carrier={};for(const x of (carrier={instance:new WeakMap()},[0])){break;}','carrier.instance']
+['for-of-rhs-effect-precedes-iteration','let carrier={};for(const x of (carrier={instance:new WeakMap()},[0])){break;}','carrier.instance'],
+// Matched native-negative precision controls: these writes really execute and
+// eliminate the original WeakMap before prototype observation.
+['logical-or-definite-write-control','class Ordinary{}const carrier={instance:new WeakMap()};carrier.instance=null;carrier.instance||=new Ordinary();','carrier.instance'],
+['logical-nullish-definite-write-control','class Ordinary{}const carrier={instance:new WeakMap()};carrier.instance=null;carrier.instance??=new Ordinary();','carrier.instance'],
+['optional-member-executed-key-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={};source?.[(carrier.instance=new Ordinary(),"x")];','carrier.instance'],
+['optional-call-executed-arg-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={m(_x){}};source?.m(carrier.instance=new Ordinary());','carrier.instance'],
+['instance-field-unconstructed-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};class Holder{x=(carrier.instance=new WeakMap());}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
