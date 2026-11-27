@@ -1197,7 +1197,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,getters:Map<string,AstNode>,unknown:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
@@ -1207,9 +1207,11 @@ function hasWeakMapPrototypeExposure(ast) {
   const carrierOther={kind:'other'};
   /** @type {WeakMap<AstNode,CarrierValue>} */
   const classExpressionValues=new WeakMap();
+  /** @type {WeakSet<AstNode>} */
+  const activeCarrierGetterReads=new WeakSet();
   /** @returns {CarrierContainer} */
   function carrierContainer() {
-    return {kind:'container',properties:new Map(),unknown:false};
+    return {kind:'container',properties:new Map(),getters:new Map(),unknown:false};
   }
   /**
    * @param {AstNode} property
@@ -1289,6 +1291,16 @@ function hasWeakMapPrototypeExposure(ast) {
         merged.properties.set(key,merged.properties.has(key)?
           mergeCarrierValues(merged.properties.get(key)??carrierOther,value,memo):value);
       }
+      // A getter remains a definite descriptor only when both branch
+      // versions reference the same getter AST. Any conflict is unknown.
+      for(const key of new Set([...left.getters.keys(),...right.getters.keys()])) {
+        const leftGetter=left.getters.get(key);
+        const rightGetter=right.getters.get(key);
+        if(leftGetter&&rightGetter&&leftGetter===rightGetter)
+          merged.getters.set(key,leftGetter);
+        else if(leftGetter||rightGetter)
+          merged.properties.set(key,carrierMaybe);
+      }
       return merged;
     }
     if(left.kind==='weakmap'&&right.kind==='weakmap')return carrierWeakMap;
@@ -1312,6 +1324,8 @@ function hasWeakMapPrototypeExposure(ast) {
     copy.unknown=value.unknown;
     for(const [key,nested] of value.properties)
       copy.properties.set(key,cloneCarrierValue(nested,memo));
+    for(const [key,getter] of value.getters)
+      copy.getters.set(key,getter);
     return copy;
   }
   /**
