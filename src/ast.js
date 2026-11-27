@@ -1877,6 +1877,16 @@ function hasWeakMapPrototypeExposure(ast) {
         carrierDefinitelyAbrupt(statement.consequent)&&
         carrierDefinitelyAbrupt(statement.alternate));
     }
+    if(statement.type==='TryStatement') {
+      // A finalizer that unconditionally exits prevents any following
+      // statement, irrespective of how try/catch completed. Without a catch,
+      // a definitely abrupt try block also cannot resume after finally:
+      // normal completion of finally preserves the pending abrupt exit.
+      // A catch can resume normally, so it requires a separate proof.
+      if(statement.finalizer&&carrierDefinitelyAbrupt(statement.finalizer))
+        return true;
+      return !statement.handler&&carrierDefinitelyAbrupt(statement.block);
+    }
     return false;
   }
   /**
