@@ -131,6 +131,14 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         origins.add(producerPath);
         callableExportOrigins.set(declaration.id.name,origins);
       }
+      if(statement.type==='ExportDefaultDeclaration'&&
+         statement.declaration&&
+         ['FunctionDeclaration','ClassDeclaration','FunctionExpression',
+          'ClassExpression','ArrowFunctionExpression'].includes(statement.declaration.type)) {
+        const origins=callableExportOrigins.get('default')??new Set();
+        origins.add(producerPath);
+        callableExportOrigins.set('default',origins);
+      }
       if(declaration?.type==='VariableDeclaration') {
         for(const entry of declaration.declarations??[]) {
           if(entry.id.type!=='Identifier'||!entry.init||
@@ -146,7 +154,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
     const ast=parse(/** @type {string} */ (file.code),'module');
-    /** @type {Map<string,string>} */
+    /** @type {Map<string,Set<string>>} */
     const importedOrigins=new Map();
     for(const statement of ast.body??[]) {
       if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
@@ -161,25 +169,44 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       for(const spec of statement.specifiers??[]) {
         if(spec.local?.type!=='Identifier')continue;
         if(modules.has(target)) {
-          importedOrigins.set(spec.local.name,target);
+          importedOrigins.set(spec.local.name,new Set([target]));
           continue;
         }
         // Build/test harnesses may relocate an otherwise closed supplied ESM
         // graph after compilation. When the syntactic relative path therefore
         // cannot match an input path, accept only a unique direct callable
         // export bearing the imported name; ambiguity remains unproved.
-        if(spec.type==='ImportSpecifier') {
-          const exposed=spec.imported.name??spec.imported.value;
+        if(spec.type==='ImportSpecifier'||spec.type==='ImportDefaultSpecifier') {
+          const exposed=spec.type==='ImportDefaultSpecifier'?'default':
+            (spec.imported.name??spec.imported.value);
           const origins=typeof exposed==='string'?
             callableExportOrigins.get(exposed):undefined;
-          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+          if(origins?.size)importedOrigins.set(spec.local.name,new Set(origins));
         }
       }
     }
     if(!importedOrigins.size)continue;
+    // Preserve imported callable provenance through simple immutable aliases.
+    // Multiple candidate origins remain a set and are all protected: when a
+    // build system relocates supplied modules after compilation, ambiguity is
+    // a reason to fail closed rather than guess one producer.
+    let aliasChanged;
+    do {
+      aliasChanged=false;
+      for(const statement of ast.body??[]) {
+        if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+        for(const entry of statement.declarations??[]) {
+          if(entry.id.type!=='Identifier'||entry.init?.type!=='Identifier')continue;
+          const origins=importedOrigins.get(entry.init.name);
+          if(!origins||importedOrigins.has(entry.id.name))continue;
+          importedOrigins.set(entry.id.name,new Set(origins));
+          aliasChanged=true;
+        }
+      }
+    }while(aliasChanged);
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
-    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {Set<string>|null} */
     function importedOrigin(node) {
       if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
          provenStrings.has(node.name))return null;
@@ -237,8 +264,8 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     walk(ast,node=>{
       /** @param {import('./ast').AstNode|null|undefined} value */
       function protectImported(value) {
-        const origin=importedOrigin(value);
-        if(origin)protectedPaths.add(origin);
+        const origins=importedOrigin(value);
+        if(origins)for(const origin of origins)protectedPaths.add(origin);
       }
       if(node.type==='AssignmentExpression'&&
          node.left.type==='MemberExpression'&&
