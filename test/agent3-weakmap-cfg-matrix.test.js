@@ -134,7 +134,12 @@ const cases=[
 ['accessor-get-then-set-direct-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};carrier.instance=0;','carrier.instance'],
 ['accessor-get-then-set-alias-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};const alias=carrier;alias.instance=0;','carrier.instance'],
 ['accessor-getter-only-no-write','const carrier={get instance(){return new WeakMap();}};','carrier.instance'],
-['accessor-getter-only-caught-write','const carrier={get instance(){return new WeakMap();}};try{carrier.instance=0;}catch{}','carrier.instance']
+['accessor-getter-only-caught-write','const carrier={get instance(){return new WeakMap();}};try{carrier.instance=0;}catch{}','carrier.instance'],
+// The thrown value is evaluated after preceding comma/call side effects.
+// Catch-variable abstract provenance must use the post-expression throw edge.
+['throw-sequence-updated-member','let result;const carrier={};try{throw (carrier.instance=new WeakMap(),carrier.instance);}catch(e){result=e;}','result'],
+['throw-call-updated-member','let result;let carrier={};function fill(){carrier={instance:new WeakMap()};}try{throw (fill(),carrier.instance);}catch(e){result=e;}','result'],
+['throw-sequence-ordinary-control','class Ordinary{} let result;const carrier={};try{throw (carrier.instance=new Ordinary(),carrier.instance);}catch(e){result=e;}','result']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
