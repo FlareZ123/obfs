@@ -43,3 +43,26 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
       emitted.code);
   });
 }
+
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
+  test(mode+' private class method proof refuses class, instance, method, and optional-call escapes',()=>{
+    const unsafe=[
+      source.replace('module.exports=reader.read();','module.exports=reader;'),
+      source.replace('module.exports=reader.read();','module.exports=Reader;'),
+      source.replace('module.exports=reader.read();','const method=reader.read;module.exports=method;'),
+      source.replace('module.exports=reader.read();','module.exports=reader.read?.();'),
+      source.replace('module.exports=reader.read();','module.exports=reader.read.toString();')
+    ];
+    for(const [index,code] of unsafe.entries()){
+      const result=obfuscateFiles([{
+        path:'private-class.cjs',sourceType:'commonjs',code
+      }],{mode,seed:'private-class-refusal/'+mode+'/'+index,
+        properties:true,identifiers:false,strings:false});
+      assert.equal(result.files[0].metrics.properties,0,
+        mode+': an escaping or optional class method must not expose owner-key rewrites');
+      assert.equal(result.files[0].code,code,
+        mode+': unproved class method paths must retain their original source');
+    }
+  });
+}
