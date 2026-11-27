@@ -25,7 +25,11 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ['bound writer prefilled','const bound=document.write.bind(document,'+raw+');bound();'],
     ['bound writer inline','document.write.bind(document)('+raw+');'],
     ['opaque binding selector','const operation=globalThis.writerOperation||"bind";'+
-      'const bound=document.write[operation](document);bound('+raw+');']
+      'const bound=document.write[operation](document);bound('+raw+');'],
+    ['destructured document writer','const {write}=document;'+
+      'const bound=write.bind(document);bound('+raw+');'],
+    ['destructured document alias','const doc=document;const {write:w}=doc;'+
+      'const bound=w.bind(doc);bound('+raw+');']
   ];
   const files=[
     {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
@@ -65,6 +69,14 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ],options);
     assert.notEqual(ordinaryBound.files[0].code,source,
       'Binding an unrelated local writer must retain rewrite yield in '+mode);
+    const ordinaryDestructured=obfuscateFiles([
+      files[0],{path:'bootstrap.js',sourceType:'script',
+        code:'const ordinary={write(x){return x;}};'+
+          'const {write}=ordinary;const bound=write.bind(ordinary);'+
+          'bound('+raw+');'},files[1]
+    ],options);
+    assert.notEqual(ordinaryDestructured.files[0].code,source,
+      'Destructuring an unrelated local writer must retain yield in '+mode);
     const unknownBound=obfuscateFiles([
       files[0],{path:'bootstrap.js',sourceType:'script',
         code:'const bound=document.write.bind(document);'+
