@@ -41,7 +41,7 @@ async function run(files){
       '--input-type=module','-e',script,pathToFileURL(path.join(root,'app.mjs')).href
     ],{encoding:'utf8',timeout:15000});
     assert.equal(child.status,0,child.stderr||child.error?.message);
-    return /** @type {{result:number,storedHasOriginal:boolean}} */(JSON.parse(child.stdout));
+    return /** @type {{result:number,storedHasOriginal:boolean,storedTrace:{storedKey:string|null,storedValue:string|null,observedKey:string|null}}} */(JSON.parse(child.stdout));
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
