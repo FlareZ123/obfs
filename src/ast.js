@@ -1815,7 +1815,23 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       visitCarrierExpression(node.callee,environment,thisValue);
       if(node.callee.type==='Identifier')
-        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true);
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
+          node.arguments??[]);
+      if(node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const owner=node.callee.object.name;
+        const method=carrierStaticKey(node.callee.property,node.callee.computed);
+        const localMethod=method===null?undefined:localObjectMethods.get(owner)?.get(method);
+        // Exactly two owner references prove the private const object appears
+        // only at its declaration and this direct method call. This excludes
+        // mutation/escape surfaces without assuming arbitrary member stability.
+        if(localMethod&&localBindingCounts.get(owner)===1&&
+           identifierOccurrences.get(owner)===2&&!hasDirectEval) {
+          replayCarrierFunctionNode(localMethod,environment,
+            evaluateCarrierValue(node.callee.object,environment,thisValue),
+            true,node.arguments??[],true);
+        }
+      }
       return;
     }
     if(node.type==='NewExpression') {
