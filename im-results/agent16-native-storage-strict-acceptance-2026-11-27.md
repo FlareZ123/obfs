@@ -31,4 +31,6 @@ The error was `ERR_ASSERTION` at the exact source-equality check, not an install
 
 For this specific native Node Web Storage path and source SHA, SNO transformed output is observably different even though ordinary function results match. This is a **compatibility counterexample**, not an attack on server authorization or a proof about all programs. A production fix should preserve source parity and unrelated transform yield without assuming all source-observer paths are statically transparent. Re-run this opt-in gate at the exact intended integration candidate on Linux/Windows before any parity claim.
 
-The workflow also dispatched a Windows job; its final status should be independently checked and appended rather than inferred from Linux.
+## Windows corroboration and final run status
+
+The Windows Node 22 job also failed at the **same** strict source-equality assertion on the **same** source SHA, with identical original/emitted function-source strings and **12 passes / one failure / zero skips**. Its npm install and source-pin steps passed. Both jobs in [run 46080463665](https://github.com/FlareZ123/obfs/actions/runs/46080463665) have completed RED, as intended for the counterexample. The logs record no unrelated test failures. This is two-OS empirical reproducibility for one witness, not a general security or compatibility theorem.
