@@ -19,16 +19,15 @@ async function main(){
   const source='export const marker="dynamic module preload has pinned source bytes";';
   const digest='sha256-'+createHash('sha256').update(source).digest('base64');
   const loader=[
-    'const link=document.createElement("link");',
-    'link.rel="modulepreload";link.href="./client.mjs";',
+    'const link=document.getElementById("preload");',
     'const key=globalThis.linkIntegrityField||"integrity";',
     'link[key]=document.getElementById("expected").content;',
     'link.onload=()=>document.documentElement.dataset.linkSri="loaded";',
     'link.onerror=()=>document.documentElement.dataset.linkSri="blocked";',
-    'document.head.append(link);'
+    'link.rel="modulepreload";link.href="./client.mjs";'
   ].join('');
   const html='<!doctype html><html><head>'+
-    '<meta id="expected" content="'+digest+'">'+
+    '<link id="preload"><meta id="expected" content="'+digest+'">'+
     '<script src="./loader.js"></script></head>'+
     '<body><p>Dynamic HTMLLinkElement modulepreload SRI</p></body></html>';
   const inputs=[
