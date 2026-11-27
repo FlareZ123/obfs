@@ -94,13 +94,21 @@ const cases=[
 ['switch-case-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:carrier.instance=new WeakMap();throw 1;carrier.instance={};}}catch{}','carrier.instance'],
 ['switch-case-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;carrier.instance={};}}fill();','carrier.instance'],
 ['switch-case-nested-if-break','const carrier={instance:{}};switch(0){case 0:if(true){carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
-['switch-case-fallthrough-preserves','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();case 1:break;}','carrier.instance'],
+['switch-case-fallthrough-preserves',
+        'class-static-computed-field-key-write',
+        'class-instance-computed-method-key-write',
+        'class-static-field-throw-skips-write','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();case 1:break;}','carrier.instance'],
 // Executing a case selector can invoke a user-defined accessor or implicit
 // coercion hook. The private function source must remain stable after these.
 ['switch-defineproperty-accessor','const carrier={instance:{}};const observer={};Object.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
 ['switch-defineproperties-accessor','const carrier={instance:{}};const observer={};Object.defineProperties(observer,{v:{get(){carrier.instance=new WeakMap();return 1;}}});switch(0){case observer.v:break;}','carrier.instance'],
 ['switch-reflect-defineproperty-accessor','const carrier={instance:{}};const observer={};Reflect.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
 ['switch-selector-implicit-string-hook','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "1";}};switch(0){case ""+key:break;}','carrier.instance'],
+// Class definitions execute computed keys eagerly; static field initializers
+// can also throw after storing a live carrier, skipping a later clear.
+['class-static-computed-field-key-write','const carrier={instance:{}};class Holder{static [(carrier.instance=new WeakMap(),"x")]=1;}','carrier.instance'],
+['class-instance-computed-method-key-write','const carrier={instance:{}};class Holder{[(carrier.instance=new WeakMap(),"x")](){}}','carrier.instance'],
+['class-static-field-throw-skips-write','const carrier={instance:{}};try{class Holder{static x=(carrier.instance=new WeakMap(),(()=>{throw 1})());}carrier.instance={};}catch{}','carrier.instance'],
 // Nested abrupt completion inside try/finally can bypass a later dead write
 // within the current case, function block or labeled block.
 ['switch-case-finally-break-dead-write','const carrier={instance:{}};switch(0){case 0:try{carrier.instance=new WeakMap();break;}finally{}carrier.instance={};}','carrier.instance'],
