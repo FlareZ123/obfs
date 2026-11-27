@@ -112,7 +112,15 @@ const cases=[
 ['logical-nullish-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};null??(carrier.instance=new Ordinary());','carrier.instance'],
 ['same-object-aliased-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};const alias=carrier;alias.instance=new Ordinary();','carrier.instance'],
 ['direct-local-helper-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};function clear(){carrier.instance=new Ordinary();}clear();','carrier.instance'],
-['unread-getter-should-not-write','class Ordinary{} let carrier={instance:new Ordinary()};const unused={get value(){carrier={instance:new WeakMap()};return 0;}};','carrier.instance']
+['unread-getter-should-not-write','class Ordinary{} let carrier={instance:new Ordinary()};const unused={get value(){carrier={instance:new WeakMap()};return 0;}};','carrier.instance'],
+// Abrupt completion nested inside a block or known conditional must prevent
+// later unreachable writes from killing a live WeakMap provenance state.
+['if-true-return-dead-overwrite','let carrier={instance:{}};function fill(){if(true){carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['nested-block-return-dead-overwrite','let carrier={instance:{}};function fill(){{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['both-branches-return-dead-overwrite','let carrier={instance:{}};function fill(){if(Math.random()>0.5){carrier.instance=new WeakMap();return;}else{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['if-true-throw-dead-overwrite','let carrier={instance:{}};try{if(true){carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
+['nested-block-throw-dead-overwrite','let carrier={instance:{}};try{{carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
+['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
