@@ -108,6 +108,14 @@ const cases=[
 ['try-finally-return-dead-write','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}finally{}carrier.instance={};}fill();','carrier.instance'],
 ['label-try-finally-break-dead-write','const carrier={instance:{}};outer:{try{carrier.instance=new WeakMap();break outer;}finally{}carrier.instance={};}','carrier.instance'],
 ['switch-case-finally-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:try{carrier.instance=new WeakMap();throw 1;}finally{}carrier.instance={};}}catch{}','carrier.instance'],
+// Catch handlers may resume on an exceptional path, but a native return or
+// break can still bypass all later writes. The abstract state must retain
+// both alternatives rather than treating the post-try write as definite.
+['try-catch-finally-return-early','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}catch(e){}finally{}carrier.instance={};}fill();','carrier.instance'],
+['switch-case-try-catch-finally-break-early','const carrier={instance:{}};switch(0){case 0:try{carrier.instance=new WeakMap();break;}catch(e){}finally{}carrier.instance={};}','carrier.instance'],
+['try-catch-both-paths-abrupt','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();throw 1;}catch(e){return;}finally{}carrier.instance={};}fill();','carrier.instance'],
+// A genuinely resuming catch with no WeakMap must still allow useful yield.
+['try-catch-finally-resumes-positive','class Ordinary{} const carrier={instance:new Ordinary()};try{throw 1;}catch{carrier.instance=new Ordinary();}finally{}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -168,9 +176,13 @@ for(const [name,setup,access] of cases) {
         'switch-selector-implicit-string-hook',
         'switch-case-finally-break-dead-write','switch-case-finally-return-dead-write',
         'try-finally-return-dead-write','label-try-finally-break-dead-write',
-        'switch-case-finally-throw-dead-write'].includes(name))
+        'switch-case-finally-throw-dead-write',
+        'try-catch-finally-return-early',
+        'switch-case-try-catch-finally-break-early',
+        'try-catch-both-paths-abrupt'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
-    if(name==='switch-benign-nonliteral-selector')
+    if(['switch-benign-nonliteral-selector',
+        'try-catch-finally-resumes-positive'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
