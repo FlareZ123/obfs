@@ -179,6 +179,11 @@ const cases=[
 ['class-expression-named-static-map-owner','const Holder=class Named{static instance=new WeakMap();};','Holder.instance'],
 ['class-expression-static-map-aliased-owner','const Holder=class{static instance=new WeakMap();};const alias=Holder;','alias.instance'],
 ['class-expression-factory-static-map-owner','function make(){return class{static instance=new WeakMap();};}const Holder=make();','Holder.instance'],
+// Inner named class values may hold a WeakMap without making a same-named
+// outer variable unsafe. Keep native-negative rewrite yield while tracing
+// the class expression's own static carrier value across variable binding.
+['class-expression-inner-map-outer-ordinary-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static [(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
+['class-expression-inner-map-outer-ordinary-field-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static field=(carrier.instance=new WeakMap());};','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -294,7 +299,9 @@ for(const [name,setup,access] of cases) {
         'for-static-block-normal-update',
         'class-benign-computed-key-yield',
         'class-benign-static-clear-yield',
-        'class-expression-benign-field-yield'].includes(name))
+        'class-expression-benign-field-yield',
+        'class-expression-inner-map-outer-ordinary-yield',
+        'class-expression-inner-map-outer-ordinary-field-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
