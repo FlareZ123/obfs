@@ -303,7 +303,7 @@ test('ESM audit refuses --no-addons when the helper would resolve the wrong cond
     const output=path.join(temp,'output','app');
     const guarded=path.join(temp,'guarded','app');
     const shared=path.join(temp,'shared');
-    await atomicWrite(path.join(shared,'native.mjs'),'export default 1000;');
+    await atomicWrite(path.join(shared,'native.mjs'),'export const value=1000;');
     await writeApplication(source);
     /** @param {string} root @param {number} fallback */
     async function conditionalPackage(root,fallback) {
@@ -313,7 +313,7 @@ test('ESM audit refuses --no-addons when the helper would resolve the wrong cond
         exports:{'.':{'node-addons':'./native-scope/native.mjs',default:'./fallback.mjs'}}
       }));
       await atomicWrite(path.join(pkg,'fallback.mjs'),
-        'export default '+String(fallback)+';');
+        'export const value='+String(fallback)+';');
       await fs.symlink(shared,path.join(pkg,'native-scope'),
         process.platform==='win32'?'junction':'dir');
     }
