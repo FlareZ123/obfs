@@ -126,7 +126,15 @@ const cases=[
 ['accessor-getter-then-setter','const carrier={get instance(){return new WeakMap();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
 ['accessor-setter-then-getter','const carrier={set instance(v){},get instance(){return new WeakMap();}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
 // Native-negative yield control ensures an overbroad veto is not misreported as a pass.
-['accessor-ordinary-no-weakmap','class Ordinary{} const carrier={get instance(){return new Ordinary();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance']
+['accessor-ordinary-no-weakmap','class Ordinary{} const carrier={get instance(){return new Ordinary();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+// Test separate failure mechanisms: accessor descriptor construction, and
+// ordinary direct/alias assignments, independently of local-helper proof.
+['accessor-get-then-set-no-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};','carrier.instance'],
+['accessor-set-then-get-no-write','const carrier={set instance(v){},get instance(){return new WeakMap();}};','carrier.instance'],
+['accessor-get-then-set-direct-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};carrier.instance=0;','carrier.instance'],
+['accessor-get-then-set-alias-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};const alias=carrier;alias.instance=0;','carrier.instance'],
+['accessor-getter-only-no-write','const carrier={get instance(){return new WeakMap();}};','carrier.instance'],
+['accessor-getter-only-caught-write','const carrier={get instance(){return new WeakMap();}};try{carrier.instance=0;}catch{}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
