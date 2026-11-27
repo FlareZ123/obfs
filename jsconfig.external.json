@@ -3,6 +3,7 @@
   "include": [
     "sims/semantic-data-oracle.js",
     "test/semantic-data-oracle.test.js",
+    "test/semantic-data-oracle-crossfile.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
