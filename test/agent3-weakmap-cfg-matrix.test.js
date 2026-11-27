@@ -131,7 +131,23 @@ const cases=[
 ['for-update-after-throw-skipped','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();throw 1;}}catch{}','carrier.instance'],
 ['for-update-after-nested-break-skipped','const carrier={instance:{}};for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();if(true)break;}','carrier.instance'],
 ['for-update-after-continue-runs','class Ordinary{} const carrier={instance:{}};for(let i=0;i<1;(carrier.instance=new Ordinary()),i++){carrier.instance=new WeakMap();continue;}','carrier.instance'],
-['dowhile-condition-after-break-skipped','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
+['dowhile-condition-after-break-skipped',
+        'class-static-computed-field-key-write',
+        'class-instance-computed-method-key-write',
+        'class-static-field-throw-skips-write',
+        'dowhile-final-condition-write',
+        'while-final-condition-write',
+        'for-final-condition-write','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
+// Class definitions eagerly execute computed keys (including instance
+// elements); a throwing static field can prevent a later sibling overwrite.
+['class-static-computed-field-key-write','const carrier={instance:{}};class Holder{static [(carrier.instance=new WeakMap(),"x")]=1;}','carrier.instance'],
+['class-instance-computed-method-key-write','const carrier={instance:{}};class Holder{[(carrier.instance=new WeakMap(),"x")](){}}','carrier.instance'],
+['class-static-field-throw-skips-write','const carrier={instance:{}};try{class Holder{static x=(carrier.instance=new WeakMap(),(()=>{throw 1})());}carrier.instance={};}catch{}','carrier.instance'],
+// Every loop condition is evaluated again after a normally completed body;
+// do-while evaluates its first condition only after the body.
+['dowhile-final-condition-write','const carrier={instance:{}};let i=0;do{carrier.instance={};}while((carrier.instance=new WeakMap(),i++<0));','carrier.instance'],
+['while-final-condition-write','const carrier={instance:{}};let i=0;while((carrier.instance=new WeakMap(),i++<1)){carrier.instance={};}','carrier.instance'],
+['for-final-condition-write','const carrier={instance:{}};for(let i=0;(carrier.instance=new WeakMap(),i<1);i++){carrier.instance={};}','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
