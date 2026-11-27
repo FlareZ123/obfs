@@ -213,6 +213,12 @@ const cases=[
 ['reflect-defineproperty-accessor-write','const carrier={};Reflect.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});carrier.instance=0;','carrier.instance'],
 ['defineproperties-accessor-helper-write','const carrier={};Object.defineProperties(carrier,{instance:{get(){return new WeakMap();},set(v){}}});function clear(){carrier.instance=0;}clear();','carrier.instance'],
 ['defineproperty-ordinary-control','class Ordinary{}const carrier={};Object.defineProperty(carrier,"instance",{get(){return new Ordinary();},set(v){}});carrier.instance=0;','carrier.instance'],
+// Calls evaluate their callee expression before arguments. Argument *values*
+// may be innocent while their side effects update the carrier.
+['call-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['call-optional-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target?.[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['call-sequence-callee-before-arg','let carrier={instance:{}};function target(_v){};(carrier.instance={},target)((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['call-callee-arg-ordinary-yield','class Ordinary{}let carrier={instance:new WeakMap()};const target={m(_v){}};target[(carrier.instance=new WeakMap(),"m")]((carrier.instance=new Ordinary(),0));','carrier.instance'],
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
