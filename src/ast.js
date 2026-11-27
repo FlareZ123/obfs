@@ -2218,6 +2218,14 @@ function hasWeakMapPrototypeExposure(ast) {
         if(element.type==='MethodDefinition'&&element.value?.body &&
            !functionClosureEnvironments.has(element.value))
           functionClosureEnvironments.set(element.value,new Map(environment));
+        // Reading a static getter invokes its function and can produce a
+        // WeakMap at access time, even without a WeakMap-valued static field.
+        if(element.type==='MethodDefinition'&&element.static&&element.kind==='get') {
+          const getterKey=carrierStaticKey(element.key,element.computed);
+          if(getterKey===null)staticValue.unknown=true;
+          else staticValue.properties.set(getterKey,
+            functionMayReturnWeakMap(element.value)?carrierMaybe:carrierOther);
+        }
       }
       // Static initialization phase, preserving the order between static
       // fields and blocks after the entire computed-key phase.
