@@ -156,3 +156,40 @@ for(const sink of /** @type {const} */ (['reflect','assign','html-method'])) {
       'userland receiver must not trigger DOM source-producer freeze');
   });
 }
+
+
+test('relocated default imported callable producer is source-protected',()=>{
+  const result=obfuscateFiles([
+    {path:'renamed-producer.mjs',sourceType:'module',code:
+      'const owner={secretField:57};export default function inspect(){return owner.secretField;}'},
+    {path:'renamed-consumer.mjs',sourceType:'module',code:[
+      'import inspect from "./logic.mjs";',
+      'const target=document.createElement("div");',
+      'target.id=inspect;'
+    ].join('\n')}
+  ],{mode:'coo',seed:'esm-dom-default-relocated',closedWorld:true,
+    properties:true,identifiers:true,strings:false});
+  const producer=result.files.find(file=>file.path==='renamed-producer.mjs');
+  assert.ok(producer);
+  assert.ok(String(producer.code).includes('secretField'));
+});
+
+test('ambiguous relocated callable exports all fail closed',()=>{
+  const result=obfuscateFiles([
+    {path:'left.mjs',sourceType:'module',code:
+      'const owner={leftSecret:1};export function inspect(){return owner.leftSecret;}'},
+    {path:'right.mjs',sourceType:'module',code:
+      'const owner={rightSecret:2};export function inspect(){return owner.rightSecret;}'},
+    {path:'consumer.mjs',sourceType:'module',code:[
+      'import {inspect} from "./logic.mjs";',
+      'const target=document.createElement("div");',
+      'target.id=inspect;'
+    ].join('\n')}
+  ],{mode:'coo',seed:'esm-dom-ambiguous-relocated',closedWorld:true,
+    properties:true,identifiers:true,strings:false});
+  const left=result.files.find(file=>file.path==='left.mjs');
+  const right=result.files.find(file=>file.path==='right.mjs');
+  assert.ok(left&&right);
+  assert.ok(String(left.code).includes('leftSecret'));
+  assert.ok(String(right.code).includes('rightSecret'));
+});
