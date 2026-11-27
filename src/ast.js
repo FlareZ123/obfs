@@ -3616,6 +3616,27 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       // Key expressions must be constant before we infer a builtin alias.
       const pattern=node.type==='VariableDeclarator' ? node.id :
         node.type==='AssignmentExpression'&&node.operator==='=' ? node.left : null;
+      // Destructuring Document methods can carry the same parser writer as
+      // a direct member read. A later bind/call can inject SRI-pinned
+      // scripts, including when the method key is opaque at build time.
+      if(pattern?.type==='ObjectPattern' && isDocumentReceiver(initial)) {
+        for(const prop of pattern.properties) {
+          if(prop.type!=='Property')continue;
+          const alias=prop.value.type==='Identifier'?prop.value:
+            prop.value.type==='AssignmentPattern' &&
+              prop.value.left.type==='Identifier'?prop.value.left:null;
+          if(!alias)continue;
+          const key=prop.computed ? staticString(prop.key) :
+            prop.key.type==='Identifier'?prop.key.name :
+            prop.key.type==='Literal' && typeof prop.key.value==='string'?
+              prop.key.value:null;
+          if((key===null||key==='write'||key==='writeln') &&
+             !documentWriterRoots.has(alias.name)) {
+            documentWriterRoots.add(alias.name);
+            changed=true;
+          }
+        }
+      }
       if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
          globals.has(initial.name)) {
         for(const prop of pattern.properties) {
