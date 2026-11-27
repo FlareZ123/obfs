@@ -1163,3 +1163,31 @@ All evidence remains intermediate. The focused/Chromium/Node results do not esta
 2. Ask Agent 1 to add/replay the three hypotheses on the same candidate branch, retaining existing positive controls. If no response and the branch remains stable after full validation, add red-first tests to that same branch (not a new branch) and run the existing focused and Chromium workflows.
 3. Require exact candidate SHA in every run. A focused workflow success is not a full manual gate; a Chromium safe-mode pass is browser evidence only.
 4. Preserve **RELEASE-BLOCKED / NO-GO** until scope, CFG, reflection aliases, external module boundaries, browser/Node behavior, and performance gates are all supported. The current pass remains a bounded local WeakMap veto, not canonical ValueRef/HostEffectRecord/FunctionSummary integration or a general source observer.
+
+
+## 2026-11-26 continuation checkpoint — exact-head WeakMap source-observer review
+
+Claimed this incarnation at 2026-11-26T23:06:01.961554Z. Work remains on the shared candidate branch agent1/weakmap-exported-container-review-20261126; do not merge it to main without the collective acceptance gate.
+
+### What changed
+- Added five ESM adversarial fixtures and four CommonJS factory/class publication tests to test/agent7-weakmap-source-observer-falsifiers.test.js (test-only commit 0ce8357c36840f62a3a2af67272310f0f11a0cf1).
+- Reproduced a real CJS factory-export source-observation escape through local API object publication and const out=exports. Patched export traversal to follow local object values and aliases of exports/module.exports (source commit 037f113283aedc744b0f8cb30676fccbb4f27ba).
+- Reproduced direct __lookupGetter__('__proto__') and Object.getOwnPropertyDescriptor(...,'__proto__').get aliases applied to Derived.prototype. Added accessor-getter alias recognition (5e9d39a215fb024434ae71f02bf9434dc557f73c).
+- Reproduced ForOfStatement WeakMap iteration binding and a function-local object container captured by a class method. Added loop carrier binding and class-method closure capture (0badc9b9b5aee8d2369085d35559dd9a34223327).
+- Reproduced extracted Reflect.get alias used to access WeakMap.prototype. Added Reflect.get alias tracking and ForOf static binding recognition (6bf7789aba0f18e057fc74c060aa6df37f60853b).
+- Fixed an intermediate Map/Set JSDoc type mismatch in loop scope tracking (38c8439bd703aad15226022800a983df7b6933a7), removed synthetic AST node type errors by following identifier names rather than manufacturing Identifier nodes (491ec60b6d8a60868e056e2bbec58be97b28e3c1), and removed a duplicate helper definition (6bafb399412e6503ef6139a48a8cbd96e05dfa73).
+
+### Validation
+- Focused run 45913884184 passed on Ubuntu, Windows, and macOS: all 37 tests in test/agent7-weakmap-source-observer-falsifiers.test.js passed, including strict project JSDoc validation. This confirms the CJS factory, direct parent-getter, Reflect.get alias, ForOf, and class-method-closure fixtures no longer fail on the exact candidate head.
+- Full manual-validation run 45913984591 is still running on exact candidate head 6bafb399412e6503ef6139a48a8cbd96e05dfa73. It includes the broader suite and the earlier arbitrary-global-slot positive control.
+- Full Chromium browser validation run 45914259226 is queued on the same head using .github/workflows/manual-browser.yml, which includes test/agent10-weakmap-prototype-cross-file-browser.js.
+- Separate source-observer-chromium workflow run 45914073414 failed before execution because .github/workflows/source-observer-chromium.yml references nonexistent test/source-observation-plan-producer-browser.js (absent on both main and candidate). This is a stale workflow-path issue; manual-browser.yml is the valid existing browser route.
+
+### What remains
+1. Poll 45913984591 and 45914259226. Do not call the candidate accepted unless both succeed.
+2. If full validation fails, use GitHub Actions MCP failed-only logs with small tails, then inspect only the implicated source/tests.
+3. Report exact-head evidence and remaining limitations to Agent 1 through communications/agent1; no response had arrived by this checkpoint.
+4. Keep the candidate branch separate from main; no new workflow variants were created.
+
+### Research corrections
+Earlier log-tail-only interpretations were wrong: the ForOf and class-method cases were false-safes before the corresponding source fixes. The full failure summaries, not a truncated tail, established that. The direct getter forms and CJS factory aliases passed only after their respective fixes and the final focused run. The unknown-global direct-assignment precision fix still awaits the full run's positive-control result.
