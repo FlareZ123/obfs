@@ -146,8 +146,16 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
     const ast=parse(/** @type {string} */ (file.code),'module');
-    /** @type {Map<string,string>} */
+    /** @type {Map<string,Set<string>>} */
     const importedOrigins=new Map();
+    /** @param {string} binding @param {string} origin @returns {boolean} */
+    function addImportedOrigin(binding,origin) {
+      const origins=importedOrigins.get(binding)??new Set();
+      if(origins.has(origin))return false;
+      origins.add(origin);
+      importedOrigins.set(binding,origins);
+      return true;
+    }
     for(const statement of ast.body??[]) {
       if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
          typeof statement.source.value!=='string')continue;
@@ -161,7 +169,9 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       for(const spec of statement.specifiers??[]) {
         if(spec.local?.type!=='Identifier')continue;
         if(modules.has(target)) {
-          importedOrigins.set(spec.local.name,target);
+          if(!importedPrimitives.get(filename)?.has(spec.local.name) &&
+             !importedStrings.get(filename)?.has(spec.local.name))
+            addImportedOrigin(spec.local.name,target);
           continue;
         }
         // Build/test harnesses may relocate an otherwise closed supplied ESM
@@ -172,18 +182,43 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           const exposed=spec.imported.name??spec.imported.value;
           const origins=typeof exposed==='string'?
             callableExportOrigins.get(exposed):undefined;
-          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+          if(origins?.size===1 &&
+             !importedPrimitives.get(filename)?.has(spec.local.name) &&
+             !importedStrings.get(filename)?.has(spec.local.name))
+            addImportedOrigin(spec.local.name,[...origins][0]);
         }
       }
     }
     if(!importedOrigins.size)continue;
+    // Conservatively propagate potential callable origins through local
+    // identifier assignments. A name may denote several lexical bindings;
+    // use a may-origin union rather than choosing one and losing the other.
+    /** @type {Array<[string,string]>} */
+    const aliasEdges=[];
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator' &&
+         node.id.type==='Identifier' && node.init?.type==='Identifier')
+        aliasEdges.push([node.id.name,node.init.name]);
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='Identifier' && node.right.type==='Identifier')
+        aliasEdges.push([node.left.name,node.right.name]);
+    });
+    let aliasesChanged;
+    do {
+      aliasesChanged=false;
+      for(const [receiver,source] of aliasEdges) {
+        for(const origin of importedOrigins.get(source)??[]) {
+          if(addImportedOrigin(receiver,origin))aliasesChanged=true;
+        }
+      }
+    }while(aliasesChanged);
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
-    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {Set<string>} */
     function importedOrigin(node) {
       if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
-         provenStrings.has(node.name))return null;
-      return importedOrigins.get(node.name)??null;
+         provenStrings.has(node.name))return new Set();
+      return importedOrigins.get(node.name)??new Set();
     }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isDocument(node) {
@@ -239,14 +274,13 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          node.left.type==='MemberExpression'&&
          node.left.object.type==='Identifier'&&
          domValues.has(node.left.object.name)) {
-        const origin=importedOrigin(node.right);
-        if(origin)protectedPaths.add(origin);
+        for(const origin of importedOrigin(node.right))protectedPaths.add(origin);
       }
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
          node.callee.object.type==='Identifier'&&
          htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
-        const origin=importedOrigin(node.arguments[0]);
-        if(origin)protectedPaths.add(origin);
+        for(const origin of importedOrigin(node.arguments[0]))
+          protectedPaths.add(origin);
       }
     });
   }
