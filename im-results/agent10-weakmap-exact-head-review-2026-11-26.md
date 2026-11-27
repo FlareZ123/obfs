@@ -197,3 +197,16 @@ The previously confirmed CJS factory object-alias escape, direct derived-parent 
 - A separate source-observer-chromium.yml attempt (45914073414) failed before test execution because its workflow references test/source-observation-plan-producer-browser.js, which is absent from both the candidate branch and main. Treat this as a stale workflow-path defect, not a candidate regression. manual-browser.yml is the existing working browser validation route.
 
 Do not promote the candidate as accepted until runs 45913984591 and 45914259226 finish successfully. The candidate branch remains separate from main.
+
+
+## Full-suite and browser gate receipts (00:01–00:05Z)
+
+**Candidate SHA:** 6bafb399412e6503ef6139a48a8cbd96e05dfa73
+
+- **Real Chromium run 45914259226: SUCCESS.** The entire manual-browser.yml workflow completed successfully. The dedicated “Verify cross-file WeakMap prototype exposure fails closed in Chromium” step passed, along with the rest of the browser integration suite, source parity, SRI, CSP, and SCO browser checks.
+- **Full manual-validation run 45913984591: Ubuntu job FAILED on one test, Windows still in progress at this checkpoint.** Ubuntu ran 5,710 tests: 5,684 passed, 1 failed, 25 skipped. The sole failure was test/sco-step-only-live-rpc.test.js:58, “generated five-state SCO and matched ordinary esbuild-minified service yield identical clones,” with TypeError: fetch failed in the generated ordinary/client.mjs during the local ordinary-control HTTP step. The stack points into sims/sco-step-only-five-state.js:246 and sims/sco-step-only-live-rpc.js:218. This is outside the WeakMap source-observer fixtures, but its cause is not yet established; do not dismiss it as environmental without reproduction.
+- The Ubuntu job continued through npm run typecheck, npm run typecheck:external, affine and paired-budget JSDoc checks, benchmark, browser integration, verified-record Chromium, and ESM observer Chromium; those subsequent steps completed successfully. Benchmark ratios remained within 2.5x in the displayed cases.
+- A focused reproduction run 45914692360 for test/sco-step-only-live-rpc.test.js was queued on the same candidate head to determine whether the five-state fetch failure is reproducible in isolation.
+- The full-suite global-slot positive control did not appear among the failing tests, but the full workflow remains incomplete until Windows finishes and the focused reproduction is inspected.
+
+Current disposition: focused WeakMap adversarial acceptance and complete Chromium browser validation pass; full Node suite is not yet accepted because of the single five-state live-RPC fetch failure and the still-running Windows job.
