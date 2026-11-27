@@ -1,0 +1,9 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/domstring-property-setter-source-matrix.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
