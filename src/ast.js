@@ -2270,8 +2270,15 @@ function hasWeakMapPrototypeExposure(ast) {
         if(element.type==='MethodDefinition'&&element.static&&element.kind==='get') {
           const getterKey=carrierStaticKey(element.key,element.computed);
           if(getterKey===null)staticValue.unknown=true;
-          else staticValue.properties.set(getterKey,
-            functionMayReturnWeakMap(element.value)?carrierMaybe:carrierOther);
+          else {
+            staticValue.getters.set(getterKey,element.value);
+            staticValue.properties.set(getterKey,
+              functionMayReturnWeakMap(element.value)?carrierMaybe:carrierOther);
+          }
+        } else if(element.type==='MethodDefinition'&&element.static&&
+                  element.kind==='method') {
+          const methodKey=carrierStaticKey(element.key,element.computed);
+          if(methodKey!==null)staticValue.getters.delete(methodKey);
         }
       }
       // Static initialization phase, preserving the order between static
@@ -2284,7 +2291,10 @@ function hasWeakMapPrototypeExposure(ast) {
           const fieldValue=evaluateCarrierValue(element.value,environment,staticValue);
           const fieldKey=carrierStaticKey(element.key,element.computed);
           if(fieldKey===null)staticValue.unknown=true;
-          else staticValue.properties.set(fieldKey,fieldValue);
+          else {
+            staticValue.getters.delete(fieldKey);
+            staticValue.properties.set(fieldKey,fieldValue);
+          }
           // An initializer may throw after effects but before following
           // static elements. Preserve its reaching state as an alternative.
           possibleStaticExits.push(forkCarrierEnvironment(environment));
