@@ -132,6 +132,12 @@ const cases=[
 ['for-update-after-nested-break-skipped','const carrier={instance:{}};for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();if(true)break;}','carrier.instance'],
 ['for-update-after-continue-runs','class Ordinary{} const carrier={instance:{}};for(let i=0;i<1;(carrier.instance=new Ordinary()),i++){carrier.instance=new WeakMap();continue;}','carrier.instance'],
 ['dowhile-condition-after-break-skipped','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
+// Static class initialization executes synchronously, including abrupt
+// static-block throws, although ordinary method bodies are not executed.
+['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
+['switch-static-block-throw-skips-write','const carrier={instance:{}};try{switch(0){case 0:carrier.instance=new WeakMap();class Holder{static{throw 1;}}carrier.instance={};}}catch{}','carrier.instance'],
+['try-static-block-throw-skips-write','const carrier={instance:{}};try{carrier.instance=new WeakMap();class Holder{static{throw 1;}}carrier.instance={};}catch{}','carrier.instance'],
+['for-static-block-normal-update','class Ordinary{} const carrier={instance:{}};for(let i=0;i<1;(carrier.instance=new Ordinary()),i++){carrier.instance=new WeakMap();class Holder{static{void 0;}}}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -200,12 +206,16 @@ for(const [name,setup,access] of cases) {
         'switch-if-return-before-clear','loop-return-before-clear',
         'for-update-after-break-skipped','for-update-after-return-skipped',
         'for-update-after-throw-skipped','for-update-after-nested-break-skipped',
-        'dowhile-condition-after-break-skipped'].includes(name))
+        'dowhile-condition-after-break-skipped',
+        'for-static-block-throw-skips-update',
+        'switch-static-block-throw-skips-write',
+        'try-static-block-throw-skips-write'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(['switch-benign-nonliteral-selector',
         'try-catch-finally-resumes-positive',
         'switch-break-followed-ordinary','loop-break-followed-ordinary',
-        'for-update-after-continue-runs'].includes(name))
+        'for-update-after-continue-runs',
+        'for-static-block-normal-update'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
