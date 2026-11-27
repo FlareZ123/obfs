@@ -182,7 +182,7 @@ const cases=[
 // Inner named class values may hold a WeakMap without making a same-named
 // outer variable unsafe. Keep native-negative rewrite yield while tracing
 // the class expression's own static carrier value across variable binding.
-['class-expression-inner-map-outer-ordinary-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static [(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
+['class-expression-inner-map-outer-ordinary-block-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static {carrier.instance=new WeakMap();}};','carrier.instance'],
 ['class-expression-inner-map-outer-ordinary-field-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static field=(carrier.instance=new WeakMap());};','carrier.instance'],
 // Static class accessors/methods may return a WeakMap at the moment of
 // prototype inspection, even if no static field contained a map at definition.
@@ -191,6 +191,9 @@ const cases=[
 ['class-declaration-static-method-weakmap','class Holder{static make(){return new WeakMap();}}','Holder.make()'],
 ['class-expression-static-method-weakmap','const Holder=class{static make(){return new WeakMap();}};','Holder.make()'],
 ['class-expression-static-getter-aliased','const Holder=class{static get instance(){return new WeakMap();}};const alias=Holder;','alias.instance'],
+// A getter proven to return an ordinary object is a native-negative control.
+['class-declaration-static-getter-ordinary-yield','class Ordinary{} class Holder{static get instance(){return new Ordinary();}}','Holder.instance'],
+['class-expression-static-getter-ordinary-yield','class Ordinary{} const Holder=class{static get instance(){return new Ordinary();}};','Holder.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -312,8 +315,10 @@ for(const [name,setup,access] of cases) {
         'class-benign-computed-key-yield',
         'class-benign-static-clear-yield',
         'class-expression-benign-field-yield',
-        'class-expression-inner-map-outer-ordinary-yield',
-        'class-expression-inner-map-outer-ordinary-field-yield'].includes(name))
+        'class-expression-inner-map-outer-ordinary-block-yield',
+        'class-expression-inner-map-outer-ordinary-field-yield',
+        'class-declaration-static-getter-ordinary-yield',
+        'class-expression-static-getter-ordinary-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
