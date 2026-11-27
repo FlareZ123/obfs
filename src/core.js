@@ -124,20 +124,22 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   for(const [producerPath,producer] of modules) {
     const producerAst=parse(/** @type {string} */ (producer.code),'module');
     for(const statement of producerAst.body??[]) {
+      if(statement.type==='ExportDefaultDeclaration') {
+        if(statement.declaration&&
+           ['FunctionDeclaration','ClassDeclaration','FunctionExpression',
+            'ClassExpression','ArrowFunctionExpression'].includes(statement.declaration.type)) {
+          const origins=callableExportOrigins.get('default')??new Set();
+          origins.add(producerPath);
+          callableExportOrigins.set('default',origins);
+        }
+        continue;
+      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       const declaration=statement.declaration;
       if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name) {
         const origins=callableExportOrigins.get(declaration.id.name)??new Set();
         origins.add(producerPath);
         callableExportOrigins.set(declaration.id.name,origins);
-      }
-      if(statement.type==='ExportDefaultDeclaration'&&
-         statement.declaration&&
-         ['FunctionDeclaration','ClassDeclaration','FunctionExpression',
-          'ClassExpression','ArrowFunctionExpression'].includes(statement.declaration.type)) {
-        const origins=callableExportOrigins.get('default')??new Set();
-        origins.add(producerPath);
-        callableExportOrigins.set('default',origins);
       }
       if(declaration?.type==='VariableDeclaration') {
         for(const entry of declaration.declarations??[]) {
