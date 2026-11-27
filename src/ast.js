@@ -1868,6 +1868,9 @@ function hasWeakMapPrototypeExposure(ast) {
       .includes(statement.type))return true;
     if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
       return (statement.body??[]).some(carrierDefinitelyAbrupt);
+    if(statement.type==='ClassDeclaration')
+      return (statement.body?.body??[]).some((/** @type {AstNode} */ element)=>
+        element.type==='StaticBlock'&&carrierDefinitelyAbrupt(element));
     if(statement.type==='IfStatement') {
       const truth=carrierBooleanLiteral(statement.test);
       if(truth===true)return carrierDefinitelyAbrupt(statement.consequent);
@@ -1909,6 +1912,10 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
       return (statement.body??[]).some((/** @type {AstNode} */ child)=>
         carrierMayEscapeConstruct(child,continueExits));
+    if(statement.type==='ClassDeclaration')
+      return (statement.body?.body??[]).some((/** @type {AstNode} */ element)=>
+        element.type==='StaticBlock'&&
+        carrierMayEscapeConstruct(element,continueExits));
     if(statement.type==='IfStatement')
       return carrierMayEscapeConstruct(statement.consequent,continueExits)||
         carrierMayEscapeConstruct(statement.alternate,continueExits);
@@ -1942,8 +1949,11 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function carrierLoopControl(node,kind,breakDepth=0,loopDepth=0) {
     if(!node)return false;
-    if(functionTypes.has(node.type)||node.type==='ClassDeclaration'||
-       node.type==='ClassExpression')return false;
+    if(functionTypes.has(node.type))return false;
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression')
+      return (node.body?.body??[]).some((/** @type {AstNode} */ element)=>
+        element.type==='StaticBlock'&&
+        carrierLoopControl(element,kind,breakDepth,loopDepth));
     if(node.type==='ReturnStatement'||node.type==='ThrowStatement')
       return kind==='skip';
     if(node.type==='BreakStatement')
@@ -1984,6 +1994,9 @@ function hasWeakMapPrototypeExposure(ast) {
     if(carrierDefinitelyAbrupt(statement))return true;
     if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
       return (statement.body??[]).some(carrierMayAbrupt);
+    if(statement.type==='ClassDeclaration')
+      return (statement.body?.body??[]).some((/** @type {AstNode} */ element)=>
+        element.type==='StaticBlock'&&carrierMayAbrupt(element));
     if(statement.type==='IfStatement')
       return carrierMayAbrupt(statement.consequent)||
         carrierMayAbrupt(statement.alternate);
@@ -2127,6 +2140,9 @@ function hasWeakMapPrototypeExposure(ast) {
           // declarations are scoped by visitScopedCarrierBlock; their writes
           // to captured outer bindings must flow back to the current frame.
           visitCarrierStatement(element,environment,staticValue,throwCollector);
+          // A definite static-block throw aborts class initialization.
+          // Following static fields cannot overwrite a live carrier.
+          if(carrierDefinitelyAbrupt(element))break;
         } else if(element.type==='MethodDefinition'&&element.value?.body) {
           // Class methods close over the lexical environment at the class
           // declaration site. Preserve it for the later interprocedural pass.
