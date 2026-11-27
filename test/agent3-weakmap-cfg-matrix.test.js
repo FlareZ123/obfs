@@ -199,6 +199,13 @@ const cases=[
 ['optional-member-executed-key-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={};source?.[(carrier.instance=new Ordinary(),"x")];','carrier.instance'],
 ['optional-call-executed-arg-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={m(_x){}};source?.m(carrier.instance=new Ordinary());','carrier.instance'],
 ['instance-field-unconstructed-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};class Holder{x=(carrier.instance=new WeakMap());}','carrier.instance'],
+// A class with deferred effects may be constructed through a local alias,
+// helper parameter, Reflect.construct, or a derived constructor.
+['instance-field-direct-new-proven','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}new Holder();','carrier.instance'],
+['instance-field-constructor-alias','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}const Alias=Holder;new Alias();','carrier.instance'],
+['instance-field-constructor-parameter','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}function build(C){return new C();}build(Holder);','carrier.instance'],
+['instance-field-reflect-construct','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}Reflect.construct(Holder,[]);','carrier.instance'],
+['instance-field-subclass-construction','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}class Sub extends Holder{}new Sub();','carrier.instance'],
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
