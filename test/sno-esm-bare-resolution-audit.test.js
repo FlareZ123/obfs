@@ -161,6 +161,57 @@ test('ESM audit collects static, re-export, literal dynamic and import.meta.reso
   ]);
 });
 
+
+test('ESM audit refuses escaped import.meta resolver aliases before publication',async()=>{
+  const name='sno-esm-resolution-probe';
+  await fixture(async temp=>{
+    const source=path.join(temp,'source');
+    const output=path.join(temp,'output');
+    const guarded=path.join(temp,'guarded');
+    await writeApplication(source);
+    await atomicWrite(path.join(source,'engine.mjs'),
+      "const meta=import.meta;export default meta.resolve('"+name+"');");
+    await writePackage(source,103,401);
+    await writePackage(output,107,401);
+    await writePackage(guarded,107,401);
+    /** @param {string} entry */
+    const evaluate=entry=>{
+      const child=spawnSync(process.execPath,['-e',
+        'process.stdout.write(String(require(process.argv[1])))',entry],{
+          encoding:'utf8',timeout:15000
+        });
+      if(child.error)throw child.error;
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    };
+    const before=evaluate(path.join(source,'entry.cjs'));
+    await main('sno',['--root',source,'--entry','entry.cjs',
+      '--out',output,'--seed','sno-escaped-meta-resolver']);
+    const after=evaluate(path.join(output,'sno-entry.cjs'));
+    assert.notEqual(before,after,'relocated alias resolves a different package URL');
+    await assert.rejects(
+      main('sno',['--root',source,'--entry','entry.cjs',
+        '--out',guarded,'--seed','sno-escaped-meta-resolver','--audit-bare-esm']),
+      /cannot prove literal imports/u
+    );
+    await assert.rejects(fs.stat(path.join(guarded,'sno-entry.cjs')),{code:'ENOENT'});
+  });
+
+  for(const code of [
+    "const meta=import.meta;void meta.resolve('pkg');",
+    "const {resolve}=import.meta;void resolve('pkg');",
+    "const resolve=Reflect.get(import.meta,'resolve');void resolve('pkg');",
+    "const copied=Object.assign({},import.meta);void copied.resolve('pkg');"
+  ]) {
+    assert.throws(()=>directBareImports([
+      {path:'engine.mjs',sourceType:'module',code}
+    ]),/cannot prove literal imports/u,code);
+  }
+  assert.deepEqual([...directBareImports([{
+    path:'engine.mjs',sourceType:'module',code:'export default import.meta.url;'
+  }])],[],'known nonresolver import.meta.url remains supported');
+});
+
 test('ESM audit refuses unresolved dynamic imports, aliases, package imports and opaque modules',()=>{
   for(const code of [
     "void import(specifier);",
