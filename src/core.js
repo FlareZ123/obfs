@@ -104,6 +104,63 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Conservatively detect a bounded CommonJS flow where one supplied module
+ * exports or contains a function that can return native Web Storage and a
+ * statically linked sibling writes a potentially callable value through an
+ * otherwise opaque property receiver. The receiver provenance crosses the
+ * require boundary, so per-file source-observer analysis cannot prove that
+ * the named Web Storage setter will not stringify the callable.
+ *
+ * Literal-only writes intentionally remain outside this guard so the adjacent
+ * non-source-observing positive-yield controls can still be transformed.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {boolean}
+ */
+function hasCommonJsStorageFactorySourceSink(files) {
+  const commonJs=files.filter(file=>
+    file.sourceType==='commonjs'&&typeof file.code==='string');
+  if(commonJs.length<2)return false;
+  let hasStorageFactory=false;
+  let hasPotentialCallableMemberWrite=false;
+  let hasStaticRelativeRequire=false;
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  function isDirectStorageValue(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')
+      return node.name==='localStorage'||node.name==='sessionStorage';
+    if(node.type!=='MemberExpression')return false;
+    const root=node.object;
+    const key=node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+    return root.type==='Identifier'&&
+      ['globalThis','global','window','self'].includes(root.name)&&
+      (key==='localStorage'||key==='sessionStorage');
+  }
+  for(const file of commonJs) {
+    const ast=parse(/** @type {string} */ (file.code),'commonjs');
+    walk(ast,node=>{
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+         node.callee.name==='require') {
+        const specifier=staticString(node.arguments[0]);
+        if(specifier!==null&&
+           (specifier.startsWith('./')||specifier.startsWith('../'))&&
+           !/[?#%\\\\]/u.test(specifier))hasStaticRelativeRequire=true;
+      }
+      if(node.type==='ReturnStatement'&&isDirectStorageValue(node.argument))
+        hasStorageFactory=true;
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression') {
+        const value=node.right;
+        if(value.type==='Identifier'||value.type==='FunctionExpression'||
+           value.type==='ArrowFunctionExpression'||value.type==='CallExpression')
+          hasPotentialCallableMemberWrite=true;
+      }
+    });
+  }
+  return hasStaticRelativeRequire&&hasStorageFactory&&hasPotentialCallableMemberWrite;
+}
+
+/**
  * Find supplied CommonJS modules reached by a static relative require. Only
  * those export surfaces can carry a decoder-sensitive reference into another
  * supplied file through this bounded cross-file proof.
