@@ -4,7 +4,6 @@ const assert=require('node:assert/strict');
 const esbuild=require('esbuild');
 const fs=require('node:fs/promises');
 const http=require('node:http');
-const {channel}=require('node:diagnostics_channel');
 const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
@@ -88,53 +87,14 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
   /** @type {{step:(symbol:number)=>number}|null} */
   let ordinaryClone=null;
   const nativeFetch=globalThis.fetch;
-  const traceEnabled=states===5;
-  const traceStart=performance.now();
-  /** @param {string} event @param {Record<string,unknown>} [data] */
-  const trace=(event,data={})=>{
-    if(traceEnabled)console.log('STEP_HTTP_TRACE '+JSON.stringify({ms:Math.round(performance.now()-traceStart),event,...data}));
-  };
-  /** @param {http.Server} target @param {string} arm */
-  function traceServer(target,arm){
-    if(!traceEnabled)return;
-    trace('server-config',{arm,keepAliveTimeout:target.keepAliveTimeout,requestTimeout:target.requestTimeout});
-    target.on('connection',socket=>{
-      const port=socket.remotePort;
-      trace('server-connection',{arm,port});
-      socket.on('timeout',()=>trace('server-socket-timeout',{arm,port}));
-      socket.on('close',hadError=>trace('server-socket-close',{arm,port,hadError}));
-    });
-    target.on('request',(req,res)=>{
-      const port=req.socket.remotePort;
-      trace('server-request',{arm,port,path:req.url});
-      res.on('finish',()=>trace('server-response',{arm,port,status:res.statusCode}));
-    });
-  }
-  const headersChannel=channel('undici:client:sendHeaders');
-  const errorChannel=channel('undici:request:error');
-  /** @param {unknown} value */
-  function onHeaders(value){
-    const event=/** @type {{request:{origin:string,path:string},socket:{localPort?:number,remotePort?:number}}} */(value);
-    trace('client-send',{origin:event.request.origin,path:event.request.path,localPort:event.socket.localPort,remotePort:event.socket.remotePort});
-  }
-  /** @param {unknown} value */
-  function onError(value){
-    const event=/** @type {{request:{origin:string,path:string},error:{code?:string,message?:string}}} */(value);
-    trace('client-error',{origin:event.request.origin,path:event.request.path,code:event.error.code,message:event.error.message});
-  }
-  if(traceEnabled){
-    trace('runtime',{node:process.version,undici:process.versions.undici,platform:process.platform});
-    headersChannel.subscribe(onHeaders);
-    errorChannel.subscribe(onError);
-  }
   try{
     const privateFile=path.join(root,'private','actual.mjs');
     await atomicWrite(privateFile,originalSource);
     const privateModule=await import(pathToFileURL(privateFile).href);
     const methods=bindScoModuleExports(partition,privateModule);
-    // Both in-process controls share the synchronous learner's event loop.
-    // Avoid the default 5s idle expiry racing with a reused local POST socket.
-    // This is a test-harness setting, not a production server default.
+    // The loopback servers share an event loop with synchronous learner scans.
+    // Keep the same bounded idle window in both control arms to avoid racing
+    // the default 5s expiry during those scans. This is harness-only policy.
     const localHttpOptions={keepAliveTimeout:60_000};
     const activeServer=http.createServer(localHttpOptions,createScoHandler([partition.clientFile],{
       remoteMethods:methods,
@@ -145,7 +105,6 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
         args.length===1 && typeof args[0]==='number' && Number.isInteger(args[0]) && args[0]>=0 && args[0]<=1
     }));
     server=activeServer;
-    traceServer(activeServer,'generated');
     /** @type {Promise<void>} */
     const ready=new Promise((resolve,reject)=>{
       activeServer.once('error',reject);
@@ -204,7 +163,6 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
         });
       });
       ordinaryServer=ordinaryHandler;
-      traceServer(ordinaryHandler,'ordinary');
       /** @type {Promise<void>} */
       const ordinaryReady=new Promise((resolve,reject)=>{
         ordinaryHandler.once('error',reject);
@@ -246,11 +204,8 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       ...options,headers:{...options?.headers,cookie:'session=approved'}
     });
     /** @type {import('./sco-step-only-five-state').FiveStateWorkspace|undefined} */
-    trace('workspace-start');
     const fiveStateWorkspace=states===5?createFiveStateWorkspace():undefined;
-    trace('generated-learner-start');
     const result=await learnBoundedStepOnly(api,states,128,fiveStateWorkspace);
-    trace('generated-learner-end',{queries:result.queries});
     assert.equal(result.certified,true);
     assert.ok(result.clone);
     let privateCurrent=0;
@@ -264,9 +219,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       globalThis.fetch=(input,options)=>nativeFetch(new URL(String(input),ordinaryOrigin),{
         ...options,headers:{...options?.headers,cookie:'session=approved'}
       });
-      trace('ordinary-learner-start');
       const ordinaryResult=await learnBoundedStepOnly(ordinaryApi,states,128,fiveStateWorkspace);
-      trace('ordinary-learner-end',{queries:ordinaryResult.queries});
       assert.equal(ordinaryResult.certified,true);
       assert.ok(ordinaryResult.clone);
       ordinaryQueries=ordinaryResult.queries;
@@ -319,7 +272,6 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926,matchedControl=f
       ordinaryMinifiedBytes,ordinarySourceBytes,attackerTranscriptMatched
     };
   }finally{
-    if(traceEnabled){headersChannel.unsubscribe(onHeaders);errorChannel.unsubscribe(onError);}
     globalThis.fetch=nativeFetch;
     if(ordinaryServer){
       const activeServer=ordinaryServer;
