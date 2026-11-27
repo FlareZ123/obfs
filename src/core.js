@@ -247,6 +247,242 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         }
       }
     }while(aliasesChanged);
+    // Monotone may-value analysis for statically linked ESM producer origins.
+    // Track value carriers and direct local call/return flows. Set-union
+    // deliberately overapproximates names that can shadow each other:
+    // ambiguity may suppress a rewrite but must never clear an observed
+    // function's original source spelling.
+    /** @type {Map<string,Map<string,Set<string>>>} */
+    const carrierFields=new Map();
+    /** @type {Map<string,import('./ast').AstNode[]>} */
+    const functionBodies=new Map();
+    /** @type {Map<string,Set<string>>} */
+    const returnedOrigins=new Map();
+    /** @param {string} name @param {import('./ast').AstNode} value @returns {void} */
+    function addFunctionBody(name,value) {
+      const defs=functionBodies.get(name)??[];
+      defs.push(value);
+      functionBodies.set(name,defs);
+    }
+    walk(ast,node=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+        addFunctionBody(node.id.name,node);
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+        addFunctionBody(node.id.name,node.init);
+    });
+    /**
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @param {boolean} [computed]
+     * @returns {string|null}
+     */
+    function fieldKey(node,computed=false) {
+      if(!node)return null;
+      if(!computed&&node.type==='Identifier')return node.name;
+      if(node.type==='Literal'&&
+         (typeof node.value==='string'||typeof node.value==='number'))
+        return String(node.value);
+      return staticString(node);
+    }
+    /** @param {Set<string>} output @param {Set<string>|undefined} inputs @returns {void} */
+    function copyOrigins(output,inputs) {
+      if(!inputs)return;
+      for(const origin of inputs)output.add(origin);
+    }
+    /**
+     * @param {string} binding
+     * @param {string} key
+     * @param {Set<string>} origins
+     * @returns {boolean}
+     */
+    function addCarrierOrigins(binding,key,origins) {
+      if(!origins.size)return false;
+      const fields=carrierFields.get(binding)??new Map();
+      const existing=fields.get(key)??new Set();
+      let didChange=false;
+      for(const origin of origins)if(!existing.has(origin)) {
+        existing.add(origin);didChange=true;
+      }
+      fields.set(key,existing);
+      carrierFields.set(binding,fields);
+      return didChange;
+    }
+    /**
+     * @param {import('./ast').AstNode|null|undefined} object
+     * @param {string|null} key
+     * @returns {Set<string>}
+     */
+    function fieldOrigins(object,key) {
+      const possible=new Set();
+      if(!object)return possible;
+      if(object.type==='Identifier') {
+        const fields=carrierFields.get(object.name);
+        if(fields) {
+          if(key===null)for(const values of fields.values())copyOrigins(possible,values);
+          else {
+            copyOrigins(possible,fields.get(key));
+            copyOrigins(possible,fields.get('*'));
+          }
+        }
+        // Namespace imports expose callable members. Unknown members of
+        // imported objects are likewise conservatively treated as may-flow.
+        copyOrigins(possible,importedOrigins.get(object.name));
+      }
+      if(object.type==='ObjectExpression') {
+        for(const property of object.properties??[]) {
+          if(property.type==='Property') {
+            const propertyName=fieldKey(property.key,property.computed);
+            if(key===null||propertyName===null||propertyName===key)
+              copyOrigins(possible,possibleOrigins(property.value));
+          } else if(property.type==='SpreadElement')
+            copyOrigins(possible,possibleOrigins(property.argument));
+        }
+      }
+      if(object.type==='ArrayExpression') {
+        for(const [index,value] of (object.elements??[]).entries())
+          if(value&&(key===null||key===String(index)))
+            copyOrigins(possible,possibleOrigins(value));
+      }
+      return possible;
+    }
+    /**
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @returns {Set<string>}
+     */
+    function possibleOrigins(node) {
+      const possible=new Set();
+      if(!node)return possible;
+      if(node.type==='Identifier') {
+        copyOrigins(possible,importedOrigins.get(node.name));
+      } else if(node.type==='MemberExpression') {
+        copyOrigins(possible,fieldOrigins(node.object,fieldKey(node.property,node.computed)));
+      } else if(node.type==='ConditionalExpression') {
+        copyOrigins(possible,possibleOrigins(node.consequent));
+        copyOrigins(possible,possibleOrigins(node.alternate));
+      } else if(node.type==='LogicalExpression') {
+        copyOrigins(possible,possibleOrigins(node.left));
+        copyOrigins(possible,possibleOrigins(node.right));
+      } else if(node.type==='AssignmentExpression') {
+        copyOrigins(possible,possibleOrigins(node.right));
+      } else if(node.type==='SequenceExpression') {
+        const items=node.expressions??[];
+        if(items.length)copyOrigins(possible,possibleOrigins(items[items.length-1]));
+      } else if(node.type==='AwaitExpression'||node.type==='YieldExpression') {
+        copyOrigins(possible,possibleOrigins(node.argument));
+      } else if(node.type==='CallExpression') {
+        if(node.callee.type==='Identifier') {
+          copyOrigins(possible,returnedOrigins.get(node.callee.name));
+          // An opaque imported callable may itself return another callable.
+          if(!functionBodies.has(node.callee.name))
+            copyOrigins(possible,importedOrigins.get(node.callee.name));
+        } else copyOrigins(possible,possibleOrigins(node.callee));
+      } else if(node.type==='ArrayExpression') {
+        // Array#toString may indirectly stringify function-valued elements.
+        for(const item of node.elements??[])copyOrigins(possible,possibleOrigins(item));
+      } else if(node.type==='ObjectExpression') {
+        // A potentially custom ToPrimitive may reach a function-valued field.
+        for(const property of node.properties??[]) {
+          if(property.type==='Property')copyOrigins(possible,possibleOrigins(property.value));
+          else if(property.type==='SpreadElement')
+            copyOrigins(possible,possibleOrigins(property.argument));
+        }
+      }
+      return possible;
+    }
+    /**
+     * Update imported callable may-values in function arguments, containers,
+     * destructuring patterns and function returns until no new origin exists.
+     * @returns {void}
+     */
+    function solveOriginFlows() {
+      let didChange;
+      do {
+        didChange=false;
+        walk(ast,node=>{
+          if(node.type==='VariableDeclarator'&&node.init) {
+            if(node.id.type==='Identifier') {
+              for(const origin of possibleOrigins(node.init))
+                if(addImportedOrigin(node.id.name,origin))didChange=true;
+              if(node.init.type==='Identifier') {
+                for(const [key,origins] of carrierFields.get(node.init.name)??[])
+                  if(addCarrierOrigins(node.id.name,key,origins))didChange=true;
+              }
+              if(node.init.type==='ObjectExpression') {
+                for(const property of node.init.properties??[]) {
+                  if(property.type==='Property') {
+                    const key=fieldKey(property.key,property.computed)??'*';
+                    if(addCarrierOrigins(node.id.name,key,possibleOrigins(property.value)))
+                      didChange=true;
+                  }
+                }
+              }
+              if(node.init.type==='ArrayExpression') {
+                for(const [index,entry] of (node.init.elements??[]).entries())
+                  if(entry&&addCarrierOrigins(node.id.name,String(index),possibleOrigins(entry)))
+                    didChange=true;
+              }
+            } else if(node.id.type==='ObjectPattern') {
+              for(const property of node.id.properties??[]) {
+                if(property.type!=='Property')continue;
+                const binding=property.value.type==='Identifier'?
+                  property.value:property.value.type==='AssignmentPattern'?
+                    property.value.left:null;
+                if(binding?.type!=='Identifier')continue;
+                const key=fieldKey(property.key,property.computed);
+                for(const origin of fieldOrigins(node.init,key))
+                  if(addImportedOrigin(binding.name,origin))didChange=true;
+              }
+            } else if(node.id.type==='ArrayPattern') {
+              for(const [index,binding] of (node.id.elements??[]).entries())
+                if(binding?.type==='Identifier')
+                  for(const origin of fieldOrigins(node.init,String(index)))
+                    if(addImportedOrigin(binding.name,origin))didChange=true;
+            }
+          }
+          if(node.type==='AssignmentExpression'&&node.operator==='=') {
+            if(node.left.type==='Identifier') {
+              for(const origin of possibleOrigins(node.right))
+                if(addImportedOrigin(node.left.name,origin))didChange=true;
+              if(node.right.type==='Identifier')
+                for(const [key,origins] of carrierFields.get(node.right.name)??[])
+                  if(addCarrierOrigins(node.left.name,key,origins))didChange=true;
+            } else if(node.left.type==='MemberExpression'&&
+                      node.left.object.type==='Identifier') {
+              const key=fieldKey(node.left.property,node.left.computed)??'*';
+              if(addCarrierOrigins(node.left.object.name,key,possibleOrigins(node.right)))
+                didChange=true;
+            }
+          }
+          if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+            for(const definition of functionBodies.get(node.callee.name)??[]) {
+              for(const [index,formal] of (definition.params??[]).entries()) {
+                if(formal.type!=='Identifier')continue;
+                for(const origin of possibleOrigins(node.arguments[index]))
+                  if(addImportedOrigin(formal.name,origin))didChange=true;
+              }
+            }
+          }
+        });
+        for(const [name,definitions] of functionBodies) {
+          for(const definition of definitions) {
+            /** @type {Set<string>} */
+            const candidate=new Set();
+            if(definition.body?.type==='BlockStatement') {
+              walk(definition.body,item=>{
+                if(item.type==='ReturnStatement')
+                  copyOrigins(candidate,possibleOrigins(item.argument));
+              });
+            } else copyOrigins(candidate,possibleOrigins(definition.body));
+            const existing=returnedOrigins.get(name)??new Set();
+            for(const origin of candidate)if(!existing.has(origin)) {
+              existing.add(origin);didChange=true;
+            }
+            returnedOrigins.set(name,existing);
+          }
+        }
+      }while(didChange);
+    }
+    solveOriginFlows();
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
     /** @type {Set<string>} */
@@ -303,9 +539,9 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {Set<string>} */
     function importedOrigin(node) {
-      if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
-         provenStrings.has(node.name))return new Set();
-      return importedOrigins.get(node.name)??new Set();
+      if(node?.type==='Identifier'&&(provenPrimitive.has(node.name)||
+         provenStrings.has(node.name)))return new Set();
+      return possibleOrigins(node);
     }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isDocument(node) {
