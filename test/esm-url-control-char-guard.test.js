@@ -1,0 +1,277 @@
+'use strict';
+
+const {test}=require('node:test');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
+const assert=require('node:assert/strict');
+const {createServer}=require('node:http');
+const {createScoHandler,partitionScoAsyncGraph,partitionScoSelectedAsyncExports}=require('../src');
+const {obfuscateFiles}=require('../src/core');
+const {hasUrlPathnameNormalizationHazard}=require('../src/esm-url-paths');
+
+/** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
+
+/** @param {string} path @param {string} code @returns {ModuleFile} */
+function moduleFile(path,code) {
+  return {path,sourceType:'module',code};
+}
+
+/** @param {string} root @param {{path:string,code:string|Buffer}[]} files @returns {Promise<void>} */
+async function writeModuleGroup(root,files) {
+  for(const file of files) {
+    const code=typeof file.code==='string'?file.code:file.code.toString('utf8');
+    await atomicWrite(path.join(root,file.path),code);
+  }
+}
+
+/** @param {string} root @param {string} entry @returns {string} */
+function runNativeModule(root,entry) {
+  const result=spawnSync(process.execPath,[path.join(root,entry)],{
+    cwd:root,encoding:'utf8',timeout:8000,windowsHide:true
+  });
+  if(result.error)throw result.error;
+  assert.equal(result.status,0,result.stderr);
+  return result.stdout;
+}
+
+const options=/** @type {const} */ ({
+  mode:'coo',seed:'c0-url-identity-guard',
+  closedWorld:true,strings:false,identifiers:false
+});
+
+test('pathname C0/DEL and URL-trimmed trailing spaces are rejected while internal/query/fragment spaces remain outside the predicate',()=>{
+  const controls=Array.from({length:32},(_,index)=>String.fromCharCode(index)).concat('\x7f');
+  for(const control of controls) {
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/x'+control+'/secret.mjs'),true,
+      'pathname control U+'+control.charCodeAt(0).toString(16).padStart(4,'0'));
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs?value='+control),false,
+      'query control must not be classified as pathname data');
+    assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs#fragment'+control),false,
+      'fragment control must not be classified as pathname data');
+  }
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/hello world.mjs'),false);
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/hello%20world.mjs'),false);
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs '),true,
+    'a trailing pathname space is trimmed by WHATWG URL parsing');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs?query '),false,
+    'a trailing query space does not change the pathname');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs#fragment '),false,
+    'a trailing fragment space does not change the pathname');
+  assert.equal(hasUrlPathnameNormalizationHazard('./dir/secret.mjs ?query'),false,
+    'a space before a query delimiter is not an input-boundary space');
+  assert.equal(hasUrlPathnameNormalizationHazard(' ./dir/secret.mjs'),false,
+    'a leading space makes this a bare specifier, not a relative URL reference');
+});
+
+test('C0 URL identity mismatch refuses cross-file owner proof instead of renaming the POSIX decoy',()=>{
+  const files=[
+    moduleFile('dir/secret.mjs','export const state={secretField:23};'),
+    moduleFile('dir/a/secret.mjs','export const state={secretField:41};'),
+    moduleFile('dir/entry.mjs',
+      'import {state} from '+JSON.stringify('./a/.\t/../secret.mjs')+';console.log(state.secretField);')
+  ];
+  const output=obfuscateFiles(files,options);
+  assert.equal(output.crossFile.properties,0);
+});
+
+test('C0 URL identity mismatch prevents an incomplete ESM host-lock graph',()=>{
+  const files=[
+    moduleFile('dir/a/secret.mjs','export const state={secretField:23};'),
+    moduleFile('dir/entry.mjs',
+      'import {state} from '+JSON.stringify('./a/.\t/../secret.mjs')+';console.log(state.secretField);')
+  ];
+  assert.throws(()=>obfuscateFiles(files,{
+    ...options,allowedHosts:['allowed.example']
+  }),/Host locking ESM static imports or reexports requires a complete closed-world module group/u);
+});
+
+test('C0 URL identity mismatch disables unproved static ESM string decoding',()=>{
+  const files=[
+    moduleFile('state.mjs','export const state={label:"private-literal"};'),
+    moduleFile('a/state.mjs','export const state={label:"decoy-literal"};'),
+    moduleFile('entry.mjs',
+      'import {state} from '+JSON.stringify('./a/.\t/../state.mjs')+';export const value=state.label;')
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'sno',seed:'c0-url-identity-decoder',
+    closedWorld:true,strings:true,properties:false,identifiers:false
+  });
+  assert.equal(output.files.reduce((sum,file)=>sum+file.metrics.literals,0),0);
+});
+
+test('C0 URL identity mismatch refuses source-observer island proof before a wrong leaf is selected',()=>{
+  const selected=moduleFile('independent.mjs',
+    'const recordB={privateB:23};const valueB=recordB.privateB;export function unrelated(){return valueB;}');
+  const decoy=moduleFile('a/independent.mjs',
+    'const recordB={privateB:41};const valueB=recordB.privateB;export function unrelated(){return valueB;}');
+  const entry=moduleFile('entry.mjs',
+    'import {unrelated} from '+JSON.stringify('./a/.\t/../independent.mjs')+
+    ';console.log(unrelated.toString(),unrelated());');
+  assert.throws(()=>obfuscateFiles([selected,decoy,entry],{
+    mode:'coo',seed:'c0-url-identity-island',
+    closedWorld:true,strings:false,identifiers:false,
+    experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer islands require closed static ESM imports/u);
+});
+
+
+test('SCO request-path decoder rejects every percent-encoded C0 and DEL before lookup',async()=>{
+  const server=createServer(createScoHandler([{
+    path:'safe.mjs',sourceType:'module',code:'export const value=23;'
+  }]));
+  await new Promise(resolve=>server.listen(
+    {port:0,host:'127.0.0.1'},()=>resolve(null)));
+  const address=server.address();
+  if(!address||typeof address==='string')throw new Error('Expected TCP address');
+  const encodedControls=Array.from({length:32},(_,code)=>
+    '%'+code.toString(16).padStart(2,'0'));
+  encodedControls.push('%7f');
+  try {
+    for(const encoded of encodedControls) {
+      assert.equal((await fetch('http://127.0.0.1:'+address.port+'/obfs/'+encoded+'safe.mjs')).status,400,encoded);
+    }
+  } finally {
+    await new Promise(resolve=>server.close(()=>resolve(null)));
+  }
+});
+
+
+test('private SCO graph rejects C0 pathname aliases before POSIX canonicalization',()=>{
+  const files=[
+    moduleFile('entry.mjs',
+      'import {secret} from '+JSON.stringify('./a/.\t/../secret.mjs')+';export const value=secret;'),
+    moduleFile('a/secret.mjs','export const secret=23;')
+  ];
+  assert.throws(()=>partitionScoAsyncGraph(files,{
+    seed:'private-graph-c0-pathname',exposedPaths:['entry.mjs']
+  }),/Private SCO graph requires relative \.mjs or node: imports/u);
+});
+
+test('selective private graph rejects C0 pathname aliases before canonical path proof',()=>{
+  const specifier='./private/.\t/../next.mjs';
+  const code='import {next} from '+JSON.stringify(specifier)+
+    ';export async function secret(){return next();}export function local(){return 1;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code
+  },{
+    seed:'selective-private-c0-pathname',
+    privateNames:['secret'],
+    privateModuleImports:[specifier],
+    privateModuleSources:[{
+      path:'private/next.mjs',code:'export function next(){return 7;}'
+    }]
+  }),/canonical relative \.mjs path/u);
+});
+
+
+test('selective private graph rejects trailing URL-trimmed pathname spaces',()=>{
+  const specifier='./private/next.mjs ';
+  const code='import {next} from '+JSON.stringify(specifier)+
+    ';export async function secret(){return next();}export function local(){return 1;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code
+  },{
+    seed:'selective-private-trailing-space',
+    privateNames:['secret'],
+    privateModuleImports:[specifier],
+    privateModuleSources:[{
+      path:'private/next.mjs ',code:'export function next(){return 7;}'
+    }]
+  }),/canonical relative \.mjs path/u);
+});
+
+
+test('C0 URL identity refusal preserves native/emitted COO execution behavior',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-coo-c0-parity-'));
+  const sourceRoot=path.join(root,'source');
+  const emittedRoot=path.join(root,'emitted');
+  const files=[
+    moduleFile('dir/secret.mjs','export const state={secretField:23};'),
+    moduleFile('dir/a/secret.mjs','export const state={secretField:41};'),
+    moduleFile('dir/entry.mjs',
+      'import {state} from '+JSON.stringify('./a/.\t/../secret.mjs')+';console.log(state.secretField);')
+  ];
+  try {
+    const output=obfuscateFiles(files,options);
+    await writeModuleGroup(sourceRoot,files);
+    await writeModuleGroup(emittedRoot,output.files);
+    const native=runNativeModule(sourceRoot,'dir/entry.mjs');
+    const emitted=runNativeModule(emittedRoot,'dir/entry.mjs');
+    assert.equal(native.trim(),'23','Native ESM must select the WHATWG URL target');
+    assert.equal(emitted,native,'COO emitted output must preserve native module behavior');
+    assert.equal(output.crossFile.properties,0);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('C0 URL identity refusal preserves native/emitted SNO string-decoder behavior',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-c0-parity-'));
+  const sourceRoot=path.join(root,'source');
+  const emittedRoot=path.join(root,'emitted');
+  const files=[
+    moduleFile('state.mjs','export const state={label:"private-literal"};'),
+    moduleFile('a/state.mjs','export const state={label:"decoy-literal"};'),
+    moduleFile('entry.mjs',
+      'import {state} from '+JSON.stringify('./a/.\t/../state.mjs')+';console.log(state.label);')
+  ];
+  try {
+    const output=obfuscateFiles(files,{
+      mode:'sno',seed:'c0-url-identity-decoder-parity',
+      closedWorld:true,strings:true,properties:false,identifiers:false
+    });
+    await writeModuleGroup(sourceRoot,files);
+    await writeModuleGroup(emittedRoot,output.files);
+    const native=runNativeModule(sourceRoot,'entry.mjs');
+    const emitted=runNativeModule(emittedRoot,'entry.mjs');
+    assert.equal(native.trim(),'private-literal','Native ESM must select the URL target');
+    assert.equal(emitted,native,'SNO emitted output must preserve native module behavior');
+    assert.equal(output.files.reduce((sum,file)=>sum+file.metrics.literals,0),0);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('private SCO graph rejects C0 aliases in literal dynamic imports',()=>{
+  const specifier='./a/.\t/../secret.mjs';
+  const files=[
+    moduleFile('entry.mjs',
+      'export async function load(){return import('+JSON.stringify(specifier)+');}'),
+    moduleFile('secret.mjs','export const value=23;'),
+    moduleFile('a/secret.mjs','export const value=41;')
+  ];
+  assert.throws(()=>partitionScoAsyncGraph(files,{
+    seed:'private-graph-dynamic-c0-pathname',exposedPaths:['entry.mjs']
+  }),/Private SCO graph requires relative \.mjs or node: imports/u);
+});
+
+test('C0 dynamic import prevents unproved SNO string decoding and preserves execution',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-dynamic-c0-parity-'));
+  const sourceRoot=path.join(root,'source');
+  const emittedRoot=path.join(root,'emitted');
+  const specifier='./a/.\t/../state.mjs';
+  const files=[
+    moduleFile('state.mjs','export const state={label:"private-literal"};'),
+    moduleFile('a/state.mjs','export const state={label:"decoy-literal"};'),
+    moduleFile('entry.mjs',
+      'const {state}=await import('+JSON.stringify(specifier)+');console.log(state.label);')
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'sno',seed:'c0-dynamic-import-decoder-parity',
+    closedWorld:true,strings:true,properties:false,identifiers:false
+  });
+  try {
+    await writeModuleGroup(sourceRoot,files);
+    await writeModuleGroup(emittedRoot,output.files);
+    const native=runNativeModule(sourceRoot,'entry.mjs');
+    const emitted=runNativeModule(emittedRoot,'entry.mjs');
+    assert.equal(native.trim(),'private-literal','Native dynamic import must select the URL target');
+    assert.equal(emitted,native,'SNO dynamic-import output must preserve native behavior');
+    assert.equal(output.files.reduce((sum,file)=>sum+file.metrics.literals,0),0);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
