@@ -101,6 +101,13 @@ const cases=[
 ['switch-defineproperties-accessor','const carrier={instance:{}};const observer={};Object.defineProperties(observer,{v:{get(){carrier.instance=new WeakMap();return 1;}}});switch(0){case observer.v:break;}','carrier.instance'],
 ['switch-reflect-defineproperty-accessor','const carrier={instance:{}};const observer={};Reflect.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
 ['switch-selector-implicit-string-hook','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "1";}};switch(0){case ""+key:break;}','carrier.instance'],
+// Nested abrupt completion inside try/finally can bypass a later dead write
+// within the current case, function block or labeled block.
+['switch-case-finally-break-dead-write','const carrier={instance:{}};switch(0){case 0:try{carrier.instance=new WeakMap();break;}finally{}carrier.instance={};}','carrier.instance'],
+['switch-case-finally-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:try{carrier.instance=new WeakMap();return;}finally{}carrier.instance={};}}fill();','carrier.instance'],
+['try-finally-return-dead-write','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}finally{}carrier.instance={};}fill();','carrier.instance'],
+['label-try-finally-break-dead-write','const carrier={instance:{}};outer:{try{carrier.instance=new WeakMap();break outer;}finally{}carrier.instance={};}','carrier.instance'],
+['switch-case-finally-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:try{carrier.instance=new WeakMap();throw 1;}finally{}carrier.instance={};}}catch{}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -158,7 +165,10 @@ for(const [name,setup,access] of cases) {
         'switch-case-fallthrough-preserves',
         'switch-defineproperty-accessor','switch-defineproperties-accessor',
         'switch-reflect-defineproperty-accessor',
-        'switch-selector-implicit-string-hook'].includes(name))
+        'switch-selector-implicit-string-hook',
+        'switch-case-finally-break-dead-write','switch-case-finally-return-dead-write',
+        'try-finally-return-dead-write','label-try-finally-break-dead-write',
+        'switch-case-finally-throw-dead-write'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(name==='switch-benign-nonliteral-selector')
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
