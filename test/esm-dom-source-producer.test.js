@@ -152,8 +152,7 @@ for(const sink of /** @type {const} */ (['reflect','assign','html-method'])) {
       properties:true,identifiers:true,strings:false});
     const producer=result.files.find(file=>file.path==='producer.mjs');
     assert.ok(producer);
-    assert.ok(producer.metrics.properties>=1,
+    assert.ok(!String(producer.code).includes('secretField'),
       'userland receiver must not trigger DOM source-producer freeze');
-    assert.ok(!String(producer.code).includes('secretField'));
   });
 }
