@@ -31,7 +31,7 @@ Review branch `agent40/decoder-options-review-20261127`, source pin `7b3a80a8fd6
 - Retain literal ASCII fatal, ordinary replacement, null options, and local streaming/alias positive controls.
 - No emitted runtime change. Conservative loss of yield for otherwise valid but unproved option objects.
 
-The shadowed byte-view provenance question has a separate test-only child `e0423e60b051a78d281b3270120df1d8eec0d39f` and focused run [45943591623](https://github.com/FlareZ123/obfs/actions/runs/45943591623), queued at this report. Do not call the dictionary repair a complete decoder proof.
+The shadowed byte-view provenance question has a separate test-only child `e0423e60b051a78d281b3270120df1d8eec0d39f` and focused run [45943591623](https://github.com/FlareZ123/obfs/actions/runs/45943591623), completed red on both platforms: all six incorrect admissions reproduced, and six positive controls passed. Do not call the dictionary repair a complete decoder proof.
 
 ## Independent native UTF-8 finite audit
 
@@ -46,3 +46,15 @@ This motivates a bounded future wellformed-literal-byte proof for fatal non-ASCI
 Run `node agents/agent40/decoder-native-options-and-bindings.cjs > node.json` or `node agents/agent40/utf8-native.cjs > node.json`. The same JavaScript runs directly in a browser document body. For the local Playwright reproduction, launch Chromium headless with `--no-sandbox`, set page content to a body/script containing the exact file, and parse `page.locator('body').text_content()` as JSON. Compare exact fields/arrays against Node JSON. Local command-line Chromium dump-dom timed out; Playwright succeeded. Use raw DOM text, never rendered inner text.
 
 Strong confidentiality, hostile-runtime locking and universal 2.5x remain release-blocked.
+
+## Subsequent source-pinned lexical correction
+
+The original shadow test pin `e0423e60b051a78d281b3270120df1d8eec0d39f` reproduced six missing refusals in [45943591623](https://github.com/FlareZ123/obfs/actions/runs/45943591623) (both Ubuntu and Windows), covering local constructor shadows with actual cross-engine diagnostic differences. Six positive controls passed on each host.
+
+The review candidate `536fdb866708d15a4f3252babde25ad85c69ef72` reuses the cached lexical scope implementation from historical #302 as a shared `createLexicalBindingResolver`. It computes exact free native Uint8Array identifier membership over the original full module AST, then uses that membership in selected-function and dependency decoder proofs. The added controls cover hoisted var, nested parameter and catch binding refusal, switch discriminant scope, and a disjoint same-name declaration. All 20 focused tests and strict project/external JSDoc passed on both OSs in [45943908764](https://github.com/FlareZ123/obfs/actions/runs/45943908764). No new competing PR; no main merge.
+
+## Pending literal UTF-8 yield review
+
+Test-only child `4b81dcab997effcb190791af0fd12a1bfd1e380e` contains a 122-case wellformed/malformed matrix across selected and dependency paths, static .of and new Uint8Array forms. Run [45944060095](https://github.com/FlareZ123/obfs/actions/runs/45944060095) queued at checkpoint. Candidate `ff12d628c6aa57519ea9b29856ed8a1cbfb8be76` extracts literal byte sequences and uses compile-time Node isUtf8 validation for fatal nonstreaming calls. Run [45944217269](https://github.com/FlareZ123/obfs/actions/runs/45944217269) queued. Do not promote either as validated until actual outcomes. The lexical fix remains independently green at its own pin.
+
+All proofs presume the existing pristine-native-intrinsics boundary; the lexical test is not a proof against host-side replacement or arbitrary mutation. Runtime benchmark/full gate and emitted cross-host execution remain separate release obligations.
