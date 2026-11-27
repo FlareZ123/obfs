@@ -93,4 +93,23 @@ function snapshotDataGraph(root,realm={objectPrototype:Object.prototype,arrayPro
   return encode(root,0);
 }
 
-module.exports={snapshotDataGraph};
+/**
+ * Observe normal versus abrupt completion for a synchronous data-returning
+ * operation. Snapshotting deliberately happens outside the catch: an oracle
+ * refusal must not be misreported as an exception thrown by the program.
+ * Native Error instances and other unsupported thrown values still refuse;
+ * an Error name/message/stack contract needs an explicit separate observer.
+ * @param {()=>unknown} operation
+ * @param {DataRealm} [realm]
+ * @returns {{kind:'return'|'throw',value:Snapshot}}
+ */
+function captureDataCompletion(operation,realm) {
+  /** @type {'return'|'throw'} */
+  let kind='return';
+  let value;
+  try { value=operation(); }
+  catch(error) { kind='throw';value=error; }
+  return {kind,value:snapshotDataGraph(value,realm)};
+}
+
+module.exports={snapshotDataGraph,captureDataCompletion};
