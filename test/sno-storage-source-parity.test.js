@@ -279,8 +279,8 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
   ].join('\n');
-  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
-    'the current AST observer does not classify the Node Storage named-property setter');
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,
+    'the Web Storage named-property setter independently stringifies callable source');
   const transformed=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:source
   }],{
@@ -293,9 +293,9 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
   const file=transformed.files[0];
   assert.ok(file,'expected one transformed SNO entry');
   const protectedCode=String(file.code);
-  assert.ok(file.metrics.bindings>=2,'expected source and unrelated private bindings to be rewritten');
-  assert.ok(!protectedCode.includes('privateLocal'),'expected named-setter source body to be changed');
-  assert.ok(!protectedCode.includes('independentLocal'),'expected unrelated helper rewrite');
+  assert.equal(file.metrics.bindings,0,'named setter source must veto identifier rewrites');
+  assert.ok(protectedCode.includes('privateLocal'),'named setter source body must remain intact');
+  assert.ok(protectedCode.includes('independentLocal'),'source observation must fail closed');
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-webstorage-named-'));
   try {
@@ -310,8 +310,9 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
     assert.equal(native.length,1);
     assert.equal(emitted.length,1);
     assert.ok(native.stored?.includes('privateLocal'));
-    assert.ok(emitted.stored && !emitted.stored.includes('privateLocal'));
-    assert.notEqual(native.stored,emitted.stored);
+    assert.ok(emitted.stored?.includes('privateLocal'));
+    assert.equal(native.stored,emitted.stored);
+    assert.equal(native.propertyValue,emitted.propertyValue);
     assert.equal(native.value,41);
     assert.equal(emitted.value,41);
     assert.equal(native.independent,9);
@@ -327,13 +328,41 @@ test('SNO Node Web Storage named-property setter exposes callable source indepen
       nativeValue:native.value,
       emittedValue:emitted.value,
       renamedBindings:file.metrics.bindings,
-      namedSetterSourceParity:false
+      namedSetterSourceParity:true
     }));
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
 });
 
+
+test('SNO Node Web Storage primitive named-property setter preserves identifier yield',{
+  skip:!supportsExperimentalWebStorage,
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function independent(){const independentLocal=9;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.snoNamedSource="literal";',
+    'const result={stored:localStorage.getItem("snoNamedSource"),',
+    '  value:independent(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\\n');
+  const pair=await runSnoDifferential(
+    source,'sno-named-setter-primitive-positive','obfs-sno-named-primitive-');
+  assert.equal(pair.observes,false,'inert named assignment is not source observation');
+  assert.ok(pair.bindings>=1,'primitive named assignment must retain transform yield');
+  assert.ok(!pair.protectedCode.includes('independentLocal'));
+  assert.equal(pair.native.stored,'literal');
+  assert.equal(pair.emitted.stored,'literal');
+  assert.equal(pair.native.value,9);
+  assert.equal(pair.emitted.value,9);
+  assert.equal(pair.native.independent,9);
+  assert.equal(pair.emitted.independent,9);
+  console.log(JSON.stringify({mode:'sno',case:'named-property-primitive',
+    observer:pair.observes,bindings:pair.bindings,stored:pair.emitted.stored,parity:true}));
+});
 
 test('SNO Node Web Storage own toString returning a primitive preserves rewrite yield',{
   skip:!supportsExperimentalWebStorage,
