@@ -1390,6 +1390,34 @@ function hasWeakMapPrototypeExposure(ast) {
     return node?.type==='Literal'&&typeof node.value==='boolean'?node.value:null;
   }
   /**
+   * Resolve a simple static getter at access time, after later assignments
+   * to its class object may have changed captured/receiver-backed slots.
+   * Complex bodies use the conservative initializer-time fallback.
+   * @param {AstNode} getter
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierContainer} receiver
+   * @param {CarrierValue} fallback
+   * @returns {CarrierValue}
+   */
+  function evaluateCarrierGetterResult(getter,environment,receiver,fallback) {
+    if(activeCarrierGetterReads.has(getter))return carrierMaybe;
+    const body=getter.body;
+    if(body?.type!=='BlockStatement'||body.body?.length!==1||
+       body.body[0]?.type!=='ReturnStatement')return fallback;
+    const result=body.body[0].argument;
+    if(!result)return carrierOther;
+    // Avoid inferring purity or carrier identity from an opaque call,
+    // complex coercion, or user-defined effect in a getter expression.
+    if(!['Identifier','MemberExpression','NewExpression','Literal',
+         'ThisExpression'].includes(result.type))return fallback;
+    activeCarrierGetterReads.add(getter);
+    try {
+      return evaluateCarrierValue(result,environment,receiver);
+    } finally {
+      activeCarrierGetterReads.delete(getter);
+    }
+  }
+  /**
    * @param {AstNode|null|undefined} node
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
@@ -1467,7 +1495,12 @@ function hasWeakMapPrototypeExposure(ast) {
       if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name)&&
          !environment.has(node.object.name))return carrierMaybe;
       const base=evaluateCarrierValue(node.object,environment,thisValue);
-      if(base.kind==='container')return carrierLookupValue(base,key);
+      if(base.kind==='container') {
+        const fallback=carrierLookupValue(base,key);
+        const getter=key===null?undefined:base.getters.get(key);
+        if(getter)return evaluateCarrierGetterResult(getter,environment,base,fallback);
+        return fallback;
+      }
       return base.kind==='maybe'?carrierMaybe:carrierOther;
     }
     if(node.type==='CallExpression') {
