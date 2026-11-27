@@ -1599,6 +1599,12 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
+  // Instance field *values* execute on construction, not class declaration;
+  // computed field *keys* still execute when the class is defined.
+  /** @type {Map<string,AstNode[]>} */
+  const instanceFieldInitializers=new Map();
+  /** @type {Set<string>} */
+  const activeInstanceFieldConstructors=new Set();
   /** @type {Set<AstNode>} */
   const activeLocalCallEffects=new Set();
   /**
@@ -1785,6 +1791,22 @@ function hasWeakMapPrototypeExposure(ast) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
+      }
+      if(node.callee.type==='Identifier') {
+        const className=node.callee.name;
+        const fields=instanceFieldInitializers.get(className);
+        if(fields?.length) {
+          if(activeInstanceFieldConstructors.has(className))exposed=true;
+          else {
+            activeInstanceFieldConstructors.add(className);
+            try {
+              for(const initializer of fields)
+                visitCarrierExpression(initializer,environment,carrierOther);
+            } finally {
+              activeInstanceFieldConstructors.delete(className);
+            }
+          }
+        }
       }
       return;
     }
@@ -2167,6 +2189,8 @@ function hasWeakMapPrototypeExposure(ast) {
       // computed class element names and static initializers.
       visitCarrierExpression(statement.superClass,environment,thisValue);
       const staticValue=carrierContainer();
+      /** @type {AstNode[]} */
+      const deferred=[];
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
       for(const element of statement.body.body??[]) {
@@ -2175,7 +2199,8 @@ function hasWeakMapPrototypeExposure(ast) {
           visitCarrierExpression(element.key,environment,thisValue);
         if(element.type==='PropertyDefinition') {
           const thisValue=element.static?staticValue:carrierOther;
-          visitCarrierExpression(element.value,environment,thisValue);
+          if(element.static)visitCarrierExpression(element.value,environment,thisValue);
+          else if(element.value)deferred.push(element.value);
           const fieldValue=evaluateCarrierValue(element.value,environment,thisValue);
           if(element.static) {
             const fieldKey=carrierStaticKey(element.key,element.computed);
@@ -2196,6 +2221,8 @@ function hasWeakMapPrototypeExposure(ast) {
             functionClosureEnvironments.set(element.value,new Map(environment));
         }
       }
+      if(statement.id?.type==='Identifier'&&deferred.length)
+        instanceFieldInitializers.set(statement.id.name,deferred);
       if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
         weakMapContainerOwners.add(statement.id.name);
       if(statement.id?.type==='Identifier'&&exportedLocalNames.has(statement.id.name)&&
