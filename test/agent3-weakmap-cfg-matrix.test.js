@@ -172,6 +172,16 @@ const cases=[
 // shadow/overwrite an outer binding of the same spelling in abstract state.
 ['class-expression-inner-name-shadows-outer-carrier','const carrier={instance:new WeakMap()};const Holder=class carrier{};','carrier.instance'],
 ['class-expression-inner-name-shadows-with-key','const carrier={instance:new WeakMap()};const Holder=class carrier{static ["k"](){}};','carrier.instance'],
+// Exception completion inside expressions stops later sibling evaluations.
+// A syntactic sequence that writes an ordinary value after a thrown call is
+// not proof that the WeakMap has been cleared at runtime.
+['throwing-class-computed-name-skips-next-key','const carrier={instance:{}};try{class Holder{[(carrier.instance=new WeakMap(),(()=>{throw 1})(),"x")](){}[(carrier.instance={},"y")](){}}}catch{}','carrier.instance'],
+['throwing-class-expression-key-skips-next','const carrier={instance:{}};try{const Holder=class{[(carrier.instance=new WeakMap(),(()=>{throw 1})(),"x")](){}[(carrier.instance={},"y")](){}};}catch{}','carrier.instance'],
+['throwing-object-key-skips-next-property','const carrier={instance:{}};try{const obj={[(carrier.instance=new WeakMap(),(()=>{throw 1})(),"x")]:1,[(carrier.instance={},"y")]:2};}catch{}','carrier.instance'],
+['throwing-object-value-skips-next-property','const carrier={instance:{}};try{const obj={x:(carrier.instance=new WeakMap(),(()=>{throw 1})()),y:(carrier.instance={})};}catch{}','carrier.instance'],
+['throwing-array-element-skips-next','const carrier={instance:{}};try{const items=[(carrier.instance=new WeakMap(),(()=>{throw 1})()),(carrier.instance={})];}catch{}','carrier.instance'],
+['throwing-call-argument-skips-next','const carrier={instance:{}};function f(){} try{f((carrier.instance=new WeakMap(),(()=>{throw 1})()),(carrier.instance={}));}catch{}','carrier.instance'],
+['throwing-expression-skips-next-statement','const carrier={instance:{}};try{(carrier.instance=new WeakMap(),(()=>{throw 1})());carrier.instance={};}catch{}','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -271,6 +281,13 @@ for(const [name,setup,access] of cases) {
         'object-computed-method-key',
         'class-expression-inner-name-shadows-outer-carrier',
         'class-expression-inner-name-shadows-with-key',
+        'throwing-class-computed-name-skips-next-key',
+        'throwing-class-expression-key-skips-next',
+        'throwing-object-key-skips-next-property',
+        'throwing-object-value-skips-next-property',
+        'throwing-array-element-skips-next',
+        'throwing-call-argument-skips-next',
+        'throwing-expression-skips-next-statement',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
