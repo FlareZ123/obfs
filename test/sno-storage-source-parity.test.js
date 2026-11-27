@@ -348,7 +348,7 @@ test('SNO Node Web Storage primitive named-property setter preserves identifier 
     'const result={stored:localStorage.getItem("snoNamedSource"),',
     '  value:independent(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
-  ].join('\\n');
+  ].join('\n');
   const pair=await runSnoDifferential(
     source,'sno-named-setter-primitive-positive','obfs-sno-named-primitive-');
   assert.equal(pair.observes,false,'inert named assignment is not source observation');
