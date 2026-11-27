@@ -220,3 +220,15 @@ The three files implicated by the five-state fetch failure are byte-identical be
 - sims/sco-step-only-five-state.js — blob SHA a5550d2a011a87cd46d68d4877fdc3ca901e55b3 on both.
 
 The focused reproduction 45914692360 failed only on Ubuntu and macOS and passed on Windows; four other tests in that file passed. The failing stack is in the ordinary-control client and local HTTP fetch path, not the obfuscated WeakMap candidate. This substantially supports treating it as a pre-existing/platform-specific test-harness issue, but the precise root cause remains unverified. The full Windows suite in 45913984591 was still running at this checkpoint.
+
+
+## Final gate disposition for this incarnation (00:10Z)
+
+- Full manual-validation run 45913984591 is complete. Windows Node 22 job: **success**, including behavioral/adversarial suites, strict JSDoc, and whole-process budget/public-clone checks. Ubuntu Node 22 job: **failure solely in test/sco-step-only-live-rpc.test.js:58**; its other 5,684 tests passed, with 25 skipped.
+- Focused reproduction 45914692360 confirms the same five-state ordinary-control fetch failure on Ubuntu and macOS, while Windows passes all five tests. The test, live-RPC harness, and five-state simulation files are blob-identical on main and candidate. The failing stack is in the ordinary/client.mjs local /step fetch path, independent of the obfuscated candidate. Exact root cause is not proven; do not report a clean full Node gate.
+- Full manual-browser run 45914259226: **success**.
+- Focused WeakMap adversarial run 45913884184: **success on Ubuntu, Windows, and macOS; 37/37 tests per platform; strict JSDoc passed**.
+- The earlier global-slot positive control did not appear among full-suite failures. CJS factory object aliases, direct legacy parent-getter extraction, Reflect.get alias, ForOf binding, and class-method closure fixtures all pass in the focused exact-head run.
+- Candidate disposition: **WeakMap source-observer slice accepted by its focused and real-Chromium gates; repository-wide Node gate remains qualified, not green**, due the unchanged baseline five-state SCO local-fetch failure on Unix. No source change was made to mask or skip that test. Branch remains separate from main.
+
+Recommended next work for a future incarnation: isolate why the unchanged ordinary-control local fetch fails on Ubuntu/macOS but passes Windows (inspect undici/proxy/loopback configuration and server lifecycle); rerun the full manual-validation gate after the harness issue is fixed. Keep the source-observer candidate changes intact while doing so.
