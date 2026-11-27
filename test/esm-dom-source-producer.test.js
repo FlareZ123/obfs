@@ -153,6 +153,8 @@ function executeDomAliasGraph(files) {
 
 for(const sink of /** @type {const} */ (['property','stream'])) {
   test('ESM DOM '+sink+' callable alias preserves exact host-observed source',()=>{
+    /** @type {Array<{mode:string,sink:string,nativeSource:string,emittedSource:string,producerRewrites:number,positiveRewrites:number}>} */
+    const mismatches=[];
     for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       for(const alias of [false,true]) {
         const originals=domAliasGraph(sink,alias);
@@ -167,15 +169,26 @@ for(const sink of /** @type {const} */ (['property','stream'])) {
         const pure=result.files.find(file=>file.path==='pure.mjs');
         assert.ok(logic&&pure);
         const emitted=executeDomAliasGraph(result.files);
-        assert.equal(emitted,native,mode+' / '+sink+' / alias='+alias+
-          ' emitted DOMString source mismatched native source');
-        assert.equal(logic.code,originals[0].code,
-          mode+' / '+sink+' / alias='+alias+
-          ' source-observed producer must be byte-identical');
-        assert.equal(logic.metrics.properties,0);
+        assert.equal(JSON.parse(emitted).value,57,mode+' numeric output parity');
+        assert.equal(JSON.parse(emitted).independent,73,mode+' independent output parity');
         assert.ok(pure.metrics.properties>=1,
           mode+' / '+sink+' / alias='+alias+' unrelated primitive leaf must rewrite');
+        if(!alias){
+          assert.equal(emitted,native,mode+' / '+sink+' direct-source positive control');
+          assert.equal(logic.code,originals[0].code,mode+' direct producer must be unchanged');
+          assert.equal(logic.metrics.properties,0,mode+' direct producer rewrite count');
+        }else if(emitted!==native || logic.code!==originals[0].code || logic.metrics.properties!==0){
+          mismatches.push({
+            mode,sink,
+            nativeSource:JSON.parse(native).source,
+            emittedSource:JSON.parse(emitted).source,
+            producerRewrites:logic.metrics.properties,
+            positiveRewrites:pure.metrics.properties
+          });
+        }
       }
     }
+    assert.deepEqual(mismatches,[],
+      'Each mode must preserve the native DOMString function source through immutable aliases');
   });
 }
