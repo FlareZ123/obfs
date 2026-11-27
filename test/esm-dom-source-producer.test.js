@@ -110,3 +110,50 @@ for(const sink of /** @type {const} */ (['reflect','assign','html-method'])) {
       'source-observed producer property spelling must stay byte-stable');
   });
 }
+
+
+test('ESM DOM imported callable const alias remains source-protected',()=>{
+  const result=obfuscateFiles([
+    {path:'producer.mjs',sourceType:'module',code:
+      'const owner={secretField:57};export function inspect(){return owner.secretField;}'},
+    {path:'consumer.mjs',sourceType:'module',code:[
+      'import {inspect} from "./producer.mjs";',
+      'const alias=inspect;',
+      'const target=document.createElement("div");',
+      'target.id=alias;'
+    ].join('\n')}
+  ],{mode:'coo',seed:'esm-dom-import-alias',closedWorld:true,
+    properties:true,identifiers:true,strings:false});
+  const producer=result.files.find(file=>file.path==='producer.mjs');
+  assert.ok(producer);
+  assert.equal(producer.metrics.properties,0);
+  assert.ok(String(producer.code).includes('secretField'));
+});
+
+for(const sink of /** @type {const} */ (['reflect','assign','html-method'])) {
+  test('userland '+sink+' lookalike does not freeze imported producer',()=>{
+    const logic='const owner={secretField:57};export function inspect(){return owner.secretField;}';
+    const op=sink==='reflect'?
+      'Reflect.set(target,"id",inspect);':
+      sink==='assign'?'Object.assign(target,{id:inspect});':
+        'target.insertAdjacentHTML("beforeend",inspect);';
+    const consumer=[
+      'import {inspect} from "./producer.mjs";',
+      'const target='+(
+        sink==='html-method'?
+          '{insertAdjacentHTML(_where,value){this.value=value;}};':'{};'
+      ),
+      op
+    ].join('\n');
+    const result=obfuscateFiles([
+      {path:'producer.mjs',sourceType:'module',code:logic},
+      {path:'consumer.mjs',sourceType:'module',code:consumer}
+    ],{mode:'coo',seed:'esm-dom-userland-'+sink,closedWorld:true,
+      properties:true,identifiers:true,strings:false});
+    const producer=result.files.find(file=>file.path==='producer.mjs');
+    assert.ok(producer);
+    assert.ok(producer.metrics.properties>=1,
+      'userland receiver must not trigger DOM source-producer freeze');
+    assert.ok(!String(producer.code).includes('secretField'));
+  });
+}
