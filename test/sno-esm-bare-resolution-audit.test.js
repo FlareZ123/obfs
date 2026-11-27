@@ -206,6 +206,33 @@ test('ESM audit refuses custom conditions, loaders and symlink-preservation mode
   });
 });
 
+
+test('ESM audit rejects short -C conditions in direct argv and inherited NODE_OPTIONS',()=>{
+  // The resolver helper is a child process: it inherits NODE_OPTIONS but not
+  // the compiler's process.execArgv. Both forms must be refused explicitly.
+  const script=[
+    'const audit=require('+JSON.stringify(require.resolve('../src/sno-bare-audit'))+');',
+    'const files=[{path:"engine.mjs",sourceType:"module",'+
+      'code:"import \u0027sno-esm-resolution-probe\u0027;"}];',
+    'audit.assertSnoDirectBareImportParity(files,files,"/missing/source","/missing/output")',
+    '.then(()=>{process.stderr.write("audit unexpectedly admitted");process.exitCode=91;},',
+    'error=>{if(!/does not model custom loaders/u.test(String(error.message))){',
+    'process.stderr.write(String(error.stack||error));process.exitCode=92;',
+    '}else process.stdout.write("refused");});'
+  ].join('\n');
+  for(const {label,args,options} of [
+    {label:'process.execArgv',args:['-C','custom','-e',script],options:''},
+    {label:'NODE_OPTIONS',args:['-e',script],options:'-C custom'}
+  ]) {
+    const child=spawnSync(process.execPath,args,{
+      encoding:'utf8',timeout:15000,env:{...process.env,NODE_OPTIONS:options}
+    });
+    if(child.error)throw child.error;
+    assert.equal(child.status,0,label+': '+child.stderr);
+    assert.equal(child.stdout,'refused',label);
+  }
+});
+
 test('ESM audit supports identical type-only package scopes for .js ESM modules',async()=>{
   await fixture(async temp=>{
     const root=path.join(temp,'project');
