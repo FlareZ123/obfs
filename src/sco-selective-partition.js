@@ -447,14 +447,19 @@ function usesUnprovedRelocatedUrlStatic(body){
  * URLSearchParams and Headers have independent Node/browser implementations.
  *
  * @param {import('./ast').AstNode} body
+ * @param {Set<string>} [knownFormals] Formal bindings when only a function body is available.
  * @returns {boolean}
  */
-function usesUnprovedRelocatedWebIdlConstructors(body){
+function usesUnprovedRelocatedWebIdlConstructors(body,knownFormals=new Set()){
   const names=new Set(['URLSearchParams','Headers']);
-  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
-  function asciiText(value){
-    return Boolean(value&&value.type==='Literal'&&
-      typeof value.value==='string'&&/^[\x20-\x7e]*$/u.test(value.value));
+  const bindings=collectBindings(body);
+  const shadowed=new Set([...names].filter(name=>
+    knownFormals.has(name)||bindings.has(name)));
+  /** @param {import('./ast').AstNode|null|undefined} expression @returns {boolean} */
+  function asciiText(expression){
+    if(!expression)return false;
+    const value=staticString(expression);
+    return value!==null&&/^[\x20-\x7e]*$/u.test(value);
   }
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function validConstruction(expression){
@@ -465,7 +470,8 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
     if(expression.arguments.length!==1)return false;
     const argument=expression.arguments[0];
     if(name==='URLSearchParams'){
-      if(asciiText(argument))return true;
+      const staticText=staticString(argument);
+      if(staticText!==null&&/^[\x20-\x7e]*$/u.test(staticText))return true;
       return argument.type==='ArrayExpression'&&
         argument.elements.every((/** @type {import('./ast').AstNode|null} */ pair)=>
           pair?.type==='ArrayExpression'&&pair.elements.length===2&&
@@ -482,9 +488,111 @@ function usesUnprovedRelocatedWebIdlConstructors(body){
         asciiText(property.value);
     });
   }
+  /**
+   * Host Web IDL methods coerce their arguments and report failures using
+   * host-specific TypeError messages. Retain only immediately consumed
+   * methods on a newly constructed instance, with bounded literal inputs.
+   * Instance aliases, extracted methods, reflection and dynamic calls have
+   * no sound provenance or coercion proof here and remain client-local.
+   * @param {import('./ast').AstNode} member
+   * @param {import('./ast').AstNode} call
+   * @returns {boolean}
+   */
+  function validDirectMethod(member,call){
+    if(member.type!=='MemberExpression'||member.optional||
+       call.type!=='CallExpression'||call.optional)return false;
+    const receiver=member.object;
+    if(receiver.type!=='NewExpression'||!validConstruction(receiver)||
+       receiver.callee.type!=='Identifier')return false;
+    const method=member.computed?staticString(member.property):
+      member.property.type==='Identifier'?member.property.name:null;
+    const args=call.arguments;
+    if(receiver.callee.name==='URLSearchParams'){
+      if(method==='toString'||method==='sort')return args.length===0;
+      if(['get','getAll','has','delete'].includes(method??'')){
+        return args.length===1&&asciiText(args[0]);
+      }
+      if(method==='append'||method==='set'){
+        return args.length===2&&asciiText(args[0])&&asciiText(args[1]);
+      }
+      return false;
+    }
+    if(receiver.callee.name!=='Headers')return false;
+    /** @param {import('./ast').AstNode|undefined} expression @returns {boolean} */
+    const headerName=expression=>{
+      if(!expression)return false;
+      const value=staticString(expression);
+      return value!==null&&/^[a-z0-9-]{1,32}$/u.test(value);
+    };
+    if(['get','has','delete'].includes(method??'')){
+      return args.length===1&&headerName(args[0]);
+    }
+    if(method==='append'||method==='set'){
+      return args.length===2&&headerName(args[0])&&asciiText(args[1]);
+    }
+    return false;
+  }
+  // Explicit global-object member access can recover a Web IDL
+  // constructor without spelling it as a standalone identifier. Preserve
+  // a conservative may-alias set for known global roots.
+  const globals=new Set(['globalThis','window','self','global']);
+  let aliasesChanged=true;
+  while(aliasesChanged){
+    aliasesChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(target?.type==='Identifier'&&source?.type==='Identifier'&&
+         globals.has(source.name)&&!globals.has(target.name)){
+        globals.add(target.name);
+        aliasesChanged=true;
+      }
+    });
+  }
   let unproved=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+       globals.has(node.object.name)){
+      const property=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(property===null||names.has(property))unproved=true;
+    }
+    const destructured=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const destructuringSource=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(destructured?.type==='ObjectPattern'&&
+       destructuringSource?.type==='Identifier'&&
+       globals.has(destructuringSource.name)){
+      for(const property of destructured.properties){
+        const propertyName=property.type==='Property'?
+          (property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:
+              staticString(property.key)):null;
+        if(property.type==='RestElement'||propertyName===null||names.has(propertyName)){
+          unproved=true;
+        }
+      }
+    }
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+       names.has(node.callee.name)){
+      // A standalone instance may escape its native realm, even when its
+      // constructor arguments are safe. Require a direct method consumer.
+      if(!validConstruction(node)||parent?.type!=='MemberExpression'||
+         key!=='object')unproved=true;
+    }
+    if(node.type==='MemberExpression'&&node.object.type==='NewExpression'&&
+       node.object.callee.type==='Identifier'&&
+       names.has(node.object.callee.name)){
+      const directCall=parent?.type==='CallExpression'&&key==='callee';
+      if(!directCall||!validDirectMethod(node,parent))unproved=true;
+    }
     if(node.type!=='Identifier'||!names.has(node.name)||isStaticKey(parent,key))return;
+    // A parameter, import, function or lexical binding with the same spelling
+    // is not the host constructor and cannot inherit this Web IDL proof.
+    if(shadowed.has(node.name))unproved=true;
     if(parent?.type==='NewExpression'&&key==='callee'&&
        validConstruction(parent))return;
     if(parent?.type==='VariableDeclarator'&&key==='id'||parent?.type==='FunctionDeclaration'&&
@@ -1410,7 +1518,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     if(usesUnprovedRelocatedWebIdlConstructors(ast)){
       throw new TypeError(
-        'SCO private static dependency uses unproved cross-realm WebIDL constructor: '+filename);
+        'SCO private static dependency uses unproved cross-realm WebIDL constructor or method: '+filename);
     }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
@@ -2157,6 +2265,11 @@ function partitionScoSelectedAsyncExports(file,options) {
   // a shadowed formal or nested declaration cannot inherit their provenance.
   const explicitServerHostNames=new Set([...serverConstants].filter(name=>
     allPrivateBindings.get(name)===1));
+  // The body-only Web IDL scan cannot see module-scope declarations. Any
+  // source-module binding with a constructor's spelling invalidates proof
+  // that a bare identifier resolves to the browser's native constructor.
+  const moduleWebIdlShadows=new Set(['Headers','URLSearchParams'].filter(name=>
+    allPrivateBindings.has(name)));
   for(const body of privateBodies){
     // The selected function and helpers execute in a different ESM module
     // on a trusted Node server. Module metadata and dynamic import therefore
@@ -2185,8 +2298,10 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
-    if(usesUnprovedRelocatedWebIdlConstructors(body)){
-      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor');
+    const webIdlShadows=new Set([...moduleWebIdlShadows,
+      ...(privateFormals.get(body)??new Set())]);
+    if(usesUnprovedRelocatedWebIdlConstructors(body,webIdlShadows)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm WebIDL constructor or method');
     }
     if(usesUnprovedRelocatedTextDecoder(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
