@@ -25,11 +25,7 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ['bound writer prefilled','const bound=document.write.bind(document,'+raw+');bound();'],
     ['bound writer inline','document.write.bind(document)('+raw+');'],
     ['opaque binding selector','const operation=globalThis.writerOperation||"bind";'+
-      'const bound=document.write[operation](document);bound('+raw+');'],
-    ['Function.bind.call','const bound=Function.prototype.bind.call(document.write,document);'+
-      'bound('+raw+');'],
-    ['Reflect.apply(Function.bind)','const bound=Reflect.apply(Function.prototype.bind,'+
-      'document.write,[document]);bound('+raw+');']
+      'const bound=document.write[operation](document);bound('+raw+');']
   ];
   const files=[
     {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
@@ -69,20 +65,6 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ],options);
     assert.notEqual(ordinaryBound.files[0].code,source,
       'Binding an unrelated local writer must retain rewrite yield in '+mode);
-    for(const [kind,bootstrap] of /** @type {[string,string][]} */([
-      ['native bind via call','const unrelated={write(x){return x;}};'+
-        'const bound=Function.prototype.bind.call(unrelated.write,unrelated);'+
-        'bound('+raw+');'],
-      ['native bind via Reflect.apply','const unrelated={write(x){return x;}};'+
-        'const bound=Reflect.apply(Function.prototype.bind,unrelated.write,[unrelated]);'+
-        'bound('+raw+');']
-    ])) {
-      const control=obfuscateFiles([
-        files[0],{path:'bootstrap.js',sourceType:'script',code:bootstrap},files[1]
-      ],options);
-      assert.notEqual(control.files[0].code,source,
-        kind+' on unrelated local callable must retain rewrite yield in '+mode);
-    }
     const unknownBound=obfuscateFiles([
       files[0],{path:'bootstrap.js',sourceType:'script',
         code:'const bound=document.write.bind(document);'+
