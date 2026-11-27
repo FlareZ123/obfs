@@ -3498,8 +3498,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // A detached writer method can be invoked with Function#call/apply or
   // Reflect.apply. Track simple source-visible aliases conservatively.
   const documentWriterRoots=new Set();
-  // Track DOM script-element creation and aliases for opaque integrity keys.
-  const scriptElementRoots=new Set();
+  // Track DOM script/link-element creation and aliases for opaque integrity keys.
+  const sriElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -3548,7 +3548,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       value.computed&&method===null;
   }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function createsDomScript(value) {
+  function createsSriBearingElement(value) {
     if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
        !isDocumentReceiver(value.callee.object))return false;
     const method=value.callee.computed ? staticString(value.callee.property) :
@@ -3556,12 +3556,12 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(method!=='createElement'&&method!=='createElementNS')return false;
     const tagArg=value.arguments[method==='createElement'?0:1];
     const tag=tagArg?.type==='SpreadElement'?null:tagArg?staticString(tagArg):null;
-    return tag===null || tag.toLowerCase()==='script';
+    return tag===null || ['script','link'].includes(tag.toLowerCase());
   }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
-  function isScriptElementTarget(value) {
-    return value?.type==='Identifier' && scriptElementRoots.has(value.name) ||
-      createsDomScript(value);
+  function isSriBearingElementTarget(value) {
+    return value?.type==='Identifier' && sriElementRoots.has(value.name) ||
+      createsSriBearingElement(value);
   }
   let changed;
   do {
@@ -3573,7 +3573,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,scriptElementRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,sriElementRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3587,9 +3587,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
       // The Node process builtin is available from a CJS require and from
       // ESM namespace/default imports as well as from the global object.
-      if(binding?.type==='Identifier' && createsDomScript(initial) &&
-         !scriptElementRoots.has(binding.name)) {
-        scriptElementRoots.add(binding.name);
+      if(binding?.type==='Identifier' && createsSriBearingElement(initial) &&
+         !sriElementRoots.has(binding.name)) {
+        sriElementRoots.add(binding.name);
         changed=true;
       }
       if(binding?.type==='Identifier' && isProcessModuleRequire(initial) &&
@@ -3899,7 +3899,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   }
   let observed=false;
   walk(ast,node=>{
-    // HTMLScriptElement.integrity can pin another published script's exact
+    // HTMLScriptElement/HTMLLinkElement.integrity can pin published source's exact
     // response bytes even when no static HTML asset declares SRI. The target
     // may be chosen dynamically, so conservatively retain the entire group.
     // This check uses proved constant keys and avoids refusing ordinary
@@ -3909,7 +3909,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const key=node.left.computed ? knownKey(node.left.property) :
         node.left.property.type==='Identifier'?node.left.property.name:null;
       if(key==='integrity' || key===null && node.left.computed &&
-         (isScriptElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
+         (isSriBearingElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3953,13 +3953,13 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
       // Opaque attribute names can be `integrity` when written to a
-      // proven DOM script instance. Exact known unrelated names remain safe.
-      const scriptReceiver=isScriptElementTarget(node.callee.object);
+      // proven script/link instance. Exact known unrelated names remain safe.
+      const sriReceiver=isSriBearingElementTarget(node.callee.object);
       if((method==='setAttribute'||method==='setAttributeNS') &&
          node.arguments[method==='setAttribute'?0:1]) {
         const key=knownKey(node.arguments[method==='setAttribute'?0:1]);
         if(key?.toLowerCase()==='integrity' || key===null &&
-           (scriptReceiver || looksLikeSriHash(node.arguments[
+           (sriReceiver || looksLikeSriHash(node.arguments[
              method==='setAttribute'?1:2])))observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
@@ -3967,26 +3967,26 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          node.arguments[1]) {
         const key=knownKey(node.arguments[1]);
         if(key==='integrity' || key===null &&
-           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(node.arguments[2])))
+           (isSriBearingElementTarget(node.arguments[0])||looksLikeSriHash(node.arguments[2])))
           observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
-        const scriptTarget=isScriptElementTarget(node.arguments[0]);
+        const sriTarget=isSriBearingElementTarget(node.arguments[0]);
         for(const item of node.arguments.slice(1)) {
           if(item.type!=='ObjectExpression'){
-            if(scriptTarget)observed=true;
+            if(sriTarget)observed=true;
             continue;
           }
           for(const prop of item.properties) {
             if(prop.type!=='Property'){
-              if(scriptTarget)observed=true;
+              if(sriTarget)observed=true;
               continue;
             }
             const key=prop.computed ? knownKey(prop.key) :
               prop.key.type==='Identifier'?prop.key.name:knownKey(prop.key);
             if(key==='integrity'||key===null&&
-               (scriptTarget||looksLikeSriHash(prop.value)))observed=true;
+               (sriTarget||looksLikeSriHash(prop.value)))observed=true;
           }
         }
       }
