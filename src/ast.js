@@ -1856,6 +1856,30 @@ function hasWeakMapPrototypeExposure(ast) {
     }
   }
   /**
+   * Prove that control cannot fall through to the next sibling statement in
+   * the current block. A break/continue terminates the *current block*, not
+   * necessarily its enclosing loop; do not propagate through loops, switch,
+   * try/finally or labels without a separate proof of those constructs.
+   * @param {AstNode} statement
+   * @returns {boolean}
+   */
+  function carrierDefinitelyAbrupt(statement) {
+    if(['ReturnStatement','ThrowStatement','BreakStatement','ContinueStatement']
+      .includes(statement.type))return true;
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some(carrierDefinitelyAbrupt);
+    if(statement.type==='IfStatement') {
+      const truth=carrierBooleanLiteral(statement.test);
+      if(truth===true)return carrierDefinitelyAbrupt(statement.consequent);
+      if(truth===false)return Boolean(statement.alternate&&
+        carrierDefinitelyAbrupt(statement.alternate));
+      return Boolean(statement.alternate&&
+        carrierDefinitelyAbrupt(statement.consequent)&&
+        carrierDefinitelyAbrupt(statement.alternate));
+    }
+    return false;
+  }
+  /**
    * @param {AstNode} statement
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue]
@@ -1890,8 +1914,7 @@ function hasWeakMapPrototypeExposure(ast) {
       // An unconditional abrupt completion makes later statements in this
       // block unreachable. Do not let dead writes erase a live WeakMap from
       // the state passed to catch, loop continuation or the caller.
-      if(['ReturnStatement','ThrowStatement','BreakStatement','ContinueStatement']
-        .includes(child.type))break;
+      if(carrierDefinitelyAbrupt(child))break;
     }
     for(const [name,value] of scopedEnvironment) {
       if(blockScopedNames.has(name))continue;
