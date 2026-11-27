@@ -90,7 +90,19 @@ const cases=[
 ['block-outer-write','let carrier={}; {carrier={instance:new WeakMap()};}','carrier.instance'],
 ['block-inner-shadow','const carrier={instance:new WeakMap()}; {const carrier={};}','carrier.instance'],
 ['direct-property-overwrite','class Ordinary {} const carrier={instance:new WeakMap()}; carrier.instance=new Ordinary();','carrier.instance'],
-['direct-primitive','class Ordinary {} const carrier={instance:new Ordinary()};','carrier.instance']
+['direct-primitive','class Ordinary {} const carrier={instance:new Ordinary()};','carrier.instance'],
+// Follow-on reachability and alias-transfer adversaries. Native controls were
+// independently executed before compilation; all ten have WeakMap.prototype.
+['throw-dead-overwrite','let carrier={instance:{}};try{carrier.instance=new WeakMap();throw 1;carrier.instance={};}catch{}','carrier.instance'],
+['break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){carrier.instance=new WeakMap();break;carrier.instance={};}','carrier.instance'],
+['continue-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){carrier.instance=new WeakMap();continue;carrier.instance={};}','carrier.instance'],
+['return-dead-overwrite','let carrier={instance:{}};function fill(){carrier.instance=new WeakMap();return;carrier.instance={};} fill();','carrier.instance'],
+['aliased-local-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};} const alias=fill;alias();','carrier.instance'],
+['transitive-aliased-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};} const alias=fill;const alias2=alias;alias2();','carrier.instance'],
+['callback-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};}[1].forEach(fill);','carrier.instance'],
+['getter-captured-write','let carrier={};const obj={get value(){carrier={instance:new WeakMap()};return 0;}};void obj.value;','carrier.instance'],
+['switch-case-break-write','let carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();break;case 1:carrier.instance={};}','carrier.instance'],
+['nested-branch-heap','let carrier={instance:{}};if(true){if(true){carrier.instance=new WeakMap();}else{carrier.instance={};}}else{carrier.instance={};}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
