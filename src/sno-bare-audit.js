@@ -256,6 +256,16 @@ function directBareImports(files) {
           addSpecifier(node.source.value);
         } else unprovedImport=true;
       }
+      // A first-class import.meta object may escape through aliases,
+      // destructuring, reflection, or forwarding. Such code can invoke
+      // .resolve() without a syntactically direct call, invalidating this
+      // build-time enumeration of bare package imports. Refuse it rather
+      // than silently admit relocated, behavior-changing dependencies.
+      if(node.type==='MetaProperty'&&
+          node.meta?.name==='import'&&node.property?.name==='meta'&&
+          (parent?.type!=='MemberExpression'||key!=='object')) {
+        unprovedImport=true;
+      }
       if(node.type==='MemberExpression'&&
           node.object?.type==='MetaProperty'&&
           node.object.meta?.name==='import'&&
