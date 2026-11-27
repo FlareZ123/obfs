@@ -235,18 +235,41 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       });
     }while(changed);
     walk(ast,node=>{
-      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+      /** @param {import('./ast').AstNode|null|undefined} value */
+      function protectImported(value) {
+        const origin=importedOrigin(value);
+        if(origin)protectedPaths.add(origin);
+      }
+      if(node.type==='AssignmentExpression'&&
          node.left.type==='MemberExpression'&&
          node.left.object.type==='Identifier'&&
          domValues.has(node.left.object.name)) {
-        const origin=importedOrigin(node.right);
-        if(origin)protectedPaths.add(origin);
+        protectImported(node.right);
       }
-      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-         node.callee.object.type==='Identifier'&&
-         htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
-        const origin=importedOrigin(node.arguments[0]);
-        if(origin)protectedPaths.add(origin);
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+        const owner=node.callee.object;
+        const method=member(node.callee);
+        if(owner.type==='Identifier'&&htmlWriters.has(owner.name)&&
+           method==='write')protectImported(node.arguments[0]);
+        if(owner.type==='Identifier'&&domValues.has(owner.name)) {
+          if(method==='insertAdjacentHTML')protectImported(node.arguments[1]);
+          if(['setHTML','appendHTML','prependHTML','setHTMLUnsafe',
+              'appendHTMLUnsafe','prependHTMLUnsafe','beforeHTML','afterHTML',
+              'replaceWithHTML'].includes(method??''))protectImported(node.arguments[0]);
+        }
+        if(owner.type==='Identifier'&&owner.name==='Reflect'&&method==='set'&&
+           node.arguments[0]?.type==='Identifier'&&
+           domValues.has(node.arguments[0].name))protectImported(node.arguments[2]);
+        if(owner.type==='Identifier'&&owner.name==='Object'&&method==='assign'&&
+           node.arguments[0]?.type==='Identifier'&&
+           domValues.has(node.arguments[0].name)) {
+          for(const source of node.arguments.slice(1)) {
+            if(source.type!=='ObjectExpression')continue;
+            for(const property of source.properties??[]) {
+              if(property.type==='Property')protectImported(property.value);
+            }
+          }
+        }
       }
     });
   }
