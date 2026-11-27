@@ -1890,6 +1890,30 @@ function hasWeakMapPrototypeExposure(ast) {
     return false;
   }
   /**
+   * Possible abrupt exits must retain their carrier state as an alternative
+   * to the path which executes subsequent siblings. "Not definitely abrupt"
+   * does not mean "definitely falls through"; e.g. a catch may resume when
+   * its try block returns on another path.
+   * @param {AstNode|null|undefined} statement
+   * @returns {boolean}
+   */
+  function carrierMayAbrupt(statement) {
+    if(!statement)return false;
+    if(carrierDefinitelyAbrupt(statement))return true;
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some(carrierMayAbrupt);
+    if(statement.type==='IfStatement')
+      return carrierMayAbrupt(statement.consequent)||
+        carrierMayAbrupt(statement.alternate);
+    if(statement.type==='TryStatement')
+      return carrierMayAbrupt(statement.block)||
+        carrierMayAbrupt(statement.handler?.body)||
+        carrierMayAbrupt(statement.finalizer);
+    if(statement.type==='LabeledStatement')
+      return carrierMayAbrupt(statement.body);
+    return false;
+  }
+  /**
    * @param {AstNode} statement
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue]
@@ -1919,13 +1943,20 @@ function hasWeakMapPrototypeExposure(ast) {
         blockScopedNames.add(child.id.name);
       }
     }
+    /** @type {Array<Map<string,CarrierValue>>} */
+    const possibleExits=[];
     for(const child of statement.body??[]) {
       visitCarrierStatement(child,scopedEnvironment,thisValue,throwCollector);
-      // An unconditional abrupt completion makes later statements in this
-      // block unreachable. Do not let dead writes erase a live WeakMap from
-      // the state passed to catch, loop continuation or the caller.
+      // A definite abrupt completion ends this path. A merely possible
+      // abrupt completion instead contributes a separate outgoing state:
+      // the following siblings run only on the normal path.
       if(carrierDefinitelyAbrupt(child))break;
+      if(carrierMayAbrupt(child))
+        possibleExits.push(forkCarrierEnvironment(scopedEnvironment));
     }
+    if(possibleExits.length)
+      joinCarrierEnvironments(scopedEnvironment,
+        forkCarrierEnvironment(scopedEnvironment),...possibleExits);
     for(const [name,value] of scopedEnvironment) {
       if(blockScopedNames.has(name))continue;
       if(environment.has(name)||varNames.has(name))environment.set(name,value);
@@ -2133,13 +2164,20 @@ function hasWeakMapPrototypeExposure(ast) {
         joinCarrierEnvironments(branchEnv,
           forkCarrierEnvironment(environment),
           forkCarrierEnvironment(fallthroughEnvironment));
+        /** @type {Array<Map<string,CarrierValue>>} */
+        const possibleCaseExits=[];
         for(const child of branch.consequent??[]) {
           visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
-          // A break, continue, return or throw (including a proven nested
-          // completion) ends this case path. Dead writes cannot erase a
-          // WeakMap still reachable at the switch's actual exit.
+          // Definite break/return/throw/continue exits the current case.
+          // Unknown try/catch or conditional completion preserves both the
+          // early-exit and subsequent-statement paths.
           if(carrierDefinitelyAbrupt(child))break;
+          if(carrierMayAbrupt(child))
+            possibleCaseExits.push(forkCarrierEnvironment(branchEnv));
         }
+        if(possibleCaseExits.length)
+          joinCarrierEnvironments(branchEnv,
+            forkCarrierEnvironment(branchEnv),...possibleCaseExits);
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
