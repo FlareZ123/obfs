@@ -513,6 +513,18 @@ function usesUnprovedRelocatedTextDecoder(body,nativeByteRoots=collectNativeByte
           unproved=true;
           return;
         }
+        // A native nonfatal decoder can also diverge between tested Node
+        // and Chromium when an incomplete sequence persists across calls.
+        // Allow streaming only for independently well-formed complete chunks;
+        // no admitted call can leave a pending partial scalar. This declines
+        // some valid split-character streams until a sequence proof exists.
+        const streamOptions=user.arguments[1];
+        const mayStream=streamOptions?.type==='ObjectExpression'&&
+          streamOptions.properties.some((/** @type {import('./ast').AstNode} */ p)=>
+            (p.computed?staticString(p.key):p.key.type==='Identifier'?
+              p.key.name:staticString(p.key))==='stream'&&p.value.value===true);
+        const wellformed=mayStream?isUtf8(Uint8Array.from(bytes)):null;
+        if(mayStream&&!wellformed){unproved=true;return;}
         // A fatal decoder can expose different error messages for malformed
         // bytes. The compiler validates the complete literal sequence with
         // Node's UTF-8 validator. Fatal streaming options remain refused,
@@ -520,7 +532,7 @@ function usesUnprovedRelocatedTextDecoder(body,nativeByteRoots=collectNativeByte
         const constructor=isDirectInstance(node)?node:
           node.type==='Identifier'?instanceConstructors.get(node.name):undefined;
         if(!provedNonFatal(constructor)&&
-           (!isUtf8(Uint8Array.from(bytes))||user.arguments.length>1))unproved=true;
+           (!(wellformed??isUtf8(Uint8Array.from(bytes)))||user.arguments.length>1))unproved=true;
         return;
       }
       // WHATWG-defined native decoder getters return immutable primitives.

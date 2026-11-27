@@ -60,6 +60,8 @@ const moreRefusals=[
   'return new TextDecoder("utf-8",{get fatal(){return true;}}).encoding;',
   'return new TextDecoder("utf-8",{fatal:1}).decode(Uint8Array.of(65));',
   'return new TextDecoder().decode(Uint8Array.of(65),{stream:1});',
+  // A split scalar is valid in isolation but is not a complete-chunk proof.
+  'const d=new TextDecoder();const alias=d;return alias.decode(Uint8Array.of(226),{stream:true})+alias.decode(Uint8Array.of(130,172));',
   'return new TextDecoder("utf-8",0).decode(Uint8Array.of(65));',
   'return new TextDecoder().decode(Uint8Array.of(65),0);'
 ];
@@ -72,7 +74,7 @@ for(const body of moreRefusals){
 const morePositives=[
   'return new TextDecoder("utf-8",null).decode(Uint8Array.of(128),null);',
   'return new TextDecoder("utf-8",{["fatal"]:false}).decode(Uint8Array.of(128));',
-  'const d=new TextDecoder();const alias=d;return alias.decode(Uint8Array.of(226),{stream:true})+alias.decode(Uint8Array.of(130,172));',
+  'const d=new TextDecoder();const alias=d;return alias.decode(Uint8Array.of(226,130,172),{stream:true})+alias.decode(Uint8Array.of(65));',
   'return new TextDecoder("utf-8",{ignoreBOM:true}).ignoreBOM;',
   'return new TextDecoder("utf-8",{fatal:true}).decode(Uint8Array.of(65));'
 ];
