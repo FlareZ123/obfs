@@ -563,6 +563,29 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='UpdateExpression'&&node.argument?.type==='Identifier')
       reassignedLocalFunctions.add(node.argument.name);
   });
+  // Immutable aliases of private local helpers preserve their function
+  // object identity. Resolve transitive aliases to a fixed point, but never
+  // treat an ambiguous or reassigned identifier as a stable callable.
+  /** @type {Array<readonly [string,string]>} */
+  const immutableFunctionAliases=[];
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+       parent.kind==='const'&&node.id.type==='Identifier'&&
+       node.init?.type==='Identifier'&&
+       localBindingCounts.get(node.id.name)===1&&
+       !reassignedLocalFunctions.has(node.id.name))
+      immutableFunctionAliases.push([node.id.name,node.init.name]);
+  });
+  for(let step=0;step<immutableFunctionAliases.length;step++) {
+    let changed=false;
+    for(const [alias,target] of immutableFunctionAliases) {
+      if(localFunctionNodes.has(alias)||reassignedLocalFunctions.has(target)||
+         localBindingCounts.get(target)!==1)continue;
+      const original=localFunctionNodes.get(target);
+      if(original){localFunctionNodes.set(alias,original);changed=true;}
+    }
+    if(!changed)break;
+  }
   /**
    * @param {AstNode|null|undefined} root
    * @param {string} name
@@ -1506,6 +1529,41 @@ function hasWeakMapPrototypeExposure(ast) {
   /** @type {Set<AstNode>} */
   const activeLocalCallEffects=new Set();
   /**
+   * A proven stable local helper may write captured outer bindings even when
+   * its return value is primitive. A callback passed to an opaque call may be
+   * invoked, so join both execution and non-execution without assuming the
+   * host's callback count or event order.
+   * @param {string} name
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @returns {void}
+   */
+  function replayLocalFunctionEffects(name,environment,thisValue) {
+    const local=localFunctionNodes.get(name);
+    if(!local||local.params.length!==0||local.async||local.generator||
+       local.body?.type!=='BlockStatement'||
+       reassignedLocalFunctions.has(name))return;
+    if(activeLocalCallEffects.has(local)) {
+      // Recursive effects need an explicit fixed-point proof; otherwise the
+      // caller's abstract state cannot justify a source-spelling rewrite.
+      exposed=true;
+      return;
+    }
+    const before=forkCarrierEnvironment(environment);
+    const invoked=forkCarrierEnvironment(environment);
+    activeLocalCallEffects.add(local);
+    try {
+      visitCarrierStatement(local.body,invoked,thisValue);
+    } finally {
+      activeLocalCallEffects.delete(local);
+    }
+    /** @type {Map<string,CarrierValue>} */
+    const outerEffects=new Map();
+    for(const key of before.keys())
+      outerEffects.set(key,invoked.get(key)??carrierOther);
+    joinCarrierEnvironments(environment,before,outerEffects);
+  }
+  /**
    * @param {CarrierValue} target
    * @param {string|null} key
    * @param {AstNode|null|undefined} descriptor
@@ -1579,40 +1637,15 @@ function hasWeakMapPrototypeExposure(ast) {
         );
         if(carrierMayContainWeakMap(value)&&!provenPrivateReader)exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
+        // A local callback passed to any host or collection method may run
+        // synchronously and change the reaching carrier state. Model both
+        // possible paths rather than silently assuming callbacks are inert.
+        if(argument.type==='Identifier')
+          replayLocalFunctionEffects(argument.name,environment,thisValue);
       }
       visitCarrierExpression(node.callee,environment,thisValue);
-      // A directly invoked, unreassigned local helper can mutate captured
-      // outer bindings without returning the carrier. Replay its ordinary
-      // synchronous body against a private abstract environment, then join
-      // only caller-visible names. Merely inspecting its return summary is
-      // insufficient for a call such as fill(); carrier.instance.
-      if(node.callee.type==='Identifier') {
-        const name=node.callee.name;
-        const local=localFunctionNodes.get(name);
-        if(local&&local.params.length===0&&!local.async&&!local.generator&&
-           local.body?.type==='BlockStatement'&&
-           !reassignedLocalFunctions.has(name)) {
-          if(activeLocalCallEffects.has(local)) {
-            // Recursive effects need a fixed point. Until proven, refuse
-            // instead of treating an unknown recursive side effect as inert.
-            exposed=true;
-          } else {
-            const before=forkCarrierEnvironment(environment);
-            const invoked=forkCarrierEnvironment(environment);
-            activeLocalCallEffects.add(local);
-            try {
-              visitCarrierStatement(local.body,invoked,thisValue);
-            } finally {
-              activeLocalCallEffects.delete(local);
-            }
-            /** @type {Map<string,CarrierValue>} */
-            const outerEffects=new Map();
-            for(const key of before.keys())
-              outerEffects.set(key,invoked.get(key)??carrierOther);
-            joinCarrierEnvironments(environment,before,outerEffects);
-          }
-        }
-      }
+      if(node.callee.type==='Identifier')
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue);
       return;
     }
     if(node.type==='NewExpression') {
@@ -1650,7 +1683,24 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='ObjectExpression') {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
-        else if(property.type==='Property')visitCarrierExpression(property.value,environment,thisValue);
+        else if(property.type==='Property') {
+          visitCarrierExpression(property.value,environment,thisValue);
+          // A source-visible getter can be invoked by any later property
+          // read or reflection. Union its captured outer-binding effects with
+          // the no-getter path, rather than treating its body as inert merely
+          // because its return value does not contain the WeakMap.
+          if(property.kind==='get'&&
+             property.value?.body?.type==='BlockStatement') {
+            const before=forkCarrierEnvironment(environment);
+            const after=forkCarrierEnvironment(environment);
+            visitCarrierStatement(property.value.body,after,thisValue);
+            /** @type {Map<string,CarrierValue>} */
+            const outerEffects=new Map();
+            for(const key of before.keys())
+              outerEffects.set(key,after.get(key)??carrierOther);
+            joinCarrierEnvironments(environment,before,outerEffects);
+          }
+        }
       }
       return;
     }
@@ -1729,8 +1779,14 @@ function hasWeakMapPrototypeExposure(ast) {
         blockScopedNames.add(child.id.name);
       }
     }
-    for(const child of statement.body??[])
+    for(const child of statement.body??[]) {
       visitCarrierStatement(child,scopedEnvironment,thisValue,throwCollector);
+      // An unconditional abrupt completion makes later statements in this
+      // block unreachable. Do not let dead writes erase a live WeakMap from
+      // the state passed to catch, loop continuation or the caller.
+      if(['ReturnStatement','ThrowStatement','BreakStatement','ContinueStatement']
+        .includes(child.type))break;
+    }
     for(const [name,value] of scopedEnvironment) {
       if(blockScopedNames.has(name))continue;
       if(environment.has(name)||varNames.has(name))environment.set(name,value);
