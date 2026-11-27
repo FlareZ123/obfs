@@ -1698,6 +1698,31 @@ function hasWeakMapPrototypeExposure(ast) {
         functionClosureEnvironments.set(node,environment);
       return;
     }
+    // Optional chains evaluate the receiver before deciding whether the
+    // computed key, call arguments or invocation may run. For receivers with
+    // unproved effects, fail closed rather than re-evaluate an expression.
+    if(node.type==='CallExpression') {
+      const receiver=node.callee.type==='MemberExpression'&&
+        node.callee.optional?node.callee.object:
+        node.optional?node.callee:null;
+      if(receiver) {
+        if(!['Identifier','Literal'].includes(receiver.type)) {
+          exposed=true;
+          return;
+        }
+        if(receiver.type==='Literal'&&receiver.value===null)return;
+        const receiverValue=evaluateCarrierValue(receiver,environment,thisValue);
+        if(receiverValue.kind!=='container'&&receiverValue.kind!=='weakmap') {
+          const bypass=forkCarrierEnvironment(environment);
+          const invoked=forkCarrierEnvironment(environment);
+          const callee=node.callee.type==='MemberExpression'?
+            {...node.callee,optional:false}:node.callee;
+          visitCarrierExpression({...node,optional:false,callee},invoked,thisValue);
+          joinCarrierEnvironments(environment,bypass,invoked);
+          return;
+        }
+      }
+    }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const operation=memberKey(node.callee);
       const namespace=node.callee.object;
@@ -1859,6 +1884,22 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='MemberExpression') {
       visitCarrierExpression(node.object,environment,thisValue);
+      if(node.optional) {
+        if(!['Identifier','Literal'].includes(node.object.type)) {
+          exposed=true;
+          return;
+        }
+        if(node.object.type==='Literal'&&node.object.value===null)return;
+        const receiver=evaluateCarrierValue(node.object,environment,thisValue);
+        if(receiver.kind!=='container'&&receiver.kind!=='weakmap') {
+          const bypass=forkCarrierEnvironment(environment);
+          const evaluated=forkCarrierEnvironment(environment);
+          if(node.computed)
+            visitCarrierExpression(node.property,evaluated,thisValue);
+          joinCarrierEnvironments(environment,bypass,evaluated);
+          return;
+        }
+      }
       if(node.computed)visitCarrierExpression(node.property,environment,thisValue);
       return;
     }
