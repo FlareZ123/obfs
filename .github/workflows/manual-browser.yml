@@ -70,6 +70,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/dynamic-script-sri-browser.js
+      - name: Compare real modulepreload link SRI with opaque runtime integrity key
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dynamic-link-integrity-browser.js
       - name: Verify document.write parser-inserted script SRI in Chromium
         env:
           CHROMIUM_BIN: google-chrome
