@@ -579,10 +579,20 @@ function hasWeakMapPrototypeExposure(ast) {
   // Keep this precision proof deliberately scoped to module bindings.
   /** @type {Map<string,number>} */
   const identifierOccurrences=new Map();
+  /** @type {Map<string,number>} */
+  const directConstructorReferences=new Map();
+  /** @type {Set<string>} */
+  const exportedDefaultClassNames=new Set();
   let hasDirectEval=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
     if(node.type==='Identifier')
       identifierOccurrences.set(node.name,(identifierOccurrences.get(node.name)??0)+1);
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier')
+      directConstructorReferences.set(node.callee.name,
+        (directConstructorReferences.get(node.callee.name)??0)+1);
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier'&&
+       parent?.type==='ExportDefaultDeclaration')
+      exportedDefaultClassNames.add(node.id.name);
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
   });
@@ -2221,8 +2231,32 @@ function hasWeakMapPrototypeExposure(ast) {
             functionClosureEnvironments.set(element.value,new Map(environment));
         }
       }
-      if(statement.id?.type==='Identifier'&&deferred.length)
-        instanceFieldInitializers.set(statement.id.name,deferred);
+      if(statement.id?.type==='Identifier'&&deferred.length) {
+        const name=statement.id.name;
+        instanceFieldInitializers.set(name,deferred);
+        // Only direct, unescaped local constructors can have their field
+        // writes replayed at the observed new-expression site. An alias,
+        // inheritance, export or dynamic eval can construct elsewhere.
+        const expected=1+(directConstructorReferences.get(name)??0);
+        const unresolved=hasDirectEval||exportedLocalNames.has(name)||
+          exportedDefaultClassNames.has(name)||
+          localBindingCounts.get(name)!==1||
+          identifierOccurrences.get(name)!==expected;
+        if(unresolved) {
+          let effectful=false;
+          for(const initializer of deferred) {
+            if(carrierMayContainWeakMap(
+              evaluateCarrierValue(initializer,environment,carrierOther)))effectful=true;
+            walk(initializer,child=>{
+              if(['AssignmentExpression','UpdateExpression','CallExpression',
+                  'NewExpression','MemberExpression','AwaitExpression',
+                  'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+                effectful=true;
+            });
+          }
+          if(effectful)exposed=true;
+        }
+      }
       if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
         weakMapContainerOwners.add(statement.id.name);
       if(statement.id?.type==='Identifier'&&exportedLocalNames.has(statement.id.name)&&
