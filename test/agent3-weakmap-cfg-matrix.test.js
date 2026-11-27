@@ -150,6 +150,15 @@ const cases=[
 ['call-callee-before-args-write','const carrier={instance:{}};function f(){}(carrier.instance={},f)((carrier.instance=new WeakMap(),0));','carrier.instance'],
 ['class-heritage-side-effect-write','const carrier={instance:{}};class Holder extends (carrier.instance=new WeakMap(),Object){}','carrier.instance'],
 ['destructure-computed-key-write','const carrier={instance:{}};const obj={x:1};const {[(carrier.instance=new WeakMap(),"x")]:x}=obj;','carrier.instance'],
+// Class computed names execute before any static field initializers,
+// including names declared after a field. Instance initializers are deferred.
+['class-computed-name-before-static-field','const carrier={instance:{}};class Holder{static x=(carrier.instance=new WeakMap());static [(carrier.instance={},"k")]=1;}','carrier.instance'],
+['class-computed-method-before-static-field','const carrier={instance:{}};class Holder{static x=(carrier.instance=new WeakMap());static [(carrier.instance={},"k")](){}}','carrier.instance'],
+['class-instance-field-not-yet-executed','const carrier={instance:{}};class Holder{static [(carrier.instance=new WeakMap(),"k")]=1;instance=(carrier.instance={});}','carrier.instance'],
+['class-throwing-static-field-skips-later-field','const carrier={instance:{}};try{class Holder{static a=(carrier.instance=new WeakMap(),(()=>{throw 1})());static b=(carrier.instance={});}}catch{}','carrier.instance'],
+// Matched native-negative controls must preserve useful private-source yield.
+['class-benign-computed-key-yield','class Ordinary{} const carrier={instance:new Ordinary()};class Holder{static [(carrier.instance=new Ordinary(),"k")]=1;}','carrier.instance'],
+['class-benign-static-clear-yield','class Ordinary{} const carrier={instance:new WeakMap()};class Holder{static field=(carrier.instance=new Ordinary());}','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -237,6 +246,10 @@ for(const [name,setup,access] of cases) {
         'call-callee-before-args-write',
         'class-heritage-side-effect-write',
         'destructure-computed-key-write',
+        'class-computed-name-before-static-field',
+        'class-computed-method-before-static-field',
+        'class-instance-field-not-yet-executed',
+        'class-throwing-static-field-skips-later-field',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
@@ -245,7 +258,9 @@ for(const [name,setup,access] of cases) {
         'try-catch-finally-resumes-positive',
         'switch-break-followed-ordinary','loop-break-followed-ordinary',
         'for-update-after-continue-runs',
-        'for-static-block-normal-update'].includes(name))
+        'for-static-block-normal-update',
+        'class-benign-computed-key-yield',
+        'class-benign-static-clear-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
