@@ -40,3 +40,45 @@ for(const body of [
     assert.deepEqual(compile(body).privateNames,['protectedOp']);
   });
 }
+
+/** @param {string} body */
+function compileDependency(body){
+  return partitionScoSelectedAsyncExports({
+    path:'entry.mjs',sourceType:'module',
+    code:'import {read} from "./private/decoder.mjs";export async function protectedOp(){return read();}export function visible(){return 7;}'
+  },{
+    seed:'sco-decoder-options-static-dependency-20261127',
+    privateNames:['protectedOp'],privateModuleImports:['./private/decoder.mjs'],
+    privateModuleSources:[{path:'private/decoder.mjs',code:'export function read(){'+body+'}'}]
+  });
+}
+
+const moreRefusals=[
+  'return new TextDecoder("utf-8",{__proto__:{fatal:true}}).decode(Uint8Array.of(128));',
+  'const options={fatal:false};return new TextDecoder("utf-8",options).decode(Uint8Array.of(65));',
+  'const options={stream:false};return new TextDecoder().decode(Uint8Array.of(65),options);',
+  'return new TextDecoder("utf-8",{get fatal(){return true;}}).encoding;',
+  'return new TextDecoder("utf-8",{fatal:1}).decode(Uint8Array.of(65));',
+  'return new TextDecoder().decode(Uint8Array.of(65),{stream:1});',
+  'return new TextDecoder("utf-8",0).decode(Uint8Array.of(65));',
+  'return new TextDecoder().decode(Uint8Array.of(65),0);'
+];
+for(const body of moreRefusals){
+  test('refuse unproved options in selected root and private dependency: '+body,()=>{
+    assert.throws(()=>compile(body),TypeError);
+    assert.throws(()=>compileDependency(body),TypeError);
+  });
+}
+const morePositives=[
+  'return new TextDecoder("utf-8",null).decode(Uint8Array.of(128),null);',
+  'return new TextDecoder("utf-8",{["fatal"]:false}).decode(Uint8Array.of(128));',
+  'const d=new TextDecoder();const alias=d;return alias.decode(Uint8Array.of(226),{stream:true})+alias.decode(Uint8Array.of(130,172));',
+  'return new TextDecoder("utf-8",{ignoreBOM:true}).ignoreBOM;',
+  'return new TextDecoder("utf-8",{fatal:true}).decode(Uint8Array.of(65));'
+];
+for(const body of morePositives){
+  test('retain explicit dictionary controls in selected root and dependency: '+body,()=>{
+    assert.deepEqual(compile(body).privateNames,['protectedOp']);
+    assert.deepEqual(compileDependency(body).privateNames,['protectedOp']);
+  });
+}

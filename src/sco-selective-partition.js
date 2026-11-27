@@ -299,6 +299,28 @@ function usesUnprovedRelocatedTextDecoder(body){
     const value=staticString(label);
     return value!==null&&['utf-8','utf8','unicode-1-1-utf-8'].includes(value.toLowerCase());
   }
+  // WebIDL dictionary conversion is a separate cross-host obligation from
+  // the byte grammar: Node and browsers disagree on primitive options
+  // (including success vs TypeError for decode). Prove only absent/null
+  // options or a plain literal containing known boolean data properties.
+  // In particular, __proto__, spread and accessor properties could expose
+  // inherited or dynamically computed fatal/stream flags.
+  const decoderOptionNames=new Set(['fatal','ignoreBOM']);
+  const decodeOptionNames=new Set(['stream']);
+  /** @param {import('./ast').AstNode|undefined} options @param {Set<string>} names @returns {boolean} */
+  function provedOptionsDictionary(options,names){
+    if(options===undefined||options.type==='Literal'&&options.value===null)return true;
+    if(options.type!=='ObjectExpression')return false;
+    for(const property of options.properties){
+      if(property.type!=='Property'||property.kind!=='init'||property.method||
+         property.shorthand)return false;
+      const name=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      if(name===null||!names.has(name)||property.value.type!=='Literal'||
+         typeof property.value.value!=='boolean')return false;
+    }
+    return true;
+  }
   let unproved=false;
   // Native TextDecoder error messages are host-specific even when the UTF-8
   // decoding table agrees. A catch anywhere in this selected function can
@@ -334,7 +356,8 @@ function usesUnprovedRelocatedTextDecoder(body){
        (parent?.type==='FunctionDeclaration'||parent?.type==='FunctionExpression')&&
          key==='id'))return;
     if(parent?.type==='NewExpression'&&parent.callee===node&&
-       parent.arguments.length<=2&&provedUtf8(parent.arguments[0]))return;
+       parent.arguments.length<=2&&provedUtf8(parent.arguments[0])&&
+       provedOptionsDictionary(parent.arguments[1],decoderOptionNames))return;
     unproved=true;
   });
   // A freshly constructed UTF-8 decoder is still a host-native object.
@@ -367,8 +390,8 @@ function usesUnprovedRelocatedTextDecoder(body){
   function provedNonFatal(constructor){
     if(constructor?.type!=='NewExpression')return false;
     const options=constructor.arguments[1];
-    if(options===undefined)return true;
-    if(options.type!=='ObjectExpression')return false;
+    if(options===undefined||options.type==='Literal'&&options.value===null)return true;
+    if(options.type!=='ObjectExpression'||!provedOptionsDictionary(options,decoderOptionNames))return false;
     for(const property of options.properties){
       if(property.type!=='Property'||property.kind!=='init'||property.method||
          property.computed&&staticString(property.key)===null)return false;
@@ -477,7 +500,8 @@ function usesUnprovedRelocatedTextDecoder(body){
         // an ArrayBuffer/View. A mere identifier has no reliable runtime
         // type proof. Require a directly constructed, literal byte view.
         const input=user.arguments[0];
-        if(!provedByteInput(input)){
+        if(!provedByteInput(input)||user.arguments.length>2||
+           !provedOptionsDictionary(user.arguments[1],decodeOptionNames)){
           unproved=true;
           return;
         }
