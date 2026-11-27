@@ -1716,8 +1716,11 @@ function hasWeakMapPrototypeExposure(ast) {
       const scoped=forkCarrierEnvironment(environment);
       const declaration=/** @type {AstNode} */ ({...node,type:'ClassDeclaration'});
       visitCarrierStatement(declaration,scoped,thisValue);
-      for(const name of environment.keys())
+      const localClassName=node.id?.type==='Identifier'?node.id.name:null;
+      for(const name of environment.keys()) {
+        if(name===localClassName)continue;
         environment.set(name,scoped.get(name)??carrierOther);
+      }
       return;
     }
     if(functionTypes.has(node.type)) {
