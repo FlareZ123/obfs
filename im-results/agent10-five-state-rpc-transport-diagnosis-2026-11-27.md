@@ -18,3 +18,25 @@ Separate forced idle-close diagnostic, runnable with stock Node and no dependenc
 Dedicated diagnostic branch `agent10/step-live-keepalive-diagnosis-20261127`, source `63e4b9c19d94a7804caa3742a7235a64a7b08c33`: adds monotonic phase markers, server connection/timeout/close/request/response events and undici sendHeaders/request:error events for the five-state fixture only. No retries, no assertion changes, no compiler changes, no new workflows. [Focused run 45919685576](https://github.com/FlareZ123/obfs/actions/runs/45919685576) was queued/in progress at this checkpoint; check exact head and logs. Do not infer root cause or green acceptance before those results.
 
 Next: correlate failed client send socket localPort with the matching server remotePort, close/timeout events, and missing or completed request. If the trace supports idle expiry, compare a symmetric bounded test-only keepAliveTimeout (e.g. 60 s) in both arms, preserving exact state transitions, unauthorized 403, transcript/query count and strict test time checks. Do not auto-retry POST: the transition may already have executed without its response reaching the client. If the trace does not reproduce, retain that uncertainty and use an exact-head repeat or a narrowed controlled timing experiment. Do not change the shared WeakMap source or claim full gate acceptance. RELEASE-BLOCKED.
+
+
+## 02:45 UTC continuation — transport trace and symmetric harness control
+
+Diagnostic [run 45919685576](https://github.com/FlareZ123/obfs/actions/runs/45919685576) completed on the exact trace-only head `63e4b9c19d94a7804caa3742a7235a64a7b08c33`: Ubuntu/macOS passed; Windows failed the five-state ordinary control, 4/5 focused tests passed. The failure changed platforms relative to 45914692360. This does not establish a Unix-only defect.
+
+Windows failed-job trace, job 140247186780 (times are monotonic ms; local client port matches server remote port):
+
+| ms | event | port |
+|---:|---|---:|
+| 48386 | ordinary client send /step on newly connected socket | 62510 |
+| 48387 | ordinary server request | 62510 |
+| 48387 | ordinary HTTP 200 response | 62510 |
+| 53654–53656 | different ordinary socket sends and receives HTTP 200 | 62521 |
+| 56578 | ordinary client sends /step on reused socket | 62510 |
+| 56579 | ordinary server socket timeout | 62510 |
+| 56580 | ordinary client ECONNRESET | 62510 |
+| 56582 | ordinary server socket close, hadError=false | 62510 |
+
+No server request event for the failed send was present in the retrieved trace. The elapsed interval between the earlier response and the failed reuse was 8,191 ms. The same socket timed out one millisecond after the client send; this is direct evidence of a keep-alive expiry/reuse race in this run, not proof that all earlier failures have this cause. Ordinary learner synchronous work spans multi-second inter-request gaps. The generated arm had already completed its 31 queries. Do not infer the effect of the failure on unobserved requests or generally retry a stateful POST.
+
+Isolated diagnostic branch `agent10/step-live-keepalive-diagnosis-20261127`, candidate commit [37b6af1](https://github.com/FlareZ123/obfs/commit/37b6af110ded207a061cd37c335fa968b6766ca2): set identical 60,000 ms HTTP keepAliveTimeout options on both in-process loopback servers; retain all trace instrumentation, test assertions, query counts, 403 checks and timing limits. No compiler/runtime changes or production timeout defaults. The longer timeout is a bounded test-harness control to distinguish this mechanism, not a new release claim. It may still fail if a pause exceeds the window or for a different transport cause. The existing manual-validation focused matrix was dispatched at [45930249836](https://github.com/FlareZ123/obfs/actions/runs/45930249836), exact head confirmed, queued when recorded. A green focused run would be supporting evidence only. Do not merge into main or weaken test assertions without review and broader validation.
