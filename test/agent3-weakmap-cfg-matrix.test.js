@@ -172,6 +172,10 @@ const cases=[
 // shadow/overwrite an outer binding of the same spelling in abstract state.
 ['class-expression-inner-name-shadows-outer-carrier','const carrier={instance:new WeakMap()};const Holder=class carrier{};','carrier.instance'],
 ['class-expression-inner-name-shadows-with-key','const carrier={instance:new WeakMap()};const Holder=class carrier{static ["k"](){}};','carrier.instance'],
+// A named class expression owns its local class name. A WeakMap held only
+// by that internal class must not imply that same-spelled outer state is a map.
+['class-expression-inner-map-outer-ordinary-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static [(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
+['class-expression-inner-map-outer-ordinary-field-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static field=(carrier.instance=new WeakMap());};','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -282,7 +286,9 @@ for(const [name,setup,access] of cases) {
         'for-static-block-normal-update',
         'class-benign-computed-key-yield',
         'class-benign-static-clear-yield',
-        'class-expression-benign-field-yield'].includes(name))
+        'class-expression-benign-field-yield',
+        'class-expression-inner-map-outer-ordinary-yield',
+        'class-expression-inner-map-outer-ordinary-field-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
