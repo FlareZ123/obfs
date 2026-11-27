@@ -184,6 +184,13 @@ const cases=[
 // the class expression's own static carrier value across variable binding.
 ['class-expression-inner-map-outer-ordinary-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static [(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
 ['class-expression-inner-map-outer-ordinary-field-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static field=(carrier.instance=new WeakMap());};','carrier.instance'],
+// Static class accessors/methods may return a WeakMap at the moment of
+// prototype inspection, even if no static field contained a map at definition.
+['class-declaration-static-getter-weakmap','class Holder{static get instance(){return new WeakMap();}}','Holder.instance'],
+['class-expression-static-getter-weakmap','const Holder=class{static get instance(){return new WeakMap();}};','Holder.instance'],
+['class-declaration-static-method-weakmap','class Holder{static make(){return new WeakMap();}}','Holder.make()'],
+['class-expression-static-method-weakmap','const Holder=class{static make(){return new WeakMap();}};','Holder.make()'],
+['class-expression-static-getter-aliased','const Holder=class{static get instance(){return new WeakMap();}};const alias=Holder;','alias.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -288,6 +295,11 @@ for(const [name,setup,access] of cases) {
         'class-expression-named-static-map-owner',
         'class-expression-static-map-aliased-owner',
         'class-expression-factory-static-map-owner',
+        'class-declaration-static-getter-weakmap',
+        'class-expression-static-getter-weakmap',
+        'class-declaration-static-method-weakmap',
+        'class-expression-static-method-weakmap',
+        'class-expression-static-getter-aliased',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
