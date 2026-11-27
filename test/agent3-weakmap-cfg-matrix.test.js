@@ -88,6 +88,13 @@ const cases=[
 ['switch-early-match-skips-later-selector','const carrier={instance:new WeakMap()};switch(0){case 0:break;case (carrier.instance={},1):break;}','carrier.instance'],
 // A benign computed selector must still admit useful private rewrites.
 ['switch-benign-nonliteral-selector','class Ordinary{} const carrier={instance:new Ordinary()};switch(0){case (carrier.instance=new Ordinary(),1):break;}','carrier.instance'],
+// Executed case bodies have abrupt completions: a subsequent same-case
+// overwrite after break/throw/return is dead and cannot clear a WeakMap.
+['switch-case-break-dead-write','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();break;carrier.instance={};}','carrier.instance'],
+['switch-case-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:carrier.instance=new WeakMap();throw 1;carrier.instance={};}}catch{}','carrier.instance'],
+['switch-case-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;carrier.instance={};}}fill();','carrier.instance'],
+['switch-case-nested-if-break','const carrier={instance:{}};switch(0){case 0:if(true){carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
+['switch-case-fallthrough-preserves','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();case 1:break;}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -139,7 +146,10 @@ for(const [name,setup,access] of cases) {
   test('CFG carrier semantic parity: '+name,()=>{
     const nativeShared=Function('"use strict";\n'+setup+'\nreturn Object.getPrototypeOf('+access+')===WeakMap.prototype;')();
     if(['switch-matched-selector-effect','switch-unmatched-selector-effect',
-        'switch-selector-after-default','switch-early-match-skips-later-selector'].includes(name))
+        'switch-selector-after-default','switch-early-match-skips-later-selector',
+        'switch-case-break-dead-write','switch-case-throw-dead-write',
+        'switch-case-return-dead-write','switch-case-nested-if-break',
+        'switch-case-fallthrough-preserves'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(name==='switch-benign-nonliteral-selector')
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
