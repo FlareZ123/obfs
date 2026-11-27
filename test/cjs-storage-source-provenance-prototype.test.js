@@ -223,3 +223,17 @@ test('prototype follows cross-file CJS exported sink parameter provenance',()=>{
   assert.equal(findings[0].classification,'source-sensitive');
   assert.ok(findings[0].receiverTrace.some(x=>x.includes('localStorage')));
 });
+
+
+test('opaque receiver with primitive RHS remains an explicit unknown-host sink',()=>{
+  const findings=inspect([
+    "'use strict';",
+    'const receiver=opaqueHostProvider();',
+    'receiver.namedPrimitive="literal";'
+  ].join('\n'));
+  assert.equal(findings.length,1,
+    'unknown receiver provenance must not disappear just because RHS is primitive');
+  assert.equal(findings[0].classification,'unknown-host');
+  assert.equal(findings[0].receiver,'unknown');
+  assert.equal(findings[0].value,'primitive');
+});
