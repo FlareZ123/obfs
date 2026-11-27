@@ -234,6 +234,67 @@ async function main(){
       code:'import {get} from "./cycle-a.mjs";document.getElementById("answer").textContent=get();'}
   ],{mode:'coo',strings:true,properties:false,identifiers:false,seed:'chrome-esm-cycle'});
   assert.equal(cycleSet.files[0].metrics.literals,0);
+
+  // A selected primitive ESM island may rename its private owner binding
+  // while preserving exact exported callable source for an external browser
+  // importer. A sibling module observes the watched callable and activates
+  // the group-wide source observer veto.
+  /** @type {import('../src/core').SourceFile} */
+  const islandWatched={
+    path:'island-watched.mjs',sourceType:'module',
+    code:'const recordA={privateA:17};const valueA=recordA.privateA;'+
+      'export function watched(){return valueA;}'
+  };
+  /** @type {import('../src/core').SourceFile} */
+  const islandIndependent={
+    path:'island-independent.mjs',sourceType:'module',
+    code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;'+
+      'export function unrelated(){return valueB;}'
+  };
+  /** @type {import('../src/core').SourceFile} */
+  const islandAnother={
+    path:'island-another.mjs',sourceType:'module',
+    code:'const recordC={privateC:43};const valueC=recordC.privateC;'+
+      'export function third(){return valueC;}'
+  };
+  /** @type {import('../src/core').SourceFile} */
+  const islandEntry={
+    path:'island-entry.mjs',sourceType:'module',
+    code:'import {watched} from "./island-watched.mjs";'+
+      'import {unrelated} from "./island-independent.mjs";'+
+      'import {third} from "./island-another.mjs";'+
+      'console.log(JSON.stringify({source:watched.toString(),'+
+        'values:[unrelated(),third()]}));'
+  };
+  const islandSet=obfuscateFiles([
+    islandWatched,islandIndependent,islandAnother,islandEntry
+  ],{
+    mode:'coo',closedWorld:true,seed:'chrome-source-island-identifiers',
+    strings:false,
+    experimentalSourceObserverIslands:['island-independent.mjs','island-another.mjs']
+  });
+  assert.equal(islandSet.crossFile.properties,0);
+  for(const [path,outer,captured,fn] of [
+    ['island-independent.mjs','recordB','valueB','unrelated'],
+    ['island-another.mjs','recordC','valueC','third']
+  ]) {
+    const emitted=islandSet.files.find(file=>file.path===path);
+    assert.ok(emitted);
+    assert.ok(emitted.metrics.properties>=1);
+    assert.equal(emitted.metrics.bindings,1);
+    assert.equal(String(emitted.code).includes(outer),false);
+    assert.ok(String(emitted.code).includes(
+      'export function '+fn+'(){return '+captured+';}'));
+  }
+  const islandProbe='import {watched} from "./island-watched.mjs";'+
+    'import {unrelated} from "./island-independent.mjs";'+
+    'import {third} from "./island-another.mjs";'+
+    'const ok=watched.toString()==="function watched(){return valueA;}"&&'+
+      'unrelated.toString()==="function unrelated(){return valueB;}"&&'+
+      'third.toString()==="function third(){return valueC;}"&&'+
+      'unrelated()===23&&third()===43;'+
+    'document.getElementById("answer").textContent=ok?"island-ok":"island-fail";';
+
   const good=obfuscateFiles([{
     path:'good.js',sourceType:'script',code:'document.getElementById("answer").textContent="permitted";'
   }],{mode:'coo',seed:'chrome-good',allowedHosts:['127.0.0.1']}).files[0].code;
@@ -274,7 +335,8 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...reflectionSet.files,...readerSet.files,...patternSet.files,...computedSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...reflectionSet.files,...readerSet.files,...patternSet.files,...computedSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files,...islandSet.files].map(x=>['/'+x.path,x.code]));
+  content.set('/island-probe.mjs',islandProbe);
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/ipv4-alias.js',ipv4Alias);
@@ -294,6 +356,9 @@ async function main(){
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
   content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/reflection-entry.mjs"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
+  content.set('/island.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script type="module" src="/island-entry.mjs"></script>'+
+    '<script type="module" src="/island-probe.mjs"></script></body></html>');
   content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
     '<script type="module" src="/reader-entry.mjs"></script></body></html>');
@@ -338,6 +403,7 @@ async function main(){
       ['/audited-module.html','41'],['/js-module.html','23'],
       ['/default-module.html','17,0,5'],['/reflection.html','reflection-ok'],
       ['/cycle.html','browser-cycle-ok'],
+      ['/island.html','island-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/computed-pattern.html','22'],
       ['/factory.html','41'],['/factory-iife.html','41'],

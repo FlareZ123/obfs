@@ -307,3 +307,59 @@ test('source islands refuse browser ResourceTiming byte-size observers',()=>{
     }
   }
 });
+
+
+test('source-observer islands rename only non-source-visible local bindings',async ()=>{
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    for(const seed of ['island-identifiers-A','island-identifiers-B']) {
+      const originals=[watched,independent,another,entry(normalEntry)];
+      const result=obfuscateFiles(originals,{
+        mode,closedWorld:true,seed,strings:false,
+        experimentalSourceObserverIslands:['independent.mjs','another.mjs']
+      });
+      const byPath=new Map(result.files.map(file=>[file.path,file]));
+      assert.equal(byPath.get('watched.mjs')?.code,watched.code);
+      assert.equal(byPath.get('entry.mjs')?.code,normalEntry);
+      for(const [filename,fnName,outerName,capturedName] of [
+        ['independent.mjs','unrelated','recordB','valueB'],
+        ['another.mjs','third','recordC','valueC']
+      ]) {
+        const emitted=byPath.get(filename);
+        assert.ok(emitted);
+        assert.ok(emitted.metrics.properties>=1,
+          filename+' should retain the existing safe property yield');
+        assert.equal(emitted.metrics.bindings,1,
+          filename+' should rename the outer owner binding but preserve its captured return binding');
+        assert.equal(emitted.code.includes(outerName),false);
+        assert.ok(emitted.code.includes('export function '+fnName+'(){return '+capturedName+';}'));
+      }
+
+      // Probe the transformed leaf from a consumer outside the declared
+      // obfuscation graph. Its exported callable source must remain exact.
+      /** @type {SourceFile} */
+      const probe={
+        path:'entry.mjs',sourceType:'module',
+        code:'import {watched} from "./watched.mjs";'+
+          'import {unrelated} from "./independent.mjs";'+
+          'import {third} from "./another.mjs";'+
+          'console.log(JSON.stringify({watched:watched.toString(),'+
+            'unrelated:unrelated.toString(),third:third.toString(),'+
+            'values:[unrelated(),third()]}));'
+      };
+      const originalRun=await executeEsm([watched,independent,another,probe]);
+      const emittedRun=await executeEsm([
+        /** @type {SourceFile} */ (byPath.get('watched.mjs')),
+        /** @type {SourceFile} */ (byPath.get('independent.mjs')),
+        /** @type {SourceFile} */ (byPath.get('another.mjs')),
+        probe
+      ]);
+      assert.equal(emittedRun,originalRun);
+      assert.deepEqual(JSON.parse(emittedRun),{
+        watched:'function watched(){return valueA;}',
+        unrelated:'function unrelated(){return valueB;}',
+        third:'function third(){return valueC;}',
+        values:[23,43]
+      });
+    }
+  }
+});
