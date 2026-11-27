@@ -678,7 +678,7 @@ test('SNO named Storage setter strict exact-source parity and unrelated rename y
     '  propertyValue:localStorage.namedSourceParity,',
     '  value:inspect(),independent:independent()};',
     'process.stdout.write(JSON.stringify(result));'
-  ].join('\\n');
+  ].join('\n');
 
   // This native fixture changes only the function's local variable spelling.
   // Executable values must stay equal while the observable Storage string
