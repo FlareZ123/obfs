@@ -1764,6 +1764,33 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(node.type==='AssignmentExpression') {
+      // Logical writes may skip both their RHS and assignment. The known
+      // WeakMap/record abstract kinds are truthy and non-nullish. All other
+      // known-safe references must preserve the no-write predecessor.
+      if(['||=','??=','&&='].includes(node.operator)) {
+        const simpleLeft=node.left.type==='Identifier'||
+          node.left.type==='MemberExpression'&&
+          node.left.object.type==='Identifier'&&
+          (!node.left.computed||
+            carrierStaticKey(node.left.property,true)!==null);
+        if(!simpleLeft) {
+          // An effectful computed reference needs ordered reference/value
+          // transfer, not replay of its computed key on both paths.
+          exposed=true;
+          return;
+        }
+        const prior=evaluateCarrierValue(node.left,environment,thisValue);
+        const definitelyTruthy=prior.kind==='weakmap'||prior.kind==='container';
+        if(definitelyTruthy&&['||=','??='].includes(node.operator))return;
+        if(!definitelyTruthy) {
+          const skipped=forkCarrierEnvironment(environment);
+          const written=forkCarrierEnvironment(environment);
+          const assignment={...node,operator:'='};
+          visitCarrierExpression(assignment,written,thisValue);
+          joinCarrierEnvironments(environment,skipped,written);
+          return;
+        }
+      }
       // ECMAScript resolves a member reference, including computed property
       // key effects, before evaluating its assigned RHS.
       if(node.left.type==='MemberExpression') {
