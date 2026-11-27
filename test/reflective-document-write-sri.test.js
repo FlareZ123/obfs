@@ -19,7 +19,8 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ['member apply','document.write.apply(document,['+raw+']);'],
     ['Reflect.apply','Reflect.apply(document.write,document,['+raw+']);'],
     ['writer alias call','const writer=document.write;writer.call(document,'+raw+');'],
-    ['writer alias reflect','const writer=document.write;Reflect.apply(writer,document,['+raw+']);']
+    ['writer alias reflect','const writer=document.write;Reflect.apply(writer,document,['+raw+']);'],
+    ['bound writer','const writer=document.write.bind(document);writer('+raw+');']
   ];
   const files=[
     {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
