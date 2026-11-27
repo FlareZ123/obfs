@@ -238,15 +238,33 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          node.left.type==='Identifier' && node.right.type==='Identifier')
         aliasEdges.push([node.left.name,node.right.name]);
     });
-    let aliasesChanged;
-    do {
-      aliasesChanged=false;
-      for(const [receiver,source] of aliasEdges) {
-        for(const origin of importedOrigins.get(source)??[]) {
-          if(addImportedOrigin(receiver,origin))aliasesChanged=true;
+    // A reverse-ordered alias chain must not force O(n²) whole-graph
+    // rescans. Propagate only new may-origin facts along dependent edges;
+    // a binding is rescheduled when it gains a previously unseen origin.
+    /** @type {Map<string,Set<string>>} */
+    const receiversBySource=new Map();
+    for(const [receiver,source] of aliasEdges) {
+      const destinations=receiversBySource.get(source)??new Set();
+      destinations.add(receiver);
+      receiversBySource.set(source,destinations);
+    }
+    const queue=[...importedOrigins.keys()];
+    const pending=new Set(queue);
+    for(let offset=0;offset<queue.length;offset++) {
+      const source=queue[offset];
+      pending.delete(source);
+      const origins=importedOrigins.get(source)??new Set();
+      for(const receiver of receiversBySource.get(source)??[]) {
+        let gained=false;
+        for(const origin of origins) {
+          if(addImportedOrigin(receiver,origin))gained=true;
+        }
+        if(gained&&!pending.has(receiver)) {
+          queue.push(receiver);
+          pending.add(receiver);
         }
       }
-    }while(aliasesChanged);
+    }
     // Monotone may-value analysis for statically linked ESM producer origins.
     // Track value carriers and direct local call/return flows. Set-union
     // deliberately overapproximates names that can shadow each other:
