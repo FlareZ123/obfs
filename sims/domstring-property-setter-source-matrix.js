@@ -839,7 +839,35 @@ async function main() {
     const dispatchExpectedRed=dispatchRows.length===dispatchCases.length&&
       dispatchRows.every((/** @type {any} */ row)=>row.sourceMismatch&&row.numericParity&&
         row.independentParity&&row.positiveParity);
+    const currentSinkParity=rows.length===pairs.length&&
+      rows.every((/** @type {any} */ row)=>row.nativeSourceValid&&!row.sourceMismatch&&
+        row.numericParity&&row.independentParity&&row.positiveParity&&
+        row.negativeProperties>=1&&row.positiveProperties>=1);
+    const currentDispatchParity=dispatchRows.length===dispatchCases.length&&
+      dispatchRows.every((/** @type {any} */ row)=>row.nativeSourceValid&&!row.sourceMismatch&&
+        row.numericParity&&row.independentParity&&row.positiveParity&&
+        row.negativeProperties>=1&&row.positiveProperties>=1);
+    const currentHtmlMethodParity=htmlMethodControl.nativeSourceValid&&
+      !htmlMethodControl.sourceMismatch&&htmlMethodControl.numericParity&&
+      htmlMethodControl.independentParity&&htmlMethodControl.positiveParity&&
+      htmlMethodOutput.properties>=1&&htmlMethodPositiveOutput.properties>=1;
+    const currentHtmlApiParity=htmlApiRows.every((/** @type {any} */ row)=>
+      !row.supported || row.nativeSourceValid&&!row.sourceMismatch&&row.numericParity&&
+        row.independentParity&&row.positiveParity&&
+        row.negativeProperties>=1&&row.positiveProperties>=1);
+    const currentCrossFileParity=crossFile.nativeSourceValid&&!crossFile.sourceMismatch&&
+      crossFile.numericParity&&crossFile.independentParity&&crossFile.positiveParity&&
+      crossFile.negativeProperties===0&&crossFile.positiveProperties>=1;
+    const currentCrossStreamParity=crossStream.nativeSourceValid&&!crossStream.sourceMismatch&&
+      crossStream.numericParity&&crossStream.independentParity&&crossStream.positiveParity&&
+      crossStreamNegativeProperties===0&&crossStreamPositiveProperties>=1;
+    const acceptancePassed=currentSinkParity&&currentDispatchParity&&
+      currentHtmlMethodParity&&currentHtmlApiParity&&legacyDocumentParity&&
+      currentCrossFileParity&&currentCrossStreamParity&&userlandPositive&&
+      dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&
+      proxyBrandCheckPositive;
     const summary={
+      acceptancePassed,
       expectedRedReproduced:allExpectedRed&&userlandPositive&&crossFileExpectedRed&&crossStreamExpectedRed&&dataPropertyPositive&&customAccessorPositive&&proxyStoragePositive&&proxyBrandCheckPositive&&htmlMethodExpectedRed&&htmlApiExpectedRed&&legacyDocumentParity&&dispatchExpectedRed,
       sinkCount:rows.length,
       sourceMismatchCount:rows.filter((/** @type {any} */ row)=>row.sourceMismatch).length,
@@ -856,9 +884,9 @@ async function main() {
       JSON.stringify(summary,null,2)+'\n');
     process.stdout.write('DOMSTRING_PROPERTY_SETTER_MATRIX '+
       JSON.stringify(summary)+'\n');
-    assert.equal(summary.expectedRedReproduced,true,
-      'Expected native source-observation mismatches and independent positives were not reproduced');
-    process.stdout.write('DOMSTRING_PROPERTY_SETTER_MATRIX_EXPECTED_RED PASS\n');
+    assert.equal(summary.acceptancePassed,true,
+      'DOMString/parser source-observation parity or positive rewrite yield regressed');
+    process.stdout.write('DOMSTRING_PROPERTY_SETTER_MATRIX_ACCEPTANCE PASS\n');
   } finally {
     await new Promise(resolve=>server.close(()=>resolve(undefined)));
   }
