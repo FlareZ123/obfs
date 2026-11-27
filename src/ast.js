@@ -1329,6 +1329,16 @@ function hasWeakMapPrototypeExposure(ast) {
         weakMapFactories.has(name)||importedLocalNames.has(name)));
   }
   /**
+   * Only a literal Boolean may prune a CFG edge without a guard proof.
+   * Identifiers named true/false are not legal variable references, but
+   * truthiness inferred from arbitrary expressions could run user hooks.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean|null}
+   */
+  function carrierBooleanLiteral(node) {
+    return node?.type==='Literal'&&typeof node.value==='boolean'?node.value:null;
+  }
+  /**
    * @param {AstNode|null|undefined} node
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
@@ -1442,14 +1452,27 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       return carrierOther;
     }
-    if(node.type==='ConditionalExpression')
+    if(node.type==='ConditionalExpression') {
+      const truth=carrierBooleanLiteral(node.test);
+      if(truth!==null)
+        return evaluateCarrierValue(truth?node.consequent:node.alternate,environment,thisValue);
       return mergeCarrierValues(
         evaluateCarrierValue(node.consequent,environment,thisValue),
         evaluateCarrierValue(node.alternate,environment,thisValue));
-    if(node.type==='LogicalExpression')
+    }
+    if(node.type==='LogicalExpression') {
+      const truth=carrierBooleanLiteral(node.left);
+      if(truth!==null&&(node.operator==='&&'||node.operator==='||')) {
+        const rightRuns=node.operator==='&&'?truth:!truth;
+        return evaluateCarrierValue(rightRuns?node.right:node.left,environment,thisValue);
+      }
+      if(node.operator==='??'&&node.left.type==='Literal')
+        return evaluateCarrierValue(node.left.value===null?node.right:node.left,
+          environment,thisValue);
       return mergeCarrierValues(
         evaluateCarrierValue(node.left,environment,thisValue),
         evaluateCarrierValue(node.right,environment,thisValue));
+    }
     if(node.type==='SequenceExpression')
       return evaluateCarrierValue(node.expressions.at(-1),environment,thisValue);
     if(node.type==='AssignmentExpression')
@@ -1723,6 +1746,11 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ConditionalExpression') {
       visitCarrierExpression(node.test,environment,thisValue);
+      const truth=carrierBooleanLiteral(node.test);
+      if(truth!==null) {
+        visitCarrierExpression(truth?node.consequent:node.alternate,environment,thisValue);
+        return;
+      }
       const consequent=forkCarrierEnvironment(environment);
       const alternate=forkCarrierEnvironment(environment);
       visitCarrierExpression(node.consequent,consequent,thisValue);
@@ -1732,6 +1760,17 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='LogicalExpression') {
       visitCarrierExpression(node.left,environment,thisValue);
+      const truth=carrierBooleanLiteral(node.left);
+      if(truth!==null&&(node.operator==='&&'||node.operator==='||')) {
+        if(node.operator==='&&'?truth:!truth)
+          visitCarrierExpression(node.right,environment,thisValue);
+        return;
+      }
+      if(node.operator==='??'&&node.left.type==='Literal') {
+        if(node.left.value===null)
+          visitCarrierExpression(node.right,environment,thisValue);
+        return;
+      }
       const bypass=forkCarrierEnvironment(environment);
       const evaluated=forkCarrierEnvironment(environment);
       visitCarrierExpression(node.right,evaluated,thisValue);
@@ -1828,6 +1867,13 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='IfStatement') {
       visitCarrierExpression(statement.test,environment,thisValue);
+      const truth=carrierBooleanLiteral(statement.test);
+      if(truth!==null) {
+        if(truth)visitCarrierStatement(statement.consequent,environment,thisValue,throwCollector);
+        else if(statement.alternate)
+          visitCarrierStatement(statement.alternate,environment,thisValue,throwCollector);
+        return;
+      }
       const consequent=forkCarrierEnvironment(environment);
       const alternate=forkCarrierEnvironment(environment);
       visitCarrierStatement(statement.consequent,consequent,thisValue,throwCollector);
