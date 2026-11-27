@@ -2,6 +2,7 @@
 
 const {parse,walk,staticString}=require('./ast');
 const {isBuiltin}=require('node:module');
+const {isUtf8}=require('node:buffer');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
@@ -427,50 +428,36 @@ function usesUnprovedRelocatedTextDecoder(body,nativeByteRoots=collectNativeByte
     return true;
   }
   /**
-   * A plain identifier may hold a string, record or detached value. The
-   * runtime-specific type error message is then observable even without a
-   * local catch. Until interprocedural argument-type proofs exist, admit
-   * only explicit byte views with literal byte elements, or omitted input.
+   * Extract only literal bytes from a proved native byte-view expression.
+   * Omitted input denotes an empty view; unknown or nonliteral inputs are
+   * not proved. Validation is entirely compile-time.
    * @param {import('./ast').AstNode|undefined} input
-   * @returns {boolean}
+   * @returns {number[]|null}
    */
-  function provedByteInput(input){
-    if(input===undefined)return true;
-    const elementBytes=/** @param {import('./ast').AstNode} element @returns {boolean} */
-      element=>element.type==='Literal'&&typeof element.value==='number'&&
-        Number.isInteger(element.value)&&element.value>=0&&element.value<=255;
+  function literalByteInput(input){
+    if(input===undefined)return [];
+    /** @type {(import('./ast').AstNode|null)[]} */
+    let elements;
     if(input.type==='CallExpression'&&
        input.callee.type==='MemberExpression'&&!input.callee.computed&&
        input.callee.object.type==='Identifier'&&
        nativeByteRoots.has(input.callee.object)&&
        input.callee.property.type==='Identifier'&&
-       input.callee.property.name==='of')return input.arguments.every(elementBytes);
-    return input.type==='NewExpression'&&input.callee.type==='Identifier'&&
+       input.callee.property.name==='of'){
+      elements=input.arguments;
+    }else if(input.type==='NewExpression'&&input.callee.type==='Identifier'&&
       nativeByteRoots.has(input.callee)&&input.arguments.length===1&&
-      input.arguments[0].type==='ArrayExpression'&&
-      input.arguments[0].elements.every(
-        /** @param {import('./ast').AstNode|null} element */
-        element=>element!==null&&element.type!=='SpreadElement'&&
-          elementBytes(element));
-  }
-  /**
-   * Prove that all input bytes are ASCII. UTF-8 ASCII cannot cause a native
-   * fatal decoding error for a newly constructed decoder without streaming
-   * state. Other byte grammars remain conservatively unproved.
-   * @param {import('./ast').AstNode|undefined} input
-   * @returns {boolean}
-   */
-  function provedAsciiInput(input){
-    return Boolean(input?.type==='CallExpression'&&
-      input.callee.type==='MemberExpression'&&
-      !input.callee.computed&&
-      input.callee.object.type==='Identifier'&&
-      nativeByteRoots.has(input.callee.object)&&
-      input.callee.property.type==='Identifier'&&
-      input.callee.property.name==='of'&&
-      input.arguments.every(/** @param {import('./ast').AstNode} item */ item=>
-        item.type==='Literal'&&typeof item.value==='number'&&
-        Number.isInteger(item.value)&&item.value>=0&&item.value<=0x7f));
+      input.arguments[0].type==='ArrayExpression'){
+      elements=input.arguments[0].elements;
+    }else return null;
+    /** @type {number[]} */
+    const bytes=[];
+    for(const element of elements){
+      if(element?.type!=='Literal'||typeof element.value!=='number'||
+         !Number.isInteger(element.value)||element.value<0||element.value>255)return null;
+      bytes.push(element.value);
+    }
+    return bytes;
   }
   let aliasesChanged=true;
   while(aliasesChanged){
@@ -520,20 +507,20 @@ function usesUnprovedRelocatedTextDecoder(body,nativeByteRoots=collectNativeByte
         // Native TypeError messages differ whenever the actual input is not
         // an ArrayBuffer/View. A mere identifier has no reliable runtime
         // type proof. Require a directly constructed, literal byte view.
-        const input=user.arguments[0];
-        if(!provedByteInput(input)||user.arguments.length>2||
+        const bytes=literalByteInput(user.arguments[0]);
+        if(bytes===null||user.arguments.length>2||
            !provedOptionsDictionary(user.arguments[1],decodeOptionNames)){
           unproved=true;
           return;
         }
-        // With fatal:true or dynamic fatal options, even valid ArrayBuffer
-        // views can contain malformed UTF-8. An observed native TypeError
-        // message would change across the relocation boundary. Permit only
-        // a new decoder with static ASCII bytes and no streaming options.
+        // A fatal decoder can expose different error messages for malformed
+        // bytes. The compiler validates the complete literal sequence with
+        // Node's UTF-8 validator. Fatal streaming options remain refused,
+        // so no previous admitted call can leave pending decoder state.
         const constructor=isDirectInstance(node)?node:
           node.type==='Identifier'?instanceConstructors.get(node.name):undefined;
         if(!provedNonFatal(constructor)&&
-           (!provedAsciiInput(input)||user.arguments.length>1))unproved=true;
+           (!isUtf8(Uint8Array.from(bytes))||user.arguments.length>1))unproved=true;
         return;
       }
       // WHATWG-defined native decoder getters return immutable primitives.
