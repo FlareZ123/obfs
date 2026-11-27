@@ -168,6 +168,10 @@ const cases=[
 ['class-expression-instance-field-deferred','const carrier={instance:{}};const Holder=class{static [(carrier.instance=new WeakMap(),"k")]=1;instance=(carrier.instance={});};','carrier.instance'],
 ['object-computed-method-key','const carrier={instance:{}};const obj={[(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
 ['class-expression-benign-field-yield','class Ordinary{} const carrier={instance:new WeakMap()};const Holder=class{static x=(carrier.instance=new Ordinary());};','carrier.instance'],
+// A named class expression's name is local to the expression. It must not
+// shadow/overwrite an outer binding of the same spelling in abstract state.
+['class-expression-inner-name-shadows-outer-carrier','const carrier={instance:new WeakMap()};const Holder=class carrier{};','carrier.instance'],
+['class-expression-inner-name-shadows-with-key','const carrier={instance:new WeakMap()};const Holder=class carrier{static ["k"](){}};','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -265,6 +269,8 @@ for(const [name,setup,access] of cases) {
         'class-expression-name-before-static-field',
         'class-expression-instance-field-deferred',
         'object-computed-method-key',
+        'class-expression-inner-name-shadows-outer-carrier',
+        'class-expression-inner-name-shadows-with-key',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
