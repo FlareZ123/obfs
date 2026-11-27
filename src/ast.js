@@ -1714,6 +1714,8 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
     if(node.type==='CallExpression') {
+      // Callee expression effects precede argument expression effects.
+      visitCarrierExpression(node.callee,environment,thisValue);
       const summary=node.callee.type==='Identifier'?
         localFunctionSummaries.get(node.callee.name):undefined;
       for(let index=0;index<(node.arguments??[]).length;index++) {
@@ -1732,12 +1734,12 @@ function hasWeakMapPrototypeExposure(ast) {
         if(argument.type==='Identifier')
           replayLocalFunctionEffects(argument.name,environment,thisValue);
       }
-      visitCarrierExpression(node.callee,environment,thisValue);
       if(node.callee.type==='Identifier')
         replayLocalFunctionEffects(node.callee.name,environment,thisValue,true);
       return;
     }
     if(node.type==='NewExpression') {
+      visitCarrierExpression(node.callee,environment,thisValue);
       for(const argument of node.arguments??[]) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
@@ -1773,6 +1775,8 @@ function hasWeakMapPrototypeExposure(ast) {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
         else if(property.type==='Property') {
+          if(property.computed)
+            visitCarrierExpression(property.key,environment,thisValue);
           visitCarrierExpression(property.value,environment,thisValue);
           // A source-visible getter can be invoked by any later property
           // read or reflection. Union its captured outer-binding effects with
@@ -1995,8 +1999,10 @@ function hasWeakMapPrototypeExposure(ast) {
     if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
       return (statement.body??[]).some(carrierMayAbrupt);
     if(statement.type==='ClassDeclaration')
-      return (statement.body?.body??[]).some((/** @type {AstNode} */ element)=>
-        element.type==='StaticBlock'&&carrierMayAbrupt(element));
+      return Boolean(statement.superClass||(statement.body?.body??[]).some(
+        (/** @type {AstNode} */ element)=>element.computed||
+          (element.type==='PropertyDefinition'&&element.static&&Boolean(element.value))||
+          (element.type==='StaticBlock'&&carrierMayAbrupt(element))));
     if(statement.type==='IfStatement')
       return carrierMayAbrupt(statement.consequent)||
         carrierMayAbrupt(statement.alternate);
@@ -2120,10 +2126,14 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ClassDeclaration') {
+      // Class heritage is evaluated before the computed keys and field values.
+      visitCarrierExpression(statement.superClass,environment,thisValue);
       const staticValue=carrierContainer();
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
       for(const element of statement.body.body??[]) {
+        if(element.computed)
+          visitCarrierExpression(element.key,environment,thisValue);
         if(element.type==='PropertyDefinition') {
           const thisValue=element.static?staticValue:carrierOther;
           visitCarrierExpression(element.value,environment,thisValue);
