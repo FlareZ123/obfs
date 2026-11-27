@@ -1197,7 +1197,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,accessors:Set<string>,unknown:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
@@ -1207,7 +1207,7 @@ function hasWeakMapPrototypeExposure(ast) {
   const carrierOther={kind:'other'};
   /** @returns {CarrierContainer} */
   function carrierContainer() {
-    return {kind:'container',properties:new Map(),unknown:false};
+    return {kind:'container',properties:new Map(),accessors:new Set(),unknown:false};
   }
   /**
    * @param {AstNode} property
@@ -1282,6 +1282,9 @@ function hasWeakMapPrototypeExposure(ast) {
       const merged=carrierContainer();
       byRight.set(right,merged);
       merged.unknown=left.unknown||right.unknown;
+      // Joining data and accessor alternatives retains possible setters.
+      for(const key of left.accessors)merged.accessors.add(key);
+      for(const key of right.accessors)merged.accessors.add(key);
       for(const [key,value] of left.properties)merged.properties.set(key,value);
       for(const [key,value] of right.properties) {
         merged.properties.set(key,merged.properties.has(key)?
@@ -1308,6 +1311,7 @@ function hasWeakMapPrototypeExposure(ast) {
     const copy=carrierContainer();
     memo.set(value,copy);
     copy.unknown=value.unknown;
+    for(const key of value.accessors)copy.accessors.add(key);
     for(const [key,nested] of value.properties)
       copy.properties.set(key,cloneCarrierValue(nested,memo));
     return copy;
@@ -1419,10 +1423,21 @@ function hasWeakMapPrototypeExposure(ast) {
           value.unknown=true;
           continue;
         }
-        const getterMayReturnWeakMap=property.kind==='get'&&
-          functionMayReturnWeakMap(property.value);
-        value.properties.set(propertyKey,getterMayReturnWeakMap?
-          carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
+        // Source-order getter and setter definitions coalesce into one
+        // accessor descriptor; data definitions replace that descriptor.
+        if(property.kind==='set') {
+          const alreadyAccessor=value.accessors.has(propertyKey);
+          value.accessors.add(propertyKey);
+          if(!alreadyAccessor)value.properties.set(propertyKey,carrierOther);
+        } else if(property.kind==='get') {
+          value.accessors.add(propertyKey);
+          value.properties.set(propertyKey,functionMayReturnWeakMap(property.value)?
+            carrierMaybe:carrierOther);
+        } else {
+          value.accessors.delete(propertyKey);
+          value.properties.set(propertyKey,
+            evaluateCarrierValue(property.value,environment,thisValue));
+        }
       }
       return value;
     }
@@ -1607,7 +1622,7 @@ function hasWeakMapPrototypeExposure(ast) {
     const base=evaluateCarrierValue(assignment.left.object,environment,thisValue);
     const key=carrierStaticKey(assignment.left.property,assignment.left.computed);
     if(base.kind!=='container'||base.unknown||key===null||
-       !base.properties.has(key))return false;
+       (!base.properties.has(key)||base.accessors.has(key)))return false;
     const right=assignment.right;
     if(right.type==='Literal')return true;
     return right.type==='NewExpression'&&right.callee.type==='Identifier'&&
@@ -1765,7 +1780,12 @@ function hasWeakMapPrototypeExposure(ast) {
         const key=carrierStaticKey(node.left.property,node.left.computed);
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
-          else base.properties.set(key,assigned);
+          else if(base.accessors.has(key)) {
+            // A setter need not modify a getter's reaching return carrier;
+            // on joined accessor/data paths either old or new may survive.
+            base.properties.set(key,
+              mergeCarrierValues(base.properties.get(key)??carrierOther,assigned));
+          } else base.properties.set(key,assigned);
         } else if(base.kind==='maybe'&&(
           carrierMayContainWeakMap(assigned)||['set','get','has','delete'].includes(key??'')
         )) {
