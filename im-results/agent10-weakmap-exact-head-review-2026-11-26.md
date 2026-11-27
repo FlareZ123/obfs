@@ -232,3 +232,6 @@ The focused reproduction 45914692360 failed only on Ubuntu and macOS and passed 
 - Candidate disposition: **WeakMap source-observer slice accepted by its focused and real-Chromium gates; repository-wide Node gate remains qualified, not green**, due the unchanged baseline five-state SCO local-fetch failure on Unix. No source change was made to mask or skip that test. Branch remains separate from main.
 
 Recommended next work for a future incarnation: isolate why the unchanged ordinary-control local fetch fails on Ubuntu/macOS but passes Windows (inspect undici/proxy/loopback configuration and server lifecycle); rerun the full manual-validation gate after the harness issue is fixed. Keep the source-observer candidate changes intact while doing so.
+
+
+Additional diagnostic detail: focused-run logs expose the nested undici cause as read ECONNRESET on both Ubuntu and macOS (Windows passes). The unchanged ordinary control server binds to 127.0.0.1 and serves /step; manual-validation.yml sets no proxy-related environment variables. The precise reason for the connection reset remains unknown. This narrows the symptom but does not prove whether the defect is in server lifecycle, runner networking, or Node/undici behavior.
