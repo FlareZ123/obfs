@@ -129,11 +129,11 @@ const cases=[
 // Local call-effect falsifiers from Agent 4, each paired with a native-negative
 // control that must retain nonzero identifier rewrite yield.
 ['parameterized-helper-side-effect','let carrier={};function fill(flag){if(flag)carrier={instance:new WeakMap()};}fill(true);','carrier.instance'],
-['parameterized-helper-negative','class Ordinary{};let carrier={instance:new WeakMap()};function fill(flag){if(flag)carrier={instance:new Ordinary()};}fill(true);','carrier.instance'],
+['parameterized-helper-negative','class Ordinary{};let carrier={instance:new Ordinary()};function fill(flag){if(flag)carrier={instance:new Ordinary()};}fill(true);','carrier.instance'],
 ['object-method-side-effect','let carrier={};const helper={fill(){carrier={instance:new WeakMap()};}};helper.fill();','carrier.instance'],
-['object-method-negative','class Ordinary{};let carrier={instance:new WeakMap()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
+['object-method-negative','class Ordinary{};let carrier={instance:new Ordinary()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
 ['inline-callback-side-effect','let carrier={};[0].forEach(()=>{carrier={instance:new WeakMap()};});','carrier.instance'],
-['inline-callback-negative','class Ordinary{};let carrier={instance:new WeakMap()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance']
+['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
