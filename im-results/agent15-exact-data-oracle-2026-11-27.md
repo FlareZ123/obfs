@@ -31,7 +31,7 @@ A separate main-based, isolated [agent15/semantic-data-oracle-20261127](https://
 
 - `sims/semantic-data-oracle.js` (blob `19f557a791b4bd00cbaa1d70c05ca92eb0732e51`).
 - `test/semantic-data-oracle.test.js` (blob `e713aa2c07d42bcd865a9b37aad43edce91818be`).
-- The two files passed four standalone tests and strict JSDoc locally under Node v22.16.0, then the uploaded Git blob SHAs were checked against local `git hash-object` values. Branch head `85c0914c4f9b1488619f4db12f27a797938d867c` additionally includes both files in `jsconfig.external.json`. Focused two-OS run [45924847964](https://github.com/FlareZ123/obfs/actions/runs/45924847964) queued at that exact head at the time of writing.
+- The two files passed four standalone tests and strict JSDoc locally under Node v22.16.0, then the uploaded Git blob SHAs were checked against local `git hash-object` values. Branch head `85c0914c4f9b1488619f4db12f27a797938d867c` additionally includes both files in `jsconfig.external.json`. Focused two-OS run [45924847964](https://github.com/FlareZ123/obfs/actions/runs/45924847964) completed successfully at that exact head (focused Ubuntu and Windows; full suite not run).
 
 `snapshotDataGraph(value, realm)` emits deterministic JSON-compatible tagged observations of a **test-controlled ordinary data graph**. It preserves the distinctions above, primitive type/value, own key order, data descriptor flags, array holes, graph aliases/cycles, local symbol identity relationships, global and well-known symbol identity, and object extensibility. The realm supplies the known Object/Array prototype identities for cross-realm comparisons. Local symbols are compared up to a deterministic renaming within the observed graph; identity relative to a pre-existing external symbol requires an explicit external anchor.
 
@@ -48,3 +48,9 @@ npm run typecheck:external
 ```
 
 No per-commit workflow was added. This is test-only infrastructure: it adds no emitted runtime computation and does not establish a 2.5x bound. The production release decision remains RELEASE-BLOCKED. For future generated semantic corpora, use exact tagged observations for declared ordinary data outputs, keep native and emitted execution boundaries matched, report refused observations separately, and retain JSON serialization as its own explicit test when JSON is the application contract.
+
+## Follow-up fixtures
+
+The real Node ESM native/emitted comparison on the oracle branch uses ten declared-export cases across three compiler modes and a separate external observer. It checks positive rewrite counts and conservative own-key observation handling. Focused run [45924991416](https://github.com/FlareZ123/obfs/actions/runs/45924991416) at `58faca8c88aa518cddf7b62df4af5c33fbc56a2a` is not yet a completed receipt.
+
+The standalone oracle now also captures ordinary-data return versus throw completions, with snapshotting outside the operation catch so an observation refusal cannot be misclassified as a program exception. Five standalone tests and strict local JSDoc passed; source and test blobs `865b71f4cce846cfac0ac956d17529cc964353dd` and `7da506b545b38711e76b71284fb886283ff83511` match local Git hashes. A seven-case, three-mode CommonJS fixture and external typecheck registration were committed through `711573928f561e17748c60e2a584a2a237c708b5`; focused validation was dispatched, not yet confirmed. Native Error instances remain outside the ordinary-data contract.
