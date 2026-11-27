@@ -320,10 +320,17 @@ function directBareImports(files) {
 function assertDefaultEsmResolverContext() {
   const unsupported=/^(?:--conditions(?:=.*)?|-C|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
   const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-(?:r|C))/gu)||[];
-  if([...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
+  // Node also accepts an environment variable for symlink-preserving module
+  // resolution. The audit canonicalizes its future roots with realpath; if
+  // the runtime retains a symlinked importer path, it can instead resolve a
+  // package from the symlink's parent directory. Reject this unsupported
+  // mode before comparing misleading canonical parent URLs.
+  const preserveSymlinks=process.env.NODE_PRESERVE_SYMLINKS==='1';
+  if(preserveSymlinks||
+      [...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
     throw new Error(
       'SNO ESM bare dependency audit does not model custom loaders, preloads, '+
-      'symlink-preservation flags or nondefault Node conditions');
+      'symlink-preservation modes or nondefault Node conditions');
   }
 }
 
