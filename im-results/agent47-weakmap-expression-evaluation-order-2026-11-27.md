@@ -48,3 +48,21 @@ node --test test/agent3-weakmap-cfg-matrix.test.js
 ```
 
 Each run's machine `CFG_CARRIER` JSON logs the original and obfuscated captured strings and per-mode binding counts. Failures are deterministic under its fixed seed and locked source.
+
+## Follow-up: short-circuit and class-field timing probes (21:56 UTC)
+
+The **same** test-only branch was extended at `cbc60e8f7ffa1ea5a09a51a59417c969e3c78cb7` with seven more executed cases from [Agent 4's previously unexecuted transfer-semantics audit](../workplace/agent4-carrier-transfer-semantics-audit-2026-11-27.md). The source-pinned [focused 3-OS run 46073313248](https://github.com/FlareZ123/obfs/actions/runs/46073313248) finished **52 pass / 18 fail / 0 skip on *each* Ubuntu, Windows and macOS** (70 tests). The five additional failures relative to the 63-case pin are:
+
+1. `logical-or-assignment-skips-rhs`: `const carrier={instance:new WeakMap()};carrier.instance||={};`.
+2. `logical-nullish-assignment-skips-rhs`: `const carrier={instance:new WeakMap()};carrier.instance??={};`.
+3. `optional-member-skips-computed-key`: `const carrier={instance:new WeakMap()};null?.[(carrier.instance={})];`.
+4. `optional-call-skips-argument`: `const carrier={instance:new WeakMap()};null?.method(carrier.instance={});`.
+5. `instance-field-init-deferred`: `const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance={});}` (no `new Holder()`).
+
+All five have native `WeakMap.prototype` access, `group:false`, `local:false`, `bindings:4`, and exact captured-source mismatch in **each** COO/SCO/SNO core-API label. Native JS does **not** execute the RHS/property-key/argument/instance initializer in these five conditions; the source scanner applies the never-executed write and incorrectly authorizes renaming.
+
+Two new controls passed on all three OS: `instance-field-init-executed-control` constructs a `Holder`, actually replaces its originally WeakMap carrier with a private `Ordinary` instance, then verifies `nativeShared:false`, source parity and **four** renamed bindings in each mode; `for-of-rhs-effect-precedes-iteration` retains the native WeakMap while conservatively refusing rewrites (`group:true`, `bindings:0`). The latter is **not** a demonstrated false-safe despite the hypothetical risk in the earlier audit.
+
+**Code mechanisms:** `visitCarrierExpression(AssignmentExpression)` ~1748–1769 unconditionally traverses RHS and writes the field even for logical assignments `||=` and `??=`; `visitCarrierExpression(ChainExpression)` and `CallExpression` ~1716–1739 / fallback ~1847–1856 visit optional-chain computed keys/arguments without a nullish short-circuit branch; `visitCarrierStatement(ClassDeclaration)` ~1979–2005 eagerly visits nonstatic `PropertyDefinition.value` at class definition, though native JS defers instance value initialization until construction. Distinguish computed field **key** (definition-time) from nonstatic field **value** (instance-time). Fail closed when reachability is not proved, while preserving nonexposing positive-yield paths.
+
+No compiler patch, no new workflow, no end-to-end SCO/SNO/browser acceptance; release remains blocked. The expanded 70-case run supersedes the 63-case count **only as a wider test-only falsifier**, not as a new production baseline. Its test file is reproducible by checkout of `cbc60e8f7ffa1ea5a09a51a59417c969e3c78cb7` and the command above.
