@@ -2169,39 +2169,61 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ClassDeclaration') {
-      // Class heritage is evaluated before the computed keys and field values.
+      // ECMAScript evaluates the heritage and every computed element name
+      // before executing any static field initializer or static block.
       visitCarrierExpression(statement.superClass,environment,thisValue);
       const staticValue=carrierContainer();
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
-      for(const element of statement.body.body??[]) {
+      const elements=statement.body.body??[];
+      /** @type {AstNode[]} */
+      const instanceFields=[];
+      // Class element definition phase: computed keys execute now, but
+      // instance field initializers execute only when an instance is made.
+      for(const element of elements) {
         if(element.computed)
           visitCarrierExpression(element.key,environment,thisValue);
-        if(element.type==='PropertyDefinition') {
-          const thisValue=element.static?staticValue:carrierOther;
-          visitCarrierExpression(element.value,environment,thisValue);
-          const fieldValue=evaluateCarrierValue(element.value,environment,thisValue);
-          if(element.static) {
-            const fieldKey=carrierStaticKey(element.key,element.computed);
-            if(fieldKey===null)staticValue.unknown=true;
-            else staticValue.properties.set(fieldKey,fieldValue);
-          } else if(carrierMayContainWeakMap(fieldValue)&&statement.id?.type==='Identifier') {
-            weakMapContainerOwners.add(statement.id.name);
-          }
+        if(element.type==='PropertyDefinition'&&!element.static)
+          instanceFields.push(element);
+        if(element.type==='MethodDefinition'&&element.value?.body &&
+           !functionClosureEnvironments.has(element.value))
+          functionClosureEnvironments.set(element.value,new Map(environment));
+      }
+      // Static initialization phase, preserving the order between static
+      // fields and blocks after the entire computed-key phase.
+      /** @type {Array<Map<string,CarrierValue>>} */
+      const possibleStaticExits=[];
+      for(const element of elements) {
+        if(element.type==='PropertyDefinition'&&element.static) {
+          visitCarrierExpression(element.value,environment,staticValue);
+          const fieldValue=evaluateCarrierValue(element.value,environment,staticValue);
+          const fieldKey=carrierStaticKey(element.key,element.computed);
+          if(fieldKey===null)staticValue.unknown=true;
+          else staticValue.properties.set(fieldKey,fieldValue);
+          // An initializer may throw after effects but before following
+          // static elements. Preserve its reaching state as an alternative.
+          possibleStaticExits.push(forkCarrierEnvironment(environment));
         } else if(element.type==='StaticBlock') {
-          // Static blocks execute at class definition time. Their own lexical
-          // declarations are scoped by visitScopedCarrierBlock; their writes
-          // to captured outer bindings must flow back to the current frame.
           visitCarrierStatement(element,environment,staticValue,throwCollector);
-          // A definite static-block throw aborts class initialization.
-          // Following static fields cannot overwrite a live carrier.
           if(carrierDefinitelyAbrupt(element))break;
-        } else if(element.type==='MethodDefinition'&&element.value?.body) {
-          // Class methods close over the lexical environment at the class
-          // declaration site. Preserve it for the later interprocedural pass.
-          if(!functionClosureEnvironments.has(element.value))
-            functionClosureEnvironments.set(element.value,new Map(environment));
+          if(carrierMayAbrupt(element))
+            possibleStaticExits.push(forkCarrierEnvironment(environment));
         }
+      }
+      if(possibleStaticExits.length)
+        joinCarrierEnvironments(environment,
+          forkCarrierEnvironment(environment),...possibleStaticExits);
+      // Instance field initializers are not eager class-definition effects.
+      // Preserve possible later construction without killing the class-only
+      // path. Exact construction tracking requires a separate proof.
+      for(const element of instanceFields) {
+        const beforeInstance=forkCarrierEnvironment(environment);
+        const afterInstance=forkCarrierEnvironment(environment);
+        visitCarrierExpression(element.value,afterInstance,carrierOther);
+        const fieldValue=evaluateCarrierValue(element.value,afterInstance,carrierOther);
+        if(carrierMayContainWeakMap(fieldValue)&&statement.id?.type==='Identifier')
+          weakMapContainerOwners.add(statement.id.name);
+        joinCarrierEnvironments(environment,beforeInstance,afterInstance);
       }
       if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
         weakMapContainerOwners.add(statement.id.name);
