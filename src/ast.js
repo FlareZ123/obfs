@@ -1613,6 +1613,31 @@ function hasWeakMapPrototypeExposure(ast) {
   // computed field *keys* still execute when the class is defined.
   /** @type {Map<string,AstNode[]>} */
   const instanceFieldInitializers=new Map();
+  /** @type {WeakMap<AstNode,AstNode[]>} */
+  const classExpressionInitializers=new WeakMap();
+  /** @type {WeakMap<AstNode,string>} */
+  const provenClassExpressionOwners=new WeakMap();
+  /** @type {WeakSet<AstNode>} */
+  const unobservedClassExpressions=new WeakSet();
+  /** @type {WeakSet<AstNode>} */
+  const directlyConstructedClassExpressions=new WeakSet();
+  if(ast.sourceType==='module'&&!hasDirectEval)walk(ast,(node,parent)=>{
+    if(node.type==='NewExpression'&&node.callee.type==='ClassExpression')
+      directlyConstructedClassExpressions.add(node.callee);
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       parent?.kind!=='const'||exportedLocalNames.has(node.id.name)||
+       reassignedLocalFunctions.has(node.id.name)||
+       localBindingCounts.get(node.id.name)!==1)return;
+    const name=node.id.name;
+    const direct=directConstructorReferences.get(name)??0;
+    if(node.init?.type==='ClassExpression'&&
+       identifierOccurrences.get(name)===1+direct)
+      provenClassExpressionOwners.set(node.init,name);
+    if(node.init?.type==='ObjectExpression'&&identifierOccurrences.get(name)===1)
+      for(const property of node.init.properties??[])
+        if(property.type==='Property'&&property.value?.type==='ClassExpression')
+          unobservedClassExpressions.add(property.value);
+  });
   /** @type {Set<string>} */
   const activeInstanceFieldConstructors=new Set();
   /** @type {Set<AstNode>} */
@@ -1714,6 +1739,43 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
+    if(node.type==='ClassExpression') {
+      // Class-expression computed keys and static bodies run at definition;
+      // instance field value initializers do not run until construction.
+      visitCarrierExpression(node.superClass,environment,thisValue);
+      const staticValue=carrierContainer();
+      /** @type {AstNode[]} */
+      const deferred=[];
+      for(const element of node.body?.body??[]) {
+        if(element.computed)visitCarrierExpression(element.key,environment,thisValue);
+        if(element.type==='PropertyDefinition') {
+          if(element.static)visitCarrierExpression(element.value,environment,staticValue);
+          else if(element.value)deferred.push(element.value);
+        } else if(element.type==='StaticBlock') {
+          visitCarrierStatement(element,environment,staticValue);
+        } else if(element.type==='MethodDefinition'&&element.value?.body) {
+          if(!functionClosureEnvironments.has(element.value))
+            functionClosureEnvironments.set(element.value,new Map(environment));
+        }
+      }
+      classExpressionInitializers.set(node,deferred);
+      const owner=provenClassExpressionOwners.get(node);
+      if(owner&&deferred.length)instanceFieldInitializers.set(owner,deferred);
+      const isUnproved=deferred.length>0&&!owner&&
+        !unobservedClassExpressions.has(node)&&
+        !directlyConstructedClassExpressions.has(node);
+      if(isUnproved) {
+        for(const initializer of deferred) {
+          walk(initializer,child=>{
+            if(['AssignmentExpression','UpdateExpression','CallExpression',
+                'NewExpression','MemberExpression','AwaitExpression',
+                'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+              exposed=true;
+          });
+        }
+      }
+      return;
+    }
     if(functionTypes.has(node.type)) {
       if(!functionClosureEnvironments.has(node))
         functionClosureEnvironments.set(node,environment);
@@ -1806,6 +1868,11 @@ function hasWeakMapPrototypeExposure(ast) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
+      }
+      if(node.callee.type==='ClassExpression') {
+        const fields=classExpressionInitializers.get(node.callee)??[];
+        for(const initializer of fields)
+          visitCarrierExpression(initializer,environment,carrierOther);
       }
       if(node.callee.type==='Identifier') {
         const className=node.callee.name;
