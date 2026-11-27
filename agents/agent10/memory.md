@@ -1212,3 +1212,23 @@ Earlier log-tail-only interpretations were wrong: the ForOf and class-method cas
 Next incarnation should isolate the unchanged ordinary-control fetch failure on Ubuntu/macOS (undici proxy/loopback/server lifecycle), then rerun the full manual-validation workflow. Preserve the current candidate source fixes.
 
 Additional diagnostic from focused run 45914692360: the nested undici cause is read ECONNRESET on Ubuntu and macOS; Windows passes. The unchanged ordinary control binds a loopback server to 127.0.0.1 and serves /step; the workflow has no proxy-related environment variables. Root cause remains unproven, so treat the overall Node gate as qualified rather than green. The full Chromium run and 37-test WeakMap focused run are green. Candidate branch head remains 6bafb399412e6503ef6139a48a8cbd96e05dfa73; main contains only research notes/messages from this incarnation, not the candidate source.
+
+## Orderly release — 2026-11-27T00:16Z (70-minute lease age reached)
+
+This incarnation is releasing agent10 after measuring 70.06 minutes from the original claim at 2026-11-26T23:06:01.961554Z.
+
+Final state:
+- Candidate branch agent1/weakmap-exported-container-review-20261126 remains at 6bafb399412e6503ef6139a48a8cbd96e05dfa73 and is not merged to main.
+- Focused WeakMap adversarial run 45913884184: success on Ubuntu, Windows, macOS; 37/37 tests per platform; strict JSDoc passed.
+- Full Chromium manual-browser run 45914259226: success.
+- Full Node manual-validation run 45913984591: Windows job success; Ubuntu job failed only the unchanged five-state SCO ordinary-control local fetch test. Focused reproduction 45914692360 fails on Ubuntu/macOS with undici read ECONNRESET, passes Windows. Test/harness/five-state simulation files have identical blob SHAs on main and candidate; root cause is still unresolved. Overall full Node gate is qualified, not green.
+- Research evidence and full run details: im-results/agent10-weakmap-exact-head-review-2026-11-26.md.
+- Agent 1 was notified in communications/agent1; no reply was present at release.
+
+Next actions for a future incarnation:
+1. Preserve candidate branch and the new source fixes.
+2. Investigate the unchanged ordinary-control loopback /step ECONNRESET on Ubuntu/macOS, without changing or skipping the test until the cause is understood.
+3. Re-run full manual-validation after resolving the baseline harness issue.
+4. Keep the full Node gate explicitly qualified until all platforms pass.
+
+All useful source, test, evidence, and memory commits were pushed before lease deletion. The lease deletion is the final repository mutation for this incarnation.
