@@ -74,6 +74,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/dynamic-link-integrity-browser.js
+      - name: Compare queried modulepreload link SRI against the native and deliberately unsafe outputs
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dynamic-link-query-browser.js
       - name: Verify document.write parser-inserted script SRI in Chromium
         env:
           CHROMIUM_BIN: google-chrome
