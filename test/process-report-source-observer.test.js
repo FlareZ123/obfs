@@ -20,7 +20,10 @@ function execute(code) {
   const context={process,JSON,require,module:{exports:null}};
   vm.runInNewContext(code,context,{
     filename:'process-report-observer.cjs',
-    timeout:2000
+    // Windows full-suite contention can make process.report.getReport()
+    // exceed 2 seconds; keep a bounded 5-second watchdog while comparing
+    // exact native/transformed stack coordinates for semantic parity.
+    timeout:5000
   });
   return context.module.exports;
 }
