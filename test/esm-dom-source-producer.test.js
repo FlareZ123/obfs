@@ -13,7 +13,7 @@ function compileGraph(sink) {
     'export const independentValue=independent.independentSecret;'
   ].join('\n');
   const negativeObserver=sink==='property'?[
-    'import {inspect,independentValue} from "./negative-logic.mjs";',
+    'import {inspect,independentValue} from "./logic.mjs";',
     'const target=document.createElement("div");',
     'target.id=inspect;',
     'export const observed={source:target.id,value:inspect(),independent:independentValue};'
@@ -31,7 +31,7 @@ function compileGraph(sink) {
     'export const independentValue=owner.privateField;'
   ].join('\n');
   const positiveObserver=[
-    'import {independentValue} from "./positive-logic.mjs";',
+    'import {independentValue} from "./logic.mjs";',
     'const target=document.createElement("div");',
     sink==='property'?'target.id="literal";':
       'const stream=target.streamHTML();const writer=stream.getWriter();await writer.write("literal");await writer.close();',
