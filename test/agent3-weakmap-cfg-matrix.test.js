@@ -149,7 +149,16 @@ const cases=[
 ['eval-order-destructure-key','let carrier={};const source={x:0};let x;({[(carrier.instance=new WeakMap(),"x")]:x}=source);','carrier.instance'],
 ['eval-order-class-extends-expression','let carrier={};class Holder extends (carrier.instance=new WeakMap(),Object){}','carrier.instance'],
 ['eval-order-new-callee-expression','let carrier={};class Holder{}new (carrier.instance=new WeakMap(),Holder)();','carrier.instance'],
-['eval-order-object-ordinary-control','class Ordinary{}let carrier={};const o={[(carrier.instance=new Ordinary(),"x")]:0};','carrier.instance']
+['eval-order-object-ordinary-control','class Ordinary{}let carrier={};const o={[(carrier.instance=new Ordinary(),"x")]:0};','carrier.instance'],
+// Verify Agent 4's remaining bounded transfer-order hypotheses with native
+// source-observer evidence, including a nonexposing instance-field control.
+['logical-or-assignment-skips-rhs','const carrier={instance:new WeakMap()};carrier.instance||={};','carrier.instance'],
+['logical-nullish-assignment-skips-rhs','const carrier={instance:new WeakMap()};carrier.instance??={};','carrier.instance'],
+['optional-member-skips-computed-key','const carrier={instance:new WeakMap()};null?.[(carrier.instance={})];','carrier.instance'],
+['optional-call-skips-argument','const carrier={instance:new WeakMap()};null?.method(carrier.instance={});','carrier.instance'],
+['instance-field-init-deferred','const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance={});}','carrier.instance'],
+['instance-field-init-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance=new Ordinary());}new Holder();','carrier.instance'],
+['for-of-rhs-effect-precedes-iteration','let carrier={};for(const x of (carrier={instance:new WeakMap()},[0])){break;}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
