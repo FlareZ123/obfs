@@ -78,6 +78,11 @@ const cases=[
 ['ternary-heap-write','const carrier={instance:new WeakMap()}; false ? (carrier.instance={}) : 0;','carrier.instance'],
 ['short-circuit-heap-write','const carrier={instance:new WeakMap()}; false && (carrier.instance={});','carrier.instance'],
 ['switch-no-matching-case','const carrier={instance:new WeakMap()}; switch(0){case 1:carrier.instance={};break;}','carrier.instance'],
+// Independent native-positive selectors: case test expressions run even when
+// the selector does not match and even when a default appears first.
+['switch-matched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),0):break;}','carrier.instance'],
+['switch-unmatched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
+['switch-selector-after-default','const carrier={instance:{}};switch(0){default:break;case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
