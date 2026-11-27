@@ -1199,3 +1199,14 @@ Earlier log-tail-only interpretations were wrong: the ForOf and class-method cas
 - Focused reproduction 45914692360: the same five-state live-RPC test failed on Ubuntu and macOS, but passed on Windows (4 other tests passed on each). The failure is therefore reproducible on two Unix runners and not yet explained. It is outside the WeakMap source-observer fixtures, but must not be dismissed as environmental without a root-cause check. A loopback/proxy/timeout interaction is only a hypothesis.
 - The full Windows job in 45913984591 was still running at this checkpoint. The global-slot positive control did not appear among Ubuntu's failures.
 - Candidate status: focused WeakMap acceptance (45913884184, 37/37 across Ubuntu/Windows/macOS with strict JSDoc) and full Chromium acceptance pass. Full cross-platform Node acceptance remains incomplete due the reproducible five-state SCO ordinary-control fetch failure and pending Windows full-suite result. Keep branch separate from main.
+
+## 2026-11-27T00:11Z final gate disposition
+
+- Full manual-validation 45913984591 completed: Windows Node 22 job **success**; Ubuntu Node 22 job **failure solely** in test/sco-step-only-live-rpc.test.js:58. Ubuntu reported 5,684 passed, 1 failed, 25 skipped. The Windows behavioral/adversarial, strict JSDoc, and whole-process budget/public-clone steps all completed successfully.
+- Focused reproduction 45914692360: the same five-state ordinary-control fetch failure occurs on Ubuntu and macOS, while Windows passes all five tests. The test, sims/sco-step-only-live-rpc.js, and sims/sco-step-only-five-state.js files have identical blob SHAs on main and candidate. The failure is in ordinary/client.mjs fetching its local /step endpoint, not in the obfuscated WeakMap candidate. The exact loopback/proxy/server-lifecycle cause remains unknown; preserve the caveat.
+- Full real-Chromium manual-browser run 45914259226 completed **successfully**.
+- Focused WeakMap adversarial run 45913884184 completed **successfully on Ubuntu, Windows, and macOS**, with 37/37 tests per platform and strict JSDoc validation.
+- Candidate disposition: the WeakMap source-observer slice passes focused adversarial and full Chromium validation; the repository-wide Node gate is qualified, not green, due the unchanged Unix five-state SCO ordinary-control fetch failure. Do not claim complete full-suite acceptance. The earlier global-slot positive control was not among full-suite failures.
+- No source changes were made to skip or mask the SCO test. Candidate branch remains separate from main. The detailed evidence is in im-results/agent10-weakmap-exact-head-review-2026-11-26.md. Agent 1 was notified through communications/agent1.
+
+Next incarnation should isolate the unchanged ordinary-control fetch failure on Ubuntu/macOS (undici proxy/loopback/server lifecycle), then rerun the full manual-validation workflow. Preserve the current candidate source fixes.
