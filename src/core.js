@@ -2201,6 +2201,9 @@ function obfuscateFiles(files, options = {}) {
     collectImportedFunctionArrays(prepared) : new Map();
   const importedStorageMethodAliases=prepared.length>1 ?
     collectImportedStorageMethodAliases(prepared) : new Map();
+  const esmDomSourceProducers=prepared.length>1&&options.closedWorld ?
+    esmDomSourceProducerPaths(prepared,importedPrimitiveProof,importedStringProof) :
+    new Set();
   // Parse the supplied JavaScript files once for source-observer analysis.
   // The WeakMap prototype is shared across modules, so an exposure in any
   // supplied file must invalidate reference-only Storage proofs in siblings.
@@ -2259,11 +2262,17 @@ function obfuscateFiles(files, options = {}) {
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
-  if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
+  if((remoteSourceObserver||hostLockSourceObserver||esmDomSourceProducers.size) &&
+      allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) : {files:prepared,objects:0,properties:0};
+  // Cross-file property rewriting can mutate a protected producer even when
+  // the observing consumer is a different module. Disable only that group
+  // transform; unaffected files below still retain their local obfuscation.
+  const cross = !remoteSourceObserver&&!esmDomSourceProducers.size &&
+      options.closedWorld && options.properties !== false ?
+    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) :
+    {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2299,6 +2308,7 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
+    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
@@ -2309,7 +2319,7 @@ function obfuscateFiles(files, options = {}) {
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
@@ -2325,7 +2335,7 @@ function obfuscateFiles(files, options = {}) {
     const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
@@ -2341,7 +2351,7 @@ function obfuscateFiles(files, options = {}) {
     const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Native graph requires a module/CommonJS without cross-file source observation');
       }
       if(nativeNames.some(name=>expressionNames.includes(name))) {
@@ -2362,7 +2372,7 @@ function obfuscateFiles(files, options = {}) {
     const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Branch blocks require a module/CommonJS without cross-file source observation');
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
@@ -2379,7 +2389,7 @@ function obfuscateFiles(files, options = {}) {
     const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
-      if(sourceType==='script'||remoteSourceObserver){
+      if(sourceType==='script'||fileSourceObserver){
         throw new TypeError('Statement flow requires a module/CommonJS without cross-file source observation');
       }
       if(statementNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2401,7 +2411,7 @@ function obfuscateFiles(files, options = {}) {
     const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         const wasmRefusalReason=prepared.length>1
           ?'Wasm i32 requires a module/CommonJS without cross-file source observation'
           :'requires a module/CommonJS without function-source observation';
@@ -2428,7 +2438,7 @@ function obfuscateFiles(files, options = {}) {
     const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
       }
       if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2454,7 +2464,7 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+    if (!fileSourceObserver &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
@@ -2466,7 +2476,7 @@ function obfuscateFiles(files, options = {}) {
       ast = parse(code,sourceType);
     }
     let bindings=0;
-    if(!remoteSourceObserver && options.identifiers!==false) {
+    if(!fileSourceObserver && options.identifiers!==false) {
       const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
       code=renamed.code;
       bindings=renamed.bindings;
@@ -2475,7 +2485,7 @@ function obfuscateFiles(files, options = {}) {
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
-    if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
+    if (shouldEncodeStrings && !unsafeDecoderIntrinsic && !fileSourceObserver) {
       const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
       code = modified.code;
       literals = modified.count;
