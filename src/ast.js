@@ -1503,6 +1503,8 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
+  /** @type {Set<AstNode>} */
+  const activeLocalCallEffects=new Set();
   /**
    * @param {CarrierValue} target
    * @param {string|null} key
@@ -1579,6 +1581,38 @@ function hasWeakMapPrototypeExposure(ast) {
         visitCarrierExpression(argument,environment,thisValue);
       }
       visitCarrierExpression(node.callee,environment,thisValue);
+      // A directly invoked, unreassigned local helper can mutate captured
+      // outer bindings without returning the carrier. Replay its ordinary
+      // synchronous body against a private abstract environment, then join
+      // only caller-visible names. Merely inspecting its return summary is
+      // insufficient for a call such as fill(); carrier.instance.
+      if(node.callee.type==='Identifier') {
+        const name=node.callee.name;
+        const local=localFunctionNodes.get(name);
+        if(local&&local.params.length===0&&!local.async&&!local.generator&&
+           local.body?.type==='BlockStatement'&&
+           !reassignedLocalFunctions.has(name)) {
+          if(activeLocalCallEffects.has(local)) {
+            // Recursive effects need a fixed point. Until proven, refuse
+            // instead of treating an unknown recursive side effect as inert.
+            exposed=true;
+          } else {
+            const before=forkCarrierEnvironment(environment);
+            const invoked=forkCarrierEnvironment(environment);
+            activeLocalCallEffects.add(local);
+            try {
+              visitCarrierStatement(local.body,invoked,thisValue);
+            } finally {
+              activeLocalCallEffects.delete(local);
+            }
+            /** @type {Map<string,CarrierValue>} */
+            const outerEffects=new Map();
+            for(const key of before.keys())
+              outerEffects.set(key,invoked.get(key)??carrierOther);
+            joinCarrierEnvironments(environment,before,outerEffects);
+          }
+        }
+      }
       return;
     }
     if(node.type==='NewExpression') {
