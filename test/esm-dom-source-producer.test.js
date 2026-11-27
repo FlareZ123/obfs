@@ -68,3 +68,45 @@ for(const sink of /** @type {const} */ (['property','stream'])) {
       'positive-control private property must actually be rewritten');
   });
 }
+
+
+/**
+ * Compile an imported callable through additional DOM coercion dispatch forms.
+ * Same-realm native coercion for these sinks is covered by the historical
+ * Chromium DOMString matrix; this regression checks only cross-file producer
+ * closure.
+ * @param {'reflect'|'assign'|'html-method'} sink
+ */
+function compileDispatchGraph(sink) {
+  const logic=[
+    'const observedOwner={secretField:57};',
+    'export function inspect(){return observedOwner.secretField;}'
+  ].join('\n');
+  const operation=sink==='reflect'?
+    'Reflect.set(target,"id",inspect);':
+    sink==='assign'?'Object.assign(target,{id:inspect});':
+      'target.insertAdjacentHTML("beforeend",inspect);';
+  const observer=[
+    'import {inspect} from "./logic.mjs";',
+    'const target=document.createElement("div");',
+    operation,
+    'export const value=inspect();'
+  ].join('\n');
+  return obfuscateFiles([
+    {path:'relocated-logic.mjs',sourceType:'module',code:logic},
+    {path:'relocated-observer.mjs',sourceType:'module',code:observer}
+  ],{mode:'coo',seed:'esm-dom-dispatch-'+sink,closedWorld:true,
+    properties:true,identifiers:true,strings:false});
+}
+
+for(const sink of /** @type {const} */ (['reflect','assign','html-method'])) {
+  test('ESM DOM '+sink+' dispatch freezes imported callable producer',()=>{
+    const result=compileDispatchGraph(sink);
+    const logic=result.files.find(file=>file.path==='relocated-logic.mjs');
+    assert.ok(logic);
+    assert.equal(logic.metrics.properties,0);
+    assert.equal(logic.metrics.bindings,0);
+    assert.ok(String(logic.code).includes('secretField'),
+      'source-observed producer property spelling must stay byte-stable');
+  });
+}
