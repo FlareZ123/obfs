@@ -3912,8 +3912,12 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       // The same parser writer may be invoked through native function
       // dispatch, including an extracted local alias of document.write.
       if(isDocumentWriterReference(receiver)) {
-        if((method==='call'||method==='bind'||
-            node.callee.computed&&method===null) &&
+        // Binding a writer creates a callable that can receive SRI markup
+        // later, outside this AST or through a function-valued alias. The
+        // bind arguments alone are not the eventual parser input, so an
+        // empty/benign prefix cannot prove that the published bytes are safe.
+        if(method==='bind')observed=true;
+        if((method==='call'||node.callee.computed&&method===null) &&
            mayWriteIntegrityMarkup(node.arguments.slice(1)))observed=true;
         if(method==='apply'&&mayApplyIntegrityMarkup(node.arguments[1]))
           observed=true;
