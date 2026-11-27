@@ -2105,8 +2105,10 @@ function obfuscateFiles(files, options = {}) {
     }):false;
   const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
     sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
-  let remoteSourceObserver=hasPinnedSource;
-  let hostLockSourceObserver=false;
+  const sharedCommonJsStorageSourceObserver=
+    hasCommonJsStorageFactorySourceSink(prepared);
+  let remoteSourceObserver=hasPinnedSource||sharedCommonJsStorageSourceObserver;
+  let hostLockSourceObserver=sharedCommonJsStorageSourceObserver;
   for(const {file,ast} of sourceObserverFiles) {
     const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
     const functionSource=observesFunctionSource(ast,
