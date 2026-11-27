@@ -194,6 +194,13 @@ const cases=[
 // A getter proven to return an ordinary object is a native-negative control.
 ['class-declaration-static-getter-ordinary-yield','class Ordinary{} class Holder{static get instance(){return new Ordinary();}}','Holder.instance'],
 ['class-expression-static-getter-ordinary-yield','class Ordinary{} const Holder=class{static get instance(){return new Ordinary();}};','Holder.instance'],
+// A getter may return a live WeakMap through a receiver property or captured
+// lexical variable, rather than constructing it at the return site.
+['class-declaration-getter-this-cache-weakmap','class Holder{static get instance(){return this.cache;}}Holder.cache=new WeakMap();','Holder.instance'],
+['class-expression-getter-this-cache-weakmap','const Holder=class{static get instance(){return this.cache;}};Holder.cache=new WeakMap();','Holder.instance'],
+['class-declaration-getter-named-cache-weakmap','class Holder{static get instance(){return Holder.cache;}}Holder.cache=new WeakMap();','Holder.instance'],
+['class-declaration-getter-lexical-cache-weakmap','const hidden=new WeakMap();class Holder{static get instance(){return hidden;}}','Holder.instance'],
+['class-declaration-getter-this-ordinary-yield','class Ordinary{} class Holder{static get instance(){return this.cache;}}Holder.cache=new Ordinary();','Holder.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -303,6 +310,10 @@ for(const [name,setup,access] of cases) {
         'class-declaration-static-method-weakmap',
         'class-expression-static-method-weakmap',
         'class-expression-static-getter-aliased',
+        'class-declaration-getter-this-cache-weakmap',
+        'class-expression-getter-this-cache-weakmap',
+        'class-declaration-getter-named-cache-weakmap',
+        'class-declaration-getter-lexical-cache-weakmap',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
@@ -318,7 +329,8 @@ for(const [name,setup,access] of cases) {
         'class-expression-inner-map-outer-ordinary-block-yield',
         'class-expression-inner-map-outer-ordinary-field-yield',
         'class-declaration-static-getter-ordinary-yield',
-        'class-expression-static-getter-ordinary-yield'].includes(name))
+        'class-expression-static-getter-ordinary-yield',
+        'class-declaration-getter-this-ordinary-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
