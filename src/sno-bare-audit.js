@@ -149,7 +149,6 @@ async function assertSnoDirectBareRequireParity(original,generated,inputRoot,out
     futureRealRoot(inputRoot),futureRealRoot(outputRoot)
   ]);
   await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
-  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   let entries=0;
   for(const [filename,specifiers] of sources) {
     const from=createRequire(path.join(input,filename));
@@ -309,8 +308,8 @@ function directBareImports(files) {
  * @returns {void}
  */
 function assertDefaultEsmResolverContext() {
-  const unsupported=/^(?:--conditions(?:=.*)?|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
-  const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-r)/gu)||[];
+  const unsupported=/^(?:--conditions(?:=.*)?|-C|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
+  const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-(?:r|C))/gu)||[];
   if([...process.execArgv,...nodeOptions].some(flag=>unsupported.test(flag))) {
     throw new Error(
       'SNO ESM bare dependency audit does not model custom loaders, preloads, '+
@@ -552,6 +551,9 @@ async function assertSnoDirectBareImportParity(original,generated,inputRoot,outp
   const [input,output]=await Promise.all([
     futureRealRoot(inputRoot),futureRealRoot(outputRoot)
   ]);
+  // Compare source and emitted module scopes before trusting identical bare
+  // specifier strings: package imports and self-reference change resolution.
+  await assertEsmPackageScopeParity(original,generated,sources.keys(),input,output);
   /** @type {ESMResolveRequest[]} */
   const requests=[];
   /** @type {{filename:string,specifier:string,sourceIndex:number,outputIndex:number}[]} */
