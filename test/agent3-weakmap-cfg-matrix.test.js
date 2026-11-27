@@ -116,6 +116,14 @@ const cases=[
 ['try-catch-both-paths-abrupt','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();throw 1;}catch(e){return;}finally{}carrier.instance={};}fill();','carrier.instance'],
 // A genuinely resuming catch with no WeakMap must still allow useful yield.
 ['try-catch-finally-resumes-positive','class Ordinary{} const carrier={instance:new Ordinary()};try{throw 1;}catch{carrier.instance=new Ordinary();}finally{}','carrier.instance'],
+// A switch or loop that may return/throw can bypass later sibling writes,
+// while an unlabeled ordinary break consumed by the switch/loop does not.
+['switch-return-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['switch-throw-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();throw 1;}carrier.instance={};}try{fill();}catch{}','carrier.instance'],
+['switch-if-return-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:if(true){carrier.instance=new WeakMap();return;}}carrier.instance={};}fill();','carrier.instance'],
+['loop-return-before-clear','const carrier={instance:{}};function fill(){for(let i=0;i<1;i++){carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['switch-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};switch(0){case 0:break;}carrier.instance=new Ordinary();','carrier.instance'],
+['loop-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};for(let i=0;i<1;i++){break;}carrier.instance=new Ordinary();','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -179,10 +187,13 @@ for(const [name,setup,access] of cases) {
         'switch-case-finally-throw-dead-write',
         'try-catch-finally-return-early',
         'switch-case-try-catch-finally-break-early',
-        'try-catch-both-paths-abrupt'].includes(name))
+        'try-catch-both-paths-abrupt',
+        'switch-return-before-clear','switch-throw-before-clear',
+        'switch-if-return-before-clear','loop-return-before-clear'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(['switch-benign-nonliteral-selector',
-        'try-catch-finally-resumes-positive'].includes(name))
+        'try-catch-finally-resumes-positive',
+        'switch-break-followed-ordinary','loop-break-followed-ordinary'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
