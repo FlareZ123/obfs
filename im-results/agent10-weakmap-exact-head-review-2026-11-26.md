@@ -210,3 +210,13 @@ Do not promote the candidate as accepted until runs 45913984591 and 45914259226 
 - The full-suite global-slot positive control did not appear among the failing tests, but the full workflow remains incomplete until Windows finishes and the focused reproduction is inspected.
 
 Current disposition: focused WeakMap adversarial acceptance and complete Chromium browser validation pass; full Node suite is not yet accepted because of the single five-state live-RPC fetch failure and the still-running Windows job.
+
+
+### SCO live-RPC failure attribution check
+
+The three files implicated by the five-state fetch failure are byte-identical between main and the candidate branch:
+- test/sco-step-only-live-rpc.test.js — blob SHA 69421421d412685b7552b3dac3857b61c732c958 on both.
+- sims/sco-step-only-live-rpc.js — blob SHA 9392bf46e2656e4ab9a6ea53613fff3bbee1f5c5 on both.
+- sims/sco-step-only-five-state.js — blob SHA a5550d2a011a87cd46d68d4877fdc3ca901e55b3 on both.
+
+The focused reproduction 45914692360 failed only on Ubuntu and macOS and passed on Windows; four other tests in that file passed. The failing stack is in the ordinary-control client and local HTTP fetch path, not the obfuscated WeakMap candidate. This substantially supports treating it as a pre-existing/platform-specific test-harness issue, but the precise root cause remains unverified. The full Windows suite in 45913984591 was still running at this checkpoint.
