@@ -513,6 +513,28 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
+  // Direct calls on a private const object literal can replay a method's
+  // captured carrier effects without treating arbitrary mutable properties as
+  // stable. The final use-count check is applied at the call site after all
+  // identifier occurrences have been collected.
+  /** @type {Map<string,Map<string,AstNode>>} */
+  const localObjectMethods=new Map();
+  for(const statement of ast.body??[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const item of declaration.declarations??[]) {
+      if(item.id?.type!=='Identifier'||item.init?.type!=='ObjectExpression')continue;
+      const methods=new Map();
+      for(const property of item.init.properties??[]) {
+        if(property.type!=='Property'||!functionTypes.has(property.value?.type))continue;
+        const key=carrierStaticKey(property.key,property.computed);
+        if(key!==null)methods.set(key,property.value);
+      }
+      if(methods.size)localObjectMethods.set(item.id.name,methods);
+    }
+  }
+
   /**
    * @param {AstNode|null|undefined} pattern
    * @param {Map<string,number>} counts
@@ -1642,31 +1664,42 @@ function hasWeakMapPrototypeExposure(ast) {
       (right.arguments?.length??0)===0&&pureEmptyClassNames.has(right.callee.name);
   }
   /**
-   * A proven stable local helper may write captured outer bindings even when
-   * its return value is primitive. A callback passed to an opaque call may be
-   * invoked, so join both execution and non-execution without assuming the
-   * host's callback count or event order.
-   * @param {string} name
+   * Replay a stable local callable against the current carrier state.
+   * Parameters receive the abstract values of direct call arguments; opaque
+   * callback invocations receive Maybe for missing arguments. Parameter names
+   * are function-local and therefore never flow back into same-spelled outer
+   * bindings after the replay.
+   * @param {AstNode} local
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} thisValue
-   * @param {boolean} [direct=false]
+   * @param {boolean} direct
+   * @param {AstNode[]} callArguments
+   * @param {boolean} allowDefinite
    * @returns {void}
    */
-  function replayLocalFunctionEffects(name,environment,thisValue,direct=false) {
-    const local=localFunctionNodes.get(name);
-    if(!local||local.params.length!==0||local.async||local.generator||
-       local.body?.type!=='BlockStatement'||
-       reassignedLocalFunctions.has(name))return;
+  function replayCarrierFunctionNode(local,environment,thisValue,direct,
+    callArguments,allowDefinite) {
+    if(local.async||local.generator||local.body?.type!=='BlockStatement')return;
     if(activeLocalCallEffects.has(local)) {
       // Recursive effects need an explicit fixed-point proof; otherwise the
       // caller's abstract state cannot justify a source-spelling rewrite.
       exposed=true;
       return;
     }
-    const definite=direct&&localBindingCounts.get(name)===1&&
+    const definite=direct&&allowDefinite&&
       provenDefiniteLocalSlotWrite(local,environment,thisValue);
     const before=forkCarrierEnvironment(environment);
     const invoked=forkCarrierEnvironment(environment);
+    /** @type {Map<string,number>} */
+    const parameterNames=new Map();
+    for(let index=0;index<(local.params??[]).length;index++) {
+      const parameter=local.params[index];
+      addPatternBindings(parameter,parameterNames);
+      const argument=callArguments[index];
+      const value=!argument||argument.type==='SpreadElement'?
+        carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
+      bindCarrierPattern(parameter,value,invoked);
+    }
     activeLocalCallEffects.add(local);
     try {
       visitCarrierStatement(local.body,invoked,thisValue);
@@ -1676,9 +1709,29 @@ function hasWeakMapPrototypeExposure(ast) {
     /** @type {Map<string,CarrierValue>} */
     const outerEffects=new Map();
     for(const key of before.keys())
-      outerEffects.set(key,invoked.get(key)??carrierOther);
+      outerEffects.set(key,parameterNames.has(key)?
+        before.get(key)??carrierOther:invoked.get(key)??carrierOther);
     if(definite)joinCarrierEnvironments(environment,outerEffects);
     else joinCarrierEnvironments(environment,before,outerEffects);
+  }
+  /**
+   * A proven stable local helper may write captured outer bindings even when
+   * its return value is primitive. A callback passed to an opaque call may be
+   * invoked, so join both execution and non-execution without assuming the
+   * host's callback count or event order.
+   * @param {string} name
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @param {boolean} [direct=false]
+   * @param {AstNode[]} [callArguments=[]]
+   * @returns {void}
+   */
+  function replayLocalFunctionEffects(name,environment,thisValue,direct=false,
+    callArguments=[]) {
+    const local=localFunctionNodes.get(name);
+    if(!local||reassignedLocalFunctions.has(name))return;
+    replayCarrierFunctionNode(local,environment,thisValue,direct,callArguments,
+      localBindingCounts.get(name)===1);
   }
   /**
    * @param {CarrierValue} target
@@ -1762,7 +1815,23 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       visitCarrierExpression(node.callee,environment,thisValue);
       if(node.callee.type==='Identifier')
-        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true);
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
+          node.arguments??[]);
+      if(node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const owner=node.callee.object.name;
+        const method=carrierStaticKey(node.callee.property,node.callee.computed);
+        const localMethod=method===null?undefined:localObjectMethods.get(owner)?.get(method);
+        // Exactly two owner references prove the private const object appears
+        // only at its declaration and this direct method call. This excludes
+        // mutation/escape surfaces without assuming arbitrary member stability.
+        if(localMethod&&localBindingCounts.get(owner)===1&&
+           identifierOccurrences.get(owner)===2&&!hasDirectEval) {
+          replayCarrierFunctionNode(localMethod,environment,
+            evaluateCarrierValue(node.callee.object,environment,thisValue),
+            true,node.arguments??[],true);
+        }
+      }
       return;
     }
     if(node.type==='NewExpression') {
