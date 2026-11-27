@@ -167,3 +167,33 @@ The CJS derived-class object-alias and exports-object-alias controls also passed
 - Extend CommonJS export analysis to follow factory-return summaries through local API object values and aliases of exports/module.exports, while retaining the non-exported local factory positive controls.
 - Independently fix the arbitrary-global-member precision regression from full run 45909023258 (globalThis.__privateWeakMapValue incorrectly treated as a prototype).
 - Re-run focused test/agent7-weakmap-source-observer-falsifiers.test.js, exact-head Chromium safe-mode, and the full manual-validation workflow after source changes. The focused run 45911194297 is a red-first receipt, not acceptance.
+
+
+## Candidate source-fix sequence and focused acceptance (23:39–23:58Z)
+
+**Current candidate head:** 6bafb399412e6503ef6139a48a8cbd96e05dfa73  
+**Branch:** agent1/weakmap-exported-container-review-20261126
+
+Agent 10 applied narrow fixes directly to the existing candidate branch, without creating a branch or changing workflows:
+- 037f113: avoid treating a direct assignment target for an unknown global slot as a prototype value; follow local object aliases and exported values through CommonJS factory publication.
+- 5e9d39a: recognize extracted Object.prototype.__lookupGetter__('__proto__') and Object.getOwnPropertyDescriptor(..., '__proto__').get accessors when invoked with .call/.apply.
+- 0badc9b: preserve class method lexical closure environments for the interprocedural carrier pass; bind ForOfStatement iteration variables in the carrier visitor.
+- 6bf7789: recognize aliases of Reflect.get and statically mark WeakMap carriers yielded by ForOf array iterables.
+- 38c8439: use the expected binding-count Map for loop-scoped pattern names.
+- 491ec60 and 6bafb39: type the alias traversal without synthetic malformed AST nodes and remove a duplicate helper declaration.
+
+The source fixes were driven by red-first test receipts. An intermediate run exposed and corrected a TypeScript/JSDoc failure caused by synthetic Identifier nodes; another exposed a Map/Set mismatch in loop-scope tracking. Neither was treated as a passing candidate state.
+
+### Focused acceptance
+
+**Run 45913884184 — success on Ubuntu, Windows, and macOS.** The focused file test/agent7-weakmap-source-observer-falsifiers.test.js passed all 37 tests on all three operating systems, including strict project JSDoc validation. The focused suite exercises the new ESM carrier/reflection fixtures and CJS object/factory publication cases in COO, SNO, and SCO, with native-versus-emitted source-capture differentials.
+
+The previously confirmed CJS factory object-alias escape, direct derived-parent getter extraction, aliased Reflect.get, ForOf binding, and class-method closure cases no longer appear as failures in this exact-head focused run.
+
+### Remaining exact-head validation
+
+- Full manual-validation run 45913984591 is still in progress on the exact candidate head. It is the full Node 22 Windows/Ubuntu suite and includes the earlier global-slot positive control.
+- Full real-browser validation run 45914259226 is queued on the same exact head. It uses manual-browser.yml, which includes test/agent10-weakmap-prototype-cross-file-browser.js and the repository's wider Chromium suite.
+- A separate source-observer-chromium.yml attempt (45914073414) failed before test execution because its workflow references test/source-observation-plan-producer-browser.js, which is absent from both the candidate branch and main. Treat this as a stale workflow-path defect, not a candidate regression. manual-browser.yml is the existing working browser validation route.
+
+Do not promote the candidate as accepted until runs 45913984591 and 45914259226 finish successfully. The candidate branch remains separate from main.
