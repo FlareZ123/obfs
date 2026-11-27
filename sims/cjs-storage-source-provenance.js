@@ -143,7 +143,7 @@ function traceCjsStorageSourceSinks(files){
         propertyName(expr.property);
       if(!key)return unknown(file+':dynamic property@'+expr.start);
       if(expr.object.type==='Identifier'&&expr.object.name==='globalThis'&&
-         !shadowed.has('globalThis')&&
+         !shadowed.has('globalThis')&&!env.has('globalThis')&&
          (key==='localStorage'||key==='sessionStorage'))
         return storage(file+':globalThis.'+key);
       const receiver=evaluate(expr.object,env,shadowed,file,running);
@@ -167,7 +167,7 @@ function traceCjsStorageSourceSinks(files){
       return callable(expr,env,file);
     if(expr.type==='CallExpression'&&!expr.optional){
       if(expr.callee.type==='Identifier'&&expr.callee.name==='require'&&
-         !shadowed.has('require')&&expr.arguments.length===1&&
+         !shadowed.has('require')&&!env.has('require')&&expr.arguments.length===1&&
          expr.arguments[0].type==='Literal'&&
          typeof expr.arguments[0].value==='string'){
         const target=resolveRequire(file,expr.arguments[0].value);
@@ -177,7 +177,8 @@ function traceCjsStorageSourceSinks(files){
       if(callee.kind!=='callable'||!callee.callable)return unknown(file+':unknown call');
       const args=expr.arguments.map(arg=>arg.type==='SpreadElement'?
         unknown(file+':spread actual'):evaluate(arg,env,shadowed,file,running));
-      return executeLiteralFunction(callee.callable,args,running);
+      const returned=executeLiteralFunction(callee.callable,args,running);
+      return {...returned,trace:[...callee.trace,...returned.trace,file+':call@'+expr.start]};
     }
     return unknown(file+':unsupported '+expr.type+'@'+expr.start);
   }
@@ -305,9 +306,10 @@ function traceCjsStorageSourceSinks(files){
     for(const statement of statements){
       if(statement.type==='VariableDeclaration'){
         for(const declaration of statement.declarations){
-          const value=declaration.init?
+          // Mutable binding writes are not tracked by this prototype.
+          const value=statement.kind==='const'&&declaration.init?
             evaluate(declaration.init,env,shadowed,name,new Set()):
-            unknown(name+':uninitialized');
+            unknown(name+':mutable/uninitialized binding');
           bindPattern(declaration.id,value,env);
         }
         continue;
