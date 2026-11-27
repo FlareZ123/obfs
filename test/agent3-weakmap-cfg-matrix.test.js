@@ -137,7 +137,13 @@ const cases=[
         'class-static-field-throw-skips-write',
         'dowhile-final-condition-write',
         'while-final-condition-write',
-        'for-final-condition-write','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
+        'for-final-condition-write',
+        'object-computed-key-write',
+        'assignment-computed-key-write',
+        'new-callee-side-effect-write',
+        'call-callee-before-args-write',
+        'class-heritage-side-effect-write',
+        'destructure-computed-key-write','const carrier={instance:{}};do{carrier.instance=new WeakMap();break;}while((carrier.instance={},false));','carrier.instance'],
 // Class definitions eagerly execute computed keys (including instance
 // elements); a throwing static field can prevent a later sibling overwrite.
 ['class-static-computed-field-key-write','const carrier={instance:{}};class Holder{static [(carrier.instance=new WeakMap(),"x")]=1;}','carrier.instance'],
@@ -148,6 +154,14 @@ const cases=[
 ['dowhile-final-condition-write','const carrier={instance:{}};let i=0;do{carrier.instance={};}while((carrier.instance=new WeakMap(),i++<0));','carrier.instance'],
 ['while-final-condition-write','const carrier={instance:{}};let i=0;while((carrier.instance=new WeakMap(),i++<1)){carrier.instance={};}','carrier.instance'],
 ['for-final-condition-write','const carrier={instance:{}};for(let i=0;(carrier.instance=new WeakMap(),i<1);i++){carrier.instance={};}','carrier.instance'],
+// Expressions evaluate property keys, constructor callees and call callee
+// before arguments. A late WeakMap write must not disappear in the model.
+['object-computed-key-write','const carrier={instance:{}};const obj={[(carrier.instance=new WeakMap(),"x")]:1};','carrier.instance'],
+['assignment-computed-key-write','const carrier={instance:{}};const obj={};obj[(carrier.instance=new WeakMap(),"x")]=1;','carrier.instance'],
+['new-callee-side-effect-write','const carrier={instance:{}};const obj=new (carrier.instance=new WeakMap(),Object)();','carrier.instance'],
+['call-callee-before-args-write','const carrier={instance:{}};function f(){}(carrier.instance={},f)((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['class-heritage-side-effect-write','const carrier={instance:{}};class Holder extends (carrier.instance=new WeakMap(),Object){}','carrier.instance'],
+['destructure-computed-key-write','const carrier={instance:{}};const obj={x:1};const {[(carrier.instance=new WeakMap(),"x")]:x}=obj;','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
