@@ -5615,6 +5615,47 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           isUnsafeStorageStringValue(node.left.property,node,ancestors))) {
       observed=true;
     }
+    // Reflect/Object can reach Web Storage's named-property setter without a
+    // syntactic assignment or setItem call. Inspect only the value-bearing
+    // positions so adjacent primitive controls retain ordinary rewrite yield.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       isReflectiveReceiver(node.callee.object) &&
+       isStorageCollection(node.arguments[0])) {
+      const storageReflection=memberName(node.callee);
+      if(storageReflection==='set' &&
+         isUnsafeStorageStringValue(node.arguments[2],node,ancestors))observed=true;
+      if(storageReflection==='assign') {
+        for(const source of node.arguments.slice(1)) {
+          if(source.type!=='ObjectExpression') {
+            observed=true;
+            break;
+          }
+          for(const property of source.properties??[]) {
+            if(property.type!=='Property' ||
+               isUnsafeStorageStringValue(property.value,node,ancestors)) {
+              observed=true;
+              break;
+            }
+          }
+          if(observed)break;
+        }
+      }
+      if(storageReflection==='defineProperty') {
+        const descriptor=node.arguments[2];
+        if(descriptor?.type!=='ObjectExpression')observed=true;
+        else for(const property of descriptor.properties??[]) {
+          const descriptorKey=property.type==='Property' ?
+            (property.computed?sourceStringKey(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key)) : null;
+          if(property.type!=='Property' ||
+             descriptorKey==='value' &&
+               isUnsafeStorageStringValue(property.value,node,ancestors)) {
+            observed=true;
+            break;
+          }
+        }
+      }
+    }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
       // MessagePort, Worker and browser postMessage use structured cloning.
