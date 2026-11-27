@@ -206,6 +206,13 @@ const cases=[
 ['instance-field-constructor-parameter','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}function build(C){return new C();}build(Holder);','carrier.instance'],
 ['instance-field-reflect-construct','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}Reflect.construct(Holder,[]);','carrier.instance'],
 ['instance-field-subclass-construction','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}class Sub extends Holder{}new Sub();','carrier.instance'],
+// Reflective accessor definitions must retain the accessor descriptor during
+// direct and helper writes; a no-op setter does not replace the getter value.
+['defineproperty-accessor-direct-write','const carrier={};Object.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});carrier.instance=0;','carrier.instance'],
+['defineproperty-accessor-helper-write','const carrier={};Object.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['reflect-defineproperty-accessor-write','const carrier={};Reflect.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});carrier.instance=0;','carrier.instance'],
+['defineproperties-accessor-helper-write','const carrier={};Object.defineProperties(carrier,{instance:{get(){return new WeakMap();},set(v){}}});function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['defineproperty-ordinary-control','class Ordinary{}const carrier={};Object.defineProperty(carrier,"instance",{get(){return new Ordinary();},set(v){}});carrier.instance=0;','carrier.instance'],
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
