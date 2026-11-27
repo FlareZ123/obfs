@@ -603,6 +603,7 @@ test('unresolved ESM imported factory external source-capture fails closed',()=>
     }
   }
   assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures,refusals}));
+  assert.deepEqual(refusals,[],JSON.stringify({analysis,native,failures,refusals}));
 });
 
 test('unresolved imported factory result is not a definite non-WeakMap value',()=>{
@@ -1010,6 +1011,7 @@ test('unresolved CommonJS require factory external source-capture fails closed',
     }
   }
   assert.deepEqual(failures,[],JSON.stringify({analysis,native,failures,refusals}));
+  assert.deepEqual(refusals,[],JSON.stringify({analysis,native,failures,refusals}));
 });
 
 test('CommonJS unresolved require factory result is not a definite non-WeakMap value',()=>{
