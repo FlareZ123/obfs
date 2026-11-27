@@ -69,6 +69,20 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ],options);
     assert.notEqual(ordinaryBound.files[0].code,source,
       'Binding an unrelated local writer must retain rewrite yield in '+mode);
+    for(const [kind,bootstrap] of /** @type {[string,string][]} */([
+      ['native bind via call','const unrelated={write(x){return x;}};'+
+        'const bound=Function.prototype.bind.call(unrelated.write,unrelated);'+
+        'bound('+raw+');'],
+      ['native bind via Reflect.apply','const unrelated={write(x){return x;}};'+
+        'const bound=Reflect.apply(Function.prototype.bind,unrelated.write,[unrelated]);'+
+        'bound('+raw+');']
+    ])) {
+      const control=obfuscateFiles([
+        files[0],{path:'bootstrap.js',sourceType:'script',code:bootstrap},files[1]
+      ],options);
+      assert.notEqual(control.files[0].code,source,
+        kind+' on unrelated local callable must retain rewrite yield in '+mode);
+    }
     const unknownBound=obfuscateFiles([
       files[0],{path:'bootstrap.js',sourceType:'script',
         code:'const bound=document.write.bind(document);'+
