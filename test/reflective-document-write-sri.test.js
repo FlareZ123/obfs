@@ -25,7 +25,11 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ['bound writer prefilled','const bound=document.write.bind(document,'+raw+');bound();'],
     ['bound writer inline','document.write.bind(document)('+raw+');'],
     ['opaque binding selector','const operation=globalThis.writerOperation||"bind";'+
-      'const bound=document.write[operation](document);bound('+raw+');']
+      'const bound=document.write[operation](document);bound('+raw+');'],
+    ['Function.bind.call','const bound=Function.prototype.bind.call(document.write,document);'+
+      'bound('+raw+');'],
+    ['Reflect.apply(Function.bind)','const bound=Reflect.apply(Function.prototype.bind,'+
+      'document.write,[document]);bound('+raw+');']
   ];
   const files=[
     {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
