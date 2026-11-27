@@ -513,6 +513,28 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
+  // Direct calls on a private const object literal can replay a method's
+  // captured carrier effects without treating arbitrary mutable properties as
+  // stable. The final use-count check is applied at the call site after all
+  // identifier occurrences have been collected.
+  /** @type {Map<string,Map<string,AstNode>>} */
+  const localObjectMethods=new Map();
+  for(const statement of ast.body??[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const item of declaration.declarations??[]) {
+      if(item.id?.type!=='Identifier'||item.init?.type!=='ObjectExpression')continue;
+      const methods=new Map();
+      for(const property of item.init.properties??[]) {
+        if(property.type!=='Property'||!functionTypes.has(property.value?.type))continue;
+        const key=carrierStaticKey(property.key,property.computed);
+        if(key!==null)methods.set(key,property.value);
+      }
+      if(methods.size)localObjectMethods.set(item.id.name,methods);
+    }
+  }
+
   /**
    * @param {AstNode|null|undefined} pattern
    * @param {Map<string,number>} counts
