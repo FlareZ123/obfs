@@ -64,6 +64,7 @@ test('bounded CJS Storage receiver provenance agrees with native named setter on
       'const holder={store:{}};','mutate(holder);'
     ],base:'holder.store',host:true,unknown:true},
     {name:'opaque-provider',setup:[
+      'function sideEffectThatMayChangeHost(){return 0;}',
       'function choose(){sideEffectThatMayChangeHost();return globalThis.localStorage;}'
     ],base:'choose()',host:true,unknown:true}
   ];
@@ -73,8 +74,8 @@ test('bounded CJS Storage receiver provenance agrees with native named setter on
   try{
     for(let i=0;i<96;i++){
       const shape=shapes[i%shapes.length];
-      const callable=(next()&1)!==0;
-      const aliasDepth=next()%5;
+      const callable=((next()>>>17)&1)!==0;
+      const aliasDepth=(next()>>>12)%5;
       /** @type {string[]} */
       const pieces=[
         "'use strict';",
