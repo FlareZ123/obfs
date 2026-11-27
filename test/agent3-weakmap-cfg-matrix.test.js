@@ -226,6 +226,14 @@ const cases=[
 ['class-expression-field-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance=new Ordinary());};new Holder();','carrier.instance'],
 ['class-expression-field-deferred-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());};','carrier.instance'],
 ['class-expression-computed-key-definition','let carrier={};const Holder=class{[(carrier.instance=new WeakMap(),"x")]=0;};','carrier.instance'],
+// Class-expression field writes may execute through aliases or reflected
+// construction; an unproved constructor binding must conservatively refuse.
+['class-expression-field-alias-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};const Alias=Holder;new Alias();','carrier.instance'],
+['class-expression-field-reflect-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};Reflect.construct(Holder,[]);','carrier.instance'],
+['class-expression-field-registry-constructed','const carrier={instance:{}};const registry={Holder:class{x=(carrier.instance=new WeakMap());}};new registry.Holder();','carrier.instance'],
+['class-expression-field-subclass-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};class Sub extends Holder{}new Sub();','carrier.instance'],
+['class-expression-field-inline-constructed','const carrier={instance:{}};new (class{x=(carrier.instance=new WeakMap());})();','carrier.instance'],
+['class-expression-field-alias-unconstructed','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};const Alias=Holder;','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
