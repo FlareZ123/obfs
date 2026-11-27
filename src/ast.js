@@ -3916,8 +3916,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         // later, outside this AST or through a function-valued alias. The
         // bind arguments alone are not the eventual parser input, so an
         // empty/benign prefix cannot prove that the published bytes are safe.
-        if(method==='bind')observed=true;
-        if((method==='call'||node.callee.computed&&method===null) &&
+        // An opaque computed dispatch may resolve to bind at runtime.
+        if(method==='bind'||node.callee.computed&&method===null)
+          observed=true;
+        if(method==='call'&&
            mayWriteIntegrityMarkup(node.arguments.slice(1)))observed=true;
         if(method==='apply'&&mayApplyIntegrityMarkup(node.arguments[1]))
           observed=true;
