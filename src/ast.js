@@ -2101,24 +2101,35 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='SwitchStatement') {
       visitCarrierExpression(statement.discriminant,environment,thisValue);
-      const branches=[];
-      let fallthroughEnvironment=new Map(environment);
+      // A case selector is executable code, even when its consequent is
+      // unreachable. A selector after an earlier match might never run.
+      // Join each evaluated prefix with the skipped path; do not treat every
+      // selector side effect as a definite overwrite of a live carrier.
+      for(const option of statement.cases??[]) {
+        if(!option.test)continue;
+        const bypass=forkCarrierEnvironment(environment);
+        const evaluated=forkCarrierEnvironment(environment);
+        visitCarrierExpression(option.test,evaluated,thisValue);
+        joinCarrierEnvironments(environment,bypass,evaluated);
+      }
+      // Switch paths may enter at any matching case and fall through. Keep
+      // alias-preserving heap forks rather than shallow Maps that let one
+      // mutually exclusive case overwrite another case's source state.
+      const branches=[forkCarrierEnvironment(environment)];
+      let fallthroughEnvironment=forkCarrierEnvironment(environment);
       for(const branch of statement.cases??[]) {
-        const branchEnv=new Map(environment);
-        for(const [name,value] of fallthroughEnvironment) {
-          const base=environment.get(name)??carrierOther;
-          branchEnv.set(name,mergeCarrierValues(base,value));
-        }
+        /** @type {Map<string,CarrierValue>} */
+        const branchEnv=new Map();
+        joinCarrierEnvironments(branchEnv,
+          forkCarrierEnvironment(environment),
+          forkCarrierEnvironment(fallthroughEnvironment));
         for(const child of branch.consequent??[])
           visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
-      for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
-        let value=environment.get(name)??carrierOther;
-        for(const branch of branches)value=mergeCarrierValues(value,branch.get(name)??carrierOther);
-        environment.set(name,value);
-      }
+      joinCarrierEnvironments(environment,...branches);
+      return;
     }
   }
 
