@@ -89,8 +89,8 @@ const cases=[
 ['catch-predecessor-heap','const carrier={}; try{carrier.instance=new WeakMap();throw 1;}catch{var result=carrier.instance;}','result'],
 ['block-outer-write','let carrier={}; {carrier={instance:new WeakMap()};}','carrier.instance'],
 ['block-inner-shadow','const carrier={instance:new WeakMap()}; {const carrier={};}','carrier.instance'],
-['direct-property-overwrite','const carrier={instance:new WeakMap()}; carrier.instance={};','carrier.instance'],
-['direct-primitive','const carrier={instance:{}};','carrier.instance']
+['direct-property-overwrite','class Ordinary {} const carrier={instance:new WeakMap()}; carrier.instance=new Ordinary();','carrier.instance'],
+['direct-primitive','class Ordinary {} const carrier={instance:new Ordinary()};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
