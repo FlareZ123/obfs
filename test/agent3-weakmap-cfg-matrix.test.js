@@ -83,6 +83,11 @@ const cases=[
 ['switch-matched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),0):break;}','carrier.instance'],
 ['switch-unmatched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
 ['switch-selector-after-default','const carrier={instance:{}};switch(0){default:break;case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
+// Executed selector joins must not erase a live carrier on a path where a
+// preceding case matches before the later selector could be evaluated.
+['switch-early-match-skips-later-selector','const carrier={instance:new WeakMap()};switch(0){case 0:break;case (carrier.instance={},1):break;}','carrier.instance'],
+// A benign computed selector must still admit useful private rewrites.
+['switch-benign-nonliteral-selector','class Ordinary{} const carrier={instance:new Ordinary()};switch(0){case (carrier.instance=new Ordinary(),1):break;}','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -134,8 +139,10 @@ for(const [name,setup,access] of cases) {
   test('CFG carrier semantic parity: '+name,()=>{
     const nativeShared=Function('"use strict";\n'+setup+'\nreturn Object.getPrototypeOf('+access+')===WeakMap.prototype;')();
     if(['switch-matched-selector-effect','switch-unmatched-selector-effect',
-        'switch-selector-after-default'].includes(name))
+        'switch-selector-after-default','switch-early-match-skips-later-selector'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
+    if(name==='switch-benign-nonliteral-selector')
+      assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
     const group=hasWeakMapPrototypeExposure(mutationAst);
