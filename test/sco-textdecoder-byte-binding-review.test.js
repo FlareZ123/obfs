@@ -23,6 +23,9 @@ function compileDependency(body){
   });
 }
 const refusals=[
+  "if(false){var Uint8Array;}return new TextDecoder().decode(Uint8Array.of(65));",
+  "function helper(Uint8Array){return new TextDecoder().decode(Uint8Array.of(65));}return helper({of(){return 'bad';}});",
+  "try{throw {of(){return 'bad';}};}catch(Uint8Array){return new TextDecoder().decode(Uint8Array.of(65));}",
   "const Uint8Array={of(){return 'bad';}};return new TextDecoder().decode(Uint8Array.of(65));",
   "const Uint8Array=class {};return new TextDecoder().decode(new Uint8Array([65]));",
   "const Real=Uint8Array;{const Uint8Array={of(){return Real.of(128);}};return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65));}"
@@ -36,6 +39,7 @@ for(const body of refusals){
   });
 }
 for(const body of [
+  "switch(new TextDecoder().decode(Uint8Array.of(65))){case 'A':const Uint8Array={of(){return 'bad';}};return 1;default:return 0;}",
   "return new TextDecoder().decode(new Uint8Array([65]));",
   "return new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.of(65));",
   "function unused(){const Uint8Array={of(){return 'bad';}};return Uint8Array.of(65);}return new TextDecoder().decode(Uint8Array.of(65));"

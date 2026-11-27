@@ -6,6 +6,7 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {collectBindings}=require('./properties');
+const {createLexicalBindingResolver}=require('./sco-free-references');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -255,6 +256,25 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
 }
 
 /**
+ * A byte-view expression must reference the native constructor, not a local
+ * binding of the same spelling. The full module root includes outer imports,
+ * formals and declarations that a selected function body alone would miss.
+ * @param {import('./ast').AstNode} root
+ * @returns {WeakSet<import('./ast').AstNode>}
+ */
+function collectNativeByteRoots(root){
+  const isBound=createLexicalBindingResolver(root,new Set(),new Set());
+  /** @type {WeakSet<import('./ast').AstNode>} */
+  const nativeRoots=new WeakSet();
+  walk(root,(node,_parent,_key,ancestors)=>{
+    if(node.type==='Identifier'&&node.name==='Uint8Array'&&!isBound(node,ancestors)){
+      nativeRoots.add(node);
+    }
+  });
+  return nativeRoots;
+}
+
+/**
  * Legacy TextDecoder mappings depend on the Node and browser engine/ICU
  * versions. Node 22.16.0 decodes windows-1252 0x80 differently from
  * Chromium's WHATWG mapping, while later Node 22 patches agree. Only a
@@ -263,9 +283,10 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
  * conservatively left out of relocated private SCO source.
  *
  * @param {import('./ast').AstNode} body
+ * @param {WeakSet<import('./ast').AstNode>} [nativeByteRoots]
  * @returns {boolean}
  */
-function usesUnprovedRelocatedTextDecoder(body){
+function usesUnprovedRelocatedTextDecoder(body,nativeByteRoots=collectNativeByteRoots(body)){
   const globals=new Set(['globalThis','window','self','global']);
   let changed=true;
   while(changed){
@@ -421,11 +442,11 @@ function usesUnprovedRelocatedTextDecoder(body){
     if(input.type==='CallExpression'&&
        input.callee.type==='MemberExpression'&&!input.callee.computed&&
        input.callee.object.type==='Identifier'&&
-       input.callee.object.name==='Uint8Array'&&
+       nativeByteRoots.has(input.callee.object)&&
        input.callee.property.type==='Identifier'&&
        input.callee.property.name==='of')return input.arguments.every(elementBytes);
     return input.type==='NewExpression'&&input.callee.type==='Identifier'&&
-      input.callee.name==='Uint8Array'&&input.arguments.length===1&&
+      nativeByteRoots.has(input.callee)&&input.arguments.length===1&&
       input.arguments[0].type==='ArrayExpression'&&
       input.arguments[0].elements.every(
         /** @param {import('./ast').AstNode|null} element */
@@ -444,7 +465,7 @@ function usesUnprovedRelocatedTextDecoder(body){
       input.callee.type==='MemberExpression'&&
       !input.callee.computed&&
       input.callee.object.type==='Identifier'&&
-      input.callee.object.name==='Uint8Array'&&
+      nativeByteRoots.has(input.callee.object)&&
       input.callee.property.type==='Identifier'&&
       input.callee.property.name==='of'&&
       input.arguments.every(/** @param {import('./ast').AstNode} item */ item=>
@@ -1869,6 +1890,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
+  const nativeByteRoots=collectNativeByteRoots(ast);
   const privateModuleImports=new Set(options.privateModuleImports??[]);
   /** @type {string[]} */
   const privateModulePaths=[...(options.additionalPrivateModulePaths??[])];
@@ -2283,7 +2305,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
     }
-    if(usesUnprovedRelocatedTextDecoder(body)){
+    if(usesUnprovedRelocatedTextDecoder(body,nativeByteRoots)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
     }
     const realmEffect=realmStateObservation(body,true);
