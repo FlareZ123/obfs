@@ -2123,8 +2123,13 @@ function hasWeakMapPrototypeExposure(ast) {
         joinCarrierEnvironments(branchEnv,
           forkCarrierEnvironment(environment),
           forkCarrierEnvironment(fallthroughEnvironment));
-        for(const child of branch.consequent??[])
+        for(const child of branch.consequent??[]) {
           visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
+          // A break, continue, return or throw (including a proven nested
+          // completion) ends this case path. Dead writes cannot erase a
+          // WeakMap still reachable at the switch's actual exit.
+          if(carrierDefinitelyAbrupt(child))break;
+        }
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
