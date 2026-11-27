@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
-const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
+const {snapshotDataGraph,captureDataCompletion}=require('../sims/semantic-data-oracle');
 
 /** @param {string} source */
 function fromRealm(source){
@@ -70,4 +70,18 @@ test('symbol descriptors distinguish global, well-known and separate equal-descr
   assert.notDeepEqual(snapshotDataGraph(Symbol('a')),snapshotDataGraph(Symbol.for('a')));
   assert.notDeepEqual(snapshotDataGraph(Symbol.iterator),snapshotDataGraph(Symbol('Symbol.iterator')));
   assert.notDeepEqual(snapshotDataGraph(Symbol()),snapshotDataGraph(Symbol('')));
+});
+
+test('normal and abrupt data completions remain distinct, and oracle refusals stay outside catch',()=>{
+  assert.notDeepEqual(captureDataCompletion(()=>undefined),captureDataCompletion(()=>{throw undefined;}));
+  assert.deepEqual(captureDataCompletion(()=>{throw -0;}),{kind:'throw',value:snapshotDataGraph(-0)});
+  assert.notDeepEqual(captureDataCompletion(()=>{throw -0;}),captureDataCompletion(()=>{throw 0;}));
+  assert.notDeepEqual(captureDataCompletion(()=>{throw NaN;}),captureDataCompletion(()=>{throw null;}));
+  assert.deepEqual(captureDataCompletion(()=>{throw 1n;}),{kind:'throw',value:snapshotDataGraph(1n)});
+  let calls=0;
+  const unsupported=Object.defineProperty({},'x',{get(){throw new Error('must not execute');}});
+  assert.throws(()=>captureDataCompletion(()=>{calls++;return unsupported;}),/accessor descriptor/);
+  assert.throws(()=>captureDataCompletion(()=>{calls++;throw unsupported;}),/accessor descriptor/);
+  assert.equal(calls,2);
+  assert.throws(()=>captureDataCompletion(()=>{throw new Error('native error');}),/exotic/);
 });
