@@ -563,6 +563,41 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='UpdateExpression'&&node.argument?.type==='Identifier')
       reassignedLocalFunctions.add(node.argument.name);
   });
+  // A top-level empty class without a mutable binding has a default
+  // constructor that performs no user-code callbacks before returning.
+  /** @type {Set<string>} */
+  const pureEmptyClassNames=new Set();
+  for(const statement of ast.body??[]) {
+    if(statement.type==='ClassDeclaration'&&statement.id?.type==='Identifier'&&
+       !statement.superClass&&statement.body?.body?.length===0&&
+       localBindingCounts.get(statement.id.name)===1&&
+       !reassignedLocalFunctions.has(statement.id.name))
+      pureEmptyClassNames.add(statement.id.name);
+  }
+  // An unexported module-local object literal bound to a never-referenced
+  // identifier cannot have its own getter invoked, absent direct eval.
+  // Keep this precision proof deliberately scoped to module bindings.
+  /** @type {Map<string,number>} */
+  const identifierOccurrences=new Map();
+  let hasDirectEval=false;
+  walk(ast,node=>{
+    if(node.type==='Identifier')
+      identifierOccurrences.set(node.name,(identifierOccurrences.get(node.name)??0)+1);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
+  });
+  /** @type {WeakSet<AstNode>} */
+  const unobservedGetterInitializers=new WeakSet();
+  if(ast.sourceType==='module'&&!hasDirectEval) {
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init?.type==='ObjectExpression'&&
+         identifierOccurrences.get(node.id.name)===1&&
+         !exportedLocalNames.has(node.id.name)&&
+         !reassignedLocalFunctions.has(node.id.name))
+        unobservedGetterInitializers.add(node.init);
+    });
+  }
   // Immutable aliases of private local helpers preserve their function
   // object identity. Resolve transitive aliases to a fixed point, but never
   // treat an ambiguous or reassigned identifier as a stable callable.
@@ -1552,6 +1587,33 @@ function hasWeakMapPrototypeExposure(ast) {
   /** @type {Set<AstNode>} */
   const activeLocalCallEffects=new Set();
   /**
+   * Prove the only statement is an assignment to a known *own data slot*
+   * using a source literal or an unreassigned, empty local class constructor.
+   * This may safely replace the predecessor at a direct local call, unlike
+   * a host callback which may never execute.
+   * @param {AstNode} fn
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @returns {boolean}
+   */
+  function provenDefiniteLocalSlotWrite(fn,environment,thisValue) {
+    if(fn.body?.type!=='BlockStatement'||fn.body.body?.length!==1)return false;
+    const statement=fn.body.body[0];
+    if(statement.type!=='ExpressionStatement'||
+       statement.expression?.type!=='AssignmentExpression'||
+       statement.expression.operator!=='='||
+       statement.expression.left.type!=='MemberExpression')return false;
+    const assignment=statement.expression;
+    const base=evaluateCarrierValue(assignment.left.object,environment,thisValue);
+    const key=carrierStaticKey(assignment.left.property,assignment.left.computed);
+    if(base.kind!=='container'||base.unknown||key===null||
+       !base.properties.has(key))return false;
+    const right=assignment.right;
+    if(right.type==='Literal')return true;
+    return right.type==='NewExpression'&&right.callee.type==='Identifier'&&
+      (right.arguments?.length??0)===0&&pureEmptyClassNames.has(right.callee.name);
+  }
+  /**
    * A proven stable local helper may write captured outer bindings even when
    * its return value is primitive. A callback passed to an opaque call may be
    * invoked, so join both execution and non-execution without assuming the
@@ -1559,9 +1621,10 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {string} name
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} thisValue
+   * @param {boolean} [direct=false]
    * @returns {void}
    */
-  function replayLocalFunctionEffects(name,environment,thisValue) {
+  function replayLocalFunctionEffects(name,environment,thisValue,direct=false) {
     const local=localFunctionNodes.get(name);
     if(!local||local.params.length!==0||local.async||local.generator||
        local.body?.type!=='BlockStatement'||
@@ -1572,6 +1635,8 @@ function hasWeakMapPrototypeExposure(ast) {
       exposed=true;
       return;
     }
+    const definite=direct&&localBindingCounts.get(name)===1&&
+      provenDefiniteLocalSlotWrite(local,environment,thisValue);
     const before=forkCarrierEnvironment(environment);
     const invoked=forkCarrierEnvironment(environment);
     activeLocalCallEffects.add(local);
@@ -1584,7 +1649,8 @@ function hasWeakMapPrototypeExposure(ast) {
     const outerEffects=new Map();
     for(const key of before.keys())
       outerEffects.set(key,invoked.get(key)??carrierOther);
-    joinCarrierEnvironments(environment,before,outerEffects);
+    if(definite)joinCarrierEnvironments(environment,outerEffects);
+    else joinCarrierEnvironments(environment,before,outerEffects);
   }
   /**
    * @param {CarrierValue} target
@@ -1668,7 +1734,7 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       visitCarrierExpression(node.callee,environment,thisValue);
       if(node.callee.type==='Identifier')
-        replayLocalFunctionEffects(node.callee.name,environment,thisValue);
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true);
       return;
     }
     if(node.type==='NewExpression') {
@@ -1713,7 +1779,8 @@ function hasWeakMapPrototypeExposure(ast) {
           // the no-getter path, rather than treating its body as inert merely
           // because its return value does not contain the WeakMap.
           if(property.kind==='get'&&
-             property.value?.body?.type==='BlockStatement') {
+             property.value?.body?.type==='BlockStatement'&&
+             !unobservedGetterInitializers.has(node)) {
             const before=forkCarrierEnvironment(environment);
             const after=forkCarrierEnvironment(environment);
             visitCarrierStatement(property.value.body,after,thisValue);
