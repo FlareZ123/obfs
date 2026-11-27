@@ -100,7 +100,7 @@ async function main(){
     server.once('error',reject);
     server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
-  /** @type {Array<{alias:boolean,nativeSource:string,servedSource:string,returnValue:number,positiveValue:number}>} */
+  /** @type {Array<{alias:boolean,nativeSource:string,servedSource:string,returnValue:number,positiveValue:number,servedFileChanges:Record<string,{changed:boolean,privatePropertyRenamed:boolean,bytes:number}>}>} */
   const observations=[];
   try{
     const address=server.address();
@@ -115,9 +115,28 @@ async function main(){
       assert.equal(native.independent,73);
       assert.equal(served.independent,73);
       assert.equal(native.source,'function inspect(){return owner.secretField;}');
+      /** @type {Record<string,{changed:boolean,privatePropertyRenamed:boolean,bytes:number}>} */
+      const servedFileChanges={};
+      for(const filename of ['logic.mjs','pure.mjs','observer.mjs']){
+        const response=await fetch(base+'/sco-'+label+'/'+filename);
+        assert.equal(response.status,200,'SCO HTTP code for '+filename);
+        const code=await response.text();
+        const original=originals.get(label)?.get(filename);
+        assert.equal(typeof original,'string');
+        servedFileChanges[filename]={
+          changed:code!==original,
+          privatePropertyRenamed:filename==='pure.mjs'?
+            !code.includes('privateField') && /_p[a-f0-9]+/u.test(code):
+            filename==='logic.mjs'?
+              !code.includes('secretField') && /_p[a-f0-9]+/u.test(code):
+              false,
+          bytes:Buffer.byteLength(code)
+        };
+      }
       observations.push({
         alias,nativeSource:native.source,servedSource:served.source,
-        returnValue:served.value,positiveValue:served.independent
+        returnValue:served.value,positiveValue:served.independent,
+        servedFileChanges
       });
     }
   }finally{
