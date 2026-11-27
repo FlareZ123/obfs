@@ -2222,7 +2222,9 @@ function hasWeakMapPrototypeExposure(ast) {
           visitCarrierStatement(statement.init,loopEnv,thisValue,throwCollector);
         else visitCarrierExpression(statement.init,loopEnv,thisValue);
       }
-      if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
+      // Do-while evaluates its first condition after executing the body.
+      if(statement.test&&statement.type!=='DoWhileStatement')
+        visitCarrierExpression(statement.test,loopEnv,thisValue);
       if(statement.type==='ForOfStatement'||statement.type==='ForInStatement') {
         let iterationValue=carrierOther;
         if(statement.type==='ForOfStatement') {
@@ -2264,6 +2266,14 @@ function hasWeakMapPrototypeExposure(ast) {
             joinCarrierEnvironments(loopEnv,skippedUpdate,updated);
           }
         }
+      }
+      // A normal iteration evaluates the condition again before exiting.
+      // A break/throw/return skips it: retain both alternatives.
+      if(statement.test) {
+        const skipsFinalTest=forkCarrierEnvironment(loopEnv);
+        const executesFinalTest=forkCarrierEnvironment(loopEnv);
+        visitCarrierExpression(statement.test,executesFinalTest,thisValue);
+        joinCarrierEnvironments(loopEnv,skipsFinalTest,executesFinalTest);
       }
       /** @type {Map<string,CarrierValue>} */
       const postLoop=new Map();
