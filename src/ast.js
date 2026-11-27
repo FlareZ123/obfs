@@ -5382,6 +5382,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
+    // Web Storage's indexed/named property setter is a separate Web IDL
+    // DOMString coercion sink: Storage.prototype.setItem may be replaced
+    // without affecting localStorage.someKey = callable. A computed key can
+    // independently stringify the callable before the value is assigned.
+    // Preserve the primitive-only case so legitimate private renames remain.
+    if(node.type==='AssignmentExpression' &&
+       node.left.type==='MemberExpression' &&
+       isStorageCollection(node.left.object) &&
+       (isUnsafeStorageStringValue(node.right,node,ancestors) ||
+        node.left.computed &&
+          isUnsafeStorageStringValue(node.left.property,node,ancestors))) {
+      observed=true;
+    }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
       // MessagePort, Worker and browser postMessage use structured cloning.
@@ -5458,19 +5471,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          storageMethodAliases.has(callee.name) &&
          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
-      // Web Storage's indexed/named property setter is a separate Web IDL
-      // DOMString coercion sink: Storage.prototype.setItem may be replaced
-      // without affecting localStorage.someKey = callable. A computed key can
-      // independently stringify the callable before the value is assigned.
-      // Preserve the primitive-only case so legitimate private renames remain.
-      if(node.type==='AssignmentExpression' &&
-         node.left.type==='MemberExpression' &&
-         isStorageCollection(node.left.object) &&
-         (isUnsafeStorageStringValue(node.right,node,ancestors) ||
-          node.left.computed &&
-            isUnsafeStorageStringValue(node.left.property,node,ancestors))) {
-        observed=true;
-      }
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
