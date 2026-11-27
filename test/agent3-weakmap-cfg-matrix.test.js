@@ -182,7 +182,7 @@ const cases=[
 // Inner named class values may hold a WeakMap without making a same-named
 // outer variable unsafe. Keep native-negative rewrite yield while tracing
 // the class expression's own static carrier value across variable binding.
-['class-expression-inner-map-outer-ordinary-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static [(carrier.instance=new WeakMap(),"k")](){}};','carrier.instance'],
+['class-expression-inner-map-outer-ordinary-block-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static {carrier.instance=new WeakMap();}};','carrier.instance'],
 ['class-expression-inner-map-outer-ordinary-field-yield','class Ordinary{} const carrier={instance:new Ordinary()};const Holder=class carrier{static field=(carrier.instance=new WeakMap());};','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
@@ -300,7 +300,7 @@ for(const [name,setup,access] of cases) {
         'class-benign-computed-key-yield',
         'class-benign-static-clear-yield',
         'class-expression-benign-field-yield',
-        'class-expression-inner-map-outer-ordinary-yield',
+        'class-expression-inner-map-outer-ordinary-block-yield',
         'class-expression-inner-map-outer-ordinary-field-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
