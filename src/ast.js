@@ -4902,7 +4902,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @param {AstNode} argument @returns {boolean} */
   function provenNativeNodeArgument(argument) {
     return !dynamicScope&&!bindingCounts.has('document')&&
-      !factoryMayBeReplaced&&
+      !factoryMayBeReplaced&&!sharedDocumentFactoryMutation&&
       (argument.type==='Identifier'&&fixedDomNodeBindings.has(argument.name) ||
        directNativeNodeFactory(argument));
   }
