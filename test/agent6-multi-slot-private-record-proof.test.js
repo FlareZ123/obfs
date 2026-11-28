@@ -162,3 +162,25 @@ test('cross-module closed-world ESM owner and two private carrier aliases', {
   })));
   for(let n=-150;n<=150;n++)assert.equal(after(n),before(n));
 });
+
+test('independent carrier aliases preserve shared own-field numeric writes',()=>{
+  const source=[
+    'const vault={hiddenCount:41,secretDelta:2};',
+    'const holder={left:vault,right:vault,nonce:0};',
+    'const first=holder.left;',
+    'const second=holder.right;',
+    'function privateUpdate(n){first.hiddenCount+=n;return second.hiddenCount+vault.secretDelta;}',
+    'module.exports=function update(n){return privateUpdate(n);}'
+  ].join('\n');
+  const inputs=[-21,0,2,15,-4,100,-500,1,1,1,0];
+  for(const mode of ['coo','sno']){
+    const output=compile(source,mode);
+    assert.equal(output.files[0].metrics.properties,2);
+    const emitted=String(output.files[0].code);
+    assert.doesNotMatch(emitted,/hiddenCount|secretDelta/u);
+    const before=evaluateCommonJs(source),after=evaluateCommonJs(emitted);
+    for(const value of inputs)
+      assert.equal(after(value),before(value),
+        mode+' cumulative shared-alias write '+value);
+  }
+});
