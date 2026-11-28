@@ -29,7 +29,7 @@ function sourceGraph(){
         'const owner=identity(bag);checksum=(checksum+(owner[key]^i))|0;}'+
         'const usage=process.cpuUsage();'+
         'console.log(JSON.stringify({answer:checksum,'+
-        'cpuMicroseconds:usage.userCPUTime+usage.systemCPUTime}));'}
+        'cpuMicroseconds:usage.user+usage.system}));'}
   ];
 }
 
