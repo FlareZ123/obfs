@@ -12,8 +12,10 @@ const {createScoHandler}=require('../src');
 const html='<!doctype html><html><body><pre id="out">pending</pre>'+
   '<script src="./client.js"></script>'+
   '<script>document.getElementById("out").textContent='+
-    'location.hostname+"|"+String(globalThis.obfsIpv6Ready);</script></body></html>';
-const original='globalThis.obfsIpv6Ready=42;';
+    'String(globalThis.obfsIpv6Ready)+"|42";</script></body></html>';
+// Read the real IPv6 hostname inside the protected script, but do not
+// concatenate an unproved ambient value (a source-observer boundary).
+const original='globalThis["obfsIpv6Ready"]=location.hostname;';
 const refusedSource='document.getElementById("out").textContent=location.hostname+"|42";';
 
 /** @param {http.RequestListener} handler @param {(origin:string)=>Promise<string>} run @returns {Promise<string>} */
