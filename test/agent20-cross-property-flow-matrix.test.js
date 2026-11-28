@@ -68,6 +68,28 @@ function graph(seed,shape) {
   }else if(shape==='computed-key'){
     statements.push("const key=['secret','Field'].join('');");
     statements.push('const outcome=[record[key],record.auxiliaryField];');
+  }else if(shape==='alias-write'){
+    statements.push('const shared=record;shared.secretField=7;');
+    statements.push('const outcome=[record.secretField,shared.secretField,record.auxiliaryField];');
+  }else if(shape==='cross-call-write'){
+    files.push({path:'relay.mjs',sourceType:'module',
+      code:'export function mutate(owner,value){owner.secretField=value;return owner;}'});
+    statements.push("import {mutate} from './relay.mjs';");
+    statements.push('const returned=mutate(record,7);');
+    statements.push('const outcome=[returned.secretField,record.secretField,record.auxiliaryField];');
+  }else if(shape==='spread-copy'){
+    statements.push('const copy={...record};');
+    statements.push('const outcome=[Object.keys(copy).sort(),copy.secretField,record.secretField];');
+  }else if(shape==='computed-reflect'){
+    statements.push("const method=['g','et'].join('');");
+    statements.push("const key=['secret','Field'].join('');");
+    statements.push('const outcome=[Reflect[method](record,key),record.auxiliaryField];');
+  }else if(shape==='descriptor-write'){
+    statements.push("Object.defineProperty(record,'secretField',{value:7,enumerable:true,configurable:true});");
+    statements.push('const outcome=[record.secretField,Object.keys(record).sort()];');
+  }else if(shape==='symbol-key'){
+    statements.push('record[Symbol.iterator]=()=>[];');
+    statements.push('const outcome=[Reflect.ownKeys(record).map(String).sort(),record.secretField];');
   }else if(shape==='own-keys'){
     statements.push('const outcome=[Object.keys(record),record.secretField];');
   }else if(shape==='descriptor'){
@@ -121,7 +143,8 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
   const shapes=[
     'direct','repeated-alias','identity-import','returned-owner',
     'computed-key','own-keys','descriptor','proxy-reflection',
-    'external-observer'
+    'external-observer','alias-write','cross-call-write','spread-copy',
+    'computed-reflect','descriptor-write','symbol-key'
   ];
   const seeds=[0,1,7,65537];
   /** @type {Record<string,number>} */
