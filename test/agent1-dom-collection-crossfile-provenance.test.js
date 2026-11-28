@@ -48,7 +48,15 @@ const cases=[
   {name:'identity-forwarder-collection',producer:'export const elements=document.querySelectorAll("div.locked");',
     importText:'import {elements} from "./state.mjs";'+
       'function forward(value){return value;}',
-    receiver:'forward(elements)[0]'}
+    receiver:'forward(elements)[0]'},
+  {name:'parameter-index-extractor',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'function first(collection){return collection[0];}',
+    receiver:'first(elements)'},
+  {name:'parameter-item-extractor-arrow',producer:'export const elements=document.getElementsByClassName("locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'const first=collection=>collection.item(0);',
+    receiver:'first(elements)'}
 ];
 
 /** @param {Case} fixture @returns {SourceFile[]} */
