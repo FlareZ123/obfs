@@ -174,10 +174,16 @@ function serializeDataSnapshot(snapshot) {
   function encode(value,depth){
     if(depth>256)throw new SafeRangeError('snapshot serialization depth limit');
     if(value===null)return 'null';
-    if(typeof value==='string'||typeof value==='boolean')return serializeJSONPrimitive(value);
+    if(typeof value==='string'||typeof value==='boolean'){
+      const quoted=serializeJSONPrimitive(value);
+      if(typeof quoted!=='string')throw new SafeTypeError('snapshot primitive failed JSON quoting');
+      return quoted;
+    }
     if(typeof value==='number'){
       if(!isFiniteNumber(value))throw new SafeTypeError('snapshot contains untagged nonfinite number');
-      return serializeJSONPrimitive(value);
+      const number=serializeJSONPrimitive(value);
+      if(typeof number!=='string')throw new SafeTypeError('snapshot number failed JSON quoting');
+      return number;
     }
     if(typeof value!=='object')throw new SafeTypeError('snapshot contains non-JSON value');
     if(apply(isProxy,types,[value]))throw new SafeTypeError('snapshot contains Proxy');
@@ -210,7 +216,9 @@ function serializeDataSnapshot(snapshot) {
       const desc=ownDescriptor(value,key);
       if(!desc||!hasOwn(desc,'value'))throw new SafeTypeError('snapshot record has accessor');
       if(i)out+=',';
-      out+=serializeJSONPrimitive(key)+':'+encode(desc.value,depth+1);
+      const quotedKey=serializeJSONPrimitive(key);
+      if(typeof quotedKey!=='string')throw new SafeTypeError('snapshot key failed JSON quoting');
+      out+=quotedKey+':'+encode(desc.value,depth+1);
     }
     return out+'}';
   }
