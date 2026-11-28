@@ -66,7 +66,7 @@ function harness(overrides={}){
     ...overrides
   });
   return {admission,privateKey,publicKey,credentialId,records,
-    clock:{advance(ms){now+=ms;}},get updates(){return signCountUpdates;}};
+    clock:{/** @param {number} ms */ advance(ms){now+=ms;}},get updates(){return signCountUpdates;}};
 }
 
 test('ES256 assertion binds principal, ceremony, relying party, origin and UV',async()=>{
@@ -86,6 +86,7 @@ test('ES256 assertion binds principal, ceremony, relying party, origin and UV',a
 });
 
 test('invalid asserted origin, flags, principal, challenge and credential do not mutate counter',async()=>{
+  /** @type {Array<[string,NonNullable<Parameters<typeof assertion>[2]>]>} */
   const scenarios=[
     ['unapproved origin',{origin:'https://bad.example.com'}],
     ['IP alias origin',{origin:'https://127.0.0.1'}],
@@ -123,9 +124,10 @@ test('tampered signed data, noncanonical encodings and non-P-256 keys reject',as
     }else if(kind==='clientDataJSON'){
       submitted.clientDataJSON=Buffer.from('{bad-json').toString('base64url');
     }else{
-      const bytes=Buffer.from(submitted[kind],'base64url');
+      const field=/** @type {'signature'|'authenticatorData'} */(kind);
+      const bytes=Buffer.from(submitted[field],'base64url');
       bytes[bytes.length-1]^=1;
-      submitted[kind]=bytes.toString('base64url');
+      submitted[field]=bytes.toString('base64url');
     }
     assert.equal((await h.admission.verifyAssertion(submitted)).ok,false,kind);
     assert.equal(h.updates,0,kind);
@@ -181,7 +183,7 @@ test('misconfigured server origins and missing durable counter policy fail at co
     {rpId:'EXAMPLE.COM'}, {rpId:'example.com.'},
     {lookupCredential:null}, {updateSignCount:null}, {maxChallenges:0}
   ]){
-    assert.throws(()=>harness(bad),TypeError);
+    assert.throws(()=>harness(/** @type {any} */(bad)),TypeError);
   }
   assert.doesNotThrow(()=>harness({
     rpId:'localhost',allowedOrigins:['http://localhost:8080'],allowInsecureLocalhost:true
@@ -208,7 +210,7 @@ test('trusted SCO callback is denied before private work, accepts verified sessi
   const server=http.createServer(sco);
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
   try{
     const address=server.address();
@@ -240,6 +242,6 @@ test('trusted SCO callback is denied before private work, accepts verified sessi
     assert.doesNotMatch(await facade.text(),
       /protectedSum|createScoWebAuthnAdmission|publicKey|credentialId/u);
   }finally{
-    await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve()));
+    await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve(undefined)));
   }
 });
