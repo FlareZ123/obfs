@@ -1,15 +1,16 @@
 'use strict';
 
 const path = require('node:path');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
-const {renameLocalProperties,collectBindings} = require('./properties');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface,hasWeakMapPrototypeExposure} = require('./ast');
+const {renameLocalProperties,collectBindings,hasUnmodeledNativeBindGlobalReference} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays,collectImportedStorageMethodAliases} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -38,9 +39,10 @@ const {canonicalAllowedHosts}=require('./hosts');
  * checks the host and could perform arbitrary effects.
  *
  * This deliberately excludes opaque assets, scripts, bare package imports,
- * URL/query/fragment specifiers, case-mismatched filenames, and undeclared
- * dependencies. Module cycles are safe for this boundary because each module
- * body starts with its own guard, irrespective of evaluation order.
+ * URL/query/fragment and encoded specifiers, repeated-separator paths,
+ * case-mismatched filenames, and undeclared dependencies. Module cycles are
+ * safe for this boundary because each module body starts with its own guard,
+ * irrespective of evaluation order.
  *
  * @param {(SourceFile & {sourceType:SourceType})[]} files
  * @returns {boolean}
@@ -56,7 +58,7 @@ function completeGuardedModuleGraph(files) {
       const specifier=statement.source.value;
       if(typeof specifier!=='string' ||
           (!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
-          /[?#%\\\\]/u.test(specifier))return false;
+          /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
       const target=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
       if(!known.has(target))return false;
     }
@@ -99,6 +101,988 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
     else break;
   }
   return source.slice(0,offset) + '\n' + snippet + source.slice(offset);
+}
+
+/**
+ * Find a source-visible function crossing native DOMString setters when the
+ * setter receiver is a DOM object or factory *imported* from another source
+ * file. A per-file analysis cannot reconstruct the imported receiver's native
+ * provenance, so preserve source-visible JavaScript bytes for this graph.
+ *
+ * The graph proof is bounded to exact relative ESM imports. Failing closed
+ * may disable more transformations than are actually unsafe, especially if
+ * the imported DOM handle is reassigned before the sink; it must never assert
+ * source equivalence for unknown exported/host objects.
+ *
+ * @param {SourceFile[]} files
+ * @returns {boolean}
+ */
+function hasImportedDomStringSourceSink(files) {
+  const modules=new Map(files.filter(file=>file.sourceType==='module'&&
+    typeof file.code==='string').map(file=>[file.path,parse(/** @type {string} */(file.code),'module')]));
+  if(modules.size<2)return false;
+  /** @type {Map<string,{
+   *   receivers:Set<string>,factories:Set<string>,
+   *   collections:Set<string>,collectionFactories:Set<string>,
+   *   namespaces:Map<string,Set<string>>
+   * }>} */
+  const exported=new Map();
+  /** @param {import('./ast').AstNode} node @returns {string|null} */
+  function property(node) {
+    if(node.type!=='MemberExpression')return null;
+    return node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  function isDocument(node) {
+    return Boolean(node && (node.type==='Identifier'&&node.name==='document'||
+      node.type==='MemberExpression'&&property(node)==='document'&&
+      node.object.type==='Identifier'&&
+      ['globalThis','window','self'].includes(node.object.name)));
+  }
+  for(const [filename,ast] of modules) {
+    const locals=new Set();
+    const factories=new Set();
+    const collectionLocals=new Set();
+    const collectionFactories=new Set();
+    /**
+     * Only native document/element collection producers are admitted.
+     * An arbitrary userland Array or similarly named method is not a
+     * source-observing Web IDL receiver.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function isDomCollection(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionLocals.has(node.name);
+      if(node.type==='MemberExpression'){
+        const name=property(node);
+        return isDocument(node.object)&&
+          ['forms','images','links','anchors','scripts','embeds','all'].includes(name??'') ||
+          isDom(node.object)&&['children','childNodes'].includes(name??'');
+      }
+      if(node.type==='CallExpression'){
+        if(node.callee.type==='Identifier')
+          return collectionFactories.has(node.callee.name);
+        if(node.callee.type==='MemberExpression'){
+          const name=property(node.callee);
+          const methods=['querySelectorAll','getElementsByName','getElementsByClassName',
+            'getElementsByTagName','getElementsByTagNameNS'];
+          return isDocument(node.callee.object)&&methods.includes(name??'') ||
+            isDom(node.callee.object)&&methods.filter(m=>m!=='getElementsByName').
+              includes(name??'');
+        }
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isDom(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return locals.has(node.name);
+      if(node.type==='MemberExpression') {
+        const name=property(node);
+        // A computed collection index yields a native DOM element. Unknown
+        // indexes can affect source; known metadata such as .length cannot.
+        if(node.computed&&isDomCollection(node.object)&&
+           (name===null||/^(0|[1-9][0-9]*)$/u.test(name)))return true;
+        return isDocument(node.object)&&
+          ['body','head','documentElement','activeElement'].includes(name??'')||
+          locals.has(node.object?.name)&&
+            ['parentNode','parentElement','firstElementChild','lastElementChild'].includes(name??'');
+      }
+      if(node.type==='CallExpression'){
+        if(node.callee.type==='Identifier')return factories.has(node.callee.name);
+        if(node.callee.type==='MemberExpression'){
+          const method=property(node.callee);
+          return isDomCollection(node.callee.object)&&
+            ['item','namedItem'].includes(method??'') ||
+            isDocument(node.callee.object)&&[
+              'getElementById','querySelector','createElement','createElementNS'
+            ].includes(method??'') ||
+            isDom(node.callee.object)&&['querySelector','closest','cloneNode'].
+              includes(method??'');
+        }
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode} fn @returns {boolean} */
+    function producesDom(fn) {
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type))
+        return false;
+      if(fn.body?.type!=='BlockStatement')return isDom(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&isDom(node.argument))found=true;
+      });
+      return found;
+    }
+    /** @param {import('./ast').AstNode} fn @returns {boolean} */
+    function producesCollection(fn) {
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      if(fn.body?.type!=='BlockStatement')return isDomCollection(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&isDomCollection(node.argument))found=true;
+      });
+      return found;
+    }
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        if(node.type==='FunctionDeclaration'&&node.id?.name){
+          if(producesDom(node)&&!factories.has(node.id.name)){
+            factories.add(node.id.name);changed=true;
+          }
+          if(producesCollection(node)&&!collectionFactories.has(node.id.name)){
+            collectionFactories.add(node.id.name);changed=true;
+          }
+        }
+        if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
+        const name=node.id.name;
+        if(isDom(node.init)&&!locals.has(name)){locals.add(name);changed=true;}
+        if(isDomCollection(node.init)&&!collectionLocals.has(name)){
+          collectionLocals.add(name);changed=true;
+        }
+        if(producesDom(node.init)&&!factories.has(name)){
+          factories.add(name);changed=true;
+        }
+        if(producesCollection(node.init)&&!collectionFactories.has(name)){
+          collectionFactories.add(name);changed=true;
+        }
+        if(node.init.type==='Identifier'){
+          if(factories.has(node.init.name)&&!factories.has(name)){
+            factories.add(name);changed=true;
+          }
+          if(collectionFactories.has(node.init.name)&&!collectionFactories.has(name)){
+            collectionFactories.add(name);changed=true;
+          }
+        }
+      });
+    }while(changed);
+    const receivers=new Set();
+    const exportedFactories=new Set();
+    const exportedCollections=new Set();
+    const exportedCollectionFactories=new Set();
+    /** @param {string} local @param {string} external */
+    function expose(local,external) {
+      if(locals.has(local))receivers.add(external);
+      if(factories.has(local))exportedFactories.add(external);
+      if(collectionLocals.has(local))exportedCollections.add(external);
+      if(collectionFactories.has(local))exportedCollectionFactories.add(external);
+    }
+    for(const node of ast.body??[]) {
+      if(node.type==='ExportDefaultDeclaration') {
+        const value=node.declaration;
+        if(value?.type==='Identifier')expose(value.name,'default');
+        else if(isDom(value))receivers.add('default');
+        else if(isDomCollection(value))exportedCollections.add('default');
+        else if(producesDom(value))exportedFactories.add('default');
+        else if(producesCollection(value))exportedCollectionFactories.add('default');
+        continue;
+      }
+      if(node.type!=='ExportNamedDeclaration')continue;
+      const declaration=node.declaration;
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations??[])
+          if(item.id?.type==='Identifier')expose(item.id.name,item.id.name);
+      }
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name)
+        expose(declaration.id.name,declaration.id.name);
+      for(const specifier of node.specifiers??[]) {
+        if(node.source||specifier.type!=='ExportSpecifier')continue;
+        const local=specifier.local?.name??specifier.local?.value;
+        const name=specifier.exported?.name??specifier.exported?.value;
+        if(typeof local==='string'&&typeof name==='string')expose(local,name);
+      }
+    }
+    exported.set(filename,{
+      receivers,factories:exportedFactories,
+      collections:exportedCollections,
+      collectionFactories:exportedCollectionFactories,
+      namespaces:new Map()
+    });
+  }
+  // A direct DOM element import can traverse ESM barrel files. The first
+  // inventory above proves only direct declarations, so close its published
+  // receiver/factory graph over explicit reexports and named import aliases
+  // before deciding that a consumer's DOMString sink is a userland method.
+  // This is a monotone, bounded fixed point over names already in the input
+  // graph; ambiguous export-star resolution is conservatively treated as a
+  // potential DOM capability, not proof of a safe receiver.
+  /** @param {string} origin @param {string} specifier @returns {string|null} */
+  function localModule(origin,specifier) {
+    if(!specifier.startsWith('./')&&!specifier.startsWith('../')||
+       /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+       hasUrlPathnameNormalizationHazard(specifier)||
+       hasTerminalUrlDotSegment(specifier))return null;
+    const target=path.posix.normalize(path.posix.join(path.posix.dirname(origin),specifier));
+    return modules.has(target)?target:null;
+  }
+  /** @param {string} origin @param {import('./ast').AstNode} source @returns {ReturnType<typeof exported.get>} */
+  function importedGraph(origin,source) {
+    if(typeof source.value!=='string')return undefined;
+    const target=localModule(origin,source.value);
+    return target?exported.get(target):undefined;
+  }
+  let propagated=true;
+  while(propagated) {
+    propagated=false;
+    for(const [filename,ast] of modules) {
+      const own=exported.get(filename);
+      if(!own)continue;
+      // Capture the proven record outside nested callbacks; lexical narrowing
+      // of a map lookup does not survive function boundaries in strict JSDoc.
+      const ownReceivers=own.receivers;
+      const ownFactories=own.factories;
+      const ownCollections=own.collections;
+      const ownCollectionFactories=own.collectionFactories;
+      const ownNamespaces=own.namespaces;
+      /** @type {Set<string>} */
+      const receivedElements=new Set();
+      /** @type {Set<string>} */
+      const receivedFactories=new Set();
+      /** @type {Set<string>} */
+      const receivedCollections=new Set();
+      /** @type {Set<string>} */
+      const receivedCollectionFactories=new Set();
+      /** @type {Map<string,Set<string>>} */
+      const receivedNamespaces=new Map();
+      /** @param {string} name @param {Iterable<string>} origins @returns {boolean} */
+      function receiveNamespace(name,origins) {
+        const existing=receivedNamespaces.get(name)??new Set();
+        let added=false;
+        for(const origin of origins)if(!existing.has(origin)){
+          existing.add(origin);added=true;
+        }
+        if(added)receivedNamespaces.set(name,existing);
+        return added;
+      }
+      for(const node of ast.body??[]) {
+        if(node.type!=='ImportDeclaration')continue;
+        const donor=importedGraph(filename,node.source);
+        const target=typeof node.source.value==='string'?
+          localModule(filename,node.source.value):null;
+        if(!donor||!target)continue;
+        for(const specifier of node.specifiers??[]) {
+          const local=specifier.local?.name;
+          if(typeof local!=='string')continue;
+          if(specifier.type==='ImportNamespaceSpecifier'){
+            receiveNamespace(local,[target]);continue;
+          }
+          if(specifier.type!=='ImportSpecifier'&&
+             specifier.type!=='ImportDefaultSpecifier')continue;
+          const imported=specifier.type==='ImportDefaultSpecifier'?'default':
+            specifier.imported?.name??specifier.imported?.value;
+          if(typeof imported!=='string')continue;
+          if(donor.receivers.has(imported))receivedElements.add(local);
+          if(donor.factories.has(imported))receivedFactories.add(local);
+          if(donor.collections.has(imported))receivedCollections.add(local);
+          if(donor.collectionFactories.has(imported))receivedCollectionFactories.add(local);
+          receiveNamespace(local,donor.namespaces.get(imported)??[]);
+        }
+      }
+      // ESM permits a namespace import to be locally aliased before an
+      // export specifier. Alias propagation is monotone; never mistake an
+      // unknown expression for a trusted local module namespace.
+      let aliasChanged;
+      do {
+        aliasChanged=false;
+        walk(ast,node=>{
+          if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+             !node.init)return;
+          const local=node.id.name;
+          const origin=node.init;
+          if(origin.type==='Identifier'){
+            if(receivedElements.has(origin.name)&&!receivedElements.has(local)){
+              receivedElements.add(local);aliasChanged=true;
+            }
+            if(receivedFactories.has(origin.name)&&!receivedFactories.has(local)){
+              receivedFactories.add(local);aliasChanged=true;
+            }
+            if(receivedCollections.has(origin.name)&&!receivedCollections.has(local)){
+              receivedCollections.add(local);aliasChanged=true;
+            }
+            if(receivedCollectionFactories.has(origin.name)&&
+               !receivedCollectionFactories.has(local)){
+              receivedCollectionFactories.add(local);aliasChanged=true;
+            }
+            if(receivedNamespaces.has(origin.name)&&
+               receiveNamespace(local,receivedNamespaces.get(origin.name)??[]))
+              aliasChanged=true;
+          }
+          // A named namespace import is a transparent module carrier:
+          // export const element=namespace.element must be recognized just
+          // like export {element} from the same module.
+          if(origin.type==='MemberExpression' &&
+             origin.object.type==='Identifier'){
+            const name=property(origin);
+            if(name===null) return;
+            for(const target of receivedNamespaces.get(origin.object.name)??[]){
+              const member=exported.get(target);
+              if(member?.receivers.has(name)&&!receivedElements.has(local)){
+                receivedElements.add(local);aliasChanged=true;
+              }
+              if(member?.factories.has(name)&&!receivedFactories.has(local)){
+                receivedFactories.add(local);aliasChanged=true;
+              }
+              if(member?.collections.has(name)&&!receivedCollections.has(local)){
+                receivedCollections.add(local);aliasChanged=true;
+              }
+              if(member?.collectionFactories.has(name)&&
+                 !receivedCollectionFactories.has(local)){
+                receivedCollectionFactories.add(local);aliasChanged=true;
+              }
+              if(receiveNamespace(local,member?.namespaces.get(name)??[]))
+                aliasChanged=true;
+            }
+          }
+        });
+      }while(aliasChanged);
+      /**
+       * @param {string} external
+       * @param {boolean} receiver
+       * @param {boolean} factory
+       * @param {boolean} [collection]
+       * @param {boolean} [collectionFactory]
+       */
+      function add(external,receiver,factory,collection=false,collectionFactory=false) {
+        if(receiver&&!ownReceivers.has(external)) {
+          ownReceivers.add(external);propagated=true;
+        }
+        if(factory&&!ownFactories.has(external)) {
+          ownFactories.add(external);propagated=true;
+        }
+        if(collection&&!ownCollections.has(external)){
+          ownCollections.add(external);propagated=true;
+        }
+        if(collectionFactory&&!ownCollectionFactories.has(external)){
+          ownCollectionFactories.add(external);propagated=true;
+        }
+      }
+      /** @param {string} external @param {Iterable<string>} targets */
+      function addNamespace(external,targets){
+        const current=ownNamespaces.get(external)??new Set();
+        let added=false;
+        for(const target of targets)if(!current.has(target)){
+          current.add(target);added=true;
+        }
+        if(added){ownNamespaces.set(external,current);propagated=true;}
+      }
+      for(const node of ast.body??[]) {
+        if(node.type==='ExportAllDeclaration') {
+          const donor=importedGraph(filename,node.source);
+          if(!donor)continue;
+          if(node.exported){
+            const external=node.exported.name??node.exported.value;
+            const target=typeof node.source.value==='string'?
+              localModule(filename,node.source.value):null;
+            if(typeof external==='string'&&target)addNamespace(external,[target]);
+          }else{
+            for(const key of donor.receivers)if(key!=='default')add(key,true,false);
+            for(const key of donor.factories)if(key!=='default')add(key,false,true);
+            for(const key of donor.collections)if(key!=='default')add(key,false,false,true);
+            for(const key of donor.collectionFactories)
+              if(key!=='default')add(key,false,false,false,true);
+            for(const [key,targets] of donor.namespaces)
+              if(key!=='default')addNamespace(key,targets);
+          }
+        }
+        if(node.type==='ExportDefaultDeclaration'&&
+           node.declaration?.type==='Identifier') {
+          const local=node.declaration.name;
+          add('default',receivedElements.has(local),receivedFactories.has(local),
+            receivedCollections.has(local),receivedCollectionFactories.has(local));
+          addNamespace('default',receivedNamespaces.get(local)??[]);
+        }
+        if(node.type==='ExportNamedDeclaration'&&
+           node.declaration?.type==='VariableDeclaration') {
+          for(const item of node.declaration.declarations??[]) {
+            if(item.id?.type!=='Identifier')continue;
+            const local=item.id.name;
+            add(local,receivedElements.has(local),receivedFactories.has(local),
+              receivedCollections.has(local),receivedCollectionFactories.has(local));
+            addNamespace(local,receivedNamespaces.get(local)??[]);
+          }
+        }
+        if(node.type==='ExportNamedDeclaration'&&node.specifiers?.length) {
+          const donor=node.source?importedGraph(filename,node.source):null;
+          for(const item of node.specifiers) {
+            if(item.type!=='ExportSpecifier')continue;
+            const external=item.exported?.name??item.exported?.value;
+            const local=item.local?.name??item.local?.value;
+            if(typeof external!=='string'||typeof local!=='string')continue;
+            add(external,donor?donor.receivers.has(local):receivedElements.has(local),
+              donor?donor.factories.has(local):receivedFactories.has(local),
+              donor?donor.collections.has(local):receivedCollections.has(local),
+              donor?donor.collectionFactories.has(local):receivedCollectionFactories.has(local));
+            addNamespace(external,donor?
+              donor.namespaces.get(local)??[]:receivedNamespaces.get(local)??[]);
+          }
+        }
+      }
+    }
+  }
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function potentiallySourceBearing(value) {
+    return Boolean(value && !(value.type==='Literal'&&
+      (value.value===null||['string','number','boolean'].includes(typeof value.value)) ||
+      value.type==='TemplateLiteral'&&value.expressions?.length===0));
+  }
+  for(const [filename,ast] of modules) {
+    const receiverNames=new Set();
+    const factoryNames=new Set();
+    const collectionNames=new Set();
+    const collectionFactoryNames=new Set();
+    /** @type {Map<string,Set<string>>} */
+    const namespaceNames=new Map();
+    /** @param {string} name @param {Iterable<string>} targets @returns {boolean} */
+    function ownNamespace(name,targets){
+      const current=namespaceNames.get(name)??new Set();
+      let added=false;
+      for(const target of targets)if(!current.has(target)){
+        current.add(target);added=true;
+      }
+      if(added)namespaceNames.set(name,current);
+      return added;
+    }
+    const styleNames=new Set();
+    const datasetNames=new Set();
+    const tokenListNames=new Set();
+    for(const node of ast.body??[]) {
+      if(node.type!=='ImportDeclaration'||typeof node.source?.value!=='string')continue;
+      const specifier=node.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+        /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+        hasUrlPathnameNormalizationHazard(specifier)||
+        hasTerminalUrlDotSegment(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      const donor=exported.get(target);
+      if(!donor)continue;
+      for(const item of node.specifiers??[]){
+        const local=item.local?.name;
+        if(typeof local!=='string')continue;
+        if(item.type==='ImportNamespaceSpecifier'){
+          ownNamespace(local,[target]);continue;
+        }
+        if(item.type!=='ImportSpecifier'&&
+           item.type!=='ImportDefaultSpecifier')continue;
+        const external=item.type==='ImportDefaultSpecifier'?'default':
+          item.imported?.name??item.imported?.value;
+        if(typeof external!=='string')continue;
+        if(donor.receivers.has(external))receiverNames.add(local);
+        if(donor.factories.has(external))factoryNames.add(local);
+        if(donor.collections.has(external))collectionNames.add(local);
+        if(donor.collectionFactories.has(external))collectionFactoryNames.add(local);
+        ownNamespace(local,donor.namespaces.get(external)??[]);
+      }
+    }
+    if(!receiverNames.size&&!factoryNames.size&&
+       !collectionNames.size&&!collectionFactoryNames.size&&
+       !namespaceNames.size)continue;
+    /**
+     * A namespace may be read through repeated static properties, e.g.
+     * outer.holder.element. Return every possible module provenance rather
+     * than selecting a single path when star reexports are ambiguous.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @param {number} depth
+     * @returns {Set<string>}
+     */
+    function namespaceOrigins(node,depth=0){
+      if(!node)return new Set();
+      // Never use a depth-limit return as evidence of a source-safe sink.
+      if(depth>64)return new Set(modules.keys());
+      if(node.type==='Identifier')return namespaceNames.get(node.name)??new Set();
+      if(node.type!=='MemberExpression')return new Set();
+      const key=property(node);
+      const result=new Set();
+      if(key===null)return result;
+      for(const origin of namespaceOrigins(node.object,depth+1))
+        for(const target of exported.get(origin)?.namespaces.get(key)??[])
+          result.add(target);
+      return result;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedFactory(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return factoryNames.has(node.name);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.factories.has(key));
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedCollectionFactory(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionFactoryNames.has(node.name);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.collectionFactories.has(key));
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedCollection(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionNames.has(node.name);
+      if(node.type==='CallExpression'){
+        if(isImportedCollectionFactory(node.callee))return true;
+        if(node.callee.type==='Identifier'&&
+           [...(localForwarders.get(node.callee.name)??[])].some(index=>
+             isImportedCollection(node.arguments[index])))return true;
+      }
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.collections.has(key));
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedReceiver(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return receiverNames.has(node.name);
+      if(node.type==='CallExpression') {
+        if(isImportedFactory(node.callee))return true;
+        if(node.callee.type==='Identifier'){
+          if([...(localForwarders.get(node.callee.name)??[])].some(index=>
+            isImportedReceiver(node.arguments[index])))return true;
+          if([...(localCollectionItemForwarders.get(node.callee.name)??[])].some(index=>
+            isImportedCollection(node.arguments[index])))return true;
+        }
+        if(node.callee.type==='MemberExpression'&&
+           ['item','namedItem'].includes(property(node.callee)??'')&&
+           isImportedCollection(node.callee.object))return true;
+      }
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        if(node.computed&&isImportedCollection(node.object)&&
+           (key===null||/^(0|[1-9][0-9]*)$/u.test(key)))return true;
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.receivers.has(key));
+      }
+      return false;
+    }
+    /**
+     * Mark a locally defined helper as a DOM element/collection factory only
+     * when a returned expression is already proved to have that provenance.
+     * Include arrow expression bodies and nested block returns; the latter
+     * may over-refuse but cannot justify an unsafe source rewrite.
+     * @param {import('./ast').AstNode|null|undefined} fn
+     * @param {(value:import('./ast').AstNode|null|undefined)=>boolean} predicate
+     * @returns {boolean}
+     */
+    function returnsProved(fn,predicate) {
+      if(!fn||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      if(fn.body?.type!=='BlockStatement')return predicate(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&predicate(node.argument))found=true;
+      });
+      return found;
+    }
+    // Identity helper calls propagate both element and collection ownership
+    // through parameters, not just through direct return of an imported name.
+    /** @type {Map<string,Set<number>>} */
+    const localForwarders=new Map();
+    /** @type {Map<string,Set<number>>} */
+    const localCollectionItemForwarders=new Map();
+    /**
+     * @param {string} name
+     * @param {import('./ast').AstNode|null|undefined} fn
+     * @returns {boolean}
+     */
+    function inspectForwarding(name,fn){
+      if(!fn||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      /** @type {import('./ast').AstNode[]} */
+      const returns=[];
+      if(fn.body?.type==='BlockStatement'){
+        walk(fn.body,node=>{
+          if(node.type==='ReturnStatement'&&node.argument)returns.push(node.argument);
+        });
+      }else if(fn.body) returns.push(fn.body);
+      let added=false;
+      const owned=localForwarders.get(name)??new Set();
+      const items=localCollectionItemForwarders.get(name)??new Set();
+      /** @param {string} argumentName @returns {number} */
+      function parameterIndex(argumentName) {
+        return (fn?.params??[]).findIndex((/** @type {import('./ast').AstNode} */ param)=>
+          param.type==='Identifier'&&param.name===argumentName);
+      }
+      for(const value of returns){
+        if(value.type==='Identifier'){
+          const index=parameterIndex(value.name);
+          if(index>=0&&!owned.has(index)){owned.add(index);added=true;}
+          continue;
+        }
+        /** @type {import('./ast').AstNode|null} */
+        let collection=null;
+        if(value.type==='MemberExpression'&&value.computed){
+          const key=property(value);
+          if(key===null||/^(0|[1-9][0-9]*)$/u.test(key))
+            collection=value.object;
+        }else if(value.type==='CallExpression'&&
+                 value.callee.type==='MemberExpression'&&
+                 ['item','namedItem'].includes(property(value.callee)??'')){
+          collection=value.callee.object;
+        }
+        if(collection?.type==='Identifier'){
+          const index=parameterIndex(collection.name);
+          if(index>=0&&!items.has(index)){items.add(index);added=true;}
+        }
+      }
+      if(owned.size)localForwarders.set(name,owned);
+      if(items.size)localCollectionItemForwarders.set(name,items);
+      return added;
+    }
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        if(node.type==='FunctionDeclaration'&&node.id?.name){
+          const name=node.id.name;
+          if(returnsProved(node,isImportedReceiver)&&!factoryNames.has(name)){
+            factoryNames.add(name);changed=true;
+          }
+          if(returnsProved(node,isImportedCollection)&&
+             !collectionFactoryNames.has(name)){
+            collectionFactoryNames.add(name);changed=true;
+          }
+          if(inspectForwarding(name,node))changed=true;
+        }
+        if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
+        const name=node.id.name;
+        if(returnsProved(node.init,isImportedReceiver)&&!factoryNames.has(name)){
+          factoryNames.add(name);changed=true;
+        }
+        if(returnsProved(node.init,isImportedCollection)&&
+           !collectionFactoryNames.has(name)){
+          collectionFactoryNames.add(name);changed=true;
+        }
+        if(inspectForwarding(name,node.init))changed=true;
+        if(node.init.type==='Identifier'){
+          // Forwarder functions are ordinary values: a const assignment
+          // must carry the same return-argument provenance to its aliases.
+          for(const forwarding of [localForwarders,localCollectionItemForwarders]){
+            const inherited=forwarding.get(node.init.name);
+            if(!inherited)continue;
+            const current=forwarding.get(name)??new Set();
+            for(const index of inherited)if(!current.has(index)){
+              current.add(index);changed=true;
+            }
+            if(current.size)forwarding.set(name,current);
+          }
+        }
+        if(isImportedReceiver(node.init)&&!receiverNames.has(name)){
+          receiverNames.add(name);changed=true;
+        }
+        if(isImportedFactory(node.init)&&!factoryNames.has(name)){
+          factoryNames.add(name);changed=true;
+        }
+        if(isImportedCollection(node.init)&&!collectionNames.has(name)){
+          collectionNames.add(name);changed=true;
+        }
+        if(isImportedCollectionFactory(node.init)&&!collectionFactoryNames.has(name)){
+          collectionFactoryNames.add(name);changed=true;
+        }
+        if(ownNamespace(name,namespaceOrigins(node.init)))changed=true;
+        if(node.init.type==='MemberExpression'&&isImportedReceiver(node.init.object)){
+          if(property(node.init)==='style'&&!styleNames.has(name)){
+            styleNames.add(name);changed=true;
+          }
+          if(property(node.init)==='dataset'&&!datasetNames.has(name)){
+            datasetNames.add(name);changed=true;
+          }
+          if(['classList','part'].includes(property(node.init)??'')&&
+             !tokenListNames.has(name)){
+            tokenListNames.add(name);changed=true;
+          }
+        }
+        if(node.init.type==='Identifier'){
+          if(styleNames.has(node.init.name)&&!styleNames.has(name)){
+            styleNames.add(name);changed=true;
+          }
+          if(datasetNames.has(node.init.name)&&!datasetNames.has(name)){
+            datasetNames.add(name);changed=true;
+          }
+          if(tokenListNames.has(node.init.name)&&!tokenListNames.has(name)){
+            tokenListNames.add(name);changed=true;
+          }
+        }
+      });
+    }while(changed);
+    let observed=false;
+    walk(ast,node=>{
+      if(observed)return;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+        const owner=node.callee.object;
+        const method=property(node.callee);
+        if((owner?.type==='Identifier'&&tokenListNames.has(owner.name)||
+            owner?.type==='MemberExpression'&&
+              ['classList','part'].includes(property(owner)??'')&&
+              isImportedReceiver(owner.object))&&
+            ['add','remove','toggle','replace','contains','supports'].
+              includes(method??'')&&node.arguments.some(potentiallySourceBearing)){
+          observed=true;return;
+        }
+        if(isImportedReceiver(owner) &&
+            ['setAttribute','setAttributeNS','insertAdjacentText',
+             'insertAdjacentHTML','append','prepend','replaceChildren',
+             'before','after','replaceWith'].includes(method??'')&&
+            node.arguments.some(potentiallySourceBearing)) {
+          observed=true;return;
+        }
+        if((owner?.type==='Identifier'&&styleNames.has(owner.name) ||
+            owner?.type==='MemberExpression'&&
+              property(owner)==='style'&&isImportedReceiver(owner.object))&&
+          ['setProperty','getPropertyValue','removeProperty'].includes(method??'')&&
+          node.arguments.some(potentiallySourceBearing)){
+          observed=true;return;
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         potentiallySourceBearing(node.right)) {
+        const owner=node.left.object;
+        const key=property(node.left);
+        if(isImportedReceiver(owner)&&
+          ['textContent','innerText','innerHTML','outerHTML',
+           'id','title','className','href','src','action','formAction',
+           'value','placeholder','alt','name','role','download','srcdoc',
+           'poster','integrity','rel','type','target','media'].includes(key??'')) {
+          observed=true;return;
+        }
+        if(owner?.type==='MemberExpression'&&isImportedReceiver(owner.object)&&
+          (property(owner)==='dataset'||property(owner)==='style'||
+            ['classList','part'].includes(property(owner)??'')&&key==='value') ||
+          owner?.type==='Identifier'&&(datasetNames.has(owner.name)||
+            styleNames.has(owner.name)||tokenListNames.has(owner.name)&&key==='value'))
+          observed=true;
+      }
+    });
+    if(observed)return true;
+  }
+  return false;
+}
+
+/**
+ * Find ESM producer files whose imported values reach a proven browser
+ * DOMString/TrustedHTML coercion sink in another supplied module. Protect the
+ * producer's function source byte-for-byte while leaving unrelated primitive
+ * modules eligible for local obfuscation.
+ *
+ * This intentionally recognizes only exact relative imports and narrow DOM
+ * receiver provenance. Unknown receivers do not trigger a name-only veto.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @param {Map<string,Set<string>>} importedPrimitives
+ * @param {Map<string,Map<string,string>>} importedStrings
+ * @returns {Set<string>}
+ */
+function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
+  const modules=new Map(files.filter(file=>file.sourceType==='module'&&
+    typeof file.code==='string').map(file=>[file.path,file]));
+  /** @type {Map<string,Set<string>>} */
+  const callableExportOrigins=new Map();
+  for(const [producerPath,producer] of modules) {
+    const producerAst=parse(/** @type {string} */ (producer.code),'module');
+    for(const statement of producerAst.body??[]) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name) {
+        const origins=callableExportOrigins.get(declaration.id.name)??new Set();
+        origins.add(producerPath);
+        callableExportOrigins.set(declaration.id.name,origins);
+      }
+      if(declaration?.type==='VariableDeclaration') {
+        for(const entry of declaration.declarations??[]) {
+          if(entry.id.type!=='Identifier'||!entry.init||
+             !['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(entry.init.type))continue;
+          const origins=callableExportOrigins.get(entry.id.name)??new Set();
+          origins.add(producerPath);
+          callableExportOrigins.set(entry.id.name,origins);
+        }
+      }
+    }
+  }
+  /** @type {Set<string>} */
+  const protectedPaths=new Set();
+  for(const [filename,file] of modules) {
+    const ast=parse(/** @type {string} */ (file.code),'module');
+    /** @type {Map<string,string>} */
+    const importedOrigins=new Map();
+    for(const statement of ast.body??[]) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const specifier=statement.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+         hasUrlPathnameNormalizationHazard(specifier)||
+         hasTerminalUrlDotSegment(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      for(const spec of statement.specifiers??[]) {
+        if(spec.local?.type!=='Identifier')continue;
+        if(modules.has(target)) {
+          importedOrigins.set(spec.local.name,target);
+          continue;
+        }
+        // Build/test harnesses may relocate an otherwise closed supplied ESM
+        // graph after compilation. When the syntactic relative path therefore
+        // cannot match an input path, accept only a unique direct callable
+        // export bearing the imported name; ambiguity remains unproved.
+        if(spec.type==='ImportSpecifier') {
+          const exposed=spec.imported.name??spec.imported.value;
+          const origins=typeof exposed==='string'?
+            callableExportOrigins.get(exposed):undefined;
+          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+        }
+      }
+    }
+    if(!importedOrigins.size)continue;
+    const provenPrimitive=importedPrimitives.get(filename)??new Set();
+    const provenStrings=importedStrings.get(filename)??new Map();
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function importedOrigin(node) {
+      if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
+         provenStrings.has(node.name))return null;
+      return importedOrigins.get(node.name)??null;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isDocument(node) {
+      return Boolean(node?.type==='Identifier'&&node.name==='document');
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+    function member(node) {
+      if(node?.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    const domValues=new Set();
+    const htmlStreams=new Set();
+    const htmlWriters=new Set();
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+          node.id:null;
+        const value=node.type==='VariableDeclarator'?node.init:null;
+        if(!binding||!value)return;
+        if(value.type==='Identifier'&&domValues.has(value.name)&&
+           !domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+        if(value.type==='CallExpression'&&value.callee.type==='MemberExpression') {
+          const owner=value.callee.object;
+          const method=member(value.callee);
+          if(isDocument(owner)&&
+             ['createElement','createTextNode','getElementById','querySelector'].
+               includes(method??'')&&!domValues.has(binding.name)) {
+            domValues.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&domValues.has(owner.name)&&
+             /^stream(?:Append|Prepend|Before|After|ReplaceWith)?HTML(?:Unsafe)?$/u.
+               test(method??'')&&!htmlStreams.has(binding.name)) {
+            htmlStreams.add(binding.name);changed=true;
+          }
+          if(owner.type==='Identifier'&&htmlStreams.has(owner.name)&&
+             method==='getWriter'&&!htmlWriters.has(binding.name)) {
+            htmlWriters.add(binding.name);changed=true;
+          }
+        }
+        if(value.type==='MemberExpression'&&isDocument(value.object)&&
+           member(value)==='body'&&!domValues.has(binding.name)) {
+          domValues.add(binding.name);changed=true;
+        }
+      });
+    }while(changed);
+    walk(ast,node=>{
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression'&&
+         node.left.object.type==='Identifier'&&
+         domValues.has(node.left.object.name)) {
+        const origin=importedOrigin(node.right);
+        if(origin)protectedPaths.add(origin);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&
+         htmlWriters.has(node.callee.object.name)&&member(node.callee)==='write') {
+        const origin=importedOrigin(node.arguments[0]);
+        if(origin)protectedPaths.add(origin);
+      }
+    });
+  }
+  return protectedPaths;
+}
+
+/**
+ * Conservatively detect a bounded CommonJS flow where one supplied module
+ * exports or contains a function that can return native Web Storage and a
+ * statically linked sibling writes a potentially callable value through an
+ * otherwise opaque property receiver. The receiver provenance crosses the
+ * require boundary, so per-file source-observer analysis cannot prove that
+ * the named Web Storage setter will not stringify the callable.
+ *
+ * Literal-only writes intentionally remain outside this guard so the adjacent
+ * non-source-observing positive-yield controls can still be transformed.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {boolean}
+ */
+function hasCommonJsStorageFactorySourceSink(files) {
+  const commonJs=files.filter(file=>
+    file.sourceType==='commonjs'&&typeof file.code==='string');
+  if(commonJs.length<2)return false;
+  let hasStorageFactory=false;
+  let hasPotentialCallableMemberWrite=false;
+  let hasStaticRelativeRequire=false;
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  function isDirectStorageValue(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')
+      return node.name==='localStorage'||node.name==='sessionStorage';
+    if(node.type!=='MemberExpression')return false;
+    const root=node.object;
+    const key=node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+    return root.type==='Identifier'&&
+      ['globalThis','global','window','self'].includes(root.name)&&
+      (key==='localStorage'||key==='sessionStorage');
+  }
+  for(const file of commonJs) {
+    const ast=parse(/** @type {string} */ (file.code),'commonjs');
+    walk(ast,node=>{
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+         node.callee.name==='require') {
+        const specifier=staticString(node.arguments[0]);
+        if(specifier!==null&&
+           (specifier.startsWith('./')||specifier.startsWith('../'))&&
+           !/[?#%\\\\]/u.test(specifier))hasStaticRelativeRequire=true;
+      }
+      if(node.type==='ReturnStatement'&&isDirectStorageValue(node.argument))
+        hasStorageFactory=true;
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression') {
+        const receiver=node.left.object;
+        const commonJsExportReceiver=
+          receiver.type==='Identifier'&&receiver.name==='exports' ||
+          receiver.type==='MemberExpression'&&!receiver.computed&&
+            receiver.object.type==='Identifier'&&receiver.object.name==='module'&&
+            receiver.property.type==='Identifier'&&receiver.property.name==='exports';
+        if(commonJsExportReceiver)return;
+        const value=node.right;
+        if(value.type==='Identifier'||value.type==='FunctionExpression'||
+           value.type==='ArrowFunctionExpression'||value.type==='CallExpression')
+          hasPotentialCallableMemberWrite=true;
+      }
+    });
+  }
+  return hasStaticRelativeRequire&&hasStorageFactory&&hasPotentialCallableMemberWrite;
 }
 
 /**
@@ -158,7 +1142,7 @@ function staticallyImportedEsmTargets(files) {
       if(!source||source.type!=='Literal'||typeof source.value!=='string')continue;
       const specifier=source.value;
       if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-         /[?#%\\\\]/u.test(specifier))continue;
+         /[?#%\\\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))continue;
       const target=path.posix.normalize(
         path.posix.join(path.posix.dirname(file.path),specifier));
       if(known.has(target))imported.add(target);
@@ -189,7 +1173,7 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
     if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-       /[?#%\\]/u.test(specifier))return false;
+       /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier))return false;
     const target=path.posix.normalize(
       path.posix.join(path.posix.dirname(filename),specifier));
     return knownJavaScript.has(target);
@@ -1981,6 +2965,23 @@ function obfuscateFiles(files, options = {}) {
       byPath.set(selectedPath,names.slice());
     }
   }
+  // Snapshot every selected function list before reading the lazy closedWorld
+  // option: its getter may mutate caller-owned selection arrays.
+  // Admit the narrow native-bind target proof only for a closed source graph
+  // whose files satisfy the strict top-level fn.bind(null) grammar and have no
+  // unresolved ambient identifiers or imports. This is a rewrite-eligibility
+  // proof, not source secrecy: a hostile host preloader can capture the
+  // already-transformed target function.
+  const allowBoundFunctionTargets=options.closedWorld===true&&prepared.length>0&&
+    prepared.every(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return false;
+      const inputAst=parse(file.code,file.sourceType);
+      return !hasUnsafeNativeBindMutationSurface(inputAst)&&
+        !hasUnmodeledNativeBindGlobalReference(inputAst,file.sourceType==='commonjs')&&
+        !hasUnprovedModuleImport(inputAst,file.path,knownJavaScript)&&
+        !(file.sourceType==='commonjs'&&
+          hasUnprovedCommonJsRequire(inputAst,file.path,knownJavaScript));
+    });
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(allowedHosts?.length && options.closedWorld &&
@@ -1989,9 +2990,9 @@ function obfuscateFiles(files, options = {}) {
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
   assertReviewedOpaqueAssets(prepared,options.reviewedOpaqueAssets);
-  // A function declared in one ESM/classic-script file may have its source
-  // observed by another supplied file. File-local proofs cannot see that
-  // consumer, so preserve all original source spellings across the file group.
+  // Function source can be observed locally or by another supplied file.
+  // Analyze every file, seeding cross-file import provenance where available,
+  // before any source-coordinate or identifier rewrite is permitted.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
   const importedPrimitiveProof=prepared.length>1 && options.closedWorld ?
@@ -2002,28 +3003,55 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
-  // Declared HTML script/modulepreload SRI metadata also observes the exact
-  // served JavaScript bytes. If the HTML asset is preserved, every emitted
-  // integrity-pinned script must retain its source hash.
-  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
-    prepared.some(file=>
-    file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
-      prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path))));
-  // A single-file host lock is still a source-coordinate rewrite. Local AST
-  // transforms can independently decline Function/source observers, but the
-  // wrapper itself has no later per-transform guard. Reuse the same broad
-  // source-observer proof used for multi-file publication so Error.stack,
-  // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
-    prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
-      observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path)));
+  const importedStorageMethodAliases=prepared.length>1 ?
+    collectImportedStorageMethodAliases(prepared) : new Map();
+  const esmDomSourceProducers=prepared.length>1&&options.closedWorld ?
+    esmDomSourceProducerPaths(prepared,importedPrimitiveProof,importedStringProof) :
+    new Set();
+  // Parse the supplied JavaScript files once for source-observer analysis.
+  // The WeakMap prototype is shared across modules, so an exposure in any
+  // supplied file must invalidate reference-only Storage proofs in siblings.
+  const hasPinnedSource=hasPinnedLocalJavaScriptIntegrity(prepared);
+  const sourceObserverFiles=(!hasPinnedSource||Boolean(allowedHosts?.length))?
+    prepared.flatMap(file=>{
+      if(file.sourceType==='asset'||typeof file.code!=='string')return [];
+      return [{file,ast:parse(file.code,file.sourceType)}];
+    }):[];
+  // A different module can publish a WeakMap instance or a factory that
+  // the source-observer module later imports. Summarize the complete supplied
+  // graph, not only modules that independently look like source observers.
+  const classicScriptAsts=sourceObserverFiles.filter(({file})=>
+    file.sourceType==='script').map(({ast})=>ast);
+  // Browser classic scripts in one output group share one realm and one
+  // global lexical environment. Analyze their ordered top-level statements
+  // together so a carrier declared in one file cannot disappear at the
+  // boundary before a sibling reads or mutates WeakMap.prototype.
+  const sharedClassicScriptWeakMapExposure=classicScriptAsts.length>1?
+    hasWeakMapPrototypeExposure({
+      type:'Program',start:0,end:0,
+      body:classicScriptAsts.flatMap(ast=>ast.body??[])
+    }):false;
+  const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
+    sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
+  const sharedCommonJsStorageSourceObserver=
+    hasCommonJsStorageFactorySourceSink(prepared);
+  const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
+  let remoteSourceObserver=hasPinnedSource||sharedCommonJsStorageSourceObserver||
+    importedDomStringSourceObserver;
+  let hostLockSourceObserver=sharedCommonJsStorageSourceObserver||
+    importedDomStringSourceObserver;
+  for(const {file,ast} of sourceObserverFiles) {
+    const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
+    const functionSource=observesFunctionSource(ast,
+      importedStringProof.get(file.path),importedCloneProof.get(file.path),
+      importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+      importedUrlStaticProof.get(file.path),
+      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure);
+    if(distributed||functionSource)remoteSourceObserver=true;
+    if(functionSource)hostLockSourceObserver=true;
+    if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
+  }
+  hostLockSourceObserver=Boolean(allowedHosts?.length)&&hostLockSourceObserver;
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
@@ -2041,11 +3069,17 @@ function obfuscateFiles(files, options = {}) {
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
-  if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
+  if((remoteSourceObserver||hostLockSourceObserver||esmDomSourceProducers.size) &&
+      allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+  // Cross-file property rewriting can mutate a protected producer even when
+  // the observing consumer is a different module. Disable only that group
+  // transform; unaffected files below still retain their local obfuscation.
+  const cross = !remoteSourceObserver&&!esmDomSourceProducers.size &&
+      options.closedWorld && options.properties !== false ?
+    renameCrossFileProperties(prepared,seed,allowBoundFunctionTargets) :
+    {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2081,6 +3115,7 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
+    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
@@ -2091,7 +3126,7 @@ function obfuscateFiles(files, options = {}) {
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
@@ -2107,7 +3142,7 @@ function obfuscateFiles(files, options = {}) {
     const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
@@ -2123,7 +3158,7 @@ function obfuscateFiles(files, options = {}) {
     const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Native graph requires a module/CommonJS without cross-file source observation');
       }
       if(nativeNames.some(name=>expressionNames.includes(name))) {
@@ -2144,7 +3179,7 @@ function obfuscateFiles(files, options = {}) {
     const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Branch blocks require a module/CommonJS without cross-file source observation');
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
@@ -2161,7 +3196,7 @@ function obfuscateFiles(files, options = {}) {
     const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
-      if(sourceType==='script'||remoteSourceObserver){
+      if(sourceType==='script'||fileSourceObserver){
         throw new TypeError('Statement flow requires a module/CommonJS without cross-file source observation');
       }
       if(statementNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2183,8 +3218,11 @@ function obfuscateFiles(files, options = {}) {
     const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
-        throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
+      if(sourceType==='script'||fileSourceObserver) {
+        const wasmRefusalReason=prepared.length>1
+          ?'Wasm i32 requires a module/CommonJS without cross-file source observation'
+          :'requires a module/CommonJS without function-source observation';
+        throw new TypeError('Wasm i32 declined: '+wasmRefusalReason);
       }
       if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
           nativeNames.includes(name)||branchNames.includes(name)||statementNames.includes(name))) {
@@ -2207,7 +3245,7 @@ function obfuscateFiles(files, options = {}) {
     const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||fileSourceObserver) {
         throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
       }
       if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2233,11 +3271,17 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+    // Only the separately proved primitive ESM leaf can rename local
+    // own-record keys while another file observes source. Unknown ambient
+    // capabilities must fail closed before this carveout is considered.
+    // No identifier, string, symbol, VM or cross-file protection is granted.
+    const allowProvenLocalPropertyIsland=sourceObserverIslands.has(filename)&&
+      !hasPinnedSource&&!esmDomSourceProducers.has(filename);
+    if ((!fileSourceObserver||allowProvenLocalPropertyIsland) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        renameLocalProperties(code,ast,{seed:salt,closedWorld:options.closedWorld===true,allowBoundFunctionTargets});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
@@ -2245,7 +3289,7 @@ function obfuscateFiles(files, options = {}) {
       ast = parse(code,sourceType);
     }
     let bindings=0;
-    if(!remoteSourceObserver && options.identifiers!==false) {
+    if(!fileSourceObserver && options.identifiers!==false) {
       const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
       code=renamed.code;
       bindings=renamed.bindings;
@@ -2254,7 +3298,7 @@ function obfuscateFiles(files, options = {}) {
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
-    if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
+    if (shouldEncodeStrings && !unsafeDecoderIntrinsic && !fileSourceObserver) {
       const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
       code = modified.code;
       literals = modified.count;
@@ -2308,4 +3352,5 @@ function obfuscateFiles(files, options = {}) {
   return {files:output,seed,mode,crossFile:{objects:cross.objects,properties:cross.properties}};
 }
 
-module.exports = {obfuscateFiles,safePath};
+// Internal graph-wide source-observer effect is reused by SCO per-file GETs.
+module.exports = {obfuscateFiles,safePath,hasImportedDomStringSourceSink};

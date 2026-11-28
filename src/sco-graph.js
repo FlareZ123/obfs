@@ -4,6 +4,7 @@ const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
 const {parse,walk,staticString}=require('./ast');
 const {safePath}=require('./core');
+const {hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
@@ -52,7 +53,7 @@ function verifyPrivateImport(source,specifier,known) {
     return;
   }
   if(typeof specifier!=='string'||specifier.includes('\\')||
-      /[?#%\x00-\x1f]/u.test(specifier) ||
+      /[?#%]/u.test(specifier) || hasUrlPathnameNormalizationHazard(specifier) ||
       !(specifier.startsWith('./')||specifier.startsWith('../'))) {
     throw new TypeError('Private SCO graph requires relative .mjs or node: imports: '+specifier);
   }

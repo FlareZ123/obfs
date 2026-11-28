@@ -15,7 +15,8 @@ test('programmatic SCO rejects unsafe public file paths at handler construction'
     'CON.js',
     'dir/NUL.txt',
     'space name.js ',
-    'file?.js'
+    'file?.js',
+    'del'+String.fromCharCode(0x7f)+'.mjs'
   ];
   for(const name of invalid) {
     assert.throws(()=>createScoHandler([

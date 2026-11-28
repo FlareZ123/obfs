@@ -17,7 +17,7 @@
     "benchmark": "node test/benchmark.js",
     "typecheck": "tsc -p jsconfig.json",
     "typecheck:external": "tsc -p jsconfig.external.json",
-    "test:browser": "node test/browser-integration.js"
+    "test:browser": "node test/browser-integration.js && node test/bound-runtime-interception-browser.js"
   },
   "dependencies": {
     "acorn": "^8.15.0",

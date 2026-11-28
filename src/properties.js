@@ -311,6 +311,97 @@ function collectBindingScopes(ast) {
 }
 
 /**
+ * Reject native-bound-target admission when any executable identifier
+ * reference escapes the unique lexical bindings in the supplied source graph.
+ * This catches ambient callbacks/getters that could mutate intrinsics without
+ * spelling Function, globalThis, Object, or Reflect directly. Only immutable
+ * language constants and the ordinary CommonJS module.exports root are exempt.
+ *
+ * @param {AstNode} ast
+ * @param {boolean} [allowCommonJsModuleExports] Permit only the standard CommonJS module.exports publication root.
+ * @returns {boolean}
+ */
+function hasUnmodeledNativeBindGlobalReference(ast,allowCommonJsModuleExports=false) {
+  const counts=collectBindings(ast);
+  const scopes=collectBindingScopes(ast);
+  const {identifiers}=collectProofInventory(ast);
+  /** @type {WeakSet<AstNode>} */
+  const declarationNodes=new WeakSet();
+  /** @param {AstNode|null|undefined} pattern */
+  function markPattern(pattern) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier')declarationNodes.add(pattern);
+    else if(pattern.type==='RestElement')markPattern(pattern.argument);
+    else if(pattern.type==='AssignmentPattern')markPattern(pattern.left);
+    else if(pattern.type==='ArrayPattern')for(const element of pattern.elements)markPattern(element);
+    else if(pattern.type==='ObjectPattern')for(const property of pattern.properties)
+      markPattern(property.type==='RestElement'?property.argument:property.value);
+  }
+  walk(ast,node=>{
+    switch(node.type) {
+      case 'VariableDeclarator': markPattern(node.id); break;
+      case 'FunctionDeclaration': case 'FunctionExpression':
+        markPattern(node.id);
+        for(const param of node.params)markPattern(param);
+        break;
+      case 'ArrowFunctionExpression':
+        for(const param of node.params)markPattern(param);
+        break;
+      case 'ClassDeclaration': case 'ClassExpression': markPattern(node.id); break;
+      case 'CatchClause': markPattern(node.param); break;
+      case 'ImportSpecifier': case 'ImportDefaultSpecifier': case 'ImportNamespaceSpecifier':
+        markPattern(node.local); break;
+      default: break;
+    }
+  });
+  const immutableGlobals=new Set(['undefined','NaN','Infinity']);
+  for(const use of identifiers) {
+    const {node,parent,key,ancestors}=use;
+    if(declarationNodes.has(node))continue;
+    if(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed)continue;
+    if((parent?.type==='Property'||parent?.type==='MethodDefinition'||
+        parent?.type==='PropertyDefinition')&&key==='key'&&!parent.computed&&
+       !parent.shorthand)continue;
+    if(parent?.type==='LabeledStatement'&&key==='label'||
+       parent?.type==='BreakStatement'&&key==='label'||
+       parent?.type==='ContinueStatement'&&key==='label'||
+       parent?.type==='MetaProperty')continue;
+    if(parent?.type==='ImportSpecifier'&&key==='imported'||
+       parent?.type==='ExportSpecifier'&&key==='exported')continue;
+    const moduleExportWrite=allowCommonJsModuleExports&&node.name==='module'&&
+      counts.get('module')===undefined&&parent?.type==='MemberExpression'&&
+      key==='object'&&!parent.computed&&parent.property.type==='Identifier'&&
+      parent.property.name==='exports'&&(()=>{
+        const n=ancestors.length;
+        const next=ancestors[n-2],after=ancestors[n-3];
+        return next?.type==='AssignmentExpression'&&next.left===parent&&
+          next.operator==='='||
+          next?.type==='MemberExpression'&&next.object===parent&&
+          after?.type==='AssignmentExpression'&&after.left===next&&after.operator==='=';
+      })();
+    if(moduleExportWrite)continue;
+    const bindingScope=scopes.get(node.name);
+    const functionScope=bindingScope&&
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(bindingScope.type);
+    const insideFunction=ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type));
+    if(functionScope&&(
+      parent?.type==='MemberExpression'&&key==='object'||
+      parent?.type==='VariableDeclarator'&&key==='init'||
+      parent?.type==='Property'||
+      parent?.type==='ArrayExpression'&&key==='elements'||
+      parent?.type==='AssignmentExpression'&&key==='right'))return true;
+    if(insideFunction&&bindingScope?.type==='BlockStatement'&&
+       parent?.type==='MemberExpression'&&key==='object')return true;
+    if(immutableGlobals.has(node.name))continue;
+    if(node.name==='module'||counts.get(node.name)!==1)return true;
+    const scope=scopes.get(node.name);
+    if(!scope||!ancestors.includes(scope))return true;
+  }
+  return false;
+}
+
+/**
  * Resolve bounded compile-time computed own keys only when a same-scope
  * immutable key initializer executes before the private owner is created.
  * The scope must be a sequential Program or BlockStatement: a SwitchStatement
@@ -372,9 +463,14 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
+ * @param {string[]} [additionalRootNames] Other local names proven to denote the same immutable imported ESM binding.
+ * @param {boolean} [allowExportedClosureReaders] Admit the narrow closed-world zero-argument exported closure-reader proof.
+ * @param {boolean} [allowBoundFunctionTargets] Admit a private target used only by native bind when the complete graph passes its mutation gate.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false, additionalRootNames=[], allowExportedClosureReaders=false, allowBoundFunctionTargets=false) {
+  const rootNames=new Set([rootName,...additionalRootNames]);
+  if([...rootNames].some(name=>bindings.get(name)!==1))return null;
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
@@ -393,7 +489,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         const params = node.params;
         const returned=node.body.body[0].argument.name;
         forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
-        returnsRoot = !params.length && returned === rootName;
+        returnsRoot = !params.length && rootNames.has(returned);
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
     }
@@ -436,7 +532,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         }
         if (body?.type === 'Identifier') {
           const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
-          const returnsRoot=!value.params.length && body.name===rootName;
+          const returnsRoot=!value.params.length && rootNames.has(body.name);
           if (index>=0 || returnsRoot) functions.set(node.id.name,{
             node:value,params:value.params,forwardIndex:index,returnsRoot
           });
@@ -496,6 +592,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const scopes=collectBindingScopes(ast);
+  // A single-root proof retains its original scope behavior. When additional
+  // roots are supplied, require every spelling to resolve in the same scope.
+  if(rootNames.size>1){
+    const rootScope=scopes.get(rootName);
+    if(!rootScope||[...rootNames].some(name=>scopes.get(name)!==rootScope))return null;
+  }
   // Most owners use direct known member names and need no constant-key scan.
   // Build the same per-owner key facts only when a computed identifier read
   // actually requests them, retaining all original lexical/order gates.
@@ -711,12 +813,31 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          !(use.parent?.type==='Property' && use.key==='key' && !use.parent.computed) &&
          !(use.parent?.type==='MemberExpression' && use.key==='property' &&
            !use.parent.computed)))continue;
-    let privateValue=true;
+    let privateValue=true,exportedBinding=false,boundTargetUse=false;
     for(const use of identifierUses.get(binding.name)??[]) {
       if(use.node===binding.decl) {
-        if(use.ancestors.some(ancestor=>/^Export/.test(ancestor.type)))
-          privateValue=false;
-        if(!privateValue)break;
+        if(use.ancestors.some(ancestor=>
+          ancestor.type==='ExportNamedDeclaration'||
+          ancestor.type==='ExportDefaultDeclaration'))exportedBinding=true;
+        continue;
+      }
+      if(use.parent?.type==='ExportSpecifier'&&use.key==='local'||
+         use.parent?.type==='ExportDefaultDeclaration'&&use.key==='declaration') {
+        exportedBinding=true;
+        continue;
+      }
+      const bindMember=use.parent;
+      const bindCall=bindMember?.type==='MemberExpression'&&
+        use.key==='object'&&!bindMember.computed&&!bindMember.optional&&
+        bindMember.property.type==='Identifier'&&bindMember.property.name==='bind'?
+          parents.get(bindMember):null;
+      const isNativeBindTarget=allowBoundFunctionTargets&&
+        use.ancestors.includes(scope)&&
+        bindCall?.type==='CallExpression'&&bindCall.callee===bindMember&&
+        !bindCall.optional&&bindCall.arguments.length===1&&
+        bindCall.arguments[0].type==='Literal'&&bindCall.arguments[0].value===null;
+      if(isNativeBindTarget) {
+        boundTargetUse=true;
         continue;
       }
       if(!use.ancestors.includes(scope)||
@@ -727,10 +848,100 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
+    // An exported function can safely read a private closure owner only when
+    // it has no formal object-input channel and directly reads that owner.
+    // Generic exported readers remain fail-closed: callers outside the closed
+    // graph could supply objects whose property spelling must not be changed.
+    // The graph-wide source-observer gate above still rejects in-program
+    // Function#toString observation; host-side extraction sees transformed
+    // source by design.
+    if(privateValue&&boundTargetUse&&exportedBinding)privateValue=false;
+    if(privateValue&&exportedBinding) {
+      if(!allowExportedClosureReaders||binding.node.params?.length!==0)privateValue=false;
+      let readsOwner=false;
+      if(privateValue)walk(binding.node.body??binding.node,node=>{
+        if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+           rootNames.has(node.object.name))readsOwner=true;
+      });
+      if(!readsOwner)privateValue=false;
+    }
     if(privateValue)privateFunctionNodes.add(binding.node);
   }
 
-  const aliases = new Set([rootName]);
+  // A single private class method may read the closed owner when its class
+  // and every constructed instance remain local and immutable. This is
+  // deliberately narrower than general method/receiver flow.
+  for(const ownerName of rootNames) {
+    let ownerInitializationEnd=-1;
+    for(const use of identifierUses.get(ownerName)??[]) {
+      if(use.parent?.type==='VariableDeclarator'&&
+         use.parent.id===use.node&&use.parent.init?.type==='ObjectExpression'){
+        ownerInitializationEnd=use.parent.init.end;
+        break;
+      }
+    }
+    if(ownerInitializationEnd<0)continue;
+    const localClassUses=new Set();
+    for(const use of identifierUses.get(ownerName)??[]) {
+      for(const ancestor of use.ancestors) {
+        if(ancestor.type==='ClassDeclaration')localClassUses.add(ancestor);
+      }
+    }
+    for(const cls of localClassUses) {
+      if(cls.start<ownerInitializationEnd)continue;
+      if(parents.get(cls)!==ast || cls.superClass || cls.id?.type!=='Identifier' ||
+         bindings.get(cls.id.name)!==1 || cls.body.body.length!==1)continue;
+      const method=cls.body.body[0];
+      if(method.type!=='MethodDefinition' || method.kind!=='method' ||
+         method.static || method.computed || method.key.type!=='Identifier' ||
+         method.value?.type!=='FunctionExpression' ||
+         method.value.async || method.value.generator || method.value.params.length!==0 ||
+         method.value.body.body.length!==1)continue;
+      const returned=method.value.body.body[0];
+      const member=returned.type==='ReturnStatement' ? returned.argument : null;
+      if(member?.type!=='MemberExpression' || member.optional ||
+         member.object.type!=='Identifier' || member.object.name!==ownerName ||
+         (member.computed ? staticString(member.property) : staticName(member.property))===null)
+        continue;
+      const className=cls.id.name;
+      const methodName=method.key.name;
+      let constructed=0, safe=true;
+      for(const use of identifierUses.get(className)??[]) {
+        if(use.node===cls.id)continue;
+        const construction=use.parent;
+        const variable=construction?.type==='NewExpression' &&
+          construction.callee===use.node && construction.arguments.length===0 ?
+          parents.get(construction):null;
+        const declaration=variable?.type==='VariableDeclarator' ?
+          parents.get(variable):null;
+        if(variable?.type!=='VariableDeclarator' || variable.start<cls.end ||
+           variable.init!==construction || variable.id.type!=='Identifier' ||
+           variable.id.name===ownerName || bindings.get(variable.id.name)!==1 ||
+           declaration?.type!=='VariableDeclaration' || declaration.kind!=='const' ||
+           parents.get(declaration)!==ast) {
+          safe=false;
+          break;
+        }
+        constructed++;
+        for(const instanceUse of identifierUses.get(variable.id.name)??[]) {
+          if(instanceUse.node===variable.id)continue;
+          const read=instanceUse.parent;
+          const call=read?.type==='MemberExpression' ? parents.get(read) : null;
+          if(read?.type!=='MemberExpression' || read.object!==instanceUse.node ||
+             read.computed || read.optional || staticName(read.property)!==methodName ||
+             call?.type!=='CallExpression' || call.callee!==read ||
+             call.optional || call.arguments.length!==0) {
+            safe=false;
+            break;
+          }
+        }
+        if(!safe)break;
+      }
+      if(safe && constructed>0)privateFunctionNodes.add(method.value);
+    }
+  }
+
+  const aliases = new Set([...rootNames]);
   /**
    * Return the only alias fact needed to resolve an expression. A null result
    * is already proved from this root through a private carrier or captured
@@ -772,7 +983,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{target:string,remaining:Set<string>}[]>} */
   const aliasWatchers=new Map();
   /** @type {string[]} */
-  const pending=[rootName];
+  const pending=[...aliases];
   /** @param {string} name @returns {boolean} */
   function addAlias(name) {
     if(aliases.has(name))return false;
@@ -839,13 +1050,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
-  // Only the original root binding may be intentionally exported by the
-  // opt-in cross-module proof; its imported consumers are verified separately.
+  // The supplied root bindings are the only names admitted as roots;
+  // any additional local alias remains unexported to untracked callers.
   for (const declaration of ast.body) {
     if (declaration.type !== 'ExportNamedDeclaration' ||
         declaration.declaration?.type !== 'VariableDeclaration') continue;
     for (const decl of declaration.declaration.declarations) {
-      if (decl.id.type === 'Identifier' && decl.id.name !== rootName && aliases.has(decl.id.name)) {
+      if (decl.id.type === 'Identifier' && !rootNames.has(decl.id.name) && aliases.has(decl.id.name)) {
         return null;
       }
     }
@@ -926,6 +1137,59 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const inChecks = [];
   /** @type {{call:AstNode,key:AstNode,property:string}[]} */
   const reflections = [];
+  /**
+   * An exported wrapper may pass its private owner to a local, nonescaping
+   * direct reader. The wrapper's own source contains only the call and owner
+   * binding, not the private field spelling. Admit this one argument edge
+   * only for a direct-call-only, one-parameter FunctionDeclaration,
+   * FunctionExpression, or ArrowFunctionExpression whose complete body is either
+   * a static member return or a const-member-read then return of that local. Identity forwarding, side effects, and public consumers refuse.
+   * @param {AstNode} node
+   * @param {AstNode|null} parent
+   * @param {string|null} key
+   * @returns {boolean}
+   */
+  function privateConsumerArgument(node,parent,key) {
+    if(parent?.type!=='CallExpression'||key!=='arguments'||parent.optional||
+      parent.callee?.type!=='Identifier'||parent.arguments.length!==1||
+      parent.arguments[0]!==node)return false;
+    const fn=functions.get(parent.callee.name);
+    const reader=fn?.node;
+    if(!fn||fn.external||fn.forwardIndex!==-1||fn.returnsRoot||
+      !reader||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(reader.type)||
+      !privateFunctionNodes.has(reader)||reader.async||reader.generator||
+      reader.params.length!==1)return false;
+    const parameter=reader.params[0];
+    if(parameter.type!=='Identifier'||!aliases.has(parameter.name))return false;
+    /** @type {AstNode|null} */
+    let member=null;
+    if(reader.type==='ArrowFunctionExpression'&&reader.body?.type==='MemberExpression') {
+      member=reader.body;
+    } else {
+      const body=reader.body?.body;
+      if(!Array.isArray(body))return false;
+      if(body.length===1&&body[0]?.type==='ReturnStatement') {
+        member=body[0].argument??null;
+      } else if(body.length===2&&body[0]?.type==='VariableDeclaration'&&
+        body[0].kind==='const'&&body[0].declarations.length===1&&
+        body[0].declarations[0].id?.type==='Identifier'&&
+        body[1]?.type==='ReturnStatement'&&
+        body[1].argument?.type==='Identifier'&&
+        body[1].argument.name===body[0].declarations[0].id.name) {
+        const declaration=body[0].declarations[0];
+        const name=declaration.id.name;
+        const uses=identifierUses.get(name)??[];
+        if(bindings.get(name)!==1||uses.length!==2||
+          !uses.some(use=>use.node===declaration.id&&use.parent===declaration&&use.key==='id')||
+          !uses.some(use=>use.node===body[1].argument&&use.parent===body[1]&&use.key==='argument'))
+          return false;
+        member=declaration.init??null;
+      } else return false;
+    }
+    return member?.type==='MemberExpression'&&!member.optional&&
+      member.object?.type==='Identifier'&&member.object.name===parameter.name&&
+      !member.computed&&staticName(member.property)!==null;
+  }
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
@@ -942,7 +1206,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     // functions survive the escape analysis above and remain eligible.
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type)&&
-      !privateFunctionNodes.has(ancestor)))return null;
+      !privateFunctionNodes.has(ancestor))&&!privateConsumerArgument(node,parent,key))return null;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
@@ -1281,7 +1545,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,closedWorld?:boolean,allowBoundFunctionTargets?:boolean}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -1312,7 +1576,7 @@ function renameLocalProperties(source, ast, options) {
   let objects = 0;
   let properties = 0;
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast, candidate.name, bindings);
+    const proof = proveLocalObject(ast, candidate.name, bindings,new Map(),new Map(),new Map(),new Map(),new Set(),false,[],options.closedWorld===true,options.allowBoundFunctionTargets===true);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
@@ -1351,4 +1615,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject,hasUnmodeledNativeBindGlobalReference};

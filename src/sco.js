@@ -32,7 +32,7 @@ const assetMediaTypes=new Map([
 ]);
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
-const {obfuscateFiles,safePath} = require('./core');
+const {obfuscateFiles,safePath,hasImportedDomStringSourceSink} = require('./core');
 const {createPathInventory,registerFilePath,portableKeys} = require('./portable-paths');
 const {collectBindings}=require('./properties');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
@@ -337,7 +337,7 @@ function decodePublicName(encodedName) {
     } catch (error) {
       return null;
     }
-    if(segment==='.'||segment==='..'||/[\\/\x00]/u.test(segment))return null;
+    if(segment==='.'||segment==='..'||/[\\/\x00-\x1f\x7f]/u.test(segment))return null;
     segments.push(segment);
   }
   return segments.join('/');
@@ -581,7 +581,11 @@ function createScoHandler(sourceFiles,options={}) {
   // The original HTML asset carries immutable SRI hashes. Per-response
   // randomized literal spellings would invalidate the browser's integrity
   // check even if all JavaScript expression values remained unchanged.
+  // An SCO GET compiles one file at a time, so per-file core source proof
+  // cannot see an imported DOM receiver whose native setter coerces functions.
+  // Apply the original graph-wide effect before any source-changing rewrite.
   const interfileSourceObserver=hasPinnedLocalJavaScriptIntegrity(normalized,prefix) ||
+    normalized.length>1 && hasImportedDomStringSourceSink(normalized) ||
     normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
@@ -591,7 +595,11 @@ function createScoHandler(sourceFiles,options={}) {
   if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const prepared = closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
+  // Cross-file property renaming also changes distributed source bytes. A
+  // later per-request source veto cannot restore an already-modified graph.
+  const prepared = closedWorld&&!interfileSourceObserver ?
+    renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files :
+    normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   // The server's admission and authorization configuration belongs to this
   // handler instance. Keep an owned startup snapshot so later mutations of a

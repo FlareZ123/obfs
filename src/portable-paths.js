@@ -1,6 +1,7 @@
 'use strict';
 
 const path=require('node:path');
+const {unicodeCaseFold}=require('./unicode-casefold');
 
 /**
  * A portable file tree cannot contain two spellings of the same directory,
@@ -17,21 +18,29 @@ function createPathInventory() {
 }
 
 /**
- * Two conservative name-equivalence keys for cross-platform output trees.
- * Some names (for example Greek final sigma) share an uppercase mapping
- * but differ when lowercased. Some other names share a lowercase mapping
- * but differ when uppercased. Retain both checks to avoid dropping either
- * previously rejected alias family. Uppercase expansion may intentionally
- * reject names that a particular filesystem would keep distinct.
+ * Four conservative name-equivalence keys for cross-platform output trees.
+ * The first three preserve existing lower/upper and observed macOS alias guards.
+ * The fourth applies the pinned Unicode 17.0.0 default full case fold to the
+ * complete string, including multi-code-point expansions. This catches
+ * compositions whose different code points require different one-step keys.
+ * The fold mapping is pinned, while NFC normalization still follows the Node
+ * runtime's Unicode data. The table is generated from Unicode's
+ * CaseFolding-17.0.0.txt by sims/generate-unicode-casefold-data.py.
+ * Existing heuristic keys remain because native filesystem behavior is not
+ * proven to equal one Unicode version's default fold. Some names may be
+ * conservatively refused even when a particular filesystem keeps them distinct.
  *
  * @param {string} filename
- * @returns {[string,string]}
+ * @returns {[string,string,string,string]}
  */
 function portableKeys(filename) {
   const normalized=filename.normalize('NFC');
+  const upper=normalized.toUpperCase().normalize('NFC');
   return [
     'lower:'+normalized.toLowerCase().normalize('NFC'),
-    'upper:'+normalized.toUpperCase().normalize('NFC')
+    'upper:'+upper,
+    'upper-lower:'+upper.toLowerCase().normalize('NFC'),
+    'casefold:'+unicodeCaseFold(normalized)
   ];
 }
 
@@ -56,7 +65,7 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
 
   const segments=filename.split('/');
   let directory='';
-  /** @type {{name:string,keys:[string,string]}[]} */
+  /** @type {{name:string,keys:[string,string,string,string]}[]} */
   const ancestors=[];
   for(let index=0;index<segments.length-1;index++) {
     directory=directory?directory+'/'+segments[index]:segments[index];
@@ -84,7 +93,7 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
  * @returns {string}
  */
 function safePath(file) {
-  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
+  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f\x7f]/u.test(file)) ||
       path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
   // With Unicode mode this range matches lone surrogates, not valid pairs.
   // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.

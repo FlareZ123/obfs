@@ -2,6 +2,7 @@
 
 const {parse}=require('parse5');
 const {createHash}=require('node:crypto');
+const path=require('node:path');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
@@ -481,8 +482,23 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       const encodedPath=url.pathname.slice(1);
       if(matchesDistributedScript(encodedPath))return encodedPath;
       const pathname=decodeURIComponent(url.pathname);
-      if(!pathname.startsWith('/')||pathname.includes('\\'))return null;
-      return pathname.slice(1);
+      if(!pathname.startsWith('/'))return null;
+      // Some static servers decode encoded separators before filesystem
+      // normalization. Consider both POSIX and Win32 interpretations: %2F
+      // can expose a POSIX dot-segment alias, while %5C can expose a Win32
+      // alias. Any matching interpretation is enough to preserve the SRI pin.
+      const decodedPath=pathname.slice(1);
+      const candidates=[
+        path.posix.normalize(decodedPath),
+        path.win32.normalize(decodedPath).replace(/\\/g,'/')
+      ];
+      for(const candidate of candidates) {
+        if(candidate==='.'||candidate==='..'||candidate.startsWith('../')||
+           candidate.includes('\\')||path.posix.isAbsolute(candidate)||
+           path.win32.isAbsolute(candidate))continue;
+        if(matchesDistributedScript(candidate))return candidate;
+      }
+      return null;
     }catch(error){return null;}
   }
 

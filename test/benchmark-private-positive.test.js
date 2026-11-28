@@ -6,7 +6,9 @@ const {spawnSync}=require('node:child_process');
 const path=require('node:path');
 
 test('full microbenchmark exercises actual private hot property rewrites',()=>{
-  const child=spawnSync(process.execPath,[path.join(__dirname,'benchmark.js')],{
+  // The dedicated `npm run benchmark` workflow step enforces the 2.5x budget in isolation.
+  // This concurrent suite test verifies transformation yield without a noisy wall-clock gate.
+  const child=spawnSync(process.execPath,[path.join(__dirname,'benchmark.js'),'--yield-only'],{
     encoding:'utf8',timeout:60000
   });
   assert.equal(child.status,0,'Benchmark error:\n'+child.stderr+'\n'+child.stdout);
