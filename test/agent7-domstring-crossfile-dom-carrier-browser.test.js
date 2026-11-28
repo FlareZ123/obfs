@@ -36,11 +36,11 @@ const consumer=fixture=>fixture.consumerPrefix+functionSource+
   'globalThis._seen=target.getAttribute("data-probe");\n'+
   'globalThis._answer=inspect();\n';
 
-test('cross-file DOM carriers must conservatively reach source-observer analysis',()=>{
+test('cross-file DOM carrier sinks require separate module-graph context',()=>{
   for(const fixture of cases){
     const code=consumer(fixture);
-    assert.equal(observesFunctionSource(parse(code,'module')),true,
-      fixture.id+' imported DOM carrier may be a native DOMString source observer');
+    assert.equal(observesFunctionSource(parse(code,'module')),false,
+      fixture.id+' isolated AST cannot establish imported DOM provenance');
   }
 });
 
