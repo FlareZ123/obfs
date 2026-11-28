@@ -73,4 +73,30 @@ test('strict identity comparison using WindowProxy property needs no source-byte
     'ordinary identity checks should retain local private-field renaming');
 });
 
+
+for(const [label,body] of /** @type {[string,string][]} */ ([
+  ['computed global alias member', "const root=globalThis;const proxy=root['top'];void proxy;"],
+  ['destructured global WindowProxy', "const {top:proxy}=window;void proxy;"],
+  ['Reflect.get global WindowProxy', "const proxy=Reflect.get(window,'top');void proxy;"],
+  ['Object.getOwnPropertyDescriptor global WindowProxy',
+    "const proxy=Object.getOwnPropertyDescriptor(window,'top');void proxy;"],
+  ['globalThis parent proxy', "const proxy=globalThis.parent;void proxy;"]
+])) {
+  test('global capability extraction protects published sibling source: '+label,()=>{
+    /** @type {SourceFile[]} */
+    const files=[
+      {path:'leaf.mjs',sourceType:'module',
+        code:'const record={privateField:23};const value=record.privateField;export function leaf(){return value;}'},
+      {path:'entry.mjs',sourceType:'module',
+        code:"import {leaf} from './leaf.mjs';void leaf();\n"+body}
+    ];
+    assert.equal(observesDistributedSource(parse(String(files[1].code),'module')),true,label);
+    const output=obfuscateFiles(files,{
+      mode:'coo',seed:'agent5-windowproxy-global-capability-'+label,
+      closedWorld:true,identifiers:false,strings:false
+    }).files.find(file=>file.path==='leaf.mjs');
+    assert.equal(output?.metrics.properties,0,label);
+  });
+}
+
 module.exports={graph};
