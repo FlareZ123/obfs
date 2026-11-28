@@ -157,6 +157,14 @@ async function runAttacker(){
     if(typed.kind!=='start')return;
     const {scoOrigin,ordinaryOrigin,cookie}=typed;
     try{
+      // In the Linux elevated test, demonstrate the public client cannot
+      // signal the separately owned privileged server even given its PID.
+      let signalPermissionDenied=false;
+      if(typed.serverPid&&process.platform==='linux'){
+        try{process.kill(typed.serverPid,0);}catch(error){
+          signalPermissionDenied=/** @type {NodeJS.ErrnoException} */(error).code==='EPERM';
+        }
+      }
       const nativeFetch=globalThis.fetch;
       const [scoSource,ordinarySource]=await Promise.all([
         nativeFetch(scoOrigin+'/obfs/client.mjs').then(r=>{
@@ -207,7 +215,8 @@ async function runAttacker(){
       globalThis.fetch=nativeFetch;
       process.send?.({kind:'attacker-result',result:{sco,ordinary,followup,
         followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
-        ordinaryPublicBytes:Buffer.byteLength(ordinarySource)}});
+        ordinaryPublicBytes:Buffer.byteLength(ordinarySource),
+        attackerUid:process.getuid?.()??-1,signalPermissionDenied}});
     }catch(error){
       process.send?.({kind:'attacker-error',message:String(error),
         stack:error instanceof Error?error.stack:''});
@@ -260,9 +269,14 @@ function receive(child,expected,timeoutMs=45000){
  *   exact:boolean,matchedControl:boolean,unauthorizedSco:number,
  *   unauthorizedOrdinary:number,publicServerPrivateCanary:boolean,
  *   scoBytes:number,ordinaryBytes:number,serverPid:number,
- *   attackerPid:number,traceLength:number}>}
+ *   attackerPid:number,traceLength:number,serverUid:number,attackerUid:number,
+ *   signalPermissionDenied:boolean}>}
  */
-async function runProcessBoundary(){
+async function runProcessBoundary(isolatedUid=false){
+  if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
+  if(isolatedUid&&(process.platform!=='linux'||process.getuid?.()!==0)){
+    throw new Error('Dedicated UID requires a privileged Linux test process');
+  }
   const server=fork(__filename,['--server'],{execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
   /** @type {import('node:child_process').ChildProcess|null} */
   let attacker=null;
@@ -279,10 +293,12 @@ async function runProcessBoundary(){
     assert.equal(deniedSco.status,403);
     assert.equal(deniedOrdinary.status,403);
     assert.notEqual(privatePath.status,200);
-    attacker=fork(__filename,['--attacker'],{execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
+    attacker=fork(__filename,['--attacker'],{execArgv:[],
+      ...(isolatedUid?{uid:65534,gid:65534}:{}),
+      stdio:['ignore','ignore','pipe','ipc']});
     const attackerReady=receive(attacker,'attacker-result');
     attacker.send({kind:'start',scoOrigin:ready.scoOrigin,
-      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie});
+      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie,serverPid:server.pid});
     const attack=await attackerReady;
     const attackerPid=attacker.pid||-1;
     // End the adversarial process before obtaining evaluator-only truth.
@@ -319,7 +335,10 @@ async function runProcessBoundary(){
       unauthorizedOrdinary:deniedOrdinary.status,
       publicServerPrivateCanary:false,scoBytes:attack.result.scoPublicBytes,
       ordinaryBytes:attack.result.ordinaryPublicBytes,serverPid:server.pid||-1,
-      attackerPid,traceLength:expected.length};
+      attackerPid,serverUid:process.getuid?.()??-1,
+      attackerUid:attack.result.attackerUid,
+      signalPermissionDenied:attack.result.signalPermissionDenied,
+      traceLength:expected.length};
   }finally{
     if(attacker)attacker.kill();
     if(server.connected)server.send?.({kind:'stop'});
