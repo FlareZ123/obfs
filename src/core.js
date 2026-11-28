@@ -9,7 +9,7 @@ const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectVerifiedImportedCssEscapeAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -2000,6 +2000,10 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedCloneAliases(prepared) : new Map();
   const importedUrlStaticProof=prepared.length>1 ?
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
+  // A supplied ESM module can export CSS.escape under a different name;
+  // calls in another module must still preserve original function source.
+  const importedCssEscapeProof=prepared.length>1 ?
+    collectVerifiedImportedCssEscapeAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
   // Declared HTML script/modulepreload SRI metadata also observes the exact
@@ -2012,7 +2016,7 @@ function obfuscateFiles(files, options = {}) {
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path))));
+        importedUrlStaticProof.get(file.path),importedCssEscapeProof.get(file.path))));
   // A single-file host lock is still a source-coordinate rewrite. Local AST
   // transforms can independently decline Function/source observers, but the
   // wrapper itself has no later per-transform guard. Reuse the same broad
@@ -2023,7 +2027,7 @@ function obfuscateFiles(files, options = {}) {
       observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path)));
+        importedUrlStaticProof.get(file.path),importedCssEscapeProof.get(file.path)));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.

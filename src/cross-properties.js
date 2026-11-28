@@ -624,6 +624,215 @@ function collectVerifiedImportedCloneAliases(files,parseFile=parseModule) {
 }
 
 /**
+ * Find exact ESM imports of an exported CSS.escape native-source coercer.
+ * This is a MAY-coerce proof, not proof that the host CSS namespace is
+ * immutable: an adversarial mutable CSS.escape still only causes extra
+ * refusals, never a permission to rewrite observable Function#toString.
+ * Resolve only supplied relative module paths, unique immutable const
+ * bindings, and literal export/re-export spellings; unsupported paths do
+ * not contribute invented provenance.
+ *
+ * @param {SourceFile[]} files
+ * @param {ParseModuleFn} [parseFile]
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedCssEscapeAliases(files,parseFile=parseModule) {
+  /** @type {Map<string,ParsedModule>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string')
+      modules.set(file.path,parseFile(file));
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exportedByFile=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,AstNode>} */
+    const candidates=new Map();
+    /** @type {Array<[string,AstNode]>} */
+    const assigned=new Array();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type==='VariableDeclaration') {
+        // Native method provenance is a MAY-alias: an exported let/var can
+        // still contain CSS.escape even if its value is later reassigned.
+        // Counting only immutable consts caused a source-change false safe.
+        for(const entry of declaration.declarations)
+          if(entry.id.type==='Identifier'&&entry.init&&
+             module.bindings.get(entry.id.name)===1)
+            candidates.set(entry.id.name,entry.init);
+      }
+      // Direct top-level updates of an exported let/var can install native
+      // methods after declaration. A write that may not run only enlarges
+      // the source-observation rejection set; it cannot authorize lowering.
+      const expression=statement.type==='ExpressionStatement'?
+        statement.expression:null;
+      if(expression?.type==='AssignmentExpression'&&
+         expression.operator==='='&&expression.left.type==='Identifier'&&
+         module.bindings.get(expression.left.name)===1)
+        assigned.push([expression.left.name,expression.right]);
+    }
+    // A locally declared CSS identifier shadows the ambient browser object.
+    const cssNamespaces=new Set(module.bindings.has('CSS')?[]:['CSS']);
+    const escapes=new Set();
+    /** @param {AstNode|null|undefined} node @returns {string|null} */
+    function member(node) {
+      if(!node||node.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isCSS(node) {
+      return Boolean(node&&(node.type==='Identifier'&&cssNamespaces.has(node.name)||
+        node.type==='MemberExpression'&&
+        node.object.type==='Identifier'&&
+        ['globalThis','window','self','global'].includes(node.object.name)&&
+        member(node)==='CSS'));
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isEscape(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return escapes.has(node.name);
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         member(node.callee)==='bind')return isEscape(node.callee.object);
+      if(node.type!=='MemberExpression')return false;
+      const name=member(node);
+      return isCSS(node.object)&&
+        (name==='escape'||node.computed&&name===null);
+    }
+    let changed;
+    do {
+      changed=false;
+      for(const [name,init] of [...candidates,...assigned]) {
+        if(!cssNamespaces.has(name)&&isCSS(init)) {
+          cssNamespaces.add(name);
+          changed=true;
+        }
+        if(!escapes.has(name)&&isEscape(init)) {
+          escapes.add(name);
+          changed=true;
+        }
+      }
+    }while(changed);
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration'&&
+         isEscape(statement.declaration))exported.add('default');
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const entry of statement.declaration.declarations)
+          if(entry.id.type==='Identifier'&&escapes.has(entry.id.name))
+            exported.add(entry.id.name);
+      }else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !escapes.has(spec.local.name))continue;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof publicName==='string')exported.add(publicName);
+        }
+      }
+    }
+    exportedByFile.set(filename,exported);
+  }
+  // Transitive explicit and export-star relays preserve native provenance.
+  let changed;
+  do {
+    changed=false;
+    for(const [filename,module] of modules) {
+      const available=/** @type {Set<string>} */ (exportedByFile.get(filename));
+      for(const statement of module.ast.body) {
+        if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)||
+           statement.source?.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/u.test(statement.source.value))continue;
+        const origin=resolveImport(filename,statement.source.value);
+        const sourceExports=origin?exportedByFile.get(origin):null;
+        if(!sourceExports)continue;
+        if(statement.type==='ExportAllDeclaration') {
+          if(statement.exported)continue;
+          for(const name of sourceExports) {
+            if(name==='default'||available.has(name))continue;
+            available.add(name);
+            changed=true;
+          }
+        }else {
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const name=spec.local.name??spec.local.value;
+            const publicName=spec.exported.name??spec.exported.value;
+            if(typeof name!=='string'||typeof publicName!=='string'||
+               !sourceExports.has(name)||available.has(publicName))continue;
+            available.add(publicName);
+            changed=true;
+          }
+        }
+      }
+    }
+  }while(changed);
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string'||
+         /[?#%\\]/u.test(statement.source.value))continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const exports=origin?exportedByFile.get(origin):null;
+      if(!exports)continue;
+      for(const spec of statement.specifiers) {
+        if(module.bindings.get(spec.local.name)!==1)continue;
+        if(spec.type==='ImportNamespaceSpecifier') {
+          for(const name of exports)names.add(spec.local.name+'.'+name);
+          continue;
+        }
+        const sourceName=spec.type==='ImportSpecifier'?
+          spec.imported.name??spec.imported.value:
+          spec.type==='ImportDefaultSpecifier'?'default':null;
+        if(sourceName!==null&&exports.has(sourceName))names.add(spec.local.name);
+      }
+    }
+    // Direct top-level await import("literal") is a local dependency with
+    // the same named/namespace export provenance as a static ESM import.
+    // Only const bindings with unique declarations qualify; Promise-valued
+    // imports, computed paths, reassignment and nested dynamic calls do not.
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        const expression=entry.init?.type==='AwaitExpression'?
+          entry.init.argument:null;
+        if(expression?.type!=='ImportExpression'||
+           expression.source.type!=='Literal'||
+           typeof expression.source.value!=='string'||
+           /[?#%\\]/u.test(expression.source.value))continue;
+        const origin=resolveImport(filename,expression.source.value);
+        const exports=origin?exportedByFile.get(origin):null;
+        if(!exports)continue;
+        if(entry.id.type==='Identifier'&&
+           module.bindings.get(entry.id.name)===1) {
+          for(const name of exports)names.add(entry.id.name+'.'+name);
+        }else if(entry.id.type==='ObjectPattern') {
+          for(const property of entry.id.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier'||
+               module.bindings.get(property.value.name)!==1)continue;
+            const name=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:
+                staticString(property.key);
+            if(name!==null&&exports.has(name))names.add(property.value.name);
+          }
+        }
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
+
+/**
  * Find exact named ESM imports of immutable native URL.parse/canParse aliases.
  * These methods coerce arguments through Web IDL and can reveal a producer
  * module's original Function#toString even when the consumer has no direct
@@ -3089,4 +3298,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectVerifiedImportedCssEscapeAliases,collectImportedFunctionArrays};

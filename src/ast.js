@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedCssEscapeMethods] Proven CSS.escape ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedCssEscapeMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -534,6 +535,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  /** @type {Map<string,Set<string>>} */
+  const cssImportedObjectKeys=new Map();
+  // Exact local ESM named/namespace imports of a native CSS.escape method.
+  // Dotted tokens name an imported namespace's exported member, not an
+  // arbitrary property of the real browser CSS namespace.
+  for(const name of importedCssEscapeMethods) {
+    const dot=name.indexOf('.');
+    if(dot<0) {coercers.add(name);continue;}
+    if(dot===0||dot===name.length-1)continue;
+    const receiver=name.slice(0,dot),method=name.slice(dot+1);
+    let methods=cssImportedObjectKeys.get(receiver);
+    if(!methods){methods=new Set();cssImportedObjectKeys.set(receiver,methods);}
+    methods.add(method);
+  }
   const nodeBufferNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
@@ -553,6 +568,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // JSON.parse and JSON.rawJSON call ToString on their text input.
   // Their SyntaxError.message can reveal a function's original source.
   const jsonNamespaces=new Set(['JSON']);
+  // CSS.escape takes a Web IDL CSSOMString and serializes an identifier.
+  // Passing a function exposes Function#toString, including exact source.
+  const cssNamespaces=new Set(['CSS']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
   const boundRegExpConstructors=new Set();
@@ -706,6 +724,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isGlobal(node.object) && memberName(node)==='JSON'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isCssNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      cssNamespaces.has(node.name) || node.type==='MemberExpression' &&
+      isGlobal(node.object) && memberName(node)==='CSS'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeBufferNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       nodeBufferNamespaces.has(node.name) || isRequireCall(node) &&
@@ -716,11 +740,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
+    // A direct bound native CSS.escape/String/etc call remains a coercer
+    // even without an intermediate variable that the alias pass can name.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')return isCoercer(node.callee.object);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
-    return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
+    const cssImported=node.object.type==='Identifier'?
+      cssImportedObjectKeys.get(node.object.name):undefined;
+    return (name!==null&&Boolean(cssImported?.has(name)) ||
+      node.computed&&name===null&&Boolean(cssImported?.size)) ||
+      isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
       name==='for' && isSymbolConstructor(node.object) ||
+      name==='escape' && isCssNamespace(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
   }
@@ -1010,6 +1043,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
+        if(isCssNamespace(value))changed=add(cssNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
@@ -1440,6 +1474,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(coercers,property.value.name)||changed;
         }
       }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern') {
+        const nativeCss=isCssNamespace(node.init);
+        const importedCssKeys=node.init?.type==='Identifier'?
+          cssImportedObjectKeys.get(node.init.name):undefined;
+        if(nativeCss || importedCssKeys?.size) {
+          for(const property of node.id.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+            const name=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((nativeCss && (name===null||name==='escape'))||
+               (importedCssKeys?.size &&
+                (name===null||importedCssKeys.has(name))))
+              changed=add(coercers,property.value.name)||changed;
+          }
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
         for(const property of node.id.properties) {
@@ -1448,6 +1498,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
           if(name==='JSON')changed=add(jsonNamespaces,property.value.name)||changed;
+          if(name==='CSS')changed=add(cssNamespaces,property.value.name)||changed;
           if(name==='structuredClone')changed=add(cloneFunctions,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
@@ -3446,7 +3497,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size)
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
