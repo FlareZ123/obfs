@@ -431,6 +431,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       if(parent?.type==='ImportNamespaceSpecifier')return;
       if(parent?.type==='MemberExpression'&&key==='object'&&parent.object===node)return;
       const target=importedNamespaces.get(node.name);
+      if(!target)return;
       for(const producer of allCallableOrigins(target))protectedPaths.add(producer);
     });
   }
