@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const {execFileSync}=require('node:child_process');
 const puppeteer=require('puppeteer-core');
 const {findInlineSvgSource}=require('../src/svg-assets');
 const prefix='<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="128" height="96">';
@@ -28,7 +29,8 @@ async function main(){
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
-    browser=await puppeteer.launch({executablePath:process.env.CHROMIUM_BIN||'google-chrome',
+    browser=await puppeteer.launch({executablePath:execFileSync('which',
+      [process.env.CHROMIUM_BIN||'google-chrome'],{encoding:'utf8'}).trim(),
       headless:true,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
     const page=await browser.newPage();
     /** @param {'direct'|'benign'|'animated'|'animated-xml'} name */
