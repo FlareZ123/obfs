@@ -486,81 +486,116 @@ test('24-call policy identifies selected sources through process-separated SCO a
       assert.equal(sco.finalState,ordinary.finalState);
       assert.deepEqual(sco.heldout.predictedOutputs,ordinary.heldout.predictedOutputs);
     }
+    // Negative control: preserve a real three-state machine as a reachable
+    // submachine, then unroll the observed policy trace into a fresh path. The
+    // final path state is reached only after the last observed response, so its
+    // future behavior is unconstrained by the transcript.
+    const base={
+      next:[[1,2],[2,0],[0,1]],
+      output:[[0,0],[0,1],[1,0]]
+    };
+    assert.equal(reachableStates(base,0).length,3);
+    assert.equal(new Set(observableStateClasses(base)).size,3);
+    const originalTrace=simulatePolicy(policy.nodes,base);
+    assert.ok(originalTrace.inputs.length<=24);
+
+    const pathStateCount=originalTrace.inputs.length+1;
+    const baseOffset=pathStateCount;
+    /** @type {{next:number[][],output:number[][]}} */
+    const extension={
+      next:Array.from({length:pathStateCount},()=>[baseOffset,baseOffset]),
+      output:Array.from({length:pathStateCount},()=>[0,0])
+    };
+    for(let index=0;index<originalTrace.inputs.length;index++){
+      const input=originalTrace.inputs[index];
+      const unused=1-input;
+      extension.output[index][input]=originalTrace.outputs[index];
+      extension.next[index][input]=index+1;
+      extension.output[index][unused]=0;
+      extension.next[index][unused]=baseOffset;
+    }
+    const extensionFinalState=pathStateCount-1;
+    // 11 is absent from the three base output vectors 00, 01, and 10.
+    extension.output[extensionFinalState]=[1,1];
+    extension.next[extensionFinalState]=[baseOffset,baseOffset];
+
+    // Keep all three distinct base behaviors reachable, and provide a return
+    // edge from the base component to the trace path to make the extension
+    // strongly connected.
+    const baseNext=base.next.map(row=>row.map(target=>baseOffset+target));
+    const baseOutput=base.output.map(row=>row.slice());
+    baseNext[0][0]=0;
+    extension.next.push(...baseNext);
+    extension.output.push(...baseOutput);
+
+    assert.equal(reachableStates(extension,0).length,extension.next.length,
+      'every extension state is reachable from the attack initial state');
+    for(let state=0;state<extension.next.length;state++){
+      assert.equal(reachableStates(extension,state).length,extension.next.length,
+        'the extended machine is strongly connected');
+    }
+    const extensionClasses=observableStateClasses(extension);
+    const extensionBehaviorClasses=new Set(extensionClasses).size;
+    assert.ok(extensionBehaviorClasses>=4,
+      'the reachable extension contains more than three distinct future behaviors');
+
+    const modifiedTrace=simulatePolicy(policy.nodes,extension);
+    assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
+    assert.deepEqual(modifiedTrace.outputs,originalTrace.outputs);
+    assert.equal(modifiedTrace.terminalClass,originalTrace.terminalClass);
+    assert.equal(modifiedTrace.finalState,extensionFinalState);
+
+    const distinguishingInput=extension.output[extensionFinalState].findIndex(
+      (value,input)=>value!==base.output[originalTrace.finalState][input]
+    );
+    assert.ok(distinguishingInput===0||distinguishingInput===1);
+    const suffix=[distinguishingInput];
+    const originalSuffixOutputs=outputTrace(base,originalTrace.finalState,suffix);
+    const extensionSuffixOutputs=outputTrace(extension,modifiedTrace.finalState,suffix);
+    assert.notDeepEqual(extensionSuffixOutputs,originalSuffixOutputs,
+      'the same policy transcript is compatible with a different future behavior');
+
+    const combined={
+      next:[
+        ...base.next.map(row=>row.slice()),
+        ...extension.next.map(row=>row.map(target=>target+3))
+      ],
+      output:[
+        ...base.output.map(row=>row.slice()),
+        ...extension.output.map(row=>row.slice())
+      ]
+    };
+    const combinedClasses=observableStateClasses(combined);
+    assert.notEqual(combinedClasses[originalTrace.finalState],
+      combinedClasses[3+modifiedTrace.finalState]);
+
+    const traceExtensionWitness={
+      originalQueries:originalTrace.inputs.length,
+      extensionStateCount:extension.next.length,
+      extensionBehaviorClasses,
+      originalFinalState:originalTrace.finalState,
+      extensionFinalState:modifiedTrace.finalState,
+      terminalClass:originalTrace.terminalClass,
+      suffix,originalSuffixOutputs,extensionSuffixOutputs
+    };
+    console.log('THREE_STATE_PRIOR_FALSIFIER '+JSON.stringify(traceExtensionWitness));
+
     const receiptPath=path.join(process.cwd(),'artifacts','sco-three-state-live-policy.json');
     await fs.mkdir(path.dirname(receiptPath),{recursive:true});
     const receipt={
       modelCount:models.length,transports:2,policySha256:policyHash,
-      queryBound:24,heldoutLength:64,receipts
+      queryBound:24,heldoutLength:64,receipts,
+      priorFalsifier:traceExtensionWitness
     };
     await fs.writeFile(receiptPath,JSON.stringify(receipt,null,2));
-    console.log('THREE_STATE_LIVE_POLICY '+JSON.stringify(receipt));
-
-    // Negative control: the 24-call guarantee is conditional on the <=3-state
-    // prior. Add a fourth reachable state on a transition not queried by the
-    // policy, preserving its entire observed trace but changing future behavior.
-    /** @type {{modelIndex:number,changedState:number,changedInput:number,
-     *   finalState:number,terminalClass:number,suffix:number[],
-     *   originalSuffixOutputs:number[],fourStateSuffixOutputs:number[]}|null} */
-    let fourStateWitness=null;
-    for(let modelIndex=0;modelIndex<MODEL_COUNT&&!fourStateWitness;modelIndex++){
-      const secret=decodeModel(modelIndex);
-      if(reachableStates(secret,0).length!==3)continue;
-      const originalTrace=simulatePolicy(policy.nodes,secret);
-      if(originalTrace.inputs.length!==24)continue;
-      for(const state of reachableStates(secret,originalTrace.finalState)){
-        for(let input=0;input<2;input++){
-          if(originalTrace.visited.has(state+':'+input))continue;
-          const oldTarget=secret.next[state][input];
-          const fourState={
-            next:secret.next.map(row=>row.slice()).concat([[3,3]]),
-            output:secret.output.map(row=>row.slice()).concat([[
-              1-secret.output[oldTarget][0],1-secret.output[oldTarget][1]
-            ]])
-          };
-          fourState.next[state][input]=3;
-          assert.equal(reachableStates(fourState,0).length,4,
-            'the added fourth state is reachable from the original initial state');
-          const modifiedTrace=simulatePolicy(policy.nodes,fourState);
-          assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
-          assert.deepEqual(modifiedTrace.outputs,originalTrace.outputs);
-          assert.equal(modifiedTrace.terminalClass,originalTrace.terminalClass);
-          assert.equal(originalTrace.terminalClass,
-            result.classes[modelIndex*3+originalTrace.finalState]);
-          const path=shortestInputPath(secret,originalTrace.finalState,state);
-          assert.ok(path);
-          const suffix=[...path,input,0];
-          const originalSuffixOutputs=outputTrace(secret,originalTrace.finalState,suffix);
-          const fourStateSuffixOutputs=outputTrace(fourState,modifiedTrace.finalState,suffix);
-          assert.notDeepEqual(fourStateSuffixOutputs,originalSuffixOutputs,
-            'the fourth state changes a future output after the policy stops');
-          const combined={
-            next:[
-              ...secret.next.map(row=>row.slice()),
-              ...fourState.next.map(row=>row.map(target=>target===3?6:target+3))
-            ],
-            output:[
-              ...secret.output.map(row=>row.slice()),
-              ...fourState.output.map(row=>row.slice())
-            ]
-          };
-          const combinedClasses=observableStateClasses(combined);
-          assert.notEqual(combinedClasses[originalTrace.finalState],
-            combinedClasses[3+modifiedTrace.finalState],
-            'original and four-state final states have different future behaviors');
-          fourStateWitness={
-            modelIndex,changedState:state,changedInput:input,
-            finalState:originalTrace.finalState,
-            terminalClass:originalTrace.terminalClass,suffix,
-            originalSuffixOutputs,fourStateSuffixOutputs
-          };
-          break;
-        }
-        if(fourStateWitness)break;
-      }
-    }
-    assert.ok(fourStateWitness,
-      'find a reachable four-state extension outside the observed 24-call path');
-    console.log('THREE_STATE_PRIOR_FALSIFIER '+JSON.stringify(fourStateWitness));
+    console.log('THREE_STATE_LIVE_POLICY_SUMMARY '+JSON.stringify({
+      modelCount:models.length,transports:2,queryBound:24,
+      receipts:receipts.map(item=>({
+        model:item.model,transport:item.transport,queries:item.queries,
+        terminalClass:item.terminalClass,heldoutVerified:item.heldout.exact
+      })),
+      priorFalsifier:traceExtensionWitness
+    }));
   }finally{
     await fs.rm(directory,{recursive:true,force:true});
     await fs.rm(policyPath,{force:true});
