@@ -31,7 +31,16 @@ const cases=[
     expression:'esc(protectedFn)'},
   {name:'assigned method record',
     declarations:'const registry={};registry.esc=CSS.escape;',
-    expression:'registry.esc(protectedFn)'}
+    expression:'registry.esc(protectedFn)'},
+  {name:'bound method',
+    declarations:'const esc=CSS.escape.bind(CSS);',
+    expression:'esc(protectedFn)'},
+  {name:'call indirect',
+    declarations:'',expression:'CSS.escape.call(CSS,protectedFn)'},
+  {name:'apply indirect',
+    declarations:'',expression:'CSS.escape.apply(CSS,[protectedFn])'},
+  {name:'Reflect.apply indirect',
+    declarations:'',expression:'Reflect.apply(CSS.escape,CSS,[protectedFn])'}
 ];
 
 /**
