@@ -100,6 +100,12 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify production SCO WebAuthn assertion admission, replay and HTTP RPC gating
+        run: node --test test/sco-webauthn-admission.test.js
+      - name: Production SCO admission using real Chromium WebAuthn virtual authenticator
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-webauthn-admission-browser.js
       - name: Browser WebAuthn origin, session, and real SCO RPC boundary
         env:
           CHROMIUM_BIN: google-chrome
