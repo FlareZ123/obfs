@@ -4189,6 +4189,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
            canReadLoaderRoot(target,field) || target.type==='Identifier' &&
            globals.has(target.name) &&
            (field===null || browserReaders.has(field) ||
+            windowProxyRoots.has(field??'') ||
             ['require','module'].includes(field)))observed=true;
       }
     }
@@ -4208,6 +4209,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
+      // The WindowProxy can also be reached as window.top,
+      // globalThis.parent or through a global-object alias. An embedding
+      // page may supply an original source SRI digest at runtime, leaving no
+      // pin, parser call or source-reader name in this compiler's input.
+      const pureWindowMemberIdentity=parent?.type==='BinaryExpression' &&
+        (parent.operator==='==='||parent.operator==='!==') &&
+        (propertyKey==='left'||propertyKey==='right');
+      if(node.object.type==='Identifier' && globals.has(node.object.name) &&
+         windowProxyRoots.has(key??'') && !pureWindowMemberIdentity)observed=true;
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
@@ -4225,6 +4235,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
       if(root.type==='Identifier' && globals.has(root.name) &&
          (target===null||browserReaders.has(target)||
+          windowProxyRoots.has(target??'') ||
           ['require','process','module','performance','getBuiltinModule',
             'createRequire'].includes(target)) ||
          canReadPerformanceRoot(root) &&
@@ -4247,6 +4258,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(['get','getOwnPropertyDescriptor'].includes(method??'')) {
         if(root.type==='Identifier' && globals.has(root.name) &&
            (target===null || browserReaders.has(target) ||
+            windowProxyRoots.has(target??'') ||
             ['require','process','module','getBuiltinModule','createRequire'].includes(target)))observed=true;
         if(canReadLoaderRoot(root,target) ||
            isProcessModuleRequire(root) && canReachLoader('process',target))observed=true;
