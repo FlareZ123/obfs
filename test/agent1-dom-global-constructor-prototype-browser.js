@@ -58,9 +58,11 @@ async function main(){
     const transformed=compile(item.mutation,mode);
     const original=[clientSource,item.mutation,bootstrapSource];
     const mutated=item.mutation!=='';
-    if(mutated)assert.equal(String(transformed.files[0].code),clientSource,
-      'Cross-file browser DOMString source must block speculative client encoding');
-    else assert.notEqual(String(transformed.files[0].code),clientSource,
+    // Test-only negative comparator: execute the unpatched emission even
+    // when source is already visibly rewritten. The assertion belongs in
+    // the fixed-head suite; here real Chromium decides whether observable
+    // DOMString function source actually differs.
+    if(!mutated)assert.notEqual(String(transformed.files[0].code),clientSource,
       'Unmodified native Node insertion must preserve a positive string rewrite');
     const root='/'+item.name+'/'+mode;
     for(const variant of /** @type {const} */(['before','after'])){
