@@ -254,3 +254,29 @@ test('SQLite rejects mismatched RP origin/session policy across worker instances
     }finally{one.close();two.close();}
   });
 });
+
+test('SQLite persisted policy fences independently named credential authorities',async()=>{
+  await withDatabase('credential-registry.sqlite',async file=>{
+    const options={
+      rpId:'localhost',allowedOrigins:['http://localhost:8080'],
+      allowInsecureLocalhost:true,credentialAuthorityId:'registry:tenant-A',
+      lookupCredential:()=>null,updateSignCount:()=>false
+    };
+    const first=store(file),second=store(file);
+    try{
+      assert.doesNotThrow(()=>createScoWebAuthnAdmission({...options,stateStore:first}));
+      assert.throws(()=>createScoWebAuthnAdmission({
+        ...options,credentialAuthorityId:'registry:tenant-B',stateStore:second
+      }),/replica configuration/u,
+      'Same RP/origin/UV but distinct credential registry must refuse shared SQLite tokens');
+      assert.doesNotThrow(()=>createScoWebAuthnAdmission({...options,stateStore:second}),
+        'Matching application authority permits an additional shared-state handle');
+    }finally{first.close();second.close();}
+    const reopened=store(file);
+    try{
+      assert.throws(()=>createScoWebAuthnAdmission({
+        ...options,credentialAuthorityId:'registry:tenant-B',stateStore:reopened
+      }),/replica configuration/u,'Authority must remain bound after process restart');
+    }finally{reopened.close();}
+  });
+});
