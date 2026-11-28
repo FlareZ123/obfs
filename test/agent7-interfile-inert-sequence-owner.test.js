@@ -83,6 +83,56 @@ test('cross-file exported owner property names rewrite through inert comma alias
   }
 });
 
+test('named ESM identity reexports forward inert comma owner across four modules',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'owner.mjs',sourceType:'module',
+      code:'export const owner={privateKey:17,otherKey:5};'+
+        'export function identity(value){return value;}'},
+    {path:'relay.mjs',sourceType:'module',
+      code:'export {identity as forward} from "./owner.mjs";'},
+    {path:'consumer.mjs',sourceType:'module',
+      code:'import {owner as imported} from "./owner.mjs";'+
+        'import {forward} from "./relay.mjs";'+
+        'const alias=forward((0,imported));'+
+        'export const output=alias.privateKey+alias.otherKey;'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {output} from "./consumer.mjs";console.log(output);'}
+  ];
+  const native=await execute(files);
+  assert.equal(native,'22');
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const compiled=compile(files,mode,'reexported-identity');
+    assert.equal(compiled.crossFile.properties,2,
+      mode+' must preserve owner provenance across named identity barrel');
+    assert.equal(await execute(/** @type {SourceFile[]} */(compiled.files)),native);
+  }
+});
+
+test('immutable imported key still resolves behind private comma owner alias',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'owner.mjs',sourceType:'module',
+      code:'export const key="privateKey";'+
+        'export const owner={privateKey:17,otherKey:5};'},
+    {path:'consumer.mjs',sourceType:'module',
+      code:'import {owner as imported,key} from "./owner.mjs";'+
+        'const alias=(0,imported);'+
+        'export const output=[alias[key]+alias.otherKey,key];'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {output} from "./consumer.mjs";'+
+        'console.log(JSON.stringify(output));'}
+  ];
+  const native=await execute(files);
+  assert.equal(native,'[22,"privateKey"]');
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const compiled=compile(files,mode,'immutable-imported-key');
+    assert.equal(compiled.crossFile.properties,2,
+      mode+' must rewrite known dynamic imported selector through private owner');
+    assert.equal(await execute(/** @type {SourceFile[]} */(compiled.files)),native);
+  }
+});
+
 const negatives=[
   'const alias=(globalThis.exposed=imported,imported);'+
     'export const output=Object.keys(globalThis.exposed);',
