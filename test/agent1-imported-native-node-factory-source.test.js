@@ -45,7 +45,15 @@ test('mutable donor factory and function-returning donor preserve sibling source
     'const document={createElement(){return function source(){return 13;};}};'+
       'export const build=()=>document.createElement("script");',
     'export const build=()=>document[globalThis.hostMethod]("script");',
-    'export function build(){globalThis.hostSideEffect();return document.createElement("script");}'
+    'export function build(){globalThis.hostSideEffect();return document.createElement("script");}',
+    // A pure exported factory does not certify that its module evaluation
+    // leaves the realm unchanged. Extra exported const initializers can
+    // invoke host code before the consumer calls the factory.
+    'export const sideEffect=globalThis.poisonDocument();'+
+      'export const build=()=>document.createElement("script");',
+    'export const build=()=>document.createElement("script");'+
+      'export const effect=globalThis.poisonDocument();',
+    'export function harmless(){};export const build=()=>document.createElement("script");'
   ];
   for(const factory of unsafe)for(const mode of /** @type {const} */(['coo','sno','sco'])){
     const out=compile(factory,importAndInsert,mode);
