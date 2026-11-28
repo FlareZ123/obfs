@@ -184,13 +184,28 @@ function hasWeakMapPrototypeExposure(ast) {
         names.has(memberKey(node)??'')
     ));
   }
-  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  /**
+   * Track direct WeakMap constructors as well as native-compatible derived
+   * handles: Function#bind and Reflect.get(globalThis, 'WeakMap'). Treat a
+   * shadowed or replaced intrinsic conservatively as a possible WeakMap
+   * constructor, not as proof that no native WeakMap can be created.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
   function isWeakMapConstructor(node) {
-    return Boolean(node&&(
-      node.type==='Identifier'&&weakMapConstructors.has(node.name)||
-      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
-        memberKey(node)==='WeakMap'
-    ));
+    if(!node)return false;
+    if(node.type==='Identifier')return weakMapConstructors.has(node.name);
+    if(node.type==='MemberExpression')
+      return isGlobalRoot(node.object)&&memberKey(node)==='WeakMap';
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      if(memberKey(node.callee)==='bind'&&node.arguments.length>=1&&
+         isWeakMapConstructor(node.callee.object))return true;
+      if(memberKey(node.callee)==='get'&&
+         isNamespace(node.callee.object,reflectNamespaces)&&
+         isGlobalRoot(node.arguments[0])&&
+         staticString(node.arguments[1])==='WeakMap')return true;
+    }
+    return false;
   }
   /**
    * Reflect.construct(Target, args, newTarget?) creates a WeakMap when its
