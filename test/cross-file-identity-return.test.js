@@ -303,3 +303,75 @@ test('factory results retain ownership through multi-slot records and tuples',as
     await checkFactory(factory,tupleMain,2,mode,undefined,identityModule);
   }
 });
+
+
+test('exported factory results are proven across every direct importer',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const modules=[
+    {path:'left.mjs',code:'import {makeState} from "./state.mjs";'+
+      'const value=makeState();export const leftValue=value.secretField;'},
+    {path:'right.mjs',code:'import {makeState} from "./state.mjs";'+
+      'const value=makeState();export const rightValue=value.otherField;'},
+    {path:'main.mjs',code:'import {leftValue} from "./left.mjs";'+
+      'import {rightValue} from "./right.mjs";console.log(leftValue+rightValue);'}
+  ];
+  for(const mode of ['coo','sno','sco']) {
+    await checkFactoryGraph(factory,modules,2,mode);
+  }
+});
+
+test('one escaping factory result cancels every importer property edit',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const modules=[
+    {path:'left.mjs',code:'import {makeState} from "./state.mjs";'+
+      'const value=makeState();export const leftValue=value.secretField;'},
+    {path:'right.mjs',code:'import {makeState} from "./state.mjs";'+
+      'const value=makeState();globalThis.leaked=value;'+
+      'export const rightValue=value.otherField;'},
+    {path:'main.mjs',code:'import {leftValue} from "./left.mjs";'+
+      'import {rightValue} from "./right.mjs";'+
+      'console.log(leftValue+rightValue+Object.keys(globalThis.leaked).join(","));'}
+  ];
+  await checkFactoryGraph(factory,modules,0);
+});
+
+/**
+ * Check a factory's direct calls across several independent ESM importers.
+ * @param {string} factory
+ * @param {{path:string,code:string}[]} modules
+ * @param {number} renamed
+ * @param {'coo'|'sno'|'sco'} [mode]
+ * @returns {Promise<void>}
+ */
+async function checkFactoryGraph(factory,modules,renamed,mode='coo') {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-factory-graph-'));
+  const files=/** @type {import('../src/core').SourceFile[]} */ ([
+    {path:'state.mjs',sourceType:'module',code:factory},
+    ...modules.map(file=>({path:file.path,sourceType:'module',code:file.code}))
+  ]);
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const result=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+      return result.stdout;
+    }
+    const baseline=await execute(files);
+    const output=obfuscateFiles(files,{
+      mode,seed:'cross-file-exported-factory-graph',
+      closedWorld:true,strings:false,identifiers:false
+    });
+    assert.equal(output.crossFile.properties,renamed);
+    if(renamed>0) {
+      const state=output.files.find(file=>file.path==='state.mjs');
+      const left=output.files.find(file=>file.path==='left.mjs');
+      const right=output.files.find(file=>file.path==='right.mjs');
+      assert.ok(state&&left&&right);
+      for(const file of [state,left,right]) {
+        assert.doesNotMatch(String(file.code),/secretField|otherField/u);
+      }
+    }
+    assert.equal(await execute(output.files),baseline);
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+}
