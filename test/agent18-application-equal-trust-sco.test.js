@@ -202,6 +202,7 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
         }
       }
     }
+    /** @type {Record<string,unknown>} */
     const paired={};
     for(const [name,group] of Object.entries(samples)){
       const ratios=group.native.map((n,i)=>({
