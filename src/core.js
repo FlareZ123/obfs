@@ -2116,6 +2116,95 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
 }
 
 /**
+ * Identify shipped-source mutations of the shared Function.prototype invocation
+ * protocol. A sibling module can alter how a later module's fn.call/apply/bind
+ * forwards arguments, causing previously skipped default parameters to execute.
+ * This scan intentionally does not claim to rule out hostile *host* mutations;
+ * it only propagates verified/possible mutations inside this compiled group.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @returns {Set<string>}
+ */
+function mutatedFunctionCallProtocols(ast) {
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+  const keyOf=node=>{
+    if(node?.type!=='MemberExpression')return null;
+    const property=node.property;
+    if(!node.computed&&property?.type==='Identifier')return property.name;
+    return property?.type==='Literal'&&typeof property.value==='string'?
+      property.value:null;
+  };
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  const isFunctionConstructor=node=>Boolean(node&&(
+    node.type==='Identifier'&&node.name==='Function'||
+    node.type==='MemberExpression'&&keyOf(node)==='Function'&&
+      node.object.type==='Identifier'&&
+      ['globalThis','window','self','global'].includes(node.object.name)
+  ));
+  const aliases=new Set();
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  const isFunctionPrototype=node=>Boolean(node&&(
+    node.type==='Identifier'&&aliases.has(node.name)||
+    node.type==='MemberExpression'&&keyOf(node)==='prototype'&&
+      isFunctionConstructor(node.object)
+  ));
+  // Direct and transitive aliases conservatively inherit prototype ownership.
+  // Scope collisions can over-report; they cannot justify a source rewrite.
+  for(let iteration=0;iteration<4;iteration++) {
+    let changed=false;
+    walk(ast,node=>{
+      const assign=node.type==='VariableDeclarator'?
+        {left:node.id,right:node.init}:
+        node.type==='AssignmentExpression'?
+          {left:node.left,right:node.right}:null;
+      if(assign?.left?.type==='Identifier'&&isFunctionPrototype(assign.right)&&
+         !aliases.has(assign.left.name)) {
+        aliases.add(assign.left.name);
+        changed=true;
+      }
+    });
+    if(!changed)break;
+  }
+  const altered=new Set();
+  /** @param {string|null} name */
+  function add(name) {
+    if(name===null) {
+      for(const method of ['call','apply','bind'])altered.add(method);
+    } else if(['call','apply','bind'].includes(name))altered.add(name);
+  }
+  walk(ast,node=>{
+    const target=node.type==='AssignmentExpression'?node.left:
+      node.type==='UpdateExpression'?node.argument:
+      node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
+    if(target?.type==='MemberExpression'&&isFunctionPrototype(target.object))
+      add(keyOf(target));
+    if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
+    const method=keyOf(node.callee);
+    if(!['defineProperty','defineProperties','assign','set','deleteProperty',
+          'setPrototypeOf'].includes(method??''))return;
+    if(!isFunctionPrototype(node.arguments[0]))return;
+    if(['setPrototypeOf','assign','defineProperties'].includes(method??'')) {
+      const entries=node.arguments[1];
+      if(method==='setPrototypeOf'||entries?.type!=='ObjectExpression')add(null);
+      else for(const property of entries.properties??[]) {
+        if(property.type!=='Property') {add(null);continue;}
+        if(!property.computed&&property.key?.type==='Identifier')
+          add(property.key.name);
+        else if(property.key?.type==='Literal'&&
+                typeof property.key.value==='string')
+          add(property.key.value);
+        else add(null);
+      }
+    } else {
+      const methodName=node.arguments[1];
+      add(methodName?.type==='Literal'&&typeof methodName.value==='string'?
+        methodName.value:null);
+    }
+  });
+  return altered;
+}
+
+/**
  * Obfuscate an in-memory file group. Internal imports retain their relative paths.
  * Default transformations preserve dependencies and module boundaries.
  * @param {SourceFile[]} files
@@ -2263,8 +2352,17 @@ function obfuscateFiles(files, options = {}) {
       type:'Program',start:0,end:0,
       body:classicScriptAsts.flatMap(ast=>ast.body??[])
     }):false;
+  // An earlier shipped module may replace Function.prototype.call/apply/bind
+  // before another module makes an apparently known-argument local call.
+  // A default parameter can then run despite a supplied argument. Carry
+  // that realm-wide fact into every module's WeakMap provenance scan.
+  const untrustedCallProtocols=new Set();
+  for(const {ast} of sourceObserverFiles)
+    for(const name of mutatedFunctionCallProtocols(ast))
+      untrustedCallProtocols.add(name);
   const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
-    sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
+    sourceObserverFiles.some(({ast})=>
+      hasWeakMapPrototypeExposure(ast,untrustedCallProtocols));
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
   let remoteSourceObserver=hasPinnedSource||sharedCommonJsStorageSourceObserver;
