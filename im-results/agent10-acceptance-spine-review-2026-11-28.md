@@ -118,3 +118,8 @@ This makes the acceptance disposition unambiguous: current main is not a passing
 
 
 The same main-baseline run also records a single-use function-factory microbenchmark at `3.138x` (baseline 0.61 ms, obfuscated 1.90 ms), causing the `benchmark-private-positive` test to exit nonzero. This is an observed breach of the 2.5x runtime budget, although it is a single wall-time sample and needs repeated CPU-bound confirmation before treating it as a stable population estimate.
+
+
+## Test-oracle classification warning
+
+The 14 current-main behavioral failures are not all equivalent. Some existing positive expectations directly expose property spellings through exported function source or exported owner objects (for example, the ESM factory's exported `read`, exported `calculate`, exported `state`, and the private-tuple exported `score`). Those should be restructured around private direct-call helpers plus source-stable public wrappers, not “fixed” by weakening source-observer guards. The bound-interception tests currently assert successful attacker extraction of transformed target source; they should be treated as vulnerable-control evidence and separated from candidate acceptance. The private local-class direct-use case appears to be a valid positive yield control and should remain. Full details: `im-results/agent10-source-observation-review-of-main-red-tests-2026-11-28.md`.
