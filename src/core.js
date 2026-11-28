@@ -630,7 +630,12 @@ function hasImportedDomStringSourceSink(files) {
     function isImportedCollection(node){
       if(!node)return false;
       if(node.type==='Identifier')return collectionNames.has(node.name);
-      if(node.type==='CallExpression')return isImportedCollectionFactory(node.callee);
+      if(node.type==='CallExpression'){
+        if(isImportedCollectionFactory(node.callee))return true;
+        if(node.callee.type==='Identifier'&&
+           [...(localForwarders.get(node.callee.name)??[])].some(index=>
+             isImportedCollection(node.arguments[index])))return true;
+      }
       if(node.type==='MemberExpression'){
         const key=property(node);
         return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
@@ -644,6 +649,9 @@ function hasImportedDomStringSourceSink(files) {
       if(node.type==='Identifier')return receiverNames.has(node.name);
       if(node.type==='CallExpression') {
         if(isImportedFactory(node.callee))return true;
+        if(node.callee.type==='Identifier'&&
+           [...(localForwarders.get(node.callee.name)??[])].some(index=>
+             isImportedReceiver(node.arguments[index])))return true;
         if(node.callee.type==='MemberExpression'&&
            ['item','namedItem'].includes(property(node.callee)??'')&&
            isImportedCollection(node.callee.object))return true;
@@ -657,12 +665,80 @@ function hasImportedDomStringSourceSink(files) {
       }
       return false;
     }
+    /**
+     * Mark a locally defined helper as a DOM element/collection factory only
+     * when a returned expression is already proved to have that provenance.
+     * Include arrow expression bodies and nested block returns; the latter
+     * may over-refuse but cannot justify an unsafe source rewrite.
+     * @param {import('./ast').AstNode|null|undefined} fn
+     * @param {(value:import('./ast').AstNode|null|undefined)=>boolean} predicate
+     * @returns {boolean}
+     */
+    function returnsProved(fn,predicate) {
+      if(!fn||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      if(fn.body?.type!=='BlockStatement')return predicate(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&predicate(node.argument))found=true;
+      });
+      return found;
+    }
+    // Identity helper calls propagate both element and collection ownership
+    // through parameters, not just through direct return of an imported name.
+    /** @type {Map<string,Set<number>>} */
+    const localForwarders=new Map();
+    /**
+     * @param {string} name
+     * @param {import('./ast').AstNode|null|undefined} fn
+     * @returns {boolean}
+     */
+    function inspectForwarding(name,fn){
+      if(!fn||!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      /** @type {import('./ast').AstNode[]} */
+      const returns=[];
+      if(fn.body?.type==='BlockStatement'){
+        walk(fn.body,node=>{
+          if(node.type==='ReturnStatement'&&node.argument)returns.push(node.argument);
+        });
+      }else if(fn.body) returns.push(fn.body);
+      let added=false;
+      const owned=localForwarders.get(name)??new Set();
+      for(const value of returns){
+        if(value.type!=='Identifier')continue;
+        const index=(fn.params??[]).findIndex((/** @type {import('./ast').AstNode} */ param)=>
+          param.type==='Identifier'&&param.name===value.name);
+        if(index>=0&&!owned.has(index)){owned.add(index);added=true;}
+      }
+      if(added)localForwarders.set(name,owned);
+      return added;
+    }
     let changed;
     do {
       changed=false;
       walk(ast,node=>{
+        if(node.type==='FunctionDeclaration'&&node.id?.name){
+          const name=node.id.name;
+          if(returnsProved(node,isImportedReceiver)&&!factoryNames.has(name)){
+            factoryNames.add(name);changed=true;
+          }
+          if(returnsProved(node,isImportedCollection)&&
+             !collectionFactoryNames.has(name)){
+            collectionFactoryNames.add(name);changed=true;
+          }
+          if(inspectForwarding(name,node))changed=true;
+        }
         if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
         const name=node.id.name;
+        if(returnsProved(node.init,isImportedReceiver)&&!factoryNames.has(name)){
+          factoryNames.add(name);changed=true;
+        }
+        if(returnsProved(node.init,isImportedCollection)&&
+           !collectionFactoryNames.has(name)){
+          collectionFactoryNames.add(name);changed=true;
+        }
+        if(inspectForwarding(name,node.init))changed=true;
         if(isImportedReceiver(node.init)&&!receiverNames.has(name)){
           receiverNames.add(name);changed=true;
         }
