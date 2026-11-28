@@ -188,29 +188,62 @@ function collectVerifiedImportedNativeNodeFactories(files) {
   /** @type {Map<string,Set<string>>} */
   const imported=new Map();
   for(const [filename,ast] of modules){
-    const bindingCounts=collectBindings(ast);
-    for(const statement of ast.body) {
-      if(statement.type!=='ImportDeclaration'||typeof statement.source.value!=='string')
-        continue;
-      const specifier=statement.source.value;
-      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-         /[?#%\\]/u.test(specifier)||specifier.includes('//')||
-         hasUrlPathnameNormalizationHazard(specifier)||
-         hasTerminalUrlDotSegment(specifier))continue;
-      const donor=path.posix.normalize(
-        path.posix.join(path.posix.dirname(filename),specifier));
-      const names=exported.get(donor);
-      if(!names)continue;
-      for(const entry of statement.specifiers??[]) {
-        if(entry.type!=='ImportSpecifier'||entry.local?.type!=='Identifier'||
-           bindingCounts.get(entry.local.name)!==1)continue;
-        const external=entry.imported.name??entry.imported.value;
-        if(typeof external!=='string'||!names.has(external))continue;
-        const local=imported.get(filename)??new Set();
-        local.add(entry.local.name);
-        imported.set(filename,local);
-      }
+    // The immutable factory can still return an arbitrary value if an
+    // earlier opaque call replaces the native document method. Admit only
+    // a one-import ESM consumer whose first executable statement is the
+    // single, zero-argument factory call in a unique top-level const.
+    // This deliberately refuses otherwise attractive broad alias claims.
+    const imports=ast.body.filter((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ImportDeclaration');
+    if(imports.length!==1||imports[0].specifiers?.length!==1)continue;
+    const statement=imports[0];
+    const entry=statement.specifiers[0];
+    if(entry.type!=='ImportSpecifier'||entry.local?.type!=='Identifier'||
+       typeof statement.source?.value!=='string')continue;
+    const specifier=statement.source.value;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+       hasUrlPathnameNormalizationHazard(specifier)||
+       hasTerminalUrlDotSegment(specifier))continue;
+    const donor=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    const names=exported.get(donor);
+    const external=entry.imported.name??entry.imported.value;
+    const localName=entry.local.name;
+    if(!names||typeof external!=='string'||!names.has(external)||
+       collectBindings(ast).get(localName)!==1)continue;
+    let call=null;
+    let callStatementIndex=-1;
+    for(let i=0;i<ast.body.length;i++){
+      const stmt=ast.body[i];
+      if(stmt.type!=='VariableDeclaration'||stmt.kind!=='const'||
+         stmt.declarations?.length!==1)continue;
+      const declaration=stmt.declarations[0];
+      const init=declaration.init;
+      if(declaration.id.type!=='Identifier'||!init||
+         init.type!=='CallExpression'||init.optional||
+         init.callee.type!=='Identifier'||init.callee.name!==localName||
+         init.arguments.length!==0)continue;
+      call=init;callStatementIndex=i;break;
     }
+    if(!call||callStatementIndex<0||
+       ast.body.slice(0,callStatementIndex).some(
+         (/** @type {import('./ast').AstNode} */ node)=>
+           node.type!=='ImportDeclaration'))continue;
+    // One initial call is the entire trusted expression island. Any
+    // repeated, nested or deferred use of the same imported factory can
+    // execute after unknown mutations and must not reuse its native proof.
+    let calls=0;
+    let otherCall=false;
+    walk(ast,node=>{
+      if(node.type==='CallExpression'&&
+         node.callee.type==='Identifier'&&node.callee.name===localName){
+        calls++;
+        if(node!==call)otherCall=true;
+      }
+    });
+    if(calls!==1||otherCall)continue;
+    imported.set(filename,new Set([localName]));
   }
   return imported;
 }
