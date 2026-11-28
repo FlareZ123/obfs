@@ -291,7 +291,7 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
       realm.__hostCarrierTrace=[];
       // This callback is outside every obfuscator input file, exactly like an
       // application-provided window API. It independently inspects the owner.
-      realm.window.host={capture(value){
+      realm.window.host={capture(/** @type {Record<string,number>} */ value){
         const keys=Reflect.ownKeys(value).filter(x=>typeof x==='string').sort();
         realm.__hostCarrierTrace.push({
           keys,secret:value.secretField,other:value.otherField,
