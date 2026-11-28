@@ -97,7 +97,11 @@ const cases=[
 ['reflect-get-weakmap-constructor','const carrier={instance:new (Reflect.get(globalThis,"WeakMap"))()};','carrier.instance'],
 ['weakmap-from-own-descriptor','const carrier={instance:new (Object.getOwnPropertyDescriptor(globalThis,"WeakMap").value)()};','carrier.instance'],
 ['weakmap-from-native-bind-call','const carrier={instance:new (Function.prototype.bind.call(WeakMap,null))()};','carrier.instance'],
-['weakmap-from-transparent-proxy','const carrier={instance:new (new Proxy(WeakMap,{}))()};','carrier.instance']
+['weakmap-from-transparent-proxy','const carrier={instance:new (new Proxy(WeakMap,{}))()};','carrier.instance'],
+['ordinary-reflect-construct','class Ordinary{} const carrier={instance:Reflect.construct(Ordinary,[])};','carrier.instance'],
+['ordinary-native-bind-call','class Ordinary{} const carrier={instance:new (Function.prototype.bind.call(Ordinary,null))()};','carrier.instance'],
+['ordinary-transparent-proxy','class Ordinary{} const carrier={instance:new (new Proxy(Ordinary,{}))()};','carrier.instance'],
+['ordinary-bound-constructor','class Ordinary{} const O=Ordinary.bind(null); const carrier={instance:new O()};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
