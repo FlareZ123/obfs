@@ -1,6 +1,6 @@
 'use strict';
 
-const {parse}=require('parse5');
+const {parse,Tokenizer,TokenizerMode}=require('parse5');
 const {createHash}=require('node:crypto');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
@@ -258,6 +258,108 @@ function isEmbeddedRefreshUrl(content) {
 }
 
 /**
+ * parse5's DOM tree is insufficient as a source-admission oracle for all
+ * Chromium HTML insertion modes. In particular a <select> containing foreign
+ * <svg> markup can be dropped by parse5's tree builder while real Chrome
+ * preserves an SVG-namespace script, event handler or animated javascript:
+ * URL. Scan the original token stream as a second, deliberately fail-closed
+ * view when HTML contains a SELECT. The tokenizer decodes character
+ * references in attributes and excludes comments; no parser-recovery shape
+ * may silently erase source-bearing tokens.
+ *
+ * This fallback does not claim to model arbitrary HTML DOM tree construction:
+ * a suspicious token inside SELECT is refused even if a different engine
+ * ultimately discards it. Ordinary SELECT forms with plain OPTION nodes pass.
+ * @param {string} html
+ * @returns {string|null}
+ */
+function findSelectTokenDisclosure(html) {
+  if(!/<select(?=[\x20\t\n\f\r/>])/iu.test(html))return null;
+  /** @type {string|null} */
+  let issue=null;
+  let selects=0;
+  let styleDepth=0;
+  let stylesheet='';
+  const observeStyle=(/** @type {import('parse5').Token.CharacterToken} */ token)=>{
+    if(styleDepth>0&&!issue)stylesheet+=token.chars;
+  };
+  const inspectStyle=()=>{
+    if(hasCssSourceMapDirective(stylesheet))issue??='inline CSS source-map directive';
+    if(hasCssDataImport(stylesheet))issue??='embedded stylesheet data import';
+    stylesheet='';
+  };
+  const noop=()=>{};
+  const handler={
+    onComment:noop,onDoctype:noop,onEof:noop,onCharacter:observeStyle,
+    onNullCharacter:observeStyle,onWhitespaceCharacter:observeStyle,
+    /** @param {import('parse5').Token.TagToken} token */
+    onStartTag(token) {
+      // In contrast to the stand-alone tokenizer's DATA default, script
+      // contents are raw text. Avoid inventing tags in a safe import-map
+      // JSON string while scanning a later real SELECT.
+      if(token.tagName==='script')tokenizer.state=TokenizerMode.SCRIPT_DATA;
+      if(selects&&token.tagName==='style'){
+        tokenizer.state=TokenizerMode.RAWTEXT;
+        styleDepth++;
+      }
+      if(!selects&&['textarea','title'].includes(token.tagName))
+        tokenizer.state=TokenizerMode.RCDATA;
+      if(!selects&&['style','xmp','iframe','noembed','noframes'].includes(token.tagName))
+        tokenizer.state=TokenizerMode.RAWTEXT;
+      if(!selects&&token.tagName==='plaintext')tokenizer.state=TokenizerMode.PLAINTEXT;
+      if(token.tagName==='select')selects++;
+      if(!selects||issue)return;
+      const name=token.tagName;
+      const attrs=token.attrs??[];
+      /** @param {string} key @returns {string|undefined} */
+      const attr=key=>attrs.find(item=>item.name===key)?.value;
+      if(name==='script') {issue='inline script source in select context';return;}
+      if(name==='base'&&attrs.some(item=>item.name==='href')) {
+        issue='URL base in select context';return;
+      }
+      if(name==='link'&&/(?:^|\s)stylesheet(?:\s|$)/iu.test(attr('rel')??'') &&
+         attr('href')&&isDataUrl(/** @type {string} */(attr('href')))) {
+        issue='embedded stylesheet data URL';return;
+      }
+      if(name==='meta'&&attr('http-equiv')?.trim().toLowerCase()==='refresh' &&
+         attr('content')&&isEmbeddedRefreshUrl(/** @type {string} */(attr('content')))) {
+        issue='embedded executable refresh URL';return;
+      }
+      if(SMIL_ANIMATION_ELEMENTS.has(name) &&
+         smilTargetsExecutableAttribute(name,
+           attrs.find(attr=>attr.name==='attributename')?.value)) {
+        issue='SVG animation targets executable attribute';return;
+      }
+      for(const {name:key,value} of attrs) {
+        if(/^on[a-z]/u.test(key)) {issue='inline event handler';return;}
+        if(key==='srcdoc') {issue='embedded iframe source';return;}
+        if(['src','href','action','formaction','xlink:href','data','poster'].includes(key) &&
+           isEmbeddedExecutableUrl(value)) {
+          issue='embedded executable URL';return;
+        }
+        if(SMIL_ANIMATION_ELEMENTS.has(name) &&
+           ['from','to','by','values'].includes(key) &&
+           (key==='values'?value.split(';'):[value]).some(isEmbeddedExecutableUrl)) {
+          issue='SVG animation embeds executable URL';return;
+        }
+      }
+    },
+    /** @param {import('parse5').Token.TagToken} token */
+    onEndTag(token) {
+      if(token.tagName==='style'&&styleDepth>0){
+        styleDepth--;
+        if(styleDepth===0)inspectStyle();
+      }
+      if(token.tagName==='select'&&selects>0)selects--;
+    }
+  };
+  const tokenizer=new Tokenizer({},handler);
+  tokenizer.write(html,true);
+  if(styleDepth>0)inspectStyle();
+  return issue;
+}
+
+/**
  * Identify executable JavaScript embedded in browser-parsed HTML.
  * External script references are allowed because their targets must be
  * transformed and published separately. The original HTML is left untouched.
@@ -340,7 +442,7 @@ function findInlineHtmlSource(html) {
     if(node.content)visit(node.content);
   }
   visit(root);
-  return issue;
+  return issue??findSelectTokenDisclosure(html);
 }
 
 /**
