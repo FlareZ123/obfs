@@ -46,7 +46,13 @@ const forms=[
   ['record-alias native mark',
     '(()=>{const hooks={native:performance.mark};const copy=hooks;return copy.native.call(performance,inspect).name;})()'],
   ['record-destructured native mark',
-    '(()=>{const hooks={native:performance.mark};const {native:call}=hooks;return call.call(performance,inspect).name;})()']
+    '(()=>{const hooks={native:performance.mark};const {native:call}=hooks;return call.call(performance,inspect).name;})()'],
+  ['inline bound native mark','performance.mark.bind(performance)(inspect).name'],
+  ['reflective inline bound native mark',
+    'Reflect.apply(performance.mark.bind(performance),null,[inspect]).name'],
+  ['native apply mark','performance.mark.apply(performance,[inspect]).name'],
+  ['destructured native receiver mark',
+    '(()=>{const {mark}=performance;return mark.call(performance,inspect).name;})()']
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
