@@ -1993,6 +1993,19 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const operation=memberKey(node.callee);
       const namespace=node.callee.object;
+      // A native Object/Reflect method applies ToPropertyKey to its key
+      // argument *inside* the call. Its argument AST may be a harmless
+      // Identifier whose object-valued runtime payload has a mutating
+      // @@toPrimitive/toString hook. Alias/unknown methods remain guarded
+      // by their pre-existing opaque-call analysis.
+      const nativeKeyArgument=
+        isNamespace(namespace,reflectNamespaces)&&
+          ['get','set','has','deleteProperty','defineProperty',
+           'getOwnPropertyDescriptor'].includes(operation??'')||
+        isNamespace(namespace,objectNamespaces)&&
+          ['hasOwn','defineProperty','getOwnPropertyDescriptor'].includes(operation??'');
+      if(nativeKeyArgument&&node.arguments.length>=2&&
+         !primitiveComputedKeyWithoutEffects(node.arguments[1]))exposed=true;
       const isObjectDefinition=isNamespace(namespace,objectNamespaces)&&
         ['defineProperty','defineProperties'].includes(operation??'');
       const isReflectDefinition=isNamespace(namespace,reflectNamespaces)&&
@@ -2108,8 +2121,10 @@ function hasWeakMapPrototypeExposure(ast) {
       // key effects, before evaluating its assigned RHS.
       if(node.left.type==='MemberExpression') {
         visitCarrierExpression(node.left.object,environment,thisValue);
-        if(node.left.computed)
+        if(node.left.computed) {
           visitCarrierExpression(node.left.property,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(node.left.property))exposed=true;
+        }
       }
       visitCarrierExpression(node.right,environment,thisValue);
       const assigned=evaluateCarrierValue(node.right,environment,thisValue);
@@ -2184,13 +2199,18 @@ function hasWeakMapPrototypeExposure(ast) {
         if(receiver.kind!=='container'&&receiver.kind!=='weakmap') {
           const bypass=forkCarrierEnvironment(environment);
           const evaluated=forkCarrierEnvironment(environment);
-          if(node.computed)
+          if(node.computed) {
             visitCarrierExpression(node.property,evaluated,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(node.property))exposed=true;
+          }
           joinCarrierEnvironments(environment,bypass,evaluated);
           return;
         }
       }
-      if(node.computed)visitCarrierExpression(node.property,environment,thisValue);
+      if(node.computed) {
+        visitCarrierExpression(node.property,environment,thisValue);
+        if(!primitiveComputedKeyWithoutEffects(node.property))exposed=true;
+      }
       return;
     }
     if(node.type==='VariableDeclaration') {
@@ -2232,6 +2252,14 @@ function hasWeakMapPrototypeExposure(ast) {
       const evaluated=forkCarrierEnvironment(environment);
       visitCarrierExpression(node.right,evaluated,thisValue);
       joinCarrierEnvironments(environment,bypass,evaluated);
+      return;
+    }
+    if(node.type==='BinaryExpression'&&node.operator==='in') {
+      visitCarrierExpression(node.left,environment,thisValue);
+      visitCarrierExpression(node.right,environment,thisValue);
+      // The left operand is converted by ToPropertyKey only after its
+      // expression and the right operand have been evaluated.
+      if(!primitiveComputedKeyWithoutEffects(node.left))exposed=true;
       return;
     }
     for(const value of Object.values(node)) {
