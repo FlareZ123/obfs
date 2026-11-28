@@ -41,6 +41,24 @@ function graph(){
 }
 
 /**
+ * A C0-containing import specifier has different POSIX and WHATWG URL
+ * identities. The native browser must select the root factory, not the decoy.
+ * @returns {SourceFile[]}
+ */
+function pathAliasGraph(){
+  const specifier='./a/.\t/../state.mjs';
+  return [
+    {path:'state.mjs',sourceType:'module',code:
+      'export function makeState(){return {secretField:23};}'},
+    {path:'a/state.mjs',sourceType:'module',code:
+      'export function makeState(){return {secretField:41};}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {makeState} from '+JSON.stringify(specifier)+';'+
+      'const state=makeState();export const value=state.secretField;'}
+  ];
+}
+
+/**
  * @param {SourceFile[]} files
  * @returns {RenderFile[]}
  */
@@ -79,12 +97,29 @@ async function main(){
     ['native',native],['minified',await minify(native)],
     ['obfuscated',compile(native)]
   ]);
+  const aliasNative=pathAliasGraph();
+  const aliasMinified=await minify(aliasNative);
+  const aliasOutcome=obfuscateFiles(aliasNative,{
+    mode:'coo',closedWorld:true,seed:'agent9-factory-url-path-browser',
+    properties:true,strings:false,identifiers:false
+  });
+  assert.equal(aliasOutcome.crossFile.properties,0,
+    'C0 URL/POSIX path identity mismatch must refuse the factory proof');
+  const aliasObfuscated=aliasOutcome.files.map(file=>({path:file.path,code:String(file.code)}));
   /** @type {Map<string,{content:string,type:string}>} */
   const routes=new Map([['/index.html',{
     content:'<!doctype html><html><meta charset="utf-8"><title>Factory multi-root proof</title></html>',
     type:'text/html; charset=utf-8'
   }]]);
   for(const [variant,files] of variants)
+    for(const file of files)
+      routes.set('/'+variant+'/'+file.path,{
+        content:file.code,type:'text/javascript; charset=utf-8'
+      });
+  for(const [variant,files] of [
+    ['path-native',aliasNative],['path-minified',aliasMinified],
+    ['path-obfuscated',aliasObfuscated]
+  ])
     for(const file of files)
       routes.set('/'+variant+'/'+file.path,{
         content:file.code,type:'text/javascript; charset=utf-8'
@@ -122,6 +157,14 @@ async function main(){
       waitUntil:'domcontentloaded',timeout:45000
     });
     const samples=await page.evaluate(async(origin)=>{
+      const aliasModules=await Promise.all([
+        import(origin+'/path-native/entry.mjs'),
+        import(origin+'/path-minified/entry.mjs'),
+        import(origin+'/path-obfuscated/entry.mjs')
+      ]);
+      const aliasValues=aliasModules.map(module=>module.value);
+      if(aliasValues.some(value=>value!==23))
+        throw Error('Browser WHATWG C0 URL identity selected a POSIX decoy: '+JSON.stringify(aliasValues));
       /** @typedef {{checksumResult:number,elapsedMs:number}} BrowserReport */
       /** @type {Record<string,number[]>} */
       const times={native:[],minified:[],obfuscated:[]};
