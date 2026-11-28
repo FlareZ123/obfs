@@ -2560,7 +2560,7 @@ function hasNativeDocumentFactoryMutation(ast) {
           (isDocument(node.object)||isDocPrototype(node.object,depth+1))) ||
       node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
         node.callee.object.type==='Identifier'&&
-        node.callee.object.name==='Object'&&
+        ['Object','Reflect'].includes(node.callee.object.name)&&
         key(node.callee)==='getPrototypeOf'&&
         (isDocument(node.arguments[0])||isDocPrototype(node.arguments[0],depth+1)));
   }
