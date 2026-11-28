@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {createPolicy,learn,continuation,equivalent}=
+const {createPolicy,learn,learnExpected,continuation,equivalent}=
   require('../sims/sco-two-state-optimal-network-policy');
 const {runProcessBoundary}=require('../sims/sco-two-state-process-boundary');
 
@@ -49,6 +49,27 @@ test('complete independent two-state policy has an exact nine-request certificat
     assert.deepEqual(predicted,actual);
   }
   assert.equal(worst,9);
+  // Independent finite-horizon weighted policy minimizes the aggregate
+  // authorized calls over the uniform labelled-source prior under a strict
+  // worst-case bound of nine calls.
+  assert.equal(policy.rootWeightedCalls,1884);
+  let total=0;
+  /** @type {Record<number,number>} */
+  const histogram={};
+  for(const model of policy.models){
+    let state=0;
+    const learned=await learnExpected({step:async input=>{
+      const output=model.output[state][input];
+      state=model.next[state][input];
+      return output;
+    }},policy);
+    total+=learned.queries;
+    histogram[learned.queries]=(histogram[learned.queries]||0)+1;
+    assert.ok(learned.queries<=9);
+    assert.equal(equivalent([learned.clone,model],learned.currentState,2+state),true);
+  }
+  assert.equal(total,1884);
+  assert.deepEqual(histogram,{6:40,7:156,8:24,9:40});
 });
 
 test('authenticated real SCO and equal-trust ordinary RPC clients are cloned from another Node process',async()=>{
