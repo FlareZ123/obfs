@@ -8,14 +8,14 @@ permissions:
 
 jobs:
   # One source-pinned acceptance dispatch: reuse the established correctness,
-  # matched-minifier, SCO equal-trust and SCO CPU workflows instead of asking
+  # matched-minifier, and per-mode CPU/equal-trust workflows instead of asking
   # reviewers to assemble unrelated runs by hand.
   full-validation:
     name: Full two-OS Node, Chromium, JSDoc and runtime-budget validation
     uses: ./.github/workflows/manual-validation.yml
 
   matched-minifier:
-    name: Matched COO/SNO minifier and independent attacker
+    name: Matched COO/SNO minifier, independent attacker and COO CPU measurement
     uses: ./.github/workflows/manual-minified-control.yml
 
   sco-equal-trust:
@@ -26,13 +26,16 @@ jobs:
     name: SCO client/server CPU boundary and fresh-client cost
     uses: ./.github/workflows/manual-sco-batch-cpu.yml
 
+  sno-cpu:
+    name: SNO post-READY resident CPU and strict budget
+    uses: ./.github/workflows/manual-sno-resident-budget.yml
+
   application-challenge:
     name: Actual COO/SNO multi-file challenge and owner attack
     uses: ./.github/workflows/manual-application-challenge.yml
 
   application-sco:
     name: Actual SCO HTTP/Chromium application and source withholding
-
     uses: ./.github/workflows/manual-application-sco.yml
 
   adversarial-applications:
@@ -74,6 +77,7 @@ jobs:
       - matched-minifier
       - sco-equal-trust
       - sco-cpu
+      - sno-cpu
       - application-challenge
       - application-sco
       - adversarial-applications
@@ -85,6 +89,7 @@ jobs:
           MATCHED_MINIFIER: ${{ needs.matched-minifier.result }}
           SCO_EQUAL_TRUST: ${{ needs.sco-equal-trust.result }}
           SCO_CPU: ${{ needs.sco-cpu.result }}
+          SNO_CPU: ${{ needs.sno-cpu.result }}
           APPLICATION_CHALLENGE: ${{ needs.application-challenge.result }}
           APPLICATION_SCO: ${{ needs.application-sco.result }}
           ADVERSARIAL_APPLICATIONS: ${{ needs.adversarial-applications.result }}
@@ -93,6 +98,7 @@ jobs:
           echo "matched-minifier=$MATCHED_MINIFIER"
           echo "sco-equal-trust=$SCO_EQUAL_TRUST"
           echo "sco-cpu=$SCO_CPU"
+          echo "sno-cpu=$SNO_CPU"
           echo "application-challenge=$APPLICATION_CHALLENGE"
           echo "application-sco=$APPLICATION_SCO"
           echo "adversarial-applications=$ADVERSARIAL_APPLICATIONS"
@@ -100,6 +106,7 @@ jobs:
           test "$MATCHED_MINIFIER" = success
           test "$SCO_EQUAL_TRUST" = success
           test "$SCO_CPU" = success
+          test "$SNO_CPU" = success
           test "$APPLICATION_CHALLENGE" = success
           test "$APPLICATION_SCO" = success
           test "$ADVERSARIAL_APPLICATIONS" = success
