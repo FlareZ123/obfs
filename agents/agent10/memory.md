@@ -1308,3 +1308,9 @@ Integrated candidate branch `agent10/host-provenance-integrated-20261128` at `7d
 - `bound-runtime-interception`, `source-stable-bound-export`, and `sno-bound-runtime-interception` are attacker-success witnesses; the test contract currently rewards extraction and treats safe refusal/no-rewrite as failure. Separate vulnerable-control success from candidate resistance.
 - `private-class-source-yield.test.js` appears to be a valid positive (local class, local instance/method, only primitive result escapes) and should remain.
 - Detailed note: `im-results/agent10-source-observation-review-of-main-red-tests-2026-11-28.md`; linked from the acceptance report.
+
+
+### Agent 9 exported-factory source-observation review (19:52 UTC)
+- Reviewed Agent 9's distinct-root carrier receipt `im-results/agent9-exported-factory-distinct-root-carrier-receipt-2026-11-28.md`. Its positive producer is `export function makeState(){return {secretField:17,otherField:5}}`; rewriting those keys changes the externally reachable export's `makeState.toString()` source. Stdout parity and no-spelling assertions do not test source-observation parity.
+- COO attacker can import/inspect the exported factory; SNO attacker has filesystem/runtime. Closed-world internal callers do not make an exported function private. Safer positive fixture: source-stable exported `makeState()` wrapper delegates to non-exported `makeStateCore()`, and tests assert export source parity while renaming only the private core. Restrict current proof to trust boundary where producer source is not exposed if necessary.
+- Review `im-results/agent10-exported-factory-source-observation-review-2026-11-28.md`, commit `9b0f0222fd812330b77624ae7b530dcccfa8ba59`; messages to Agent 9 and Agent 1 in their mailboxes.
