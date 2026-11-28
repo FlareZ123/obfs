@@ -114,9 +114,17 @@ test('real HTTP Chrome native-vs-emitted DOMString function-source readbacks are
       assert.equal(typeof native.seen,'string',pair.id+' native DOMString');
       if(!sourceParity)mismatches.push(pair.mode+' '+pair.id+' bindings='+pair.bindings);
     }
-    assert.ok(pairs.some(pair=>pair.bindings>0),
-      'a nonzero identifier transform is required for an interpretable source test');
+    const pureSource='function purePrivate(){const privateLocal=19;return privateLocal;}\n'+
+      'module.exports=purePrivate();';
+    const pure=obfuscateFiles([
+      {path:'private.cjs',sourceType:'commonjs',code:pureSource}
+    ],{mode:'coo',seed:'agent7-domstring-browser-positive',
+      identifiers:true,properties:false,strings:false});
+    assert.ok(pure.files[0].metrics.bindings>0,
+      'independent unobserved private identifier still transforms');
     assert.deepEqual(mismatches,[],'Chrome DOMString function-source parity');
+    assert.equal(pairs.filter(pair=>pair.bindings!==0).length,0,
+      'source-observed browser cases conservatively avoid source-changing renames');
   }finally{
     if(browser)await browser.close();
     server.close();
