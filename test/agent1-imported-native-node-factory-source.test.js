@@ -99,3 +99,31 @@ test('sibling native factory replacement invalidates otherwise pure imported Nod
       'A visible sibling native factory mutation must disable the exception '+mode);
   }
 });
+
+
+test('opaque HTML host mutation assets invalidate a no-inline ESM native factory proof',()=>{
+  const factory='export const build=()=>document.createElement("script");';
+  const poison='document.createElement=function(){return function source(){return 19;};};';
+  const pages=[
+    '<script>'+poison+'</script><script type="module" src="./bootstrap.mjs"></script>',
+    '<html><body onload="'+poison.replaceAll('"','&quot;')+'">'+
+      '<script type="module" src="./bootstrap.mjs"></script></body></html>',
+    '<iframe srcdoc="&lt;script&gt;'+poison+'&lt;/script&gt;"></iframe>'+
+      '<script type="module" src="./bootstrap.mjs"></script>',
+    '<script src="./unprovided-host.js"></script>'+
+      '<script type="module" src="./bootstrap.mjs"></script>',
+    '<svg onload="'+poison.replaceAll('"','&quot;')+'"></svg>'+
+      '<script type="module" src="./bootstrap.mjs"></script>'
+  ];
+  for(const page of pages)for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const emitted=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:literal},
+      {path:'factory.mjs',sourceType:'module',code:factory},
+      {path:'bootstrap.mjs',sourceType:'module',code:importAndInsert},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(page)}
+    ],{mode,seed:'agent1-inline-host-mutates-native-factory/'+mode,
+      closedWorld:true,strings:true,identifiers:false,properties:false});
+    assert.equal(String(emitted.files[0].code),literal,
+      'An opaque HTML host execution surface may replace a native Node producer '+mode+' '+page);
+  }
+});
