@@ -235,7 +235,7 @@ function collectProofInventory(ast) {
     }
   });
   const aliasDeclarations=declarations.filter(node=>node.init&&
-    ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
+    ['Identifier','MemberExpression','CallExpression','LogicalExpression'].includes(node.init.type));
   const complexAliasDeclarations=aliasDeclarations.filter(node=>node.init?.type!=='Identifier');
   // An immutable reverse index lets ordinary direct aliases use a queue per
   // candidate owner, avoiding a full scan of all declarations on each pass.
