@@ -1993,6 +1993,31 @@ function hasWeakMapPrototypeExposure(ast) {
       if(node.callee.type==='Identifier')
         replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
           node.arguments??[]);
+      // Function.prototype.call/apply/bind can execute a local function's
+      // formal defaults even though its source identifier is only the
+      // receiver of a MemberExpression. Never infer that an opaque host
+      // has the pristine Function.prototype methods: replay as a *may* call.
+      if(node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const method=memberKey(node.callee);
+        const owner=node.callee.object.name;
+        if(['call','apply','bind'].includes(method??'')&&
+           localFunctionNodes.has(owner)&&
+           localBindingCounts.get(owner)===1&&
+           !reassignedLocalFunctions.has(owner)&&!hasDirectEval) {
+          /** @type {AstNode[]} */
+          let argumentsToReplay=[];
+          if(method==='call'||method==='bind')
+            argumentsToReplay=node.arguments.slice(1);
+          else if(node.arguments[1]?.type==='ArrayExpression'&&
+                  !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
+                    x?.type==='SpreadElement'))
+            argumentsToReplay=node.arguments[1].elements.map(
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+          replayLocalFunctionEffects(owner,environment,thisValue,false,
+            argumentsToReplay);
+        }
+      }
       if(node.callee.type==='MemberExpression' &&
          node.callee.object.type==='Identifier') {
         const owner=node.callee.object.name;
@@ -2015,6 +2040,23 @@ function hasWeakMapPrototypeExposure(ast) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
+      }
+      if(node.callee.type==='ClassExpression') {
+        // Inline class expressions are immediate constructors too. Their
+        // parameter defaults execute during new(), even though no stable
+        // class binding exists to look up in localClassConstructors.
+        const directConstructor=node.callee.body.body.find(
+          (/** @type {AstNode} */ item)=>item.type==='MethodDefinition'&&
+            item.kind==='constructor')?.value;
+        const base=node.callee.superClass;
+        if(base) {
+          visitCarrierExpression(base,environment,thisValue);
+          if(!(base.type==='Identifier'&&pureEmptyClassNames.has(base.name)))
+            exposed=true;
+        }
+        if(directConstructor)
+          replayCarrierFunctionNode(directConstructor,environment,carrierOther,
+            true,node.arguments??[],true);
       }
       if(node.callee.type==='Identifier') {
         const className=node.callee.name;
