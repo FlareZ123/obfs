@@ -185,7 +185,8 @@ test('CPU receipt: full-capacity admission housekeeping versus linear historical
       else orderedUs.push(sample);
     }
   }
-  const median=/** @param {number[]} x */ x=>[...x].sort((a,b)=>a-b)[2];
+  /** @param {number[]} x */
+  const median=x=>[...x].sort((a,b)=>a-b)[2];
   console.log('SCO_WA_MEMORY_EXPIRY_CPU '+JSON.stringify({
     workload:'1536 active challenges + 1536 active sessions, 5 alternating paired samples',
     units:'process user+system microseconds, isolated housekeeping only',
