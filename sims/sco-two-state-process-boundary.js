@@ -185,20 +185,34 @@ async function runAttacker(){
         Buffer.from(ordinarySource).toString('base64'));
       assert.equal('reset' in scoApi,false);
       assert.equal('reset' in ordinaryApi,false);
-      /** @param {string} origin */
-      const bindFetch=origin=>{
-        globalThis.fetch=/** @type {typeof fetch} */((input,init)=>
-          nativeFetch(new URL(String(input),origin),{
-            ...init,headers:{...init?.headers,cookie}
-          }));
+      /** @typedef {{path:string,method:string,body:string,headers:string,
+       *   credentials:string,cache:string,responseStatus:number,responseBody:string}} WireRecord */
+      /** @type {{sco:WireRecord[],ordinary:WireRecord[]}} */
+      const wires={sco:[],ordinary:[]};
+      /** @param {string} origin @param {'sco'|'ordinary'} arm */
+      const bindFetch=(origin,arm)=>{
+        globalThis.fetch=/** @type {typeof fetch} */((input,init)=>{
+          const target=new URL(String(input),origin);
+          const record={path:target.pathname,method:String(init?.method),
+            body:String(init?.body),headers:JSON.stringify(init?.headers),
+            credentials:String(init?.credentials),cache:String(init?.cache),
+            responseStatus:0,responseBody:''};
+          wires[arm].push(record);
+          return nativeFetch(target,{...init,headers:{...init?.headers,cookie}})
+            .then(async response=>{
+              record.responseStatus=response.status;
+              record.responseBody=await response.clone().text();
+              return response;
+            });
+        });
       };
       const policy=createPolicy();
       assert.equal(policy.models.length,260);
       assert.equal(policy.beliefs.length,4429);
       assert.equal(policy.ranks[0],9);
-      bindFetch(scoOrigin);
+      bindFetch(scoOrigin,'sco');
       const sco=await learnExpected(scoApi,policy);
-      bindFetch(ordinaryOrigin);
+      bindFetch(ordinaryOrigin,'ordinary');
       const ordinary=await learnExpected(ordinaryApi,policy);
       assert.deepEqual(ordinary.inputs,sco.inputs);
       assert.deepEqual(ordinary.outputs,sco.outputs);
@@ -210,18 +224,23 @@ async function runAttacker(){
       /** @type {number[]} */
       const actualSco=[],actualOrdinary=[];
       for(const input of followup){
-        bindFetch(scoOrigin);
+        bindFetch(scoOrigin,'sco');
         actualSco.push(await scoApi.step(input));
-        bindFetch(ordinaryOrigin);
+        bindFetch(ordinaryOrigin,'ordinary');
         actualOrdinary.push(await ordinaryApi.step(input));
       }
       assert.deepEqual(actualSco,scoClone.outputs);
       assert.deepEqual(actualOrdinary,ordinaryClone.outputs);
       globalThis.fetch=nativeFetch;
+      // Compare every method, argument body, fetch option, and JSON reply.
+      // Origins intentionally differ because each arm has independent state.
+      assert.deepEqual(wires.sco,wires.ordinary);
+      assert.equal(wires.sco.length,sco.queries+followup.length);
       process.send?.({kind:'attacker-result',result:{sco,ordinary,followup,
         followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
         ordinaryPublicBytes:Buffer.byteLength(ordinarySource),
-        attackerUid:process.getuid?.()??-1,signalPermissionDenied}});
+        attackerUid:process.getuid?.()??-1,signalPermissionDenied,
+        wireCalls:wires.sco.length,wireMatched:true}});
     }catch(error){
       process.send?.({kind:'attacker-error',message:String(error),
         stack:error instanceof Error?error.stack:''});
@@ -275,7 +294,7 @@ function receive(child,expected,timeoutMs=45000){
  *   unauthorizedOrdinary:number,publicServerPrivateCanary:boolean,
  *   scoBytes:number,ordinaryBytes:number,serverPid:number,
  *   attackerPid:number,traceLength:number,serverUid:number,attackerUid:number,
- *   signalPermissionDenied:boolean}>}
+ *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean}>}
  */
 async function runProcessBoundary(isolatedUid=false){
   if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
@@ -347,6 +366,7 @@ async function runProcessBoundary(isolatedUid=false){
       attackerPid,serverUid:process.getuid?.()??-1,
       attackerUid:attack.result.attackerUid,
       signalPermissionDenied:attack.result.signalPermissionDenied,
+      wireCalls:attack.result.wireCalls,wireMatched:attack.result.wireMatched,
       traceLength:expected.length};
   }finally{
     if(attacker)attacker.kill();
