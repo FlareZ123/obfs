@@ -5,6 +5,7 @@ const {test}=require('node:test');
 const http=require('node:http');
 const {createHash,generateKeyPairSync,randomBytes,sign}=require('node:crypto');
 const {createScoWebAuthnAdmission}=require('../src/sco-webauthn-admission');
+const {createScoWebAuthnMemoryStore}=require('../src/sco-webauthn-state');
 
 /** @typedef {import('../src/sco-webauthn-admission').RegisteredCredential} RegisteredCredential */
 
@@ -133,6 +134,95 @@ test('tampered signed data, noncanonical encodings and non-P-256 keys reject',as
     }
     assert.equal((await h.admission.verifyAssertion(submitted)).ok,false,kind);
     assert.equal(h.updates,0,kind);
+  }
+});
+
+test('private PEM credentials are not silently treated as registered public keys',async()=>{
+  for(const type of ['pkcs8','sec1']){
+    const h=harness();
+    const record=h.records.get(h.credentialId);
+    assert.ok(record);
+    record.publicKey=h.privateKey.export({format:'pem',type:/** @type {'pkcs8'|'sec1'} */(type)}).toString();
+    const challenge=h.admission.issueChallenge('accountA','loginA');
+    assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,false,type);
+    assert.equal(h.updates,0,type);
+  }
+  const h=harness();
+  const record=h.records.get(h.credentialId);
+  assert.ok(record);
+  record.publicKey=h.publicKey.export({format:'pem',type:'spki'}).toString();
+  const challenge=h.admission.issueChallenge('accountA','loginA');
+  assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,true,
+    'Legitimate SPKI PEM public keys must remain accepted');
+});
+
+test('WebAuthn state adapters must not grant on truthy nonboolean or async outcomes',async()=>{
+  const firstStore=createScoWebAuthnMemoryStore();
+  const first=harness({stateStore:/** @type {any} */({
+    ...firstStore,mintSession:()=>({notCommitted:true})
+  })});
+  const nonce=first.admission.issueChallenge('accountA','loginA');
+  assert.equal((await first.admission.verifyAssertion(assertion(first,nonce))).ok,false,
+    'Truthy nonboolean mint must never grant a token');
+
+  const secondStore=createScoWebAuthnMemoryStore();
+  const second=harness({stateStore:/** @type {any} */({
+    ...secondStore,authorizeSession:()=>Promise.resolve(true),
+    revokeSession:()=>({notRevoked:true})
+  })});
+  const next=second.admission.issueChallenge('accountA','loginA');
+  const granted=await second.admission.verifyAssertion(assertion(second,next));
+  assert.equal(granted.ok,true,'Valid synchronous mint remains admitted');
+  if(!granted.ok)return;
+  assert.equal(second.admission.authorizeSession(granted.token,'accountA'),false,
+    'Async authority check must not be returned as a truthy authorization');
+  assert.equal(second.admission.revokeSession(granted.token),false,
+    'Truthy nonboolean revocation result is not proof of revocation');
+});
+
+test('shared in-memory WebAuthn state refuses weaker RP origin and UV authority',()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  harness({stateStore:shared});
+  assert.doesNotThrow(()=>harness({stateStore:shared}),
+    'An identically configured second worker can reuse trusted memory state');
+  /** @type {Array<[string,Partial<import('../src/sco-webauthn-admission').ScoWebAuthnAdmissionOptions>]>} */
+  const changes=[
+    ['origin',{allowedOrigins:['https://weaker.example.com']}],
+    ['UV',{requireUserVerification:false}],
+    ['session capacity',{maxSessions:2}]
+  ];
+  for(const [label,change] of changes){
+    assert.throws(()=>harness({stateStore:shared,...change}),/replica configuration/u,
+      'Shared bearer and challenges cannot mix a different '+label+' policy');
+  }
+});
+
+test('custom WebAuthn stores without atomic policy fingerprint refuse at construction',()=>{
+  const memory=createScoWebAuthnMemoryStore();
+  const {assertConfiguration:discarded,...withoutPolicyFence}=memory;
+  assert.equal(typeof discarded,'function');
+  assert.throws(()=>harness({stateStore:/** @type {any} */(withoutPolicyFence)}),
+    /Invalid SCO WebAuthn admission state store/u,
+    'A shared custom adapter must not silently omit cross-replica policy fencing');
+});
+
+test('signed topOrigin must refuse cross-frame ceremony when no iframe policy exists',async()=>{
+  for(const topOrigin of ['https://attacker.example.net','https://secure.example.com']){
+    const h=harness();
+    const challenge=h.admission.issueChallenge('accountA','loginA');
+    const packet=assertion(h,challenge);
+    const client=JSON.parse(Buffer.from(packet.clientDataJSON,'base64url').toString('utf8'));
+    client.topOrigin=topOrigin;
+    // Re-sign the exact modified bytes with a real registered P-256 key:
+    // signature validity must NOT substitute for top-frame admission policy.
+    const clientBytes=Buffer.from(JSON.stringify(client),'utf8');
+    packet.clientDataJSON=clientBytes.toString('base64url');
+    const authBytes=Buffer.from(packet.authenticatorData,'base64url');
+    const signed=Buffer.concat([authBytes,createHash('sha256').update(clientBytes).digest()]);
+    packet.signature=sign('sha256',signed,h.privateKey).toString('base64url');
+    assert.equal((await h.admission.verifyAssertion(packet)).ok,false,
+      'A no-iframe RP must not accept any signed topOrigin: '+topOrigin);
+    assert.equal(h.updates,0);
   }
 });
 
