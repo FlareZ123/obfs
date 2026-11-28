@@ -1710,9 +1710,11 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {CarrierValue} target
    * @param {string|null} key
    * @param {AstNode|null|undefined} descriptor
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
    * @returns {void}
    */
-  function applyAccessorDescriptor(target,key,descriptor) {
+  function applyAccessorDescriptor(target,key,descriptor,environment,thisValue) {
     if(target.kind!=='container')return;
     if(key===null||descriptor?.type!=='ObjectExpression') {
       target.unknown=true;
@@ -1720,9 +1722,18 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
-    if(!getter)return;
-    target.properties.set(key,functionMayReturnWeakMap(getter.value)?
-      carrierMaybe:carrierOther);
+    if(getter) {
+      target.getters.set(key,getter.value);
+      target.properties.set(key,functionMayReturnWeakMap(getter.value)?
+        carrierMaybe:carrierOther);
+      return;
+    }
+    const value=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='value');
+    if(value) {
+      target.getters.delete(key);
+      target.properties.set(key,evaluateCarrierValue(value.value,environment,thisValue));
+    }
   }
   /**
    * Computed keys in binding/assignment patterns execute after the RHS has
@@ -1805,7 +1816,7 @@ function hasWeakMapPrototypeExposure(ast) {
             const key=staticString(node.arguments[1]) ??
               (node.arguments[1]?.type==='Identifier'?
                 staticStringAliases.get(node.arguments[1].name)??null:null);
-            applyAccessorDescriptor(target,key,node.arguments[2]);
+            applyAccessorDescriptor(target,key,node.arguments[2],environment,thisValue);
           } else {
             const descriptors=node.arguments[1];
             if(descriptors?.type!=='ObjectExpression')target.unknown=true;
@@ -1815,7 +1826,8 @@ function hasWeakMapPrototypeExposure(ast) {
                 continue;
               }
               applyAccessorDescriptor(
-                target,carrierStaticKey(property.key,property.computed),property.value);
+                target,carrierStaticKey(property.key,property.computed),property.value,
+                environment,thisValue);
             }
           }
         }
