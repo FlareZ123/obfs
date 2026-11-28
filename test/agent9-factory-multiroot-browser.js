@@ -31,10 +31,13 @@ function graph(){
       'const tuple=[first,second];',
       'const tupleLeft=tuple[0];const tupleRight=tuple[1];',
       'const carried=identity(recordLeft);',
-      // The accepted factory proof is read-only for nonliteral writes; this
-      // representative read workload may be inlined by V8, so treat timing as
-      // a smoke bound rather than evidence that every field load remains.
-      'function calculate(n){return (carried.secretField*n+recordRight.otherField+tupleLeft.otherField+tupleRight.secretField)|0;}',
+      // Arithmetic compound writes are inside the current proof grammar;
+      // logical compound writes remain fail-closed.
+      'function calculate(n){',
+      'first.secretField+=n;',
+      'second.otherField+=(n^3);',
+      'return (tupleLeft.secretField+tupleRight.otherField+carried.secretField+recordRight.otherField)|0;',
+      '}',
       'const started=performance.now();let checksum=0;',
       'for(let i=0;i<5000000;i++)checksum^=calculate(Math.imul(i,1664525)|0);',
       'export const checksumResult=checksum;',
