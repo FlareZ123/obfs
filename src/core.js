@@ -121,7 +121,7 @@ function hasImportedDomStringSourceSink(files) {
   const modules=new Map(files.filter(file=>file.sourceType==='module'&&
     typeof file.code==='string').map(file=>[file.path,parse(/** @type {string} */(file.code),'module')]));
   if(modules.size<2)return false;
-  /** @type {Map<string,{receivers:Set<string>,factories:Set<string>}>} */
+  /** @type {Map<string,{receivers:Set<string>,factories:Set<string>,namespaces:Map<string,Set<string>>}>} */
   const exported=new Map();
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function property(node) {
@@ -222,7 +222,7 @@ function hasImportedDomStringSourceSink(files) {
         if(typeof local==='string'&&typeof name==='string')expose(local,name);
       }
     }
-    exported.set(filename,{receivers,factories:exportedFactories});
+    exported.set(filename,{receivers,factories:exportedFactories,namespaces:new Map()});
   }
   // A direct DOM element import can traverse ESM barrel files. The first
   // inventory above proves only direct declarations, so close its published
@@ -256,21 +256,54 @@ function hasImportedDomStringSourceSink(files) {
       const receivedElements=new Set();
       /** @type {Set<string>} */
       const receivedFactories=new Set();
+      /** @type {Map<string,Set<string>>} */
+      const receivedNamespaces=new Map();
+      /** @param {string} name @param {Iterable<string>} origins @returns {boolean} */
+      function receiveNamespace(name,origins) {
+        const existing=receivedNamespaces.get(name)??new Set();
+        let added=false;
+        for(const origin of origins)if(!existing.has(origin)){
+          existing.add(origin);added=true;
+        }
+        if(added)receivedNamespaces.set(name,existing);
+        return added;
+      }
       for(const node of ast.body??[]) {
         if(node.type!=='ImportDeclaration')continue;
         const donor=importedGraph(filename,node.source);
-        if(!donor)continue;
+        const target=typeof node.source.value==='string'?
+          localModule(filename,node.source.value):null;
+        if(!donor||!target)continue;
         for(const specifier of node.specifiers??[]) {
+          const local=specifier.local?.name;
+          if(typeof local!=='string')continue;
+          if(specifier.type==='ImportNamespaceSpecifier'){
+            receiveNamespace(local,[target]);continue;
+          }
           if(specifier.type!=='ImportSpecifier'&&
              specifier.type!=='ImportDefaultSpecifier')continue;
-          const local=specifier.local?.name;
           const imported=specifier.type==='ImportDefaultSpecifier'?'default':
             specifier.imported?.name??specifier.imported?.value;
-          if(typeof local!=='string'||typeof imported!=='string')continue;
+          if(typeof imported!=='string')continue;
           if(donor.receivers.has(imported))receivedElements.add(local);
           if(donor.factories.has(imported))receivedFactories.add(local);
+          receiveNamespace(local,donor.namespaces.get(imported)??[]);
         }
       }
+      // ESM permits a namespace import to be locally aliased before an
+      // export specifier. Alias propagation is monotone; never mistake an
+      // unknown expression for a trusted local module namespace.
+      let aliasChanged;
+      do {
+        aliasChanged=false;
+        walk(ast,node=>{
+          if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+             node.init?.type!=='Identifier')return;
+          if(receivedNamespaces.has(node.init.name)&&
+             receiveNamespace(node.id.name,receivedNamespaces.get(node.init.name)??[]))
+            aliasChanged=true;
+        });
+      }while(aliasChanged);
       /** @param {string} external @param {boolean} receiver @param {boolean} factory */
       function add(external,receiver,factory) {
         if(receiver&&!own.receivers.has(external)) {
@@ -280,12 +313,30 @@ function hasImportedDomStringSourceSink(files) {
           own.factories.add(external);propagated=true;
         }
       }
+      /** @param {string} external @param {Iterable<string>} targets */
+      function addNamespace(external,targets){
+        const current=own.namespaces.get(external)??new Set();
+        let added=false;
+        for(const target of targets)if(!current.has(target)){
+          current.add(target);added=true;
+        }
+        if(added){own.namespaces.set(external,current);propagated=true;}
+      }
       for(const node of ast.body??[]) {
-        if(node.type==='ExportAllDeclaration'&&!node.exported) {
+        if(node.type==='ExportAllDeclaration') {
           const donor=importedGraph(filename,node.source);
           if(!donor)continue;
-          for(const key of donor.receivers)if(key!=='default')add(key,true,false);
-          for(const key of donor.factories)if(key!=='default')add(key,false,true);
+          if(node.exported){
+            const external=node.exported.name??node.exported.value;
+            const target=typeof node.source.value==='string'?
+              localModule(filename,node.source.value):null;
+            if(typeof external==='string'&&target)addNamespace(external,[target]);
+          }else{
+            for(const key of donor.receivers)if(key!=='default')add(key,true,false);
+            for(const key of donor.factories)if(key!=='default')add(key,false,true);
+            for(const [key,targets] of donor.namespaces)
+              if(key!=='default')addNamespace(key,targets);
+          }
         }
         if(node.type==='ExportNamedDeclaration'&&node.specifiers?.length) {
           const donor=node.source?importedGraph(filename,node.source):null;
@@ -296,6 +347,8 @@ function hasImportedDomStringSourceSink(files) {
             if(typeof external!=='string'||typeof local!=='string')continue;
             add(external,donor?donor.receivers.has(local):receivedElements.has(local),
               donor?donor.factories.has(local):receivedFactories.has(local));
+            addNamespace(external,donor?
+              donor.namespaces.get(local)??[]:receivedNamespaces.get(local)??[]);
           }
         }
       }
@@ -310,6 +363,18 @@ function hasImportedDomStringSourceSink(files) {
   for(const [filename,ast] of modules) {
     const receiverNames=new Set();
     const factoryNames=new Set();
+    /** @type {Map<string,Set<string>>} */
+    const namespaceNames=new Map();
+    /** @param {string} name @param {Iterable<string>} targets @returns {boolean} */
+    function ownNamespace(name,targets){
+      const current=namespaceNames.get(name)??new Set();
+      let added=false;
+      for(const target of targets)if(!current.has(target)){
+        current.add(target);added=true;
+      }
+      if(added)namespaceNames.set(name,current);
+      return added;
+    }
     const styleNames=new Set();
     const datasetNames=new Set();
     const tokenListNames=new Set();
@@ -325,20 +390,66 @@ function hasImportedDomStringSourceSink(files) {
       const donor=exported.get(target);
       if(!donor)continue;
       for(const item of node.specifiers??[]){
-        if(item.type!=='ImportSpecifier'||!item.local?.name)continue;
-        const external=item.imported?.name??item.imported?.value;
+        const local=item.local?.name;
+        if(typeof local!=='string')continue;
+        if(item.type==='ImportNamespaceSpecifier'){
+          ownNamespace(local,[target]);continue;
+        }
+        if(item.type!=='ImportSpecifier'&&
+           item.type!=='ImportDefaultSpecifier')continue;
+        const external=item.type==='ImportDefaultSpecifier'?'default':
+          item.imported?.name??item.imported?.value;
         if(typeof external!=='string')continue;
-        if(donor.receivers.has(external))receiverNames.add(item.local.name);
-        if(donor.factories.has(external))factoryNames.add(item.local.name);
+        if(donor.receivers.has(external))receiverNames.add(local);
+        if(donor.factories.has(external))factoryNames.add(local);
+        ownNamespace(local,donor.namespaces.get(external)??[]);
       }
     }
-    if(!receiverNames.size&&!factoryNames.size)continue;
+    if(!receiverNames.size&&!factoryNames.size&&!namespaceNames.size)continue;
+    /**
+     * A namespace may be read through repeated static properties, e.g.
+     * outer.holder.element. Return every possible module provenance rather
+     * than selecting a single path when star reexports are ambiguous.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @param {number} depth
+     * @returns {Set<string>}
+     */
+    function namespaceOrigins(node,depth=0){
+      if(!node)return new Set();
+      // Never use a depth-limit return as evidence of a source-safe sink.
+      if(depth>64)return new Set(modules.keys());
+      if(node.type==='Identifier')return namespaceNames.get(node.name)??new Set();
+      if(node.type!=='MemberExpression')return new Set();
+      const key=property(node);
+      const result=new Set();
+      if(key===null)return result;
+      for(const origin of namespaceOrigins(node.object,depth+1))
+        for(const target of exported.get(origin)?.namespaces.get(key)??[])
+          result.add(target);
+      return result;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedFactory(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return factoryNames.has(node.name);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.factories.has(key));
+      }
+      return false;
+    }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isImportedReceiver(node) {
-      return Boolean(node && (
-        node.type==='Identifier'&&receiverNames.has(node.name)||
-        node.type==='CallExpression'&&node.callee.type==='Identifier'&&
-          factoryNames.has(node.callee.name)));
+      if(!node)return false;
+      if(node.type==='Identifier')return receiverNames.has(node.name);
+      if(node.type==='CallExpression')return isImportedFactory(node.callee);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.receivers.has(key));
+      }
+      return false;
     }
     let changed;
     do {
@@ -349,8 +460,10 @@ function hasImportedDomStringSourceSink(files) {
         if(isImportedReceiver(node.init)&&!receiverNames.has(name)){
           receiverNames.add(name);changed=true;
         }
-        if(node.init.type==='Identifier'&&factoryNames.has(node.init.name)&&
-           !factoryNames.has(name)){factoryNames.add(name);changed=true;}
+        if(isImportedFactory(node.init)&&!factoryNames.has(name)){
+          factoryNames.add(name);changed=true;
+        }
+        if(ownNamespace(name,namespaceOrigins(node.init)))changed=true;
         if(node.init.type==='MemberExpression'&&isImportedReceiver(node.init.object)){
           if(property(node.init)==='style'&&!styleNames.has(name)){
             styleNames.add(name);changed=true;
