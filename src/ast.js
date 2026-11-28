@@ -354,23 +354,55 @@ function hasWeakMapPrototypeExposure(ast) {
     return [];
   }
   /**
-   * Recognize native Function.prototype.bind passed through Reflect.apply or
-   * Function.prototype.bind.apply. These return a constructible bound WeakMap
-   * when their receiver argument can be the native WeakMap constructor.
-   * Shadowed and modified intrinsics may overapproximate; never conclude that
-   * a branch is definitely safe based on this check alone.
+   * Track intrinsics as possible values, not just immediately spelled
+   * callees. The existing constructor alias union covers local assignments,
+   * direct aliases, and direct formal/argument transfers; consuming its
+   * components here avoids a recursive per-use alias walk and cannot discard
+   * a possible intrinsic origin when a binding is overwritten later.
+   * @type {Set<string>}
+   */
+  const nativeFunctionAliasRoots=new Set([constructorAliasRoot('Function')]);
+  for(const [name,values] of constructorBindingExpressions) {
+    if(values.some(value=>value.type==='MemberExpression'&&
+       isGlobalRoot(value.object)&&memberKey(value)==='Function'))
+      nativeFunctionAliasRoots.add(constructorAliasRoot(name));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeFunctionConstructor(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&
+        nativeFunctionAliasRoots.has(constructorAliasRoot(node.name))||
+      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
+        memberKey(node)==='Function'
+    ));
+  }
+  /**
+   * Native Function.prototype.bind, possibly carried through local aliases.
+   * A user-modified intrinsic may add a false positive (conservative veto)
+   * but cannot justify declaring a native WeakMap path safe.
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
-  function isNativeFunctionPrototypeBind(node) {
+  function isDirectNativeFunctionPrototypeBind(node) {
     if(node?.type!=='MemberExpression'||memberKey(node)!=='bind')return false;
     const prototype=node.object;
-    if(prototype.type!=='MemberExpression'||memberKey(prototype)!=='prototype')
-      return false;
-    const root=prototype.object;
-    return root.type==='Identifier'&&root.name==='Function'||
-      root.type==='MemberExpression'&&isGlobalRoot(root.object)&&
-        memberKey(root)==='Function';
+    return prototype.type==='MemberExpression'&&
+      memberKey(prototype)==='prototype'&&
+      isNativeFunctionConstructor(prototype.object);
+  }
+  /** @type {Set<string>} */
+  const nativeBindAliasRoots=new Set();
+  for(const [name,values] of constructorBindingExpressions) {
+    if(values.some(isDirectNativeFunctionPrototypeBind))
+      nativeBindAliasRoots.add(constructorAliasRoot(name));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeFunctionPrototypeBind(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&
+        nativeBindAliasRoots.has(constructorAliasRoot(node.name))||
+      isDirectNativeFunctionPrototypeBind(node)
+    ));
   }
 
   /**
