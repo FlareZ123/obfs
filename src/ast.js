@@ -1694,13 +1694,13 @@ function hasWeakMapPrototypeExposure(ast) {
           inertExpression(node.consequent,locals)&&
           inertExpression(node.alternate,locals);
       if(node.type==='SequenceExpression')
-        return (node.expressions??[]).every(
+        return (/** @type {AstNode[]} */(node.expressions??[])).every(
           (part)=>inertExpression(part,locals));
       if(node.type==='ArrayExpression')
-        return (node.elements??[]).every(
+        return (/** @type {Array<AstNode|null>} */(node.elements??[])).every(
           (part)=>part?.type!=='SpreadElement'&&inertExpression(part,locals));
       if(node.type==='ObjectExpression')
-        return (node.properties??[]).every(property=>{
+        return (/** @type {AstNode[]} */(node.properties??[])).every(property=>{
           if(property.type!=='Property'||property.computed)return false;
           // Defining a method/getter is inert; executing one is not. The
           // enclosing record must stay local and every later operation in
