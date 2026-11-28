@@ -5025,7 +5025,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /**
    * A uniquely bound, unexported local `document` can be an ordinary record
    * rather than the browser's Web IDL Document. Only certify a fresh
-   * null-prototype literal whose binding is used exclusively as the LHS of
+   * null-prototype or own-title-data literal whose binding is only the LHS of
    * standalone simple .title assignments. Unlike an ordinary {} object, it
    * cannot inherit an ambient title setter. Any escape, reflection, alias,
    * read, computed key, dynamic scope, or nested shadow fails closed.
@@ -5062,13 +5062,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        declarationStatement.declarations.length!==1)return false;
     const init=binding.init;
     if(init?.type!=='ObjectExpression'||init.properties.length!==1)return false;
-    const proto=init.properties[0];
-    if(proto.type!=='Property'||proto.computed||proto.method||
-       proto.shorthand||proto.kind!=='init'||proto.value?.type!=='Literal'||
-       proto.value.value!==null)return false;
-    const protoName=proto.key?.type==='Identifier'?proto.key.name:
-      proto.key?.type==='Literal'?proto.key.value:null;
-    if(protoName!=='__proto__')return false;
+    const own=init.properties[0];
+    if(own.type!=='Property'||own.computed||own.method||
+       own.shorthand||own.kind!=='init'||own.value?.type!=='Literal')return false;
+    const ownName=own.key?.type==='Identifier'?own.key.name:
+      own.key?.type==='Literal'?own.key.value:null;
+    // The legacy __proto__:null literal owns no inherited setter. A literal
+    // title data field is likewise guaranteed writable and shadows any
+    // hostile Object.prototype.title accessor without consulting it.
+    const nullPrototype=ownName==='__proto__'&&own.value.value===null;
+    const ownTitleData=ownName==='title'&&own.value.regex===undefined&&
+      (own.value.value===null||['string','number','boolean','bigint'].
+        includes(typeof own.value.value));
+    if(!nullPrototype&&!ownTitleData)return false;
     let safe=true;
     walk(ast,(node,parent,key,ancestors)=>{
       if(!safe||node.type!=='Identifier'||node.name!=='document'||
