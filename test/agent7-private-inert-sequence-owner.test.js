@@ -88,6 +88,57 @@ test('inert comma forwarding into proven private helper parameters rewrites two 
   }
 });
 
+test('private function returns preserve owner through inert comma expressions',()=>{
+  const forms=[
+    'function get(){return (0,owner);}'+
+      'const alias=get();module.exports=alias.privateKey+alias.otherKey;',
+    'function forward(record){return (0,record);}'+
+      'const alias=forward(owner);module.exports=alias.privateKey+alias.otherKey;',
+    'const forward=record=>(0,record);'+
+      'const alias=forward(owner);module.exports=alias.privateKey+alias.otherKey;',
+    'function get(){return (true,null,owner);}'+
+      'module.exports=get().privateKey+owner.otherKey;'
+  ];
+  for(const ending of forms){
+    const source='const owner={privateKey:17,otherKey:5};'+ending;
+    const native=executeCjs(source);
+    assert.equal(native,'22');
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const result=obfuscateFiles([{path:'return-sequence.cjs',
+        sourceType:'commonjs',code:source}],{
+        mode,seed:'return-sequence/'+forms.indexOf(ending)+'/'+mode,
+        strings:false,identifiers:false,properties:true
+      }).files[0];
+      assert.equal(result.metrics.properties,2,
+        mode+' should retain private object through pure forwarding return');
+      assert.equal(executeCjs(String(result.code)),native);
+    }
+  }
+});
+
+test('returning an owner through an escaping function or public result declines',()=>{
+  const escapes=[
+    'const owner={privateKey:17};'+
+      'function get(){return (0,owner);}module.exports=get;',
+    'const owner={privateKey:17};'+
+      'function get(){return (0,owner);}module.exports=get();',
+    'const owner={privateKey:17};'+
+      'function get(){return (0,owner);}'+
+      'globalThis.exposed=get;module.exports=Object.keys(get());'
+  ];
+  for(const source of escapes){
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const result=obfuscateFiles([{path:'escaping-return.cjs',
+        sourceType:'commonjs',code:source}],{
+        mode,seed:'escaping-return/'+escapes.indexOf(source)+'/'+mode,
+        strings:false,identifiers:false,properties:true
+      }).files[0];
+      assert.equal(result.metrics.properties,0,
+        mode+' may not rewrite names in externally observable owner return');
+    }
+  }
+});
+
 test('side-effecting comma call actual must not be considered private',()=>{
   const source='const owner={privateKey:17};'+
     'function read(record){return record.privateKey;}'+
