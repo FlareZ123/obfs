@@ -38,7 +38,7 @@ These short timings are a smoke measurement, **not** a reliable per-property-acc
 
 ## Separate source-observation negative control
 
-The factory test suite now includes an in-program source-observer falsifier covering `makeState.toString()`, `Function.prototype.toString.call(makeState)`, and `Reflect.apply(Function.prototype.toString, makeState, [])`. It requires zero cross-file edits and native/emitted parity in COO/SNO/SCO. Focused run [46183580313](https://github.com/FlareZ123/obfs/actions/runs/46183580313) passed its runtime test job on Ubuntu; strict JSDoc checks ran across Ubuntu, Windows and macOS.
+The factory test suite now includes an in-program source-observer falsifier covering `makeState.toString()`, `Function.prototype.toString.call(makeState)`, and `Reflect.apply(Function.prototype.toString, makeState, [])`. It requires zero cross-file edits and native/emitted parity in COO/SNO/SCO. Focused run [46183580313](https://github.com/FlareZ123/obfs/actions/runs/46183580313) passed on Ubuntu, Windows and macOS.
 
 External attacker inspection of transformed source remains expected. The source-observer guard is about program-visible source semantics; it is not a claim that an exported function is hidden from a hostile client.
 
