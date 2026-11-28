@@ -123,7 +123,7 @@ async function main(){
       }
       assert.equal(native?.value,42,item.name);
       assert.equal(native?.inheritedSetter.length>0,item.expectedHit,item.name);
-      assert.equal(native?.title==='browser-host-title',!item.observed,item.name);
+      assert.equal(native?.title==='browser-host-title',item.expectedHit||!item.observed,item.name);
       if(item.observed)assert.match(
         item.expectedHit?native?.inheritedSetter??'':native?.title??'',
         /function protectedFn\(secretArg\)/u,item.name);
