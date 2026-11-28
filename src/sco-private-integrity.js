@@ -3,7 +3,7 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 
 /**
  * Verify a selective SCO partition's server-only source commitments against
@@ -34,7 +34,7 @@ async function verifyScoPrivateSourceDigests(partition,root){
   if(!Number.isSafeInteger(sourceCount)||sourceCount<=0){
     throw new TypeError('SCO partition has no audited private source commitments');
   }
-  const seen=new Set();
+  const paths=createPathInventory();
   /** @type {{path:string,sha256:string}[]} */
   const commitments=[];
   // The verifier must inspect every declared array slot, independent of
@@ -49,9 +49,9 @@ async function verifyScoPrivateSourceDigests(partition,root){
       throw new TypeError('SCO private source commitment is malformed');
     }
     const filename=safePath(declaredPath);
-    const caseName=filename.toLowerCase();
-    if(seen.has(caseName))throw new TypeError('SCO private source commitment path duplicated: '+filename);
-    seen.add(caseName);
+    // Use the same portable file-and-ancestor alias policy as deployment.
+    // Lowercasing the whole path misses NFC and equal-uppercase aliases.
+    registerFilePath(paths,filename,'SCO private source commitment path duplicated: ');
     commitments.push({path:filename,sha256:declaredSha});
   }
   const realRoot=await fs.realpath(root);
