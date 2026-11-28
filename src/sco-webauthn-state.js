@@ -46,6 +46,8 @@ function createScoWebAuthnMemoryStore(){
   const sessions=new Map();
   /** @type {Map<string,number>} */
   const versions=new Map();
+  /** @type {string|null} */
+  let configuredPolicyHash=null;
 
   /** @param {number} time */
   function purge(time){
@@ -89,6 +91,13 @@ function createScoWebAuthnMemoryStore(){
       versions.set(principal,next);
       for(const [token,session] of sessions)if(session.principal===principal)sessions.delete(token);
       for(const [id,challenge] of challenges)if(challenge.principal===principal)challenges.delete(id);
+    },
+    assertConfiguration(sha256){
+      if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256))
+        throw new TypeError('Invalid SCO WebAuthn configuration fingerprint');
+      if(configuredPolicyHash===null){configuredPolicyHash=sha256;return;}
+      if(configuredPolicyHash!==sha256)
+        throw new TypeError('SCO WebAuthn replica configuration differs from shared memory policy');
     }
   };
   return store;
