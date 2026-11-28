@@ -319,7 +319,6 @@ jobs:
         env:
           CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
           TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
-      FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
           FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
         run: |
           python sims/agent2-hw-version-space-audit.py \
@@ -370,6 +369,7 @@ jobs:
       HISTORY_RUN: ${{ inputs.historical_audit_run_id }}
       CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
       TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
+      FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
       MAX_CASES: ${{ inputs.version_space_max_cases || 4 }}
       SOLVER_TIMEOUT_MS: ${{ inputs.version_space_timeout_ms || 10000 }}
     steps:
