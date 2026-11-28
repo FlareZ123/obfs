@@ -658,6 +658,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const timingMethods=new Set();
   /** @type {Map<string,Set<string>>} */
   const timingMethodObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const timingReceiverObjectKeys=new Map();
   const timingNameMethods=new Set(['mark','measure','getEntriesByName',
     'clearMarks','clearMeasures']);
   // Bounded may-flow of local receiver/method parameters and direct returns.
@@ -670,6 +672,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const timingReturnedMethods=new Set();
   /** @type {Map<string,Set<string>>} */
   const timingReturnedObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const timingReturnedReceiverObjectKeys=new Map();
   // Source-safe cross-file provenance is a may-flow from the exact static
   // ESM graph. An imported timing receiver need not use its native name at
   // the consumer site. Keep method holder records and factories too.
@@ -689,6 +693,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         let keys=timingReturnedObjectKeys.get(name);
         if(!keys){keys=new Set();timingReturnedObjectKeys.set(name,keys);}
         keys.add(tag.slice('returnsHolder:'.length));
+      }
+      if(tag.startsWith('receiverHolder:')) {
+        let keys=timingReceiverObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReceiverObjectKeys.set(name,keys);}
+        keys.add(tag.slice('receiverHolder:'.length));
+      }
+      if(tag.startsWith('returnsReceiverHolder:')) {
+        let keys=timingReturnedReceiverObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReturnedReceiverObjectKeys.set(name,keys);}
+        keys.add(tag.slice('returnsReceiverHolder:'.length));
       }
     }
   }
@@ -990,11 +1004,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isTimingReceiver(node) {
-    return Boolean(node&&(node.type==='Identifier'&&timingReceivers.has(node.name) ||
-      node.type==='MemberExpression'&&memberName(node)==='performance'&&
-        (isGlobal(node.object)||isTimingModule(node.object)) ||
-      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
-        timingReturnedReceivers.has(node.callee.name)));
+    if(!node)return false;
+    if(node.type==='Identifier')return timingReceivers.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier')
+      return timingReturnedReceivers.has(node.callee.name);
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(name==='performance'&&(isGlobal(node.object)||isTimingModule(node.object)))
+      return true;
+    const keys=node.object.type==='Identifier'?
+      timingReceiverObjectKeys.get(node.object.name):
+      node.object.type==='CallExpression'&&node.object.callee.type==='Identifier'?
+        timingReturnedReceiverObjectKeys.get(node.object.callee.name):null;
+    return name!==null?keys?.has(name)??false:
+      Boolean(node.computed&&keys?.size);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isTimingMethod(node) {
