@@ -354,6 +354,26 @@ function hasWeakMapPrototypeExposure(ast) {
     return [];
   }
   /**
+   * Recognize native Function.prototype.bind passed through Reflect.apply or
+   * Function.prototype.bind.apply. These return a constructible bound WeakMap
+   * when their receiver argument can be the native WeakMap constructor.
+   * Shadowed and modified intrinsics may overapproximate; never conclude that
+   * a branch is definitely safe based on this check alone.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isNativeFunctionPrototypeBind(node) {
+    if(node?.type!=='MemberExpression'||memberKey(node)!=='bind')return false;
+    const prototype=node.object;
+    if(prototype.type!=='MemberExpression'||memberKey(prototype)!=='prototype')
+      return false;
+    const root=prototype.object;
+    return root.type==='Identifier'&&root.name==='Function'||
+      root.type==='MemberExpression'&&isGlobalRoot(root.object)&&
+        memberKey(root)==='Function';
+  }
+
+  /**
    * Track direct WeakMap constructors and a bounded set of native-compatible
    * constructor recoveries: Function#bind, Reflect.get, global property data
    * descriptors, and transparent Proxy constructors. A user-replaced builtin
@@ -390,17 +410,20 @@ function hasWeakMapPrototypeExposure(ast) {
          isGlobalRoot(node.arguments[0])&&
          staticString(node.arguments[1])==='WeakMap')return true;
       if(memberKey(node.callee)==='call'&&node.arguments.length>=1&&
-         isWeakMapConstructor(node.arguments[0],seen)) {
-        const bindMember=node.callee.object;
-        if(bindMember.type==='MemberExpression'&&memberKey(bindMember)==='bind'&&
-           bindMember.object.type==='MemberExpression'&&
-           memberKey(bindMember.object)==='prototype') {
-          const functionRoot=bindMember.object.object;
-          if(functionRoot.type==='Identifier'&&functionRoot.name==='Function'||
-             functionRoot.type==='MemberExpression'&&
-             isGlobalRoot(functionRoot.object)&&memberKey(functionRoot)==='Function')
-            return true;
-        }
+         isWeakMapConstructor(node.arguments[0],seen)&&
+         isNativeFunctionPrototypeBind(node.callee.object))return true;
+      // Function.prototype.bind.apply(WeakMap,[null]) and
+      // Reflect.apply(Function.prototype.bind,WeakMap,[null]) both create an
+      // instance-compatible bound constructor. The argument arrays are not
+      // evaluated by the scanner; this remains a may-reach proof.
+      if(memberKey(node.callee)==='apply') {
+        if(node.arguments.length>=1&&
+           isNativeFunctionPrototypeBind(node.callee.object)&&
+           isWeakMapConstructor(node.arguments[0],seen))return true;
+        if(isNamespace(node.callee.object,reflectNamespaces)&&
+           node.arguments.length>=2&&
+           isNativeFunctionPrototypeBind(node.arguments[0])&&
+           isWeakMapConstructor(node.arguments[1],seen))return true;
       }
     }
     if(node.type==='NewExpression'&&node.arguments.length>=2&&
