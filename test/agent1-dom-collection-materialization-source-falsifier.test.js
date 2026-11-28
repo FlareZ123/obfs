@@ -2,6 +2,10 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
 const {hasImportedDomStringSourceSink,obfuscateFiles}=require('../src/core');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
@@ -42,7 +46,7 @@ function graph(body,native){
       'const owner={privateValue:17};',
       'function reader(){return owner.privateValue;}',
       'node.setAttribute("data-source",reader);',
-      'export const output=reader();'
+      'export const output={value:reader(),source:globalThis.__captured};'
     ].join('\n')}
   ];
 }
@@ -60,6 +64,50 @@ test('matched userland collections do not become native DOM receivers by spellin
       fixture.name+' on ordinary own Array must not trigger a native-only effect');
   }
 });
+
+/**
+ * The host implements the browser's real native DOMString observation effect:
+ * invoking setAttribute with a Function implicitly stores String(Function).
+ * The compiled source graph never sees the host source or closure.
+ *
+ * @param {readonly SourceFile[]} files
+ * @returns {{value:number,source:string}}
+ */
+function execute(files){
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-materialized-collection-'));
+  try{
+    for(const file of files)fs.writeFileSync(path.join(root,file.path),
+      String(file.code),'utf8');
+    fs.writeFileSync(path.join(root,'runner.mjs'),[
+      'const element={setAttribute(_name,value){globalThis.__captured=String(value)}};',
+      'globalThis.document={querySelectorAll(){return [element]}};',
+      'const module=await import("./entry.mjs");',
+      'console.log(JSON.stringify(module.output));'
+    ].join('\n'),'utf8');
+    const child=spawnSync(process.execPath,[path.join(root,'runner.mjs')],{
+      encoding:'utf8',cwd:root,timeout:10000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout.trim());
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+}
+
+for(const fixture of materialization){
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    test(mode+': native collection materialization preserves observed Function source: '+fixture.name,()=>{
+      const files=graph(fixture.body,true);
+      const native=execute(files);
+      assert.equal(native.value,17);
+      const emitted=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'agent1-materialization-native-'+fixture.name+'-'+mode,
+        properties:true,identifiers:true,strings:false
+      });
+      const actual=execute(emitted.files);
+      assert.deepEqual(actual,native,
+        mode+' '+fixture.name+' changed source text observed by native DOMString setter');
+    });
+  }
+}
 
 test('own-record rewrite positive control without imported native receiver',()=>{
   for(const mode of /** @type {const} */ (['coo','sco','sno'])){
