@@ -21,6 +21,27 @@ const {obfuscateFiles}=require('../src');
 function graph(seed,shape) {
   const left=(Math.imul(seed+11,0x9e3779b9)>>>0);
   const right=(Math.imul(seed+19,0x85ebca6b)>>>0);
+  // Use a source-pinned 1-field positive record graph from the established
+  // closed-world reader proof; an exported two-field object printed through
+  // process.stdout is not itself an admitted positive-yield contract.
+  if(shape==='direct')return [
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:'+left+'};'},
+    {path:'record.mjs',sourceType:'module',code:[
+      "const schema={externalFormat:'audit-v1',auditCount:3};",
+      'export function inspectRecord(key){',
+      '  return {keys:Reflect.ownKeys(schema).sort(),',
+      '    value:schema[key],',
+      '    enumerable:Object.getOwnPropertyDescriptor(schema,"externalFormat")?.enumerable===true};',
+      '}'
+    ].join('\\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      "import {state} from './state.mjs';",
+      "import {inspectRecord} from './record.mjs';",
+      "const result=[inspectRecord('externalFormat'),inspectRecord('auditCount')];",
+      'console.log(JSON.stringify([state.secretField,result]));'
+    ].join('\\n')}
+  ];
   /** @type {ModuleFile[]} */
   const files=[{
     path:'owner.mjs',sourceType:'module',
@@ -28,9 +49,7 @@ function graph(seed,shape) {
   }];
   /** @type {string[]} */
   const statements=["import {record} from './owner.mjs';"];
-  if(shape==='direct') {
-    statements.push('const outcome=[record.secretField,record.auxiliaryField];');
-  }else if(shape==='repeated-alias'){
+  if(shape==='repeated-alias'){
     statements.push('const first=record;const second=first;');
     statements.push('const outcome=[second.secretField,record.auxiliaryField];');
   }else if(shape==='identity-import'){
