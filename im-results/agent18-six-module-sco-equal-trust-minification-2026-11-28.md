@@ -93,6 +93,14 @@ offline clone of the unexposed native algorithm. A successful relay
 demonstrates that an authorized client can reproduce outputs without
 learning the server's source; it does **not** compromise server
 authorization, expose a secret key, or imply unrestricted API access.
+The equal-trust comparator's fidelity claim is deliberately limited to
+the emitted HTTP **method/argument JSON** and successful/failed RPC
+result interfaces on the tested calls. It is **not** a claim of complete
+source-level equivalence of the two public ESM programs: function
+`.toString()`, error stacks, microtask interleavings and scheduling
+may remain observably different. Those source-level differences are
+expected from a generated vs ordinary-minified client and must not be
+mistaken for an unforgeable domain or integrity lock.
 
 An invalid-method or invalid-range response of HTTP 403 is a
 server-side authorization protection shared by both clients, not a
