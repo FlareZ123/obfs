@@ -1,0 +1,74 @@
+# Batched low-rank permutation inversion by whole-cycle indexing
+
+**Agent 20 — 28 November 2026. Classification: intermediate mathematical/attacker-side engineering, not a new obfuscator or a release claim.**
+
+Implementation: [`sims/agent20-lowrank-batch-index.js`](../sims/agent20-lowrank-batch-index.js). Reproducer: [`test/agent20-lowrank-batch-index.test.js`](../test/agent20-lowrank-batch-index.test.js). Current study source/test commit: `32a1116384e04b2cf49cfcd846937f6ad69e8e57`. This experiment generalizes Agent 20's [eight-target rank-two fixture](agent20-quintic-multitarget-amortization-2026-11-24.md) from shared setup to **global output-to-preimage cycle indexing** for any fixed promised low-rank permutation. Its underlying algebra and orbit step are already known from [Agent 7's deterministic completion](affine-low-rank-deterministic-completion-2026-11-21.md) and [Agent 39/50's sampled residual completion](affine-low-rank-oracle-inversion-2026-11-21.md). The reuse lemma is elementary; **academic originality is not claimed**.
+
+## Scope: finite binary permutation, known rank upper bound
+
+Let `V=GF(2)^n`, and let `F:V→V` be an unknown **fixed deterministic permutation** available by chosen forward queries. Query `F(0)` and `F(e_i)` (`n+1` inputs), set `c=F(0)` and let `M e_i=F(e_i)⊕c`. Define its **public affine-interpolation residual**
+\[
+D(x)=F(x)\oplus c\oplus Mx,\quad
+R=\operatorname{span}\{D(x):x\in V\},\quad \dim R\le r.
+\]
+The bound `r` is an **external promise**, not something a finite sample certifies. From surjectivity, `V=\operatorname{im}(M)+R`, so the observable nullity `d=n-\operatorname{rank}(M)` satisfies `d≤r`.
+
+### Reuse lemma and proof
+
+Choose an invertible linear completion `H` of `M`:
+
+- **Deterministic:** replace exactly `d` dependent columns by an independent standard-basis direction; `\operatorname{rank}(H-M)≤d`. Define `U=H^{-1}(R+\operatorname{im}(H-M))`; thus `\dim U≤r+d`.
+- **Sampled residual:** query uniform random inputs until `d` residual classes extend `\operatorname{im}(M)` to all of `V`; use those residuals as the column-completion differences. Then `\operatorname{im}(H-M)⊆R` and `U=H^{-1}R` has dimension at most `r`. The finite implementation has a sampling cap and explicitly throws if exhausted.
+
+Set `\phi(x)=H^{-1}(F(x)\oplus c)`. It is a permutation, and
+\[
+\phi(x)\oplus x
+=H^{-1}\bigl(D(x)\oplus(M-H)x\bigr)\in U.
+\]
+Therefore every `\phi`-cycle stays entirely inside a single coset of `U`; each such coset has at most `2^{\dim U}` states. Given output target `y`, its normalized target `z=H^{-1}(y\oplus c)=\phi(F^{-1}(y))` lies in the same `U`-coset as its preimage. Starting at `z`, walk its forward `\phi`-cycle. A query `F(x)=v` reveals **the preimage of `v`**, not merely whether one target was hit. Index every visited `v↦x`. After the cycle closes, all outputs in that cycle have been inverted; any later target in it costs **zero new queries**. Caching oracle inputs ensures each underlying `F(x)` is requested at most once.
+
+Let `C` be the number of **distinct U-cosets** among the normalized targets of an arbitrarily large batch. Every explored orbit stays in their union. The deterministic algorithm has the **pointwise distinct-query cap**
+\[
+Q_{\mathrm{det}}\le (n+1)+C\,2^{\min(n,r+d)},
+\]
+not `K` times a per-target cap for `K` supplied targets. `C` is an analysis-side parameter; the attacker does not need `U` or its coset labels.
+
+In residual-sampled completion `U=H^{-1}R`, the number `C` equals the number of distinct **R-cosets of the target outputs** (independent of sampled completion `H`). Every uniform input yields a uniform `F(x)`, and hence a uniform quotient residual class. Standard spanning gives expected sample draws
+\[
+\mathbb E[S]=\sum_{j=0}^{d-1}\frac{1}{1-2^{j-d}}<d+1.607.
+\]
+Thus an **uncapped** fresh-uniform-draw algorithm has expected distinct calls bounded by
+\[
+\mathbb E[Q_{\mathrm{sampled}}]
+\le n+1+\mathbb E[S]+C\,2^r
+<n+1+d+1.607+C\,2^r.
+\]
+This expectation is **not** claimed for the deterministic seeded samplers used solely for reproduction, or as a guaranteed completion when the actual implementation's finite cap is exceeded. The upper bound is a conditional attacker cost, not measured defender runtime.
+
+For the special case where targets cover every one of the `2^r` possible outputs in a hidden rank-`r` fiber, learning an arbitrary unknown fiber permutation from forward queries requires at least `2^r-1` queries in the worst case even if the fiber and affine envelope are supplied; the batch-cycle enumeration's `2^r` calls are within one. This is the same elementary permutation-oracle lower bound used by the existing single-target analysis, **not** a claim of a new lower bound.
+
+## Computational evidence and counted oracles
+
+All attacker counts below are **distinct input requests actually passed through the attacker's memoized oracle**, not duplicated target-generation, whole-truth-table verification, matrix-generation, or source-private rank-audit calls. The test code isolates those latter controls from the attacker API. Every reported inversion has an exact output-to-preimage check.
+
+| Corpus | Conditions | Attacker observations |
+|---|---|---|
+| **40,320/40,320** width-three permutations; **eight targets per permutation** | All `8!` permutations, deterministic **and** fixed cycling-residual completion (two independent completion arms) | Both arms recover **322,560/322,560** targets each (**645,120** exact comparisons total); each learns the complete 8-input truth table with exactly eight distinct queries. The cycling sampler is not a random-expectation test. |
+| Eight-bit, two disjoint 16-point residual cosets, **32 targets** | Outer nonlinear rank **4**, full-rank affine interpolant `d=0`; hidden input bit permutation plus invertible output mixing and an eleven-cycle/five fixed points per coset | **41 unique queries** for the whole batch, comprising nine shared interpolation plus **32** cycle queries. The fair **unshared cold-start** control across 32 independent inversions uses **540** total calls; it deliberately does not share basis/cache between callers. |
+| Eight-bit, singular interpolation | Source-private residual rank at most four, `d=1`; 16 target outputs from one hidden coset | Deterministic method exactly inverts all targets within its `2^5=32` orbit cap; a residual-sampled completion has the sharper `2^4=16` cap and reuses the same indexed outputs. Invalid sample/cap/promise paths explicitly throw. |
+| **32-bit** hidden affine wrapped rank-four shear, **16 targets** | Two independently seeded dense invertible 32×32 input/output matrices, biases `0x13579bdf` and `0x2468ace0`, four independent low-pair-controlled high-bit toggles, source-private 256 probes verifying residual rank 4; public `M` nullity `d=2` | Deterministic completion needs **96** queries (33 setup, 63 new orbit). Residual completion uses **53** (33 interpolation, **four** fixed-seed quotient draws, 16 new orbit). The 16 outputs occupy one R-coset, so another inversion of each target costs zero. |
+| Same **32-bit** oracle, **32 targets in two distinct R-cosets** | Second hidden source group differs in a coordinate outside the four-dimensional residual support | Residual completion needs **69** unique queries total: **33+4+16+16**. After both cosets have been indexed, repeating all 32 inversions costs zero. |
+
+The 32-bit fixture is a triangular bijection in hidden coordinates: each of four independent functions of low input-bit pairs toggles a different high bit. Low controlling bits never change, so this is bijective regardless of the four Boolean conditions. Dense invertible wrappers preserve injectivity and bound the nonlinear residual output span by four. In the seeded instance, 256 source-private probe residuals span **exactly rank four**, and the affine interpolant has nullity **two**. Neither the wrappers, secret preimages, rank witness probes, nor coset labels are passed to the inversion algorithm.
+
+## Limits and decisions
+
+This is a **black-box target-inversion** improvement when many desired outputs share one fixed low-rank deterministic oracle. It does **not** reconstruct original JS source, certify that a real deployed program has low residual rank, defeat server authorization, bypass domain locks, or show SNO filesystem-integrity bypass. It is **invalid for stateful/non-deterministic endpoints** where memoizing an input changes meaning; account-scoped or nonce-scoped oracles require separate evaluation. A full 32-bit domain has roughly `2^{32-r}` independent residual cosets, so reducing inversion cost on a few cosets is not a general full-domain clone.
+
+This experiment suggests a sharper **candidate-selection warning**: for static rank-`r` private maps with many queries on the *same hidden fiber*, do not benchmark only one target and multiply its cost by target count. One shared completed basis plus a cycle map can invert every supplied output in that fiber in at most `2^r` post-setup calls. Explicitly preserve a same-trust minified baseline and separately measure runtime/integrity/source reconstruction for any real candidate.
+
+## Reproduction status
+
+Local Node 22.16.0 run: `node --test --test-reporter=spec test/agent20-lowrank-batch-index.test.js` returned **6/6 tests passed** (about 0.2–0.3 seconds) at locally byte-equal script revisions. Existing two-platform manual focused receipts: [46086401135](https://github.com/FlareZ123/obfs/actions/runs/46086401135) (deterministic base, `bc324aad`) and [46086548077](https://github.com/FlareZ123/obfs/actions/runs/46086548077) (both completion strategies, `ab42b569`) were **GREEN** Ubuntu/Windows, including configured strict JSDoc. [46086660729](https://github.com/FlareZ123/obfs/actions/runs/46086660729) at `65f167a3` **GREEN** Ubuntu/Windows for the 32-bit single-coset test. **The latest extra 32-bit second-coset assertion at `32a11163` requires a separate exact-head two-platform receipt and is not covered by that prior run.**
+
+**No release recommendation.** Existing mainline project `results/README.md` remains authoritative and the full product remains **RELEASE-BLOCKED**. Independent peer mathematical review and a current-head CI receipt are appropriate before treating this elementary batch analysis as a consolidated result, and literature originality is unassessed.
