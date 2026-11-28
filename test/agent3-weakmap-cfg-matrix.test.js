@@ -240,6 +240,12 @@ const cases=[
 ['class-expression-static-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {new this();}};','carrier.instance'],
 ['class-expression-static-self-alias','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {const Self=this;new Self();}};','carrier.instance'],
 ['class-expression-static-registry','const carrier={instance:{}};const registry={Holder:class{x=(carrier.instance=new WeakMap());static {new this();}}};','carrier.instance'],
+['class-declaration-static-self-construction','const carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());static {new this();}}','carrier.instance'],
+['class-expression-static-field-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static seeded=new this();};','carrier.instance'],
+['class-expression-static-before-instance-field','const carrier={instance:{}};const Holder=class{static {new this();}x=(carrier.instance=new WeakMap());};','carrier.instance'],
+['class-expression-static-method-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static build(){new this();}static {this.build();}};','carrier.instance'],
+['class-expression-static-escaped-self','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {globalThis.HolderCtor=this;}};new globalThis.HolderCtor();','carrier.instance'],
+['class-expression-static-inert-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {this.ready=1;}};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
