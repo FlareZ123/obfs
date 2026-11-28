@@ -6,6 +6,7 @@ const {createHash}=require('node:crypto');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
+const {parse,observesDistributedSource,observesFunctionSource}=require('../src/ast');
 
 const runBrowser=promisify(execFile);
 
@@ -104,6 +105,11 @@ async function serve(){
   });
   const leaf=compiled.files.find(file=>file.path==='leaf.mjs');
   assert.ok(leaf && typeof leaf.code==='string');
+  const entryAst=parse(String(original[1].code),'module');
+  console.log('AGENT5_SOURCE_OBSERVER_DIAG '+JSON.stringify({scenario,
+    distributed:observesDistributedSource(entryAst),
+    functionSource:observesFunctionSource(entryAst),
+    protectedFields:leaf.metrics.properties}));
   if(expectGuarded) {
     assert.equal(leaf.metrics.properties,0,'default source observer must suppress rewrite');
     assert.equal(leaf.code,original[0].code,'byte-pin requires exact emitted JS source');
