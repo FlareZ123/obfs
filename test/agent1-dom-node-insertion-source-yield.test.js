@@ -210,3 +210,22 @@ test('sibling Element/DocumentFragment insertion method replacement invalidates 
     }
   }
 });
+
+
+test('customElement constructors and unknown tags refuse a native Node source exemption',()=>{
+  const unsafe=[
+    'const node=document.createElement("x-obfs-widget");document.body.append(node);',
+    'const node=document.createElement("button",{is:"x-obfs-widget"});document.body.append(node);',
+    'const tag=hostTag;const node=document.createElement(tag);document.body.append(node);',
+    'const node=document.createElementNS("https://unknown.example/xml","widget");document.body.append(node);'
+  ];
+  const safe=[
+    'const node=document.createElement("button");document.body.append(node);',
+    'document.body.append(document.createElementNS("http://www.w3.org/2000/svg","circle"));',
+    'document.body.append(document.createTextNode("primitive"));'
+  ];
+  for(const source of unsafe)
+    assert.equal(exposed(source),true,'Opaque custom element constructor may execute source observers: '+source);
+  for(const source of safe)
+    assert.equal(exposed(source),false,'Statically native non-custom DOM Node stays noncoercing: '+source);
+});
