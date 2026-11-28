@@ -86,6 +86,24 @@ for(const count of [1,50,1000,10000]){
     callbackSha256:await sha256(expected.callbacks),emitted:expected.emitted});
 }
 const hot=records(10000);
+window.__runWarmCpu=(name,repeats)=>{
+  const fn=implementations[name];
+  if(typeof fn!=='function')throw Error('Unknown CPU profile variant: '+name);
+  let emitted=0,output='';
+  for(let i=0;i<repeats;i++)
+    output=fn(-817,hot,{emit(){emitted++;}});
+  window.__lastCpuOutput=output;
+  return {emitted};
+};
+window.__runColdCpu=async(name,count,trial)=>{
+  const input=records(count);
+  const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
+  let emitted=0;
+  const output=api.runScenario(-817,input,{emit(){emitted++;}});
+  window.__lastCpuOutput=output;
+  return {emitted};
+};
+window.__hashLastCpuOutput=async()=>sha256(window.__lastCpuOutput);
 function time(fn){
   let emitted=0;
   const start=performance.now();
@@ -166,7 +184,7 @@ async function main(){
   const expected=[1,50,1000,10000].map(count=>observeNode(native,count));
   const server=http.createServer((request,response)=>{
     const target=request.url??'';
-    const cold=/^\/cold-(native|minified|published|reconstructed)-(1|10000)-([0-9]|1[01])\/(math|state|entry)\.mjs$/u.exec(target);
+    const cold=/^\/cold-(native|minified|published|reconstructed)-(1|10000)-([0-9]|1[0-9]|2[0-3])\/(math|state|entry)\.mjs$/u.exec(target);
     const source=cold?assets.get('/'+cold[1]+'/'+cold[4]+'.mjs'):assets.get(target);
     if(request.method!=='GET'||source===undefined){
       response.writeHead(404).end();
