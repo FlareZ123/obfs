@@ -53,3 +53,51 @@ test('three-mode compiler must not silently emit source-changing selected Wasm',
     }),/Wasm|declined|source/i,'mode '+mode+' must not obfuscate an observable function');
   }
 });
+
+/** @type {Array<[string,string]>} */
+const aliases=[
+  ['direct','module.exports=CSS.escape(f);'],
+  ['computed','module.exports=CSS["escape"](f);'],
+  ['global','module.exports=globalThis.CSS.escape(f);'],
+  ['namespace-alias','const styles=CSS;module.exports=styles.escape(f);'],
+  ['global-namespace-alias','const {CSS:styles}=globalThis;module.exports=styles.escape(f);'],
+  ['method-alias','const esc=CSS.escape;module.exports=esc(f);'],
+  ['destructured','const {escape:esc}=CSS;module.exports=esc(f);'],
+  ['nested-destructured','const {escape:esc}=globalThis.CSS;module.exports=esc(f);'],
+  ['bound','const esc=CSS.escape.bind(CSS);module.exports=esc(f);'],
+  ['call','module.exports=CSS.escape.call(CSS,f);'],
+  ['apply','module.exports=CSS.escape.apply(CSS,[f]);'],
+  ['reflect-apply','module.exports=Reflect.apply(CSS.escape,CSS,[f]);']
+];
+
+for(const [name,consumer] of aliases){
+  test('CSS.escape source coercion guard: '+name,()=>{
+    const source=base+consumer;
+    assert.equal(observe(source),observe(observed),
+      'The source observer must receive the same native function');
+    const lowered=lowerWasmI32Functions(source,'commonjs',{
+      seed:'css-escape-alias/'+name,names:['f']
+    });
+    assert.equal(lowered.functions,0,
+      'A source-observing '+name+' invocation must refuse Wasm');
+    assert.equal(lowered.declined,1);
+    assert.equal(lowered.code,source);
+  });
+}
+
+for(const mode of /** @type {const} */(['coo','sco','sno'])){
+  test(mode+' retains nonvacuous Wasm lowering when CSS.escape sees a primitive',()=>{
+    const source=base+'module.exports=[f(7),CSS.escape("ordinary-value")];';
+    const emitted=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode,seed:'css-escape-primitive-control/'+mode,
+      strings:false,identifiers:false,properties:false,
+      experimentalWasmI32:{'entry.cjs':['f']}
+    });
+    assert.match(emitted.files[0].code,/WebAssembly/,
+      'CSS.escape(primitive) must not force a vacuous unchanged selection');
+    assert.equal(JSON.stringify(observe(emitted.files[0].code)),
+      JSON.stringify(observe(source)));
+  });
+}
