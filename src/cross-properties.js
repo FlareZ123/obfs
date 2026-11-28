@@ -2687,7 +2687,18 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
-      if(node.type==='ImportExpression' && node.options){ambiguous=true;return;}
+      // A runtime ESM edge can import another supplied module or an
+      // unlisted package, so it is not part of the static ownership graph.
+      // Permit only a literal Node builtin that cannot add an in-group
+      // consumer; dynamic source paths and module-loader builtins stay closed.
+      if(node.type==='ImportExpression') {
+        const specifier=staticString(node.source);
+        if(node.options || specifier===null ||
+           !specifier.startsWith('node:') ||
+           specifier==='node:module' ||
+           secondaryLoaderModules.has(specifier)) ambiguous=true;
+        return;
+      }
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
       if(node.attributes?.length || node.assertions?.length){ambiguous=true;return;}
@@ -3323,21 +3334,28 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
               failed=true;
             });
             if(failed)break;
-            for(const root of roots) {
-              const proof=proveLocalObject(importer.ast,root,importer.bindings,
-                importedIdentities.get(importerName),new Map(),new Map(),
-                verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-                allowDirectReflection);
-              if(!proof) {
-                failed=true;
-                break;
-              }
-              users.push({
-                file:importerName,
-                source:/** @type {string} */ (importer.file.code),
-                proof
-              });
+            if(!roots.length) {
+              failed=true;
+              break;
             }
+            // Every root was produced by this exact zero-argument factory.
+            // Prove them together so a private record/tuple may carry several
+            // shape-equivalent instances without treating arbitrary objects
+            // as members of the owner class.
+            const rootNames=[...new Set(roots)];
+            const proof=proveLocalObject(importer.ast,rootNames[0],importer.bindings,
+              importedIdentities.get(importerName),new Map(),new Map(),
+              verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
+              allowDirectReflection,rootNames.slice(1));
+            if(!proof) {
+              failed=true;
+              break;
+            }
+            users.push({
+              file:importerName,
+              source:/** @type {string} */ (importer.file.code),
+              proof
+            });
             if(failed)break;
           }
           if(failed)break;
@@ -3349,8 +3367,10 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
             const field=user.proof.memberNames.get(member);
             return typeof field!=='string'||!ownNames.has(field);
           })||
-          user.proof.patterns.some(property=>
-            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property)))||
+          user.proof.patterns.some(property=>{
+            const name=user.proof.patternNames.get(property)??ownPropertyName(property);
+            return typeof name!=='string'||!ownNames.has(name);
+          })||
           user.proof.inChecks.some(check=>!ownNames.has(check.left.value))||
           user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
         const mapping=new Map();
