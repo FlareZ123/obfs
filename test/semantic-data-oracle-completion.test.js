@@ -24,7 +24,7 @@ const cases=[
   {label:'throw-nan',expression:'0/0',expected:NaN,kind:'throw',array:false},
   {label:'throw-undefined',expression:'void 0',expected:undefined,kind:'throw',array:false},
   {label:'throw-null',expression:'null',expected:null,kind:'throw',array:false},
-  {label:'throw-bigint',expression:'9007199254740993n',expected:9007199254740993n',kind:'throw',array:false}
+  {label:'throw-bigint',expression:'9007199254740993n',expected:9007199254740993n,kind:'throw',array:false}
 ];
 const reference={publicValue:-0,publicNaN:NaN};
 cases.push({label:'throw-shared-record',expression:'{publicValue:-0,publicNaN:0/0}',
