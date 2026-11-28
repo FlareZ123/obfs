@@ -43,7 +43,7 @@ async function observe(files,scenario) {
     for(const file of files)await fs.writeFile(path.join(root,file.path),file.code);
     const runner=[
       "const {pathToFileURL}=require('node:url');",
-      "const {snapshotDataGraph}=require(process.argv[2]);",
+      "const {snapshotDataGraph,serializeDataSnapshot}=require(process.argv[2]);",
       "const events=[];",
       "globalThis.externalObserver=(...args)=>{",
       "  if(process.argv[3]==='escape'||process.argv[3]==='escape-mutate'){",
@@ -52,7 +52,7 @@ async function observe(files,scenario) {
       "  }else{events.push(args);}",
       "};",
       "(async()=>{const {result}=await import(pathToFileURL(process.argv[1]).href);",
-      "  process.stdout.write(JSON.stringify(snapshotDataGraph({events,result})));",
+      "  process.stdout.write(serializeDataSnapshot(snapshotDataGraph({events,result})));",
       "})().catch(error=>{console.error(error);process.exitCode=1;});"
     ].join('\n');
     const child=spawnSync(process.execPath,[
