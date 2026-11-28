@@ -77,10 +77,14 @@ const nativeTypeofCases=[
   {label:'getter',expression:'typeof ({get value(){return process;}}).value',node:'object'},
   {label:'Proxy getter',expression:'typeof (new Proxy({},{get(){return process;}})).value',node:'object'},
   {label:'generator next',expression:'typeof (function*(){return process})().next().value',node:'object'},
-  {label:'optional map',expression:'typeof [0]?.map?.(()=>process)?.[0]',node:'object'}
+  {label:'optional map',expression:'typeof [0]?.map?.(()=>process)?.[0]',node:'object'},
+  {label:'JSON toJSON',expression:'typeof JSON.stringify({toJSON(){return process.versions.node}})',node:'string'},
+  {label:'join toString',expression:'typeof [{toString(){return process.versions.node}}].join(",")',node:'string'},
+  {label:'String toString',expression:'typeof String({toString(){return process.versions.node}})',node:'string'},
+  {label:'assign getter',expression:'typeof Object.assign({}, {get value(){return process.versions.node}}).value',node:'string'}
 ];
 
-test('real Chromium native ESM mismatch and compiler refusal for fifteen eager typeof bodies',{
+test('real Chromium native ESM mismatch and compiler refusal for nineteen eager typeof bodies',{
   skip:process.platform==='win32'||
     process.env.OBFS_FOCUSED_TEST!=='test/sco-typeof-callback-host-boundary.test.js',
   timeout:45000
