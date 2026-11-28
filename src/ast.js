@@ -2660,16 +2660,17 @@ function hasNativeDocumentFactoryMutation(ast) {
  * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
  * @param {boolean} [sharedWeakMapPrototypeExposure] Group-wide WeakMap prototype exposure.
  * @param {boolean} [sharedDocumentFactoryMutation=false] Sibling script may mutate native Node factories.
+ * @param {Set<string>} [importedNativeNodeFactories] Immutable, source-verified ESM native Node factory imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure,sharedDocumentFactoryMutation=false) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure,sharedDocumentFactoryMutation=false,importedNativeNodeFactories=new Set()) {
   // A sibling module can expose the shared WeakMap prototype before this
   // file evaluates, so that group-wide fact also invalidates the cache.
   const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure===undefined?
     hasWeakMapPrototypeExposure(ast):sharedWeakMapPrototypeExposure;
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!weakMapPrototypeExposed&&!sharedDocumentFactoryMutation&&!importedStrings.size&&!importedCloneFunctions.size&&
+  if(!weakMapPrototypeExposed&&!sharedDocumentFactoryMutation&&!importedNativeNodeFactories.size&&!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
      !importedUrlStaticMethods.size&&!importedStorageMethodAliases.size) {
     const cached=sourceObservationCache.get(ast);
@@ -4865,12 +4866,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'createTextNode','createComment','createDocumentFragment']);
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function directNativeNodeFactory(value) {
-    return Boolean(value?.type==='CallExpression' &&
+    return Boolean(value?.type==='CallExpression'&&!value.optional&&(
       value.callee.type==='MemberExpression' && !value.callee.computed &&
-      value.callee.object.type==='Identifier' &&
-      value.callee.object.name==='document' &&
-      domNodeFactoryMethods.has(memberName(value.callee)??'') &&
-      value.arguments.every((/** @type {AstNode} */ arg)=>isDefinitelyPrimitive(arg)));
+        value.callee.object.type==='Identifier' &&
+        value.callee.object.name==='document' &&
+        domNodeFactoryMethods.has(memberName(value.callee)??'') &&
+        value.arguments.every((/** @type {AstNode} */ arg)=>
+          isDefinitelyPrimitive(arg)) ||
+      // A distinct supplied ESM module exports exactly one immutable,
+      // parameter-free, primitive-input native Node factory. A consumer
+      // may call its uniquely bound import, but must not supply any
+      // argument whose evaluation could mutate the shared Document realm.
+      value.callee.type==='Identifier'&&value.arguments.length===0&&
+        importedNativeNodeFactories.has(value.callee.name)&&
+        bindingCounts.get(value.callee.name)===1));
   }
   let factoryMayBeReplaced=false;
   walk(ast,(node,parent)=>{
