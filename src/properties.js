@@ -170,20 +170,6 @@ const constantDeclaratorsCache=new WeakMap();
 const proofInventoryCache=new WeakMap();
 
 /**
- * @param {AstNode} ast
- * @returns {{
- *   calls:Map<string,AstNode[]>, declarations:AstNode[], declarationSet:Set<AstNode>,
- *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
- *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
- *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
- *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
- *   directInvokedArrows:AstNode[],
- *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
- *   tupleDeclarations:Map<string,AstNode[]>,
- *   recordDeclarations:Map<string,AstNode[]>
- * }}
- */
-/**
  * Recognize a comma expression whose discarded operands are inert
  * primitive constants. These can neither invoke user code nor
  * observe/escape an owner; the expression's value is its last operand.
@@ -203,6 +189,20 @@ function inertSequenceValue(node) {
   return node.expressions[node.expressions.length-1];
 }
 
+/**
+ * @param {AstNode} ast
+ * @returns {{
+ *   calls:Map<string,AstNode[]>, declarations:AstNode[], declarationSet:Set<AstNode>,
+ *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
+ *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
+ *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
+ *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   directInvokedArrows:AstNode[],
+ *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
+ *   tupleDeclarations:Map<string,AstNode[]>,
+ *   recordDeclarations:Map<string,AstNode[]>
+ * }}
+ */
 function collectProofInventory(ast) {
   const cached=proofInventoryCache.get(ast);
   if(cached)return cached;
