@@ -13,9 +13,14 @@ const {walk,staticString}=require('./ast');
  * @returns {boolean}
  */
 function primitiveLiteral(value){
-  return value.type==='Literal'&&value.regex===undefined&&
-    (value.value===null||
-      ['string','number','boolean','bigint'].includes(typeof value.value));
+  if(value.type!=='Literal'||value.regex!==undefined)return false;
+  const data=value.value;
+  // Selective SCO's wire contract is JSON, so admitting non-finite numbers
+  // or BigInt by this *additional* table-ownership proof would overstate its
+  // applicability. They may be handled elsewhere only with an explicit
+  // application-specific transport contract.
+  return data===null||typeof data==='string'||typeof data==='boolean'||
+    typeof data==='number'&&Number.isFinite(data);
 }
 
 /**
