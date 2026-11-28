@@ -93,3 +93,8 @@ The current-main full workflow's failed job log also shows that the failures are
 - `test/esm-observation-browser.js` (`nativeBrowserParity: true`)
 
 Thus the current-main no-go is driven by functional/yield/adversarial assertions, not by strict JSDoc, the listed specialized TypeScript projects, or the browser integration steps. This is useful prioritization evidence; it does not weaken the 14 failing behavioral cases.
+
+
+### Clarification on the main-only benchmark failure
+
+The main-only failure at test index 383 is a **compute-budget breach**, not a property-renaming assertion. `benchmark-private-positive.test.js` spawns `test/benchmark.js`; the child exits 1 because the `single-use function factory` workload measured `baseline 0.61ms; obfuscated 1.90ms; ratio 3.138x`, exceeding the 2.5x budget. The donor run passed this benchmark test, but a single microbenchmark sample is timing-sensitive; do not claim the donor fixed the workload without repeated paired measurements and a reproducible CPU-bound result.
