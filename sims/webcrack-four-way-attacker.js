@@ -48,6 +48,23 @@ async function runEvidence(){
     const originalPath=path.join(root,'reference.mjs');
     await fs.writeFile(originalPath,graphs.native[0].code,'utf8');
     const reference=await import(pathToFileURL(originalPath).href);
+    // A deliberately type-changing native-only mutation preserves the text
+    // rendered by console/String but must be rejected by Object.is.
+    const originalMath=graphs.native[0].code;
+    const mutatedMath=originalMath.replace(
+      'export function round1(input)',
+      'function round1Original(input)')+
+      '\nexport function round1(input){return String(round1Original(input));}\n';
+    assert.notEqual(mutatedMath,originalMath,'Mutation control missing target');
+    const mutationPath=path.join(root,'mutation-control.mjs');
+    await fs.writeFile(mutationPath,mutatedMath,'utf8');
+    const mutation=await import(pathToFileURL(mutationPath).href);
+    assert.equal(String(mutation.round1(0)),String(reference.round1(0)),
+      'Mutation must evade lossy text-only output comparison');
+    assert.equal(Object.is(mutation.round1(0),reference.round1(0)),false,
+      'Exact typed source oracle must reject console-equivalent mutation');
+    const oracleMutationControl={textComparatorWouldMiss:true,
+      exactTypedComparatorRejects:true};
     // Keep the original *complete* three-file graph as the heldout
     // behavioral reference, including the opaque host callback trace.
     const nativeDir=path.join(root,'original-graph');
@@ -130,7 +147,7 @@ async function runEvidence(){
     }
     return {scope:'frozen public math module only, two independent transformations',
       tool,sourceCommit:'a8a22f9aef6e7f0d487cebc23c87063376df55cb',
-      protectedFunctions,variants,
+      protectedFunctions,oracleMutationControl,variants,
       interpretation:'Exact output parity is NOT original source reconstruction, anti-LLM evaluation, or a proof of tamper resistance. Full application checks cover one fixed stateful trace, not the unknown-host/source-observer matrix. Existing static attack runs independently recover 3/3 arithmetic functions.'};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
