@@ -11,6 +11,9 @@ const {makeRng,makeRivestPermutation,makeLinearTransform,applyLinear,u32}=
   require('./compatible-permutation-linear-sandwich-blackbox');
 
 const TOKEN='authorized-dense-hybrid-matched-source';
+// Attacker-controlled query scheduling is independent of private fixture seed.
+// Keep the previous deterministic sequence for a matched CI comparison.
+const PUBLIC_ATTACK_SEED=0xb412c9b9;
 
 /**
  * Recreate the exact source-private coefficients of the seeded Rivest
@@ -267,7 +270,7 @@ async function executeArm(arm,sample) {
       .test(publicCode);
     assert.equal(sourceLeaked,false);
     const result=await invertOverHttp({origin,method,token:TOKEN},
-      sample.target,u32(sample.seed^0x516a1128));
+      sample.target,PUBLIC_ATTACK_SEED);
     assert.equal(result.value,sample.secret);
     assert.equal(result.method,'cegar8');
     assert.equal(privateCalls,result.queries);
