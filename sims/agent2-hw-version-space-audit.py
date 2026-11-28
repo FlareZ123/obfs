@@ -540,6 +540,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
     return "sat", {
         "witness_source": "z3_candidate_machine",
         "effective_candidate_labeling": effective_labeling,
+        "future_difference_encoding": future_difference_encoding,
         "candidate_state_count": len(candidate_transitions),
         "solver_model_state_count": k,
         "trace_separation_constraints": len(separation_pairs),
