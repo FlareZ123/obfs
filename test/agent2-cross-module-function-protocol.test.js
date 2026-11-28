@@ -8,7 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 
-/** @typedef {{path:string,sourceType:'module',code:string}} SourceFile */
+/** @typedef {{path:string,sourceType:'module'|'script',code:string}} SourceFile */
 /**
  * Execute a four-file ESM graph with a native Node host that captures the
  * exact source of a function passed to an earlier-mutated WeakMap prototype.
@@ -121,6 +121,93 @@ for(const hostile of [false,true]) {
       }));
       assert.deepEqual(result,native,
         'A sibling module can change inherited call forwarding before a local default');
+    }
+  });
+}
+
+
+/**
+ * Classic browser scripts share a realm and top-level lexical environment
+ * but are compiled and delivered as separate files. Use Node's script API
+ * rather than ESM import to exercise the corresponding source-order boundary.
+ * @param {boolean} hostile
+ * @returns {SourceFile[]}
+ */
+function scriptCorpus(hostile) {
+  const modules=new Map(corpus(hostile).map(file=>[file.path,file.code]));
+  return [
+    {path:'protocol.js',sourceType:'script',
+      code:/** @type {string} */ (modules.get('protocol.mjs')).replace(
+        'export const benign=true;','void 0;')},
+    {path:'mutate.js',sourceType:'script',
+      code:/** @type {string} */ (modules.get('mutate.mjs'))},
+    {path:'storage.js',sourceType:'script',
+      code:/** @type {string} */ (modules.get('storage.mjs')).replace(
+        'export function sample(){','globalThis.__appRun=function sample(){')}
+  ];
+}
+
+/**
+ * Run ordered classic scripts through Node's shared V8 context.
+ * @param {SourceFile[]} files
+ * @returns {{result:{value:number},capturedSource:string}}
+ */
+function runScripts(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-script-protocol-'));
+  try {
+    for(const file of files)fs.writeFileSync(path.join(directory,file.path),file.code);
+    const runner=[
+      'const fs=require("node:fs");',
+      'const path=require("node:path");',
+      'const vm=require("node:vm");',
+      'class Storage {setItem(key,value){this.key=key;this.value=value;}}',
+      'globalThis.Storage=Storage;',
+      'globalThis.localStorage=new Storage();',
+      'let capture="";globalThis.document={};',
+      'Object.defineProperty(document,"title",{get(){return capture;},',
+      'set(value){capture=String(value);}});',
+      'for(const name of ["protocol.js","mutate.js","storage.js"]){',
+      '  vm.runInThisContext(fs.readFileSync(path.join(__dirname,name),"utf8"),',
+      '    {filename:name});',
+      '}',
+      'const result=globalThis.__appRun();',
+      'process.stdout.write(JSON.stringify({result,capturedSource:capture})+"\\n");'
+    ].join('\n');
+    fs.writeFileSync(path.join(directory,'runner.cjs'),runner);
+    const result=spawnSync(process.execPath,[path.join(directory,'runner.cjs')],{
+      encoding:'utf8',timeout:15000,maxBuffer:1024*1024,windowsHide:true
+    });
+    assert.equal(result.status,0,result.stderr||result.error?.message);
+    return JSON.parse(result.stdout);
+  }finally{
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+for(const hostile of [false,true]) {
+  test('ordered browser scripts preserve mutated call forwarding / '+hostile,()=>{
+    const files=scriptCorpus(hostile);
+    const native=runScripts(files);
+    assert.deepEqual(native.result,{value:29});
+    if(hostile)assert.ok(native.capturedSource.includes('privateLocal'),native.capturedSource);
+    else assert.equal(native.capturedSource,'');
+    for(const mode of /** @type {const} */(['coo','sco','sno'])) {
+      const transformed=obfuscateFiles(files,{
+        mode,seed:'agent2-script-call-protocol-'+mode+'-'+hostile,
+        properties:false,strings:false,identifiers:true,closedWorld:true
+      });
+      const result=runScripts(transformed.files.map(file=>({
+        path:file.path,sourceType:'script',code:String(file.code)
+      })));
+      const stored=transformed.files.find(file=>file.path==='storage.js');
+      assert.ok(stored);
+      console.log('AGENT2_CROSS_SCRIPT_CALL '+JSON.stringify({
+        mode,hostile,bindings:stored.metrics.bindings,
+        nativeSource:native.capturedSource,emittedSource:result.capturedSource,
+        parity:JSON.stringify(native)===JSON.stringify(result)
+      }));
+      assert.deepEqual(result,native,
+        'The prior classic script can alter inherited invocation methods');
     }
   });
 }
