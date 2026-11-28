@@ -65,6 +65,8 @@ const aliases=[
   ['destructured','const {escape:esc}=CSS;module.exports=esc(f);'],
   ['nested-destructured','const {escape:esc}=globalThis.CSS;module.exports=esc(f);'],
   ['bound','const esc=CSS.escape.bind(CSS);module.exports=esc(f);'],
+  ['inline-bound','module.exports=CSS.escape.bind(CSS)(f);'],
+  ['reflect-inline-bound','module.exports=Reflect.apply(CSS.escape.bind(CSS),CSS,[f]);'],
   ['call','module.exports=CSS.escape.call(CSS,f);'],
   ['apply','module.exports=CSS.escape.apply(CSS,[f]);'],
   ['reflect-apply','module.exports=Reflect.apply(CSS.escape,CSS,[f]);']
