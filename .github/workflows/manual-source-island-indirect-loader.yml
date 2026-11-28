@@ -106,7 +106,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Native-vs-obfuscated source-island and default HTML-SRI regression
-        run: node --test test/agent5-source-island-windowproxy-sri.test.js test/agent5-html-integrity-dynamic-dom.test.js test/source-observer-islands.test.js test/document-opaque-method-sri.test.js test/reflective-document-write-sri.test.js
+        run: node --test test/agent5-source-island-windowproxy-sri.test.js test/agent5-html-integrity-dynamic-dom.test.js test/agent5-windowproxy-host-data-sri.test.js test/source-observer-islands.test.js test/document-opaque-method-sri.test.js test/reflective-document-write-sri.test.js
       - name: Real Chromium SRI and byte-preserving default fallback
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
@@ -132,13 +132,7 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Red-first real Chromium external-host WindowProxy SRI pin
-        if: ${{ matrix.scenario == 'host-data-sri' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }}
-      - name: Guarded Chromium parity for five DOM HTML parser SRI paths
-        if: ${{ matrix.scenario != 'host-data-sri' }}
+      - name: Guarded Chromium parity for six WindowProxy and DOM HTML SRI paths
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }} --expect-guarded
