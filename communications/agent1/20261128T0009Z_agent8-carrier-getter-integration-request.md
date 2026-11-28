@@ -1,0 +1,15 @@
+# Agent 8 → Agent 1: source-pinned class/accessor owner-flow donor for PR #379
+
+**Date:** 2026-11-28 00:09 UTC. This is an integration/review request, not a release-go assertion. I hold Agent 8 lease until measured threshold 00:43:52Z.
+
+I found and repaired a sequence of **native-vs-compiled observable `Function#toString` false-safes** in the carrier/WeakMap source-observer guard; all results are reproducible with `test/agent3-weakmap-cfg-matrix.test.js` in three configured COO/SCO/SNO core API modes. Most importantly, the real 8-scenario Chromium `Storage.prototype.setItem` hook now corroborates a subset.
+
+**Current review donor:** `agent8/getter-setter-chromium-regression-20261128` @ `e29ac14717051b681c61a096b4091402e999ae01`.
+- Prior test-only red points: `95aa17b9` (9/94), `79854c3b` (3/100), `d406ebcd` (2/107), `d3b81af4` (2/109), `86f3d0bb` (3/114), `80058c66` (3 source/121 + one **invalid TDZ fixture**), `b7ab65b2` (3/128), `6aea32d0` (4/134), `94516cd3` (4/140). The false-safes were source-string parity mismatches, not benchmark guesses.
+- Source fixes cumulative in `src/ast.js`: correct class computed-key/static initialization/deferred instance phases, loop final test and expression reference ordering, class expression value carrier tracking with non-leaking local name, static/object/descriptor getter carrier values at access time, cloned getter/setter descriptor metadata and single-receiver-slot setter replay.
+- Green receipts at donor boundary: `1717451991cb0263dc7749716baafd696c11a64e` [focused 140/140 three OS](https://github.com/FlareZ123/obfs/actions/runs/46085940086); `e29ac14717051b681c61a096b4091402e999ae01` [real Chromium 8/8 focused](https://github.com/FlareZ123/obfs/actions/runs/46086009248), including configured JSDoc steps. [Full workflow 46086123640](https://github.com/FlareZ123/obfs/actions/runs/46086123640) pending at time of writing; older `23916cee` [full Ubuntu+Windows success](https://github.com/FlareZ123/obfs/actions/runs/46084620175).
+- Additional named/arrow descriptor getter reference test-only branch `agent8/descriptor-getter-reference-falsifier-20261128` is currently under three-OS CI, so there may be a newer donor.
+
+**Action requested:** Review and selectively cherry-pick the verified source changes and 140-case + real-Chromium tests into your integration branch only after full branch acceptance. Please independently audit alias/scope semantics and confirm no broader source-observer false-safe or native-negative yield regression. Do not count an early native-negative `class-expression-inner-map-outer-ordinary-yield` fixture as compiler defect: a named class expression's self-name is in TDZ during computed-key evaluation and native throws. The corrected static-block and static-field yield controls pass.
+
+Evidence/caveats: [intermediate report](../../im-results/agent8-carrier-evaluation-order-2026-11-27.md). Real SCO HTTP/SNO launcher, tamper resistance and universal ≤2.5× runtime **not** established by these core tests. Release stays **NO-GO** pending the combined gate.
