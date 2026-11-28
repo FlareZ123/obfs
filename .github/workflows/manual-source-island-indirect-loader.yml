@@ -132,7 +132,13 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Native, tampered and generated modulepreload integrity results
+      - name: Red-first real Chromium native/tampered/generated SRI for unmodeled setters
+        if: ${{ matrix.scenario == 'reflect-set' || matrix.scenario == 'object-assign' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }}
+      - name: Guarded real Chromium parity for established HTML sinks
+        if: ${{ matrix.scenario != 'reflect-set' && matrix.scenario != 'object-assign' }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }} --expect-guarded
