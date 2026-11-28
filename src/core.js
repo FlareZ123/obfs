@@ -299,6 +299,15 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         }
       }
     }
+    if(process.env.OBFS_FOCUSED_TEST==='test/agent25-esm-export-escape-heldout.test.js') {
+      process.stderr.write('[ESM-DOM-IMPORT] '+JSON.stringify({
+        filename,
+        importedOrigins:[...importedOrigins],
+        directCallableImports:[...directCallableImports],
+        callableOriginSets:[...callableOriginSets].map(([name,origins])=>[name,[...origins]]),
+        importedNamespaces:[...importedNamespaces]
+      })+'\\n');
+    }
     if(!importedOrigins.size)continue;
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
@@ -407,6 +416,15 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          parent.callee===node&&!parent.optional)return;
       for(const producer of origins)protectedPaths.add(producer);
     });
+  }
+  if(process.env.OBFS_FOCUSED_TEST==='test/agent25-esm-export-escape-heldout.test.js') {
+    process.stderr.write('[ESM-DOM-RESULT] '+JSON.stringify({
+      directCallableExports:[...directCallableExports].map(([file,names])=>[file,[...names]]),
+      resolvedCallableOrigins:[...resolvedCallableOrigins].map(([file,exports])=>[
+        file,[...exports].map(([name,origins])=>[name,[...origins]])
+      ]),
+      protectedPaths:[...protectedPaths]
+    })+'\\n');
   }
   return protectedPaths;
 }
