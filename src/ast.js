@@ -1546,6 +1546,51 @@ function hasWeakMapPrototypeExposure(ast) {
     return carrierOther;
   }
   /**
+   * Binding patterns execute computed ToPropertyKey conversions while values
+   * are being destructured, including function parameters and catch clauses.
+   * The value-only binder cannot transfer these effects. Visit the explicit
+   * key expressions in their textual order and refuse any unproved object
+   * key whose implicit coercion may call host/user code.
+   * @param {AstNode|null|undefined} pattern
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
+  function visitCarrierBindingPatternEffects(pattern,environment,thisValue=carrierOther) {
+    if(!pattern)return;
+    if(pattern.type==='ObjectPattern') {
+      for(const entry of pattern.properties??[]) {
+        if(entry.type==='RestElement') {
+          visitCarrierBindingPatternEffects(entry.argument,environment,thisValue);
+        } else if(entry.type==='Property') {
+          if(entry.computed) {
+            visitCarrierExpression(entry.key,environment,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(entry.key))exposed=true;
+          }
+          visitCarrierBindingPatternEffects(entry.value,environment,thisValue);
+        }
+      }
+      return;
+    }
+    if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[])
+        visitCarrierBindingPatternEffects(element,environment,thisValue);
+      return;
+    }
+    if(pattern.type==='RestElement') {
+      visitCarrierBindingPatternEffects(pattern.argument,environment,thisValue);
+      return;
+    }
+    if(pattern.type==='AssignmentPattern') {
+      // Evaluating a default is conditional on the bound value being
+      // undefined. The abstract binder cannot prove this for unknown values.
+      // Refuse effectful defaults rather than unconditionally overwriting the
+      // reaching state with a possibly skipped assignment.
+      if(!primitiveComputedKeyWithoutEffects(pattern.right))exposed=true;
+      visitCarrierBindingPatternEffects(pattern.left,environment,thisValue);
+    }
+  }
+  /**
    * @param {AstNode} pattern
    * @param {CarrierValue} value
    * @param {Map<string,CarrierValue>} environment
@@ -2152,6 +2197,7 @@ function hasWeakMapPrototypeExposure(ast) {
           exposed=true;
         }
       } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
+        visitCarrierBindingPatternEffects(node.left,environment,thisValue);
         bindCarrierPattern(node.left,assigned,environment);
       }
       return;
@@ -2219,8 +2265,10 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='VariableDeclaration') {
       for(const declaration of node.declarations??[]) {
         visitCarrierExpression(declaration.init,environment,thisValue);
-        bindCarrierPattern(declaration.id,
-          evaluateCarrierValue(declaration.init,environment,thisValue),environment);
+        // The RHS value is computed before the pattern's key operations.
+        const initial=evaluateCarrierValue(declaration.init,environment,thisValue);
+        visitCarrierBindingPatternEffects(declaration.id,environment,thisValue);
+        bindCarrierPattern(declaration.id,initial,environment);
       }
       return;
     }
@@ -2588,8 +2636,10 @@ function hasWeakMapPrototypeExposure(ast) {
         const caughtValue=thrownValues.length?
           thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
           carrierMaybe;
-        if(statement.handler.param)
+        if(statement.handler.param) {
+          visitCarrierBindingPatternEffects(statement.handler.param,catchEnvironment,thisValue);
           bindCarrierPattern(statement.handler.param,caughtValue,catchEnvironment);
+        }
         visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue,throwCollector);
       } else if(throwCollector) {
         throwCollector.push(...thrownValues);
@@ -2616,6 +2666,9 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
       if(statement.type==='ForOfStatement'||statement.type==='ForInStatement') {
+        // The iterable expression executes before each iteration's binding
+        // pattern and its computed keys.
+        if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
         let iterationValue=carrierOther;
         if(statement.type==='ForOfStatement') {
           const iterableValue=evaluateCarrierValue(statement.right,loopEnv,thisValue);
@@ -2630,14 +2683,15 @@ function hasWeakMapPrototypeExposure(ast) {
         }
         if(statement.left?.type==='VariableDeclaration') {
           for(const declaration of statement.left.declarations??[]) {
+            visitCarrierBindingPatternEffects(declaration.id,loopEnv,thisValue);
             bindCarrierPattern(declaration.id,iterationValue,loopEnv);
             if(statement.left.kind!=='var')addPatternBindings(declaration.id,loopScopedNames);
           }
         } else if(statement.left) {
+          visitCarrierBindingPatternEffects(statement.left,loopEnv,thisValue);
           bindCarrierPattern(statement.left,iterationValue,loopEnv);
         }
       }
-      if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
       if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
       /** @type {Map<string,CarrierValue>} */
@@ -2706,8 +2760,10 @@ function hasWeakMapPrototypeExposure(ast) {
     if(!functionNode.body)continue;
     const closureEnvironment=functionClosureEnvironments.get(functionNode)??carrierEnvironment;
     const localEnvironment=new Map(closureEnvironment);
-    for(const parameter of functionNode.params??[])
+    for(const parameter of functionNode.params??[]) {
+      visitCarrierBindingPatternEffects(parameter,localEnvironment);
       bindCarrierPattern(parameter,carrierOther,localEnvironment);
+    }
     const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
       (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
     if(functionNode.body.type==='BlockStatement')
