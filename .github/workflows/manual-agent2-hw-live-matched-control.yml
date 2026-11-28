@@ -72,6 +72,11 @@ on:
         options:
           - predecessor
           - bfs
+      version_space_trace_lower_bound_depth:
+        description: "Optional deterministic public-trace state lower bound depth (0 off, max 20)"
+        required: false
+        default: 0
+        type: number
 
 permissions:
   contents: read
@@ -291,13 +296,15 @@ jobs:
       - name: Audit bounded full Mealy version space from evaluator-only live traces
         env:
           CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
+          TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
         run: |
           python sims/agent2-hw-version-space-audit.py \
             --input live-hw-matched-results.json \
             --output hw-version-space-audit.json \
             --max-cases "${{ inputs.version_space_max_cases || 4 }}" \
             --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}" \
-            --candidate-labeling "$CANDIDATE_LABELING"
+            --candidate-labeling "$CANDIDATE_LABELING" \
+            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH"
       - name: Print bounded version-space uncertainty details
         run: |
           python - <<'PY'
