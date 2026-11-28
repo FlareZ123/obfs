@@ -687,6 +687,15 @@ function hasImportedDomStringSourceSink(files) {
       }
       if(node.type==='MemberExpression'){
         const key=property(node);
+        // Iteration over a proven NodeList yields native Element values even
+        // though the temporary IteratorResult object is userland-shaped.
+        if(key==='value'&&node.object.type==='CallExpression'&&
+           node.object.callee.type==='MemberExpression'&&
+           property(node.object.callee)==='next'&&
+           node.object.callee.object.type==='CallExpression'&&
+           node.object.callee.object.callee.type==='MemberExpression'&&
+           ['values','entries'].includes(property(node.object.callee.object.callee)??'')&&
+           isImportedCollection(node.object.callee.object.callee.object))return true;
         if(node.computed&&
            (isImportedCollection(node.object)||isMaterializedElementArray(node.object))&&
            (key===null||/^(0|[1-9][0-9]*)$/u.test(key)))return true;
