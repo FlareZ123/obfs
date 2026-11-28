@@ -1,4 +1,4 @@
-name: Manual SCO private child primitive-prototype admission
+name: Manual SCO private child prototype admission falsifiers
 
 on:
   workflow_dispatch:
@@ -21,8 +21,11 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Run implicit prototype falsifier
-        run: node --test test/sco-private-child-primitive-prototype-read.test.js
+      - name: Run primitive and function-metadata prototype falsifiers
+        run: >-
+          node --test
+          test/sco-private-child-primitive-prototype-read.test.js
+          test/sco-private-child-function-metadata-string-alias.test.js
       - name: Strict SCO oracle JSDoc
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict project JSDoc
