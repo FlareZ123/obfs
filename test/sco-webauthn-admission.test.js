@@ -186,6 +186,7 @@ test('shared memory store must not mint strong-policy tokens through weaker orig
   const weak=createScoWebAuthnAdmission({
     rpId:'example.com',allowedOrigins:['https://weaker.example.com'],
     requireUserVerification:false,stateStore:shared,
+    now:()=>1_800_000_000_000, // same clock as strong harness, no false expiry escape
     lookupCredential:(principal,id)=>principal==='accountA'?strong.records.get(id)??null:null,
     updateSignCount:(principal,id,previous,next)=>{
       const record=strong.records.get(id);
