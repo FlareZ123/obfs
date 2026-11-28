@@ -273,7 +273,13 @@ const cases=[
 ['inline-arrow-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};((x=(carrier={instance:new WeakMap()}))=>{}).call(null,23);",'carrier.instance'],
 ['inline-concise-arrow-call-default',"let carrier={};((x=(carrier={instance:new WeakMap()}))=>x).call(null);",'carrier.instance'],
 ['aliased-own-call-override',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const alias=fill;alias.call=function(){fill();};fill.call(null,23);",'carrier.instance'],
-['transitive-aliased-own-apply-override',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const first=fill;const second=first;second.apply=function(){fill();};fill.apply(null,[23]);",'carrier.instance']
+['transitive-aliased-own-apply-override',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const first=fill;const second=first;second.apply=function(){fill();};fill.apply(null,[23]);",'carrier.instance'],
+// Function#call/apply/bind supply a concrete receiver; an effect on this
+// must flow into the *forked* carrier heap rather than an orphaned original.
+['host-call-this-weakmap',"let carrier={};function fill(){this.instance=new WeakMap();}fill.call(carrier);",'carrier.instance'],
+['host-apply-this-weakmap',"let carrier={};function fill(){this.instance=new WeakMap();}fill.apply(carrier,[]);",'carrier.instance'],
+['host-bind-this-weakmap',"let carrier={};function fill(){this.instance=new WeakMap();}const bound=fill.bind(carrier);bound();",'carrier.instance'],
+['host-call-this-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(){this.instance=new Ordinary();}fill.call(carrier);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
