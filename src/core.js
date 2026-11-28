@@ -226,6 +226,8 @@ function hasImportedDomStringSourceSink(files) {
   for(const [filename,ast] of modules) {
     const receiverNames=new Set();
     const factoryNames=new Set();
+    const styleNames=new Set();
+    const datasetNames=new Set();
     for(const node of ast.body??[]) {
       if(node.type!=='ImportDeclaration'||typeof node.source?.value!=='string')continue;
       const specifier=node.source.value;
@@ -264,6 +266,22 @@ function hasImportedDomStringSourceSink(files) {
         }
         if(node.init.type==='Identifier'&&factoryNames.has(node.init.name)&&
            !factoryNames.has(name)){factoryNames.add(name);changed=true;}
+        if(node.init.type==='MemberExpression'&&isImportedReceiver(node.init.object)){
+          if(property(node.init)==='style'&&!styleNames.has(name)){
+            styleNames.add(name);changed=true;
+          }
+          if(property(node.init)==='dataset'&&!datasetNames.has(name)){
+            datasetNames.add(name);changed=true;
+          }
+        }
+        if(node.init.type==='Identifier'){
+          if(styleNames.has(node.init.name)&&!styleNames.has(name)){
+            styleNames.add(name);changed=true;
+          }
+          if(datasetNames.has(node.init.name)&&!datasetNames.has(name)){
+            datasetNames.add(name);changed=true;
+          }
+        }
       });
     }while(changed);
     let observed=false;
@@ -278,8 +296,9 @@ function hasImportedDomStringSourceSink(files) {
             node.arguments.some(potentiallySourceBearing)) {
           observed=true;return;
         }
-        if(owner?.type==='MemberExpression'&&
-          property(owner)==='style'&&isImportedReceiver(owner.object)&&
+        if((owner?.type==='Identifier'&&styleNames.has(owner.name) ||
+            owner?.type==='MemberExpression'&&
+              property(owner)==='style'&&isImportedReceiver(owner.object))&&
           ['setProperty','getPropertyValue','removeProperty'].includes(method??'')&&
           node.arguments.some(potentiallySourceBearing)){
           observed=true;return;
@@ -295,7 +314,9 @@ function hasImportedDomStringSourceSink(files) {
           observed=true;return;
         }
         if(owner?.type==='MemberExpression'&&isImportedReceiver(owner.object)&&
-          (property(owner)==='dataset'||property(owner)==='style'))observed=true;
+          (property(owner)==='dataset'||property(owner)==='style') ||
+          owner?.type==='Identifier'&&(datasetNames.has(owner.name)||
+            styleNames.has(owner.name)))observed=true;
       }
     });
     if(observed)return true;
