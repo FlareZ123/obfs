@@ -142,12 +142,27 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       }
     }
   }
+  // Only syntactically direct callable exports qualify for the broad
+  // may-escape fallback. A value with unknown type is still protected by
+  // the existing explicit source sink detectors, rather than blanket-freezing
+  // every exporting module (which would erase proved primitive owner yield).
+  /** @type {Map<string,Set<string>>} */
+  const directCallableExports=new Map();
+  for(const [exportedName,originPaths] of callableExportOrigins) {
+    for(const originPath of originPaths) {
+      const names=directCallableExports.get(originPath)??new Set();
+      names.add(exportedName);
+      directCallableExports.set(originPath,names);
+    }
+  }
   /** @type {Set<string>} */
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
     const ast=parse(/** @type {string} */ (file.code),'module');
     /** @type {Map<string,string>} */
     const importedOrigins=new Map();
+    /** @type {Set<string>} */
+    const directCallableImports=new Set();
     for(const statement of ast.body??[]) {
       if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
          typeof statement.source.value!=='string')continue;
@@ -162,6 +177,12 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         if(spec.local?.type!=='Identifier')continue;
         if(modules.has(target)) {
           importedOrigins.set(spec.local.name,target);
+          if(spec.type==='ImportSpecifier') {
+            const importedName=spec.imported.name??spec.imported.value;
+            if(typeof importedName==='string'&&
+               directCallableExports.get(target)?.has(importedName))
+              directCallableImports.add(spec.local.name);
+          }
           continue;
         }
         // Build/test harnesses may relocate an otherwise closed supplied ESM
@@ -172,7 +193,10 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           const exposed=spec.imported.name??spec.imported.value;
           const origins=typeof exposed==='string'?
             callableExportOrigins.get(exposed):undefined;
-          if(origins?.size===1)importedOrigins.set(spec.local.name,[...origins][0]);
+          if(origins?.size===1) {
+            importedOrigins.set(spec.local.name,[...origins][0]);
+            directCallableImports.add(spec.local.name);
+          }
         }
       }
     }
@@ -249,15 +273,13 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         if(origin)protectedPaths.add(origin);
       }
     });
-    // Source-stability proof for imported callables: a direct, zero-argument
-    // call does not itself expose the imported Function object, but any
-    // other reference can flow through a host callback, coercive Web API,
-    // reflection, another local helper, or a re-export. If its producer is
-    // known and the import has not been proved primitive/string, preserve
-    // that producer source instead of guessing the receiving API's shape.
-    // This conservative may-escape check is deliberately syntax independent:
-    // a `const doc=document` alias or a `Reflect.set` call cannot bypass it.
+    // For a known directly exported callable, a direct call does not itself
+    // expose that Function object. Any other use may escape through another
+    // helper, a host API, reflection, or a re-export. Freeze the source at
+    // that point instead of relying on DOM receiver spellings. Unknown
+    // exports retain the existing separately scoped source-sink logic.
     walk(ast,(node,parent,key)=>{
+      if(node.type!=='Identifier'||!directCallableImports.has(node.name))return;
       const origin=importedOrigin(node);
       if(!origin)return;
       if(parent?.type==='ImportSpecifier'||
