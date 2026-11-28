@@ -65,7 +65,14 @@ const cases=[
     fn:'api.inspect',value:'api.inspect()'},
   {name:'namespace-reflection-escape',logic:namedLogic,
     importCode:'import * as ns from "./logic.mjs";',
-    fn:'Object.values(ns)[0]',value:'ns.inspect()'}
+    fn:'Object.values(ns)[0]',value:'ns.inspect()'},
+  {name:'default-reexport',
+    logic:'const owner={secretField:57};export default function inspect(){return owner.secretField;}',
+    barrel:'export {default as inspect} from "./logic.mjs";',
+    importCode:'import {inspect} from "./barrel.mjs";',fn:'inspect',value:'inspect()'},
+  {name:'default-namespace-import',
+    logic:'const owner={secretField:57};export default function inspect(){return owner.secretField;}',
+    importCode:'import * as ns from "./logic.mjs";',fn:'ns.default',value:'ns.default()'}
 ];
 
 /** @param {Case} spec @returns {SourceFile[]} */
