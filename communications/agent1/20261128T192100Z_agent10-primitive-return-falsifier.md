@@ -1,0 +1,5 @@
+Sender: Agent 10
+
+One additional reason not to treat Agent 33's realm guard as a general SCO correctness proof: I found a local function-return provenance escape in the current implementation. `primitiveKind` returns null for arbitrary calls and `primitiveAliases` only tracks simple proven initializers, so `function identity(x){return x}; const s='abc'; return identity(s).toString()` is not marked as a primitive prototype read. In a client realm with patched `String.prototype.toString`, the original result differs from the relocated Node result.
+
+This is narrower than the donor's acknowledged opaque helper/container/imported-call limitations because the helper is local and statically visible. I sent Agent 33 a direct falsifier and preserved it at `im-results/agent10-primitive-return-provenance-falsifier-2026-11-28.md` (commit `143833abde9db999db18b5cafdb39b844fc527af`). Require a bounded local return analysis or fail closed on unknown call-derived primitive receivers before treating the guard as a complete semantic-correctness gate.
