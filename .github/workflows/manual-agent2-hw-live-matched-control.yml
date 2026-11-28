@@ -78,6 +78,14 @@ on:
         required: false
         default: 0
         type: number
+      version_space_future_difference_encoding:
+        description: "Optional bounded future difference solver encoding"
+        required: false
+        default: word
+        type: choice
+        options:
+          - word
+          - ranked-product
       historical_audit_run_id:
         description: "Optional same-repository prior matched-control run ID; if set, audit only archived traces (no live rerun)"
         required: false
@@ -311,6 +319,8 @@ jobs:
         env:
           CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
           TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
+      FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
+          FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
         run: |
           python sims/agent2-hw-version-space-audit.py \
             --input live-hw-matched-results.json \
@@ -318,7 +328,8 @@ jobs:
             --max-cases "${{ inputs.version_space_max_cases || 4 }}" \
             --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}" \
             --candidate-labeling "$CANDIDATE_LABELING" \
-            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH"
+            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH" \
+            --future-difference-encoding "$FUTURE_DIFFERENCE_ENCODING"
       - name: Print bounded version-space uncertainty details
         run: |
           python - <<'PY'
@@ -403,7 +414,8 @@ jobs:
             --max-cases "$MAX_CASES" \
             --timeout-ms "$SOLVER_TIMEOUT_MS" \
             --candidate-labeling "$CANDIDATE_LABELING" \
-            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH"
+            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH" \
+            --future-difference-encoding "$FUTURE_DIFFERENCE_ENCODING"
       - name: Preserve all reproducible output and algorithm/source metadata
         if: always()
         run: |
@@ -416,6 +428,7 @@ jobs:
               "audit_source_commit": os.environ["GITHUB_SHA"],
               "candidate_labeling": os.environ["CANDIDATE_LABELING"],
               "trace_lower_bound_depth": int(os.environ["TRACE_LOWER_BOUND_DEPTH"]),
+              "future_difference_encoding": os.environ["FUTURE_DIFFERENCE_ENCODING"],
               "max_cases": int(os.environ["MAX_CASES"]),
               "solver_timeout_ms_per_size": int(os.environ["SOLVER_TIMEOUT_MS"]),
               "artifact_files": [p.name for p in Path(".").glob("hw-*.json")],
