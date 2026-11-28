@@ -80,7 +80,9 @@ const cases=[
 ['self-cycle-ordinary','const carrier={instance:{}}; carrier.self=carrier; if(false) carrier.instance={};','carrier.instance'],
 ['post-loop-shared-alias','const carrier={instance:{}}; const alias=carrier; for(let i=0;i<0;i++) alias.instance={}; alias.instance=new WeakMap();','carrier.instance'],
 ['post-try-shared-alias','const carrier={instance:{}}; const alias=carrier; try{}catch{alias.instance={};} alias.instance=new WeakMap();','carrier.instance'],
-['post-switch-shared-alias','const carrier={instance:{}}; const alias=carrier; switch(0){case 1:alias.instance={};break;} alias.instance=new WeakMap();','carrier.instance']
+['post-switch-shared-alias','const carrier={instance:{}}; const alias=carrier; switch(0){case 1:alias.instance={};break;} alias.instance=new WeakMap();','carrier.instance'],
+['throw-before-unreachable-write','const carrier={instance:new WeakMap()}; try{throw 1;carrier.instance={};}catch{}','carrier.instance'],
+['throw-after-weakmap-before-unreachable-write','const carrier={instance:{}};try{carrier.instance=new WeakMap();throw 1;carrier.instance={};}catch{}','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
