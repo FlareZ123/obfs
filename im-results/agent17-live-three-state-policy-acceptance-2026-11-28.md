@@ -60,7 +60,7 @@ A separate negative control constructs a 27-state, complete deterministic machin
 - original three-state machine: output [0];
 - 27-state extension: output [1].
 
-The extension is strongly connected and all its states are reachable. It retains a three-state base submachine and unrolls the observed transcript into a path whose final state is reached only after the last observation. This demonstrates why the 24-query guarantee must remain explicitly conditional on the at-most-three-state prior.
+The extension is strongly connected and all its states are reachable. It retains a three-state base submachine and unrolls the observed transcript into a path whose final state is reached only after the last observation. This falsifier is evaluated in-process with the same policy and exact behavior-class evaluator; it is not a third live HTTP arm. This demonstrates why the 24-query guarantee must remain explicitly conditional on the at-most-three-state prior.
 
 ## Interpretation and limitations
 
