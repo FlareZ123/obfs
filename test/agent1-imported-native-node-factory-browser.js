@@ -24,14 +24,24 @@ const mutableConsumer=imported+
 const prototypeMutator='globalThis.Document.prototype.createElement='+ 
   'function replaced(){return function inspected(){const secret="prototype factory source";return secret;};};';
 
-/** @type {readonly {name:string,factory:string,bootstrap:string,mutation?:string,positive:boolean}[]} */
+/** @type {readonly {name:string,factory:string,bootstrap:string,mutation?:string,externalHost?:string,positive:boolean}[]} */
 const cases=[
   {name:'function-export',factory:named,bootstrap:normalBootstrap,positive:true},
   {name:'const-export',factory:immutable,bootstrap:normalBootstrap,positive:true},
   {name:'mutable-donor',factory:functionDonor,bootstrap:functionBootstrap,positive:false},
   {name:'mutable-consumer',factory:immutable,bootstrap:mutableConsumer,positive:false},
   {name:'prototype-mutator',factory:named,bootstrap:normalBootstrap,
-    mutation:prototypeMutator,positive:false}
+    mutation:prototypeMutator,positive:false},
+  // This host file is deliberately NOT passed to obfuscateFiles. Its opaque
+  // callback can mutate document.createElement before the imported factory
+  // call and invalidate the native-Node assumption.
+  {name:'opaque-host-poison',factory:immutable,positive:false,
+    bootstrap:imported+'globalThis.poisonDocument();const node=makeNode();'+
+      'document.head.append(node);globalThis._seen=String(document.head.lastChild.textContent);'+
+      'globalThis._ready=true;',
+    externalHost:'globalThis.poisonDocument=function(){'+
+      'document.createElement=function(){return function inspected(){'+
+      'const secret="opaque host callback source";return secret;};};};'}
 ];
 
 /** @param {typeof cases[number]} fixture @param {'coo'|'sco'|'sno'} mode */
@@ -68,10 +78,13 @@ async function main(){
         transformed.files.map(file=>({...file,code:String(file.code)}));
       for(const file of files)routes.set(stem+'/'+file.path,
         {type:'text/javascript',body:String(file.code)});
+      if(fixture.externalHost)routes.set(stem+'/host.js',
+        {type:'text/javascript',body:fixture.externalHost});
       routes.set(stem+'/index.html',{type:'text/html',body:[
         '<!doctype html><html><head>',
         '<script src="./client.js"></script>',
         fixture.mutation?'<script src="./mutation.js"></script>':'',
+        fixture.externalHost?'<script src="./host.js"></script>':'',
         '<script type="module" src="./bootstrap.mjs"></script>',
         '</head><body></body></html>'
       ].join('')});
