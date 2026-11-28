@@ -37,7 +37,8 @@ test('selected SCO must reject free process reached by callback evaluation insid
   for(const body of [
     'return typeof [0].map(()=>process)[0];',
     'return typeof [0].flatMap(()=>[process])[0];',
-    'return typeof [0].filter(()=>Boolean(process))[0];'
+    'return typeof [0].filter(()=>Boolean(process))[0];',
+    'return typeof ({get value(){return process;}}).value;'
   ]){
     assert.throws(()=>compile(body),/unproved|host|realm|browser/i,body);
   }
@@ -46,6 +47,7 @@ test('selected SCO must reject free process reached by callback evaluation insid
 test('callback host guard leaves non-reading and locally owned primitives usable',()=>{
   for(const body of [
     'return typeof [0].map(()=>7)[0];',
+    'return typeof ({get value(){return 7;}}).value;',
     'return typeof (()=>process);',
     'const process=7;return typeof [0].map(()=>process)[0];'
   ]){
