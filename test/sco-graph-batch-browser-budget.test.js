@@ -1,0 +1,278 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {fork}=require('node:child_process');
+const puppeteer=require('puppeteer-core');
+const {pathToFileURL}=require('node:url');
+const {transformSync}=require('esbuild');
+const {partitionScoAsyncGraph}=require('../src');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+
+const secretCode='export const seed=0x9e3779b9;';
+/** @param {number} rounds @returns {string} */
+function sourceForRounds(rounds){
+  return [
+  "import {seed} from './secret.mjs';",
+  'export async function compute(text){',
+  '  let state=seed;',
+  '  for(let i=0;i<'+String(rounds)+';i++){',
+  '    state=(Math.imul(state^(text.charCodeAt(i%text.length)+i),1664525)+1013904223)|0;',
+  '  }',
+  '  return state>>>0;',
+  '}'
+].join('\n');
+}
+
+/** @returns {string} */
+function chromeBinary(){
+  if(process.env.CHROMIUM_BIN)return process.env.CHROMIUM_BIN;
+  if(process.platform==='win32')return path.join(
+    process.env.PROGRAMFILES??'C:\\Program Files',
+    'Google','Chrome','Application','chrome.exe');
+  return '/usr/bin/google-chrome';
+}
+
+/**
+ * A conventional handwritten RPC batch transport compiled with esbuild.
+ * Both clients intentionally call the same trusted server, using the same
+ * method ID, private source, authorization and JSON response protocol.
+ * @param {string} method
+ * @param {string} batchMethod
+ * @returns {string}
+ */
+function ordinarySource(method,batchMethod){
+  const source='export async function batch(calls){'+
+    'const wire=calls.map(item=>({method:'+JSON.stringify(method)+
+    ',args:item.args}));'+
+    'const response=await fetch("/obfs/rpc",{method:"POST",credentials:"same-origin",'+
+    'cache:"no-store",headers:{"content-type":"application/json"},'+
+    'body:JSON.stringify({method:'+JSON.stringify(batchMethod)+
+    ',args:[wire]})});'+
+    'const payload=await response.json();'+
+    'if(!response.ok||payload.ok!==true)throw Error("Batch failed");'+
+    'return payload.value;}';
+  return transformSync(source,{format:'esm',target:'es2022',minify:true}).code;
+}
+
+/**
+ * Run a genuinely hot browser workload without Chrome's virtual-time flag.
+ * The browser's renderer TaskDuration CDP metric is independently sampled
+ * around each lane, and the trusted Node server process CPU is measured
+ * during each protected RPC response. Wall-clock samples come from real
+ * Chromium performance.now(), not a simulated or virtual-time clock.
+ *
+ * Original source is temporarily available to the browser under /native
+ * solely for a legitimate unprotected native comparison. This benchmark
+ * cannot certify SCO source secrecy or anti-relay protection.
+ */
+for(const rounds of [250000,5000000]){
+test('real Chromium native/generated/ordinary SCO graph batch: '+rounds+' rounds',async()=>{
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-graph-browser-cdp-'));
+  /** @type {import('node:child_process').ChildProcess|undefined} */
+  let child;
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try{
+    const apiCode=sourceForRounds(rounds);
+    await fs.writeFile(path.join(temp,'secret.mjs'),secretCode);
+    await fs.writeFile(path.join(temp,'api.mjs'),apiCode);
+    const original=await import(pathToFileURL(path.join(temp,'api.mjs')).href);
+    const graph=partitionScoAsyncGraph([
+      {path:'api.mjs',code:apiCode,sourceType:'module'},
+      {path:'secret.mjs',code:secretCode,sourceType:'module'}
+    ],{
+      seed:'agent31-browser-cdp-paired-20261128',
+      exposedPaths:['api.mjs'],batchPaths:['api.mjs'],maxBatchCalls:8
+    });
+    const partition=graph.partitions['api.mjs'];
+    if(!partition.batchMethod)throw Error('Missing batch method');
+    const minified=ordinarySource(partition.methodNames.compute,partition.batchMethod);
+    /** @type {string[][]} */
+    const inputs=Array.from({length:9},(_,trial)=>
+      Array.from({length:8},(_,index)=>
+        'abcdef0123456789'+String(trial).padStart(2,'0')+String(index).padStart(2,'0')));
+    /** @type {number[][]} */
+    const expected=[];
+    for(const values of inputs){
+      const row=[];
+      for(const value of values)row.push(await original.compute(value));
+      expected.push(row);
+    }
+    const app=[
+      "import {compute} from '/native/api.mjs';",
+      "import {batch as generated} from '/obfs/api.mjs';",
+      "import {batch as ordinary} from '/ordinary/api.mjs';",
+      'const impl={native:async calls=>{',
+      '  const output=[];',
+      '  for(const call of calls)output.push({ok:true,value:await compute(...call.args)});',
+      '  return output;',
+      '},generated,ordinary};',
+      'globalThis.__bench={cases:'+JSON.stringify(inputs)+
+        ',expected:'+JSON.stringify(expected)+',impl};',
+      'globalThis.__ready=true;'
+    ].join('\n');
+    child=fork(path.join(__dirname,'fixtures','sco-graph-batch-browser-server.cjs'),
+      [],{stdio:['ignore','inherit','inherit','ipc']});
+    const started=await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>{
+        clean();reject(new Error('Timed out starting isolated SCO server'));
+      },30000);
+      /** @param {any} message @returns {void} */
+      const onMessage=message=>{
+        if(message?.type==='ready'){clean();resolve(message);}
+        else if(message?.type==='error'){clean();reject(new Error(message.error));}
+      };
+      /** @param {Error} error @returns {void} */
+      const onError=error=>{clean();reject(error);};
+      /** @param {number|null} code @returns {void} */
+      const onExit=code=>{clean();reject(new Error('Isolated server exited: '+code));};
+      function clean(){
+        clearTimeout(timeout);
+        child?.off('message',onMessage);
+        child?.off('error',onError);
+        child?.off('exit',onExit);
+      }
+      child.on('message',onMessage);
+      child.on('error',onError);
+      child.on('exit',onExit);
+      child.send({type:'start',root:temp,app,ordinary:minified});
+    });
+    const ready=/** @type {{port:number,methodId:string,batchMethod:string}} */ (started);
+    assert.equal(ready.methodId,partition.methodNames.compute);
+    assert.equal(ready.batchMethod,partition.batchMethod);
+    const origin='http://127.0.0.1:'+ready.port;
+    /** @returns {Promise<number[]>} */
+    async function getRpcSamples(){
+      const result=await fetch(origin+'/metrics');
+      assert.equal(result.status,200);
+      const body=await result.json();
+      assert.ok(Array.isArray(body.rpcCpuMs));
+      return body.rpcCpuMs;
+    }
+    browser=await puppeteer.launch({
+      executablePath:chromeBinary(),headless:true,protocolTimeout:90000,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const page=await browser.newPage();
+    const cdp=await page.createCDPSession();
+    await cdp.send('Performance.enable');
+    await page.goto(origin+'/',{waitUntil:'networkidle0'});
+    await page.waitForFunction('globalThis.__ready === true',{timeout:30000});
+
+    /**
+     * @param {'native'|'generated'|'ordinary'} name
+     * @param {number} trial
+     * @returns {Promise<number>}
+     */
+    async function callBrowser(name,trial){
+      return page.evaluate(async args=>{
+        const bench=/** @type {any} */ (globalThis).__bench;
+        const calls=bench.cases[args.trial].map(
+          /** @param {string} text */ text=>({name:'compute',args:[text]}));
+        const expectedValues=bench.expected[args.trial].map(
+          /** @param {number} value */ value=>({ok:true,value}));
+        const start=performance.now();
+        const actual=await bench.impl[args.name](calls);
+        const wallMs=performance.now()-start;
+        if(JSON.stringify(actual)!==JSON.stringify(expectedValues)){
+          throw Error('Source parity failed: '+args.name+'/'+args.trial);
+        }
+        return wallMs;
+      },{name,trial});
+    }
+    /** @param {Awaited<ReturnType<typeof cdp.send>>} packet @returns {number} */
+    function taskDuration(packet){
+      const item=/** @type {{metrics?:Array<{name:string,value:number}>}} */ (packet)
+        .metrics?.find(metric=>metric.name==='TaskDuration');
+      if(!item||!Number.isFinite(item.value))throw Error('Missing Chromium TaskDuration metric');
+      return item.value*1000;
+    }
+    const arms=/** @type {const} */ (['native','generated','ordinary']);
+    for(let trial=0;trial<2;trial++){
+      for(const name of arms)await callBrowser(name,trial);
+    }
+    /** @type {Record<'native'|'generated'|'ordinary',number[]>} */
+    const wallMs={native:[],generated:[],ordinary:[]};
+    /** @type {Record<'native'|'generated'|'ordinary',number[]>} */
+    const rendererTaskMs={native:[],generated:[],ordinary:[]};
+    /** @type {Record<'native'|'generated'|'ordinary',number[]>} */
+    const serverCpuMs={native:[],generated:[],ordinary:[]};
+    /** @type {Record<'native'|'generated'|'ordinary',number[]>} */
+    const combinedCpuMs={native:[],generated:[],ordinary:[]};
+    for(let trial=0;trial<9;trial++){
+      const order=trial%2===0?arms:[...arms].reverse();
+      for(const name of order){
+        const beforeTask=taskDuration(await cdp.send('Performance.getMetrics'));
+        const rpcCount=(await getRpcSamples()).length;
+        const elapsedWall=await callBrowser(name,trial);
+        const afterTask=taskDuration(await cdp.send('Performance.getMetrics'));
+        // Complete the handler's already-sent response finish event.
+        await new Promise(resolve=>setImmediate(resolve));
+        const rpc=(await getRpcSamples()).slice(rpcCount);
+        assert.equal(rpc.length,name==='native'?0:1,
+          'Expected exactly one RPC for each protected/ordinary batch');
+        const rendererCpu=afterTask-beforeTask;
+        const serverCpu=rpc.length?rpc[0]:0;
+        assert.ok(Number.isFinite(elapsedWall)&&elapsedWall>0);
+        assert.ok(Number.isFinite(rendererCpu)&&rendererCpu>0,
+          'Chromium task metric must resolve nonzero original work');
+        assert.ok(Number.isFinite(serverCpu)&&serverCpu>=0);
+        wallMs[name].push(elapsedWall);
+        rendererTaskMs[name].push(rendererCpu);
+        serverCpuMs[name].push(serverCpu);
+        combinedCpuMs[name].push(rendererCpu+serverCpu);
+      }
+    }
+    /** @type {Array<{cpuOverNative:number,ordinaryCpuOverNative:number,
+     *   cpuOverOrdinary:number,wallOverNative:number,ordinaryWallOverNative:number}>} */
+    const ratios=combinedCpuMs.native.map((native,index)=>({
+      cpuOverNative:combinedCpuMs.generated[index]/native,
+      ordinaryCpuOverNative:combinedCpuMs.ordinary[index]/native,
+      cpuOverOrdinary:combinedCpuMs.generated[index]/combinedCpuMs.ordinary[index],
+      wallOverNative:wallMs.generated[index]/wallMs.native[index],
+      ordinaryWallOverNative:wallMs.ordinary[index]/wallMs.native[index]
+    }));
+    assert.equal(ratios.length,9);
+    const cpuBudget=pairedBudgetBound(combinedCpuMs.native,combinedCpuMs.generated);
+    const wallBudget=pairedBudgetBound(wallMs.native,wallMs.generated);
+    const ordinaryCpuBudget=pairedBudgetBound(combinedCpuMs.native,combinedCpuMs.ordinary);
+    const ordinaryWallBudget=pairedBudgetBound(wallMs.native,wallMs.ordinary);
+    const serverCpuQuantized=serverCpuMs.generated.some(ms=>ms===0)||
+      serverCpuMs.ordinary.some(ms=>ms===0);
+    console.log(JSON.stringify({
+      experiment:'sco-graph-browser-and-node-cdp-compute',
+      node:process.version,platform:process.platform,chrome:await browser.version(),
+      trialCount:9,batchSize:8,roundsPerCall:rounds,
+      originalModules:2,privateModules:1,
+      clock:'real Chromium performance.now plus renderer CDP TaskDuration; no virtual time',
+      serverCpu:'isolated trusted child process CPU during each HTTP RPC; no Puppeteer/CDP process CPU',
+      boundary:'hot calls after ESM and two warmup rounds; loopback, isolated trusted server child process',
+      minifierControl:'ordinary esbuild-minified transport, same server/secret/policy/method IDs',
+      nativeControl:'browser-native original JS served under /native solely for reference',
+      wallMs,rendererTaskMs,serverCpuMs,combinedCpuMs,ratios,
+      pairedMedianDiagnostics:{cpu:cpuBudget,wall:wallBudget,
+        ordinaryCpu:ordinaryCpuBudget,ordinaryWall:ordinaryWallBudget},
+      serverCpuQuantized,
+      cpuConclusion:serverCpuQuantized?'unresolved (zero server CPU samples)':cpuBudget.decision,
+      strictGeneratedCpuBreaches:ratios.filter(r=>r.cpuOverNative>2.5).length,
+      strictGeneratedWallBreaches:ratios.filter(r=>r.wallOverNative>2.5).length,
+      strictOrdinaryCpuBreaches:ratios.filter(r=>r.ordinaryCpuOverNative>2.5).length,
+      strictOrdinaryWallBreaches:ratios.filter(r=>r.ordinaryWallOverNative>2.5).length,
+      scope:'bounded instrumentation; excludes browser-network stack CPU, cold load and external RTT',
+      secrecyClaim:'none; this benchmark intentionally exposes native source as a control'
+    }));
+  }finally{
+    if(browser)await browser.close();
+    if(child && child.exitCode===null){
+      const stopped=new Promise(resolve=>child.once('exit',resolve));
+      child.kill();
+      await stopped;
+    }
+    await fs.rm(temp,{recursive:true,force:true});
+  }
+});
+}

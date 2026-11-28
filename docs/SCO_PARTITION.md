@@ -357,6 +357,30 @@ The authorizeRpc callback first validates the request at the transport level. Th
 Measured HTTP overhead can exceed the 2.5× budget by orders of magnitude for tiny protected operations, even over loopback. See im-results/sco-rpc-cost-2026-11-15.md for both unbatched and bounded-batch results. Coarse server-resident functions and explicitly batched calls are the currently demonstrated performance approach; real deployment measurements remain necessary. The code splitting API does not automatically select a performant partition or justify any universal throughput guarantee.
 
 
+## Opt-in batching across an SCO private graph
+
+The composed multi-module graph API can explicitly batch approved async exports to reduce repeated HTTP round trips. A batching opt-in is **per exposed module**; a server-only dependency cannot be named in 'batchPaths'. The default graph has no batches, preserving the existing publication contract.
+
+Example (original ESM module namespaces remain on the trusted server):
+
+```js
+const graph=partitionScoAsyncGraph(privateSourceFiles,{
+  exposedPaths:['api.mjs','audit.mjs'],
+  batchPaths:['api.mjs'],
+  maxBatchCalls:8
+});
+const handler=createScoGraphHandler(graph,privateNamespaces,{
+  authorizeRpc:request=>verifySession(request),
+  authorizeOperation:(request,method,args)=>verifyPolicy(request,method,args)
+});
+```
+
+The generated 'api.mjs' facade now exports a 'batch(calls)' function alongside its original async exports; 'audit.mjs' has no batch export. The client supplies up to eight calls, each with '{name, args}' where 'name' is an exported function name on that module. The private server executes the corresponding original functions **in order**, returning an ordered array of per-call result wrappers. Calls whose protected methods fail are represented by generic failed results, which is observably different from the ordinary unbatched exception path. The operator must review those semantics and concurrency/interleaving assumptions before adopting batching.
+
+The composed handler derives the protected batch method IDs from its compiler-owned graph manifest. When even one batched module exists, 'authorizeOperation' is mandatory. The existing trusted SCO HTTP handler checks the **outer batch request and every individual inner operation** before executing the first private item. A denied later item prevents earlier allowed items from running. The caller cannot override 'batchPreflightRoutes' in createScoGraphHandler, and 'batchPaths' input is copied by indexed reads to exclude custom iterators and changing accessors. 'batchPaths' entries must be unique members of 'exposedPaths'. 'maxBatchCalls' must be between 1 and 1024 and requires a nonempty batch selection.
+
+These checks are application-policy defenses on a trusted server. They do not prevent unlimited authorized calls, same-account relays, or an attacker from extracting public RPC method IDs. Native direct invocation does not incur HTTP serialization, so batching's benefit depends strongly on original method cost, network latency, payload size and call density. The executable [graph batch authorization regression](../test/sco-graph-explicit-batch.test.js) and [native/generated/ordinary CPU diagnostic](../test/sco-graph-batch-cpu.test.js) deliberately keep the security result separate from workload-specific measured overhead.
+
 ## Closed private ESM graph deployment verification
 
 `partitionScoAsyncGraph(files,{exposedPaths:[...]})` now returns a
@@ -403,6 +427,41 @@ roundtripped or shallow-copied graph is intentionally refused. Details,
 live HTTP negative control and tested boundary are recorded in
 [`im-results/sco-graph-postpartition-seal-2026-11-16.md`](../im-results/sco-graph-postpartition-seal-2026-11-16.md).
 
+
+### Portable module path inventory
+
+Both `partitionScoAsyncGraph` and `partitionScoSelectedGraph` now
+admit every exposed and private module against the **same portable file-tree
+collision policy** used by the underlying output writer. The selected
+graph may list the **same exact path** in several audited dependencies;
+the compiler still verifies that repeated source digests agree.
+
+The shared policy rejects NFC-equivalent Unicode spellings, duplicate
+filename spellings under both upper- and lowercase mappings, and aliases
+discovered through additional upper→lower or lower→upper Unicode casing
+passes. For example, Unicode full casefold maps `src/ϑ.mjs` and
+`src/ϴ.mjs` to the same theta spelling, and maps `src/ẞ.mjs` and
+`src/ss.mjs` together; those pairs are refused even when ordinary
+`toLowerCase()` and `toUpperCase()` each disagree. It also rejects
+ambiguous ancestor-directory spellings and a regular file simultaneously
+used as a directory. All these checks precede facade publication.
+
+The build-time `safePath` validator additionally rejects any
+Unicode `Default_Ignorable_Code_Point` in a filename, including U+200B
+(ZERO WIDTH SPACE), U+202E (RIGHT-TO-LEFT OVERRIDE), and U+FE0F
+(VARIATION SELECTOR-16). Linux ext4/f2fs casefolding may drop ignorable
+characters before filename lookup, including dangerous dot-like
+components. Refusal is intentionally conservative: even filenames that
+are harmless on a particular case-sensitive volume may be rejected.
+
+These checks are **not a complete proof** of every physical filesystem
+alias, Unicode-version casefold rule, symlink/hardlink absence, or
+undeclared dynamic module resolution. The server still needs an
+independently reviewed deployment root, digest verification, and
+application-level authorization. See [the deterministic path regressions](../test/sco-graph-portable-paths.test.js),
+[the source-pinned proof record](../im-results/sco-graph-portable-path-inventory-2026-11-28.md),
+and the Unicode Consortium's
+[full CaseFolding mappings](https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt).
 
 ### Dynamic evaluator limitation of the closed graph audit
 

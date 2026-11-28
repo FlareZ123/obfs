@@ -133,3 +133,32 @@ test('lowercase-only aliases remain refused and distinct Unicode siblings emit',
   assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
   assert.doesNotThrow(()=>createScoHandler(files.slice(1)));
 });
+
+test('Unicode multi-stage casefold leaf aliases are refused by all three output modes',()=>{
+  // Each input pair has distinct JS lower and upper keys but a common full
+  // Unicode casefold; the shared output tree must refuse both input orders.
+  assertRejectedTree(
+    'assets/'+String.fromCodePoint(0x03d1)+'.png',
+    'assets/'+String.fromCodePoint(0x03f4)+'.png',
+    /Duplicate/u);
+  assertRejectedTree(
+    'assets/'+String.fromCodePoint(0x1e9e)+'.png',
+    'assets/ss.png',
+    /Duplicate/u);
+});
+
+test('all output modes refuse default-ignorable filenames, including bidi and variation controls',()=>{
+  for(const cp of [0x200b,0x202e,0xfe0f]){
+    const candidate='assets/icon'+String.fromCodePoint(cp)+'.png';
+    const files=[entry,asset(candidate)];
+    for(const mode of /** @type {const} */(['coo','sno','sco'])){
+      assert.throws(()=>obfuscateFiles(files,{mode,seed:'ignorable-path-tree'} ),
+        /Default-ignorable Unicode filename/u,
+        mode+' '+cp.toString(16));
+    }
+    assert.throws(()=>createSnoLauncher(files,'entry.cjs'),
+      /Default-ignorable Unicode filename/u);
+    assert.throws(()=>createScoHandler([asset(candidate)]),
+      /Default-ignorable Unicode filename/u);
+  }
+});

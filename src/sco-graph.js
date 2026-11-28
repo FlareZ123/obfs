@@ -3,7 +3,7 @@
 const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
 const {parse,walk,staticString}=require('./ast');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
@@ -19,7 +19,7 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
  * @type {WeakMap<object,string>}
  */
 const generatedGraphSnapshots=new WeakMap();
-/** @typedef {{seed?:string,endpoint?:string,exposedPaths:string[]}} ScoGraphOptions */
+/** @typedef {{seed?:string,endpoint?:string,exposedPaths:string[],batchPaths?:string[],maxBatchCalls?:number}} ScoGraphOptions */
 /**
  * @typedef {{
  *   clientFiles:ScoModulePartition['clientFile'][],
@@ -142,8 +142,20 @@ function partitionScoAsyncGraph(files,options) {
   const suppliedPaths=options.exposedPaths;
   const suppliedSeed=options.seed;
   const suppliedEndpoint=options.endpoint;
+  const suppliedBatchPaths=options.batchPaths;
+  const suppliedMaxBatchCalls=options.maxBatchCalls;
   if(!Array.isArray(suppliedPaths)) {
     throw new TypeError('Expected a private ESM graph and explicit exposedPaths');
+  }
+  if(suppliedBatchPaths!==undefined&&!Array.isArray(suppliedBatchPaths)){
+    throw new TypeError('SCO graph batchPaths must be an array of exposed modules');
+  }
+  const batchEntries=suppliedBatchPaths??[];
+  const batchPathCount=batchEntries.length;
+  if(suppliedMaxBatchCalls!==undefined &&
+      (batchPathCount===0||!Number.isSafeInteger(suppliedMaxBatchCalls)||
+       suppliedMaxBatchCalls<1||suppliedMaxBatchCalls>1024)){
+    throw new TypeError('SCO graph maxBatchCalls requires batchPaths and a limit from 1 to 1024');
   }
   const pathCount=suppliedPaths.length;
   if(fileCount===0||pathCount===0||
@@ -159,10 +171,19 @@ function partitionScoAsyncGraph(files,options) {
     }
     approvedPaths.push(name);
   }
+  /** @type {string[]} */
+  const approvedBatchPaths=[];
+  for(let index=0;index<batchPathCount;index++){
+    const name=batchEntries[index];
+    if(typeof name!=='string')throw new TypeError('SCO graph batchPaths must contain strings');
+    approvedBatchPaths.push(name);
+  }
   /** @type {Map<string,ScoPrivateModule>} */
   const modules=new Map();
-  /** @type {Set<string>} */
-  const folded=new Set();
+  // Reuse the output tree's dual case-fold/NFC and file/directory alias
+  // policy. A private ESM graph must denote the same set of files when
+  // deployed to case-insensitive or Unicode-normalizing filesystems.
+  const pathInventory=createPathInventory();
   for(let index=0;index<fileCount;index++){
     const file=files[index];
     const code=file?.code;
@@ -173,9 +194,7 @@ function partitionScoAsyncGraph(files,options) {
     }
     const filename=safePath(file.path);
     if(!filename.endsWith('.mjs'))throw new TypeError('Private SCO graph supports only .mjs files');
-    const lower=filename.toLowerCase();
-    if(folded.has(lower))throw new TypeError('Duplicate private graph path: '+filename);
-    folded.add(lower);
+    registerFilePath(pathInventory,filename,'Duplicate private graph path: ');
     modules.set(filename,{path:filename,code,sourceType:'module'});
   }
   const names=new Set(modules.keys());
@@ -204,6 +223,14 @@ function partitionScoAsyncGraph(files,options) {
     }
     selected.add(filename);
   }
+  const batched=new Set();
+  for(const entry of approvedBatchPaths){
+    const filename=safePath(entry);
+    if(!selected.has(filename)||batched.has(filename)){
+      throw new TypeError('SCO graph batchPaths must be distinct exposed module paths: '+filename);
+    }
+    batched.add(filename);
+  }
   const seed=suppliedSeed??randomBytes(32).toString('hex');
   /** @type {Record<string,ScoModulePartition>} */
   const partitions=Object.create(null);
@@ -215,12 +242,17 @@ function partitionScoAsyncGraph(files,options) {
     const source=modules.get(filename);
     if(!source)throw new Error('Expected selected private source');
     const partition=partitionScoAsyncModule(source,{
-      seed,endpoint:suppliedEndpoint,serverOnlyInitialization:true
+      seed,endpoint:suppliedEndpoint,serverOnlyInitialization:true,
+      ...(batched.has(filename)?{batch:true,maxBatchCalls:suppliedMaxBatchCalls}:{})
     });
     for(const name of partition.names){
       const id=partition.methodNames[name];
       if(methodIds.has(id))throw new TypeError('Cross-module SCO RPC method collision');
       methodIds.add(id);
+    }
+    if(partition.batchMethod){
+      if(methodIds.has(partition.batchMethod))throw new TypeError('Cross-module SCO batch method collision');
+      methodIds.add(partition.batchMethod);
     }
     partitions[filename]=partition;
     clientFiles.push(partition.clientFile);
@@ -293,14 +325,15 @@ function bindScoGraphExports(graph,namespaces){
  *
  * @param {ScoGraphPartition} graph
  * @param {Record<string,Record<string,unknown>>} namespaces
- * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} options
+ * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'|'batchPreflightRoutes'>} options
  * @returns {import('node:http').RequestListener}
  */
 function createScoGraphHandler(graph,namespaces,options){
   if(!graph||!Array.isArray(graph.clientFiles)||
       !Array.isArray(graph.exposedPaths)||!graph.partitions||
       !options||typeof options!=='object'||
-      Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
+      Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')||
+      Object.hasOwn(options,'batchPreflightRoutes')){
     throw new TypeError('SCO graph handler requires graph and separately authorized server options');
   }
   const snapshot=generatedGraphSnapshots.get(graph);
@@ -327,8 +360,16 @@ function createScoGraphHandler(graph,namespaces,options){
     }
   }
   const remoteMethods=bindScoGraphExports(trusted,namespaces);
+  const requiredBatchPreflights=trusted.exposedPaths.flatMap(filename=>{
+    const batchMethod=trusted.partitions[filename]?.batchMethod;
+    return batchMethod?[batchMethod]:[];
+  });
+  if(requiredBatchPreflights.length&&typeof stableOptions.authorizeOperation!=='function'){
+    throw new TypeError('SCO graph batch exports require authorizeOperation for inner calls');
+  }
   return createScoHandler(trusted.clientFiles,{
     ...stableOptions,
+    ...(requiredBatchPreflights.length?{batchPreflightRoutes:requiredBatchPreflights}:{}),
     publicPaths:[...trusted.exposedPaths],
     remoteMethods
   });

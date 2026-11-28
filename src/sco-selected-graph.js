@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {parse,walk}=require('./ast');
@@ -120,16 +120,19 @@ function partitionScoSelectedGraph(units){
   const exposedPaths=[];
   /** @type {Set<string>} */
   const privatePaths=new Set();
-  /** @type {Map<string,string>} */
-  const foldedPaths=new Map();
+  // A path can legitimately recur as a declared audited private source;
+  // register each unique spelling once while rejecting portable aliases.
+  const pathInventory=createPathInventory();
+  /** @type {Set<string>} */
+  const registeredPaths=new Set();
   /** @type {Map<string,string>} */
   const digestByPath=new Map();
   /** @type {Set<string>} */
   const methodIds=new Set();
 
   /**
-   * Paths are case-insensitive for collision admission even when the runtime
-   * filesystem itself is case-sensitive.
+   * All public and private paths must share the same portable tree; exact
+   * repeats are allowed for audited cross-module dependencies.
    * @param {string} filename
    * @returns {string}
    */
@@ -138,12 +141,10 @@ function partitionScoSelectedGraph(units){
     if(normalized!==filename||!normalized.endsWith('.mjs')){
       throw new TypeError('Selected SCO graph requires canonical .mjs paths');
     }
-    const folded=normalized.toLowerCase();
-    const existing=foldedPaths.get(folded);
-    if(existing!==undefined&&existing!==normalized){
-      throw new TypeError('Case-colliding selected SCO module path: '+filename);
+    if(!registeredPaths.has(normalized)){
+      registerFilePath(pathInventory,normalized,'Case-colliding selected SCO module path: ');
+      registeredPaths.add(normalized);
     }
-    foldedPaths.set(folded,normalized);
     return normalized;
   }
 
