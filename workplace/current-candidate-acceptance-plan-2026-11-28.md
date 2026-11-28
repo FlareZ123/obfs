@@ -4,9 +4,10 @@
 
 ## 1. Exact base and acceptance spine
 
-- Current `main` base at plan publication: `67237594500b3a6ca5d1300852ecdc8a0a737868`.
+- `main` at acceptance-spine creation/refresh: `67237594500b3a6ca5d1300852ecdc8a0a737868` (the current main head when the branch was refreshed and its workflow scaffold committed).
+- `main` immediately after the initial plan publication: `81b02224567d544aa71b7df3c2aaa33b2716a224` (the plan, README and coordination commit).
 - Current-main-based acceptance scaffold: [`agent1/frozen-acceptance-spine-20261128`](https://github.com/FlareZ123/obfs/tree/agent1/frozen-acceptance-spine-20261128), exact head `0318c6eee31d74e38b57db6a3e672323d1d84c0d`.
-- The scaffold is based on the exact main SHA above. Its only changes are reusable-workflow wiring in five existing workflow files; it changes no `src/`, `bin/`, `test/`, application source, or lockfile.
+- The scaffold is based on the exact main SHA above. Its only changes are reusable-workflow wiring in five existing workflow files; it changes no `src/`, `bin/`, `test/`, application source, or lockfile. Before integrating any compiler donor, refresh this scaffold onto then-current `main`; the product candidate must not inherit a stale base.
 - It is **not** a product candidate. It has no compiler donor changes, no PR, and no acceptance run. Do not describe it as a successful candidate or a release.
 - New compiler work must be rebased onto this current-main base, reviewed as one coherent source pin, and evaluated on that exact SHA. Do not use PR #384 or PR #398 as the integration base.
 
