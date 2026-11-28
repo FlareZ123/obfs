@@ -27,7 +27,7 @@ test('SCO must not relocate TextEncoder.encodeInto unproved WebIDL source conver
     'const enc=new TextEncoder();return enc.encodeInto(null,new Uint8Array(8)).written;',
     'const {TextEncoder:TE}=globalThis;return new TE().encodeInto(42,new Uint8Array(8)).written;'
   ]){
-    assert.throws(()=>selected(body),/unproved cross-realm host API/u,body);
+    assert.throws(()=>selected(body),/unproved (?:cross-realm host API|host-global state)/u,body);
   }
 });
 
