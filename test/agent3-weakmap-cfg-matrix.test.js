@@ -78,6 +78,52 @@ const cases=[
 ['ternary-heap-write','const carrier={instance:new WeakMap()}; false ? (carrier.instance={}) : 0;','carrier.instance'],
 ['short-circuit-heap-write','const carrier={instance:new WeakMap()}; false && (carrier.instance={});','carrier.instance'],
 ['switch-no-matching-case','const carrier={instance:new WeakMap()}; switch(0){case 1:carrier.instance={};break;}','carrier.instance'],
+// Independent native-positive selectors: case test expressions run even when
+// the selector does not match and even when a default appears first.
+['switch-matched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),0):break;}','carrier.instance'],
+['switch-unmatched-selector-effect','const carrier={instance:{}};switch(0){case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
+['switch-selector-after-default','const carrier={instance:{}};switch(0){default:break;case (carrier.instance=new WeakMap(),1):break;}','carrier.instance'],
+// Executed selector joins must not erase a live carrier on a path where a
+// preceding case matches before the later selector could be evaluated.
+['switch-early-match-skips-later-selector','const carrier={instance:new WeakMap()};switch(0){case 0:break;case (carrier.instance={},1):break;}','carrier.instance'],
+// A benign computed selector must still admit useful private rewrites.
+['switch-benign-nonliteral-selector','class Ordinary{} const carrier={instance:new Ordinary()};switch(0){case (carrier.instance=new Ordinary(),1):break;}','carrier.instance'],
+// Executed case bodies have abrupt completions: a subsequent same-case
+// overwrite after break/throw/return is dead and cannot clear a WeakMap.
+['switch-case-break-dead-write','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();break;carrier.instance={};}','carrier.instance'],
+['switch-case-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:carrier.instance=new WeakMap();throw 1;carrier.instance={};}}catch{}','carrier.instance'],
+['switch-case-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;carrier.instance={};}}fill();','carrier.instance'],
+['switch-case-nested-if-break','const carrier={instance:{}};switch(0){case 0:if(true){carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
+['switch-case-fallthrough-preserves','const carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();case 1:break;}','carrier.instance'],
+// Executing a case selector can invoke a user-defined accessor or implicit
+// coercion hook. The private function source must remain stable after these.
+['switch-defineproperty-accessor','const carrier={instance:{}};const observer={};Object.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-defineproperties-accessor','const carrier={instance:{}};const observer={};Object.defineProperties(observer,{v:{get(){carrier.instance=new WeakMap();return 1;}}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-reflect-defineproperty-accessor','const carrier={instance:{}};const observer={};Reflect.defineProperty(observer,"v",{get(){carrier.instance=new WeakMap();return 1;}});switch(0){case observer.v:break;}','carrier.instance'],
+['switch-selector-implicit-string-hook','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "1";}};switch(0){case ""+key:break;}','carrier.instance'],
+// Nested abrupt completion inside try/finally can bypass a later dead write
+// within the current case, function block or labeled block.
+['switch-case-finally-break-dead-write','const carrier={instance:{}};switch(0){case 0:try{carrier.instance=new WeakMap();break;}finally{}carrier.instance={};}','carrier.instance'],
+['switch-case-finally-return-dead-write','const carrier={instance:{}};function fill(){switch(0){case 0:try{carrier.instance=new WeakMap();return;}finally{}carrier.instance={};}}fill();','carrier.instance'],
+['try-finally-return-dead-write','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}finally{}carrier.instance={};}fill();','carrier.instance'],
+['label-try-finally-break-dead-write','const carrier={instance:{}};outer:{try{carrier.instance=new WeakMap();break outer;}finally{}carrier.instance={};}','carrier.instance'],
+['switch-case-finally-throw-dead-write','const carrier={instance:{}};try{switch(0){case 0:try{carrier.instance=new WeakMap();throw 1;}finally{}carrier.instance={};}}catch{}','carrier.instance'],
+// Catch handlers may resume on an exceptional path, but a native return or
+// break can still bypass all later writes. The abstract state must retain
+// both alternatives rather than treating the post-try write as definite.
+['try-catch-finally-return-early','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}catch(e){}finally{}carrier.instance={};}fill();','carrier.instance'],
+['switch-case-try-catch-finally-break-early','const carrier={instance:{}};switch(0){case 0:try{carrier.instance=new WeakMap();break;}catch(e){}finally{}carrier.instance={};}','carrier.instance'],
+['try-catch-both-paths-abrupt','const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();throw 1;}catch(e){return;}finally{}carrier.instance={};}fill();','carrier.instance'],
+// A genuinely resuming catch with no WeakMap must still allow useful yield.
+['try-catch-finally-resumes-positive','class Ordinary{} const carrier={instance:new Ordinary()};try{throw 1;}catch{carrier.instance=new Ordinary();}finally{}','carrier.instance'],
+// A switch or loop that may return/throw can bypass later sibling writes,
+// while an unlabeled ordinary break consumed by the switch/loop does not.
+['switch-return-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['switch-throw-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:carrier.instance=new WeakMap();throw 1;}carrier.instance={};}try{fill();}catch{}','carrier.instance'],
+['switch-if-return-before-clear','const carrier={instance:{}};function fill(){switch(0){case 0:if(true){carrier.instance=new WeakMap();return;}}carrier.instance={};}fill();','carrier.instance'],
+['loop-return-before-clear','const carrier={instance:{}};function fill(){for(let i=0;i<1;i++){carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['switch-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};switch(0){case 0:break;}carrier.instance=new Ordinary();','carrier.instance'],
+['loop-break-followed-ordinary','class Ordinary{} const carrier={instance:new WeakMap()};for(let i=0;i<1;i++){break;}carrier.instance=new Ordinary();','carrier.instance'],
 ['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
 ['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
 ['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
@@ -121,19 +167,147 @@ const cases=[
 ['if-true-throw-dead-overwrite','let carrier={instance:{}};try{if(true){carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
 ['nested-block-throw-dead-overwrite','let carrier={instance:{}};try{{carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
 ['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
-// Agent 4 source-review falsifiers: a dynamic write can overlap a statically
-// known slot, and two bindings can retain a may-alias relation on only one
-// branch predecessor. Both native executions reach WeakMap.prototype.
-['dynamic-key-overlaps-known-slot','const carrier={slot:{}};const key=(()=>"slot")();carrier[key]=new WeakMap();','carrier.slot'],
-['branch-may-alias-after-join','const shared={slot:{}};let a=shared;let b=shared;if(Math.random()<0)b={slot:{}};a.slot=new WeakMap();','b.slot'],
-// Local call-effect falsifiers from Agent 4, each paired with a native-negative
-// control that must retain nonzero identifier rewrite yield.
-['parameterized-helper-side-effect','let carrier={};function fill(flag){if(flag)carrier={instance:new WeakMap()};}fill(true);','carrier.instance'],
-['parameterized-helper-negative','class Ordinary{};let carrier={instance:new Ordinary()};function fill(flag){if(flag)carrier={instance:new Ordinary()};}fill(true);','carrier.instance'],
-['object-method-side-effect','let carrier={};const helper={fill(){carrier={instance:new WeakMap()};}};helper.fill();','carrier.instance'],
-['object-method-negative','class Ordinary{};let carrier={instance:new Ordinary()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
-['inline-callback-side-effect','let carrier={};[0].forEach(()=>{carrier={instance:new WeakMap()};});','carrier.instance'],
-['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance']
+['accessor-getter-then-setter','const carrier={get instance(){return new WeakMap();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['accessor-setter-then-getter','const carrier={set instance(v){},get instance(){return new WeakMap();}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['accessor-ordinary-no-weakmap','class Ordinary{} const carrier={get instance(){return new Ordinary();},set instance(v){}};function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['accessor-get-then-set-no-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};','carrier.instance'],
+['accessor-set-then-get-no-write','const carrier={set instance(v){},get instance(){return new WeakMap();}};','carrier.instance'],
+['accessor-get-then-set-direct-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};carrier.instance=0;','carrier.instance'],
+['accessor-get-then-set-alias-write','const carrier={get instance(){return new WeakMap();},set instance(v){}};const alias=carrier;alias.instance=0;','carrier.instance'],
+['accessor-getter-only-no-write','const carrier={get instance(){return new WeakMap();}};','carrier.instance'],
+['accessor-getter-only-caught-write','const carrier={get instance(){return new WeakMap();}};try{carrier.instance=0;}catch{}','carrier.instance'],
+['throw-sequence-updated-member','let result;const carrier={};try{throw (carrier.instance=new WeakMap(),carrier.instance);}catch(e){result=e;}','result'],
+['throw-call-updated-member','let result;let carrier={};function fill(){carrier={instance:new WeakMap()};}try{throw (fill(),carrier.instance);}catch(e){result=e;}','result'],
+['throw-sequence-ordinary-control','class Ordinary{} let result;const carrier={};try{throw (carrier.instance=new Ordinary(),carrier.instance);}catch(e){result=e;}','result'],
+['eval-order-object-computed-key','let carrier={};const o={[(carrier.instance=new WeakMap(),"x")]:0};','carrier.instance'],
+['eval-order-class-static-field-key','let carrier={};class Holder{static [(carrier.instance=new WeakMap(),"x")]=0;}','carrier.instance'],
+['eval-order-class-method-key','let carrier={};class Holder{static [(carrier.instance=new WeakMap(),"x")](){}}','carrier.instance'],
+['eval-order-assignment-lhs-key','let carrier={};const o={};o[(carrier.instance=new WeakMap(),"x")]=0;','carrier.instance'],
+['eval-order-destructure-key','let carrier={};const source={x:0};let x;({[(carrier.instance=new WeakMap(),"x")]:x}=source);','carrier.instance'],
+['eval-order-class-extends-expression','let carrier={};class Holder extends (carrier.instance=new WeakMap(),Object){}','carrier.instance'],
+['eval-order-new-callee-expression','let carrier={};class Holder{}new (carrier.instance=new WeakMap(),Holder)();','carrier.instance'],
+['eval-order-object-ordinary-control','class Ordinary{}let carrier={};const o={[(carrier.instance=new Ordinary(),"x")]:0};','carrier.instance'],
+['logical-or-assignment-skips-rhs','const carrier={instance:new WeakMap()};carrier.instance||={};','carrier.instance'],
+['logical-nullish-assignment-skips-rhs','const carrier={instance:new WeakMap()};carrier.instance??={};','carrier.instance'],
+['optional-member-skips-computed-key','const carrier={instance:new WeakMap()};null?.[(carrier.instance={})];','carrier.instance'],
+['optional-call-skips-argument','const carrier={instance:new WeakMap()};null?.method(carrier.instance={});','carrier.instance'],
+['instance-field-init-deferred','const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance={});}','carrier.instance'],
+['instance-field-init-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};class Holder{x=(carrier.instance=new Ordinary());}new Holder();','carrier.instance'],
+['for-of-rhs-effect-precedes-iteration','let carrier={};for(const x of (carrier={instance:new WeakMap()},[0])){break;}','carrier.instance'],
+['logical-or-definite-write-control','class Ordinary{}const carrier={instance:new WeakMap()};carrier.instance=null;carrier.instance||=new Ordinary();','carrier.instance'],
+['logical-nullish-definite-write-control','class Ordinary{}const carrier={instance:new WeakMap()};carrier.instance=null;carrier.instance??=new Ordinary();','carrier.instance'],
+['optional-member-executed-key-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={};source?.[(carrier.instance=new Ordinary(),"x")];','carrier.instance'],
+['optional-call-executed-arg-control','class Ordinary{}const carrier={instance:new WeakMap()};const source={m(_x){}};source?.m(carrier.instance=new Ordinary());','carrier.instance'],
+['instance-field-unconstructed-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};class Holder{x=(carrier.instance=new WeakMap());}','carrier.instance'],
+// A class with deferred effects may be constructed through a local alias,
+// helper parameter, Reflect.construct, or a derived constructor.
+['instance-field-direct-new-proven','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}new Holder();','carrier.instance'],
+['instance-field-constructor-alias','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}const Alias=Holder;new Alias();','carrier.instance'],
+['instance-field-constructor-parameter','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}function build(C){return new C();}build(Holder);','carrier.instance'],
+['instance-field-reflect-construct','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}Reflect.construct(Holder,[]);','carrier.instance'],
+['instance-field-subclass-construction','let carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());}class Sub extends Holder{}new Sub();','carrier.instance'],
+// Reflective accessor definitions must retain the accessor descriptor during
+// direct and helper writes; a no-op setter does not replace the getter value.
+['defineproperty-accessor-direct-write','const carrier={};Object.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});carrier.instance=0;','carrier.instance'],
+['defineproperty-accessor-helper-write','const carrier={};Object.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['reflect-defineproperty-accessor-write','const carrier={};Reflect.defineProperty(carrier,"instance",{get(){return new WeakMap();},set(v){}});carrier.instance=0;','carrier.instance'],
+['defineproperties-accessor-helper-write','const carrier={};Object.defineProperties(carrier,{instance:{get(){return new WeakMap();},set(v){}}});function clear(){carrier.instance=0;}clear();','carrier.instance'],
+['defineproperty-ordinary-control','class Ordinary{}const carrier={};Object.defineProperty(carrier,"instance",{get(){return new Ordinary();},set(v){}});carrier.instance=0;','carrier.instance'],
+// Calls evaluate their callee expression before arguments. Argument *values*
+// may be innocent while their side effects update the carrier.
+['call-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['call-optional-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target?.[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
+['call-sequence-callee-before-arg','let carrier={instance:{}};function target(_v){};(carrier.instance={},target)((carrier.instance=new WeakMap(),0));','carrier.instance'],
+// Class expressions, like class declarations, execute instance field values
+// only when an instance is constructed, not when the class is defined.
+['class-expression-field-deferred','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};','carrier.instance'],
+['class-expression-field-deferred-object','const carrier={instance:new WeakMap()};const registry={Holder:class{x=(carrier.instance={});}};','carrier.instance'],
+['class-expression-field-deferred-factory','const carrier={instance:new WeakMap()};function factory(){return class{x=(carrier.instance={});}}const Holder=factory();','carrier.instance'],
+['class-expression-field-executed-control','class Ordinary{}const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance=new Ordinary());};new Holder();','carrier.instance'],
+['class-expression-field-deferred-ordinary-control','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());};','carrier.instance'],
+['class-expression-computed-key-definition','let carrier={};const Holder=class{[(carrier.instance=new WeakMap(),"x")]=0;};','carrier.instance'],
+// Class-expression field writes may execute through aliases or reflected
+// construction; an unproved constructor binding must conservatively refuse.
+['class-expression-field-alias-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};const Alias=Holder;new Alias();','carrier.instance'],
+['class-expression-field-reflect-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};Reflect.construct(Holder,[]);','carrier.instance'],
+['class-expression-field-registry-constructed','const carrier={instance:{}};const registry={Holder:class{x=(carrier.instance=new WeakMap());}};new registry.Holder();','carrier.instance'],
+['class-expression-field-subclass-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};class Sub extends Holder{}new Sub();','carrier.instance'],
+['class-expression-field-inline-constructed','const carrier={instance:{}};new (class{x=(carrier.instance=new WeakMap());})();','carrier.instance'],
+['class-expression-field-alias-unconstructed','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};const Alias=Holder;','carrier.instance'],
+// A class-expression static block can instantiate its own class during
+// definition, before a later constructor binding is assigned. Instance
+// initializer effects are *not* deferred past this nested new.
+['class-expression-static-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {new this();}};','carrier.instance'],
+['class-expression-static-self-alias','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {const Self=this;new Self();}};','carrier.instance'],
+['class-expression-static-registry','const carrier={instance:{}};const registry={Holder:class{x=(carrier.instance=new WeakMap());static {new this();}}};','carrier.instance'],
+['class-declaration-static-self-construction','const carrier={instance:{}};class Holder{x=(carrier.instance=new WeakMap());static {new this();}}','carrier.instance'],
+['class-expression-static-field-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static seeded=new this();};','carrier.instance'],
+['class-expression-static-before-instance-field','const carrier={instance:{}};const Holder=class{static {new this();}x=(carrier.instance=new WeakMap());};','carrier.instance'],
+['class-expression-static-method-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static build(){new this();}static {this.build();}};','carrier.instance'],
+['class-expression-static-escaped-self','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {globalThis.HolderCtor=this;}};new globalThis.HolderCtor();','carrier.instance'],
+['class-expression-static-inert-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static ready=1;};','carrier.instance'],
+// Source-visible implicit static operations may execute an inherited class
+// getter/setter, Symbol.toPrimitive or Symbol.iterator; none is an explicit
+// new/call node in the class's own static body.
+['class-expression-inherited-static-getter','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire;}};','carrier.instance'],
+['class-expression-inherited-static-coercion','class Base{static [Symbol.toPrimitive](){new this();return "x";}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {\`${this}\`;}};','carrier.instance'],
+['class-expression-inherited-static-destructure','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {const {fire}=this;}};','carrier.instance'],
+['class-expression-inherited-static-iterator','class Base{static *[Symbol.iterator](){new this();yield 1;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {for(const v of this)break;}};','carrier.instance'],
+['class-expression-inherited-static-setter','class Base{static set fire(_v){new this();}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire=1;}};','carrier.instance'],
+['class-expression-static-pure-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {const ready=1;}};','carrier.instance'],
+// A nested inert-looking method may run under *implicit* coercion or
+// overloaded operators, even when the static block contains no explicit call.
+['class-static-template-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};\`\${hook}\`;}};','carrier.instance'],
+['class-static-binary-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};hook+1;}};','carrier.instance'],
+['class-static-unary-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};+hook;}};','carrier.instance'],
+['class-static-computed-key-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};const rec={[hook]:0};}};','carrier.instance'],
+['class-static-instanceof-hook','const has=Symbol.hasInstance;const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook=class{static [has](_v){new Inner();return false;}};({}) instanceof hook;}};','carrier.instance'],
+// ToBoolean on an object and typeof do not invoke user coercion hooks.
+['class-static-boolean-test-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};if(hook){const x=1;}}};','carrier.instance'],
+// ToPropertyKey on a nonprimitive computed object or class key calls the
+// key's toString/@@toPrimitive hook before the next statement executes.
+['class-computed-method-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};class Holder{[key](){return 1;}}','carrier.instance'],
+['class-computed-instance-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const Holder=class{[key]=1;};','carrier.instance'],
+['class-computed-static-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const Holder=class{static [key]=1;};','carrier.instance'],
+['object-computed-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const registry={[key]:1};','carrier.instance'],
+// Separate primitive computed-key controls retain real binding rewrites.
+['class-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{["x"](){return 1;}};','carrier.instance'],
+['object-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const registry={["x"]:1};','carrier.instance'],
+// Computed member references and the binary "in" operator also execute
+// ToPropertyKey on their key *values*. Visiting only the property AST does
+// not replay an object hook that changes the reaching WeakMap carrier.
+['member-key-getter-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec[key];','carrier.instance'],
+['member-key-write-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec[key]=2;','carrier.instance'],
+['member-key-delete-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};delete rec[key];','carrier.instance'],
+['member-key-optional-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec?.[key];','carrier.instance'],
+['member-key-in-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};key in rec;','carrier.instance'],
+['member-key-reflect-get-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};Reflect.get(rec,key);','carrier.instance'],
+['member-key-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};rec["x"]=2;','carrier.instance'],
+['member-key-reflect-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};Reflect.get(rec,"x");','carrier.instance'],
+// Computed ObjectPattern keys also run ToPropertyKey during Binding
+// Initialization, assignment, parameter entry and catch binding.
+['pattern-key-variable-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};const {[key]:observed}=rec;','carrier.instance'],
+['pattern-key-assignment-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};let observed;({[key]:observed}=rec);','carrier.instance'],
+['pattern-key-function-parameter','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};function consume({[key]:observed}){}consume(rec);','carrier.instance'],
+['pattern-key-forof-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};for(const {[key]:observed} of [rec]){}','carrier.instance'],
+['pattern-key-catch-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};try{throw rec;}catch({[key]:observed}){}','carrier.instance'],
+['pattern-key-rest-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};const {[key]:observed,...rest}=rec;','carrier.instance'],
+['pattern-key-class-static-parameter','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};class C{static f({[key]:v}){}}C.f(rec);','carrier.instance'],
+['pattern-key-primitive-variable-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:1};const {["x"]:observed}=rec;','carrier.instance'],
+['pattern-key-primitive-assignment-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:1};let observed;({["x"]:observed}=rec);','carrier.instance'],
+// Unique top-level const module bindings may be proved primitive across
+// computed object/class/member/Reflect keys despite hostile global prototypes.
+// Shadowed or object-valued identifiers must not receive this certificate.
+['primitive-module-const-object-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={[primitiveKey]:1};','carrier.instance'],
+['primitive-module-const-member-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};rec[primitiveKey];','carrier.instance'],
+['primitive-module-const-reflect-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};Reflect.get(rec,primitiveKey);','carrier.instance'],
+['primitive-module-const-in-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};primitiveKey in rec;','carrier.instance'],
+['primitive-module-transitive-const-positive','class Ordinary{}const carrier={instance:new Ordinary()};const a="x";const b=a;const rec={[b]:1};','carrier.instance'],
+['primitive-module-numeric-const-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey=1+2;const rec={[primitiveKey]:1};','carrier.instance'],
+['primitive-module-shadowed-param-negative','const carrier={instance:{}};const primitiveKey="x";function use(primitiveKey){const rec={x:1};return rec[primitiveKey];}use({toString(){carrier.instance=new WeakMap();return "x";}});','carrier.instance'],
+['primitive-module-object-const-negative','const carrier={instance:{}};const primitiveKey={toString(){carrier.instance=new WeakMap();return "x";}};const rec={[primitiveKey]:1};','carrier.instance'],
+// An unknown computed local call is intentionally permitted to refuse
+// rewrites; the independent Ordinary control above still checks yield.
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
@@ -141,6 +315,27 @@ const tail='\nconst nativeSet=nativePrototype.set;\n'+
 for(const [name,setup,access] of cases) {
   test('CFG carrier semantic parity: '+name,()=>{
     const nativeShared=Function('"use strict";\n'+setup+'\nreturn Object.getPrototypeOf('+access+')===WeakMap.prototype;')();
+    if(['switch-matched-selector-effect','switch-unmatched-selector-effect',
+        'switch-selector-after-default','switch-early-match-skips-later-selector',
+        'switch-case-break-dead-write','switch-case-throw-dead-write',
+        'switch-case-return-dead-write','switch-case-nested-if-break',
+        'switch-case-fallthrough-preserves',
+        'switch-defineproperty-accessor','switch-defineproperties-accessor',
+        'switch-reflect-defineproperty-accessor',
+        'switch-selector-implicit-string-hook',
+        'switch-case-finally-break-dead-write','switch-case-finally-return-dead-write',
+        'try-finally-return-dead-write','label-try-finally-break-dead-write',
+        'switch-case-finally-throw-dead-write',
+        'try-catch-finally-return-early',
+        'switch-case-try-catch-finally-break-early',
+        'try-catch-both-paths-abrupt',
+        'switch-return-before-clear','switch-throw-before-clear',
+        'switch-if-return-before-clear','loop-return-before-clear'].includes(name))
+      assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
+    if(['switch-benign-nonliteral-selector',
+        'try-catch-finally-resumes-positive',
+        'switch-break-followed-ordinary','loop-break-followed-ordinary'].includes(name))
+      assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
     const group=hasWeakMapPrototypeExposure(mutationAst);
