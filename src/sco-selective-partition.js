@@ -248,7 +248,24 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     }
   }
   let observed=false;
+  // First-class global-object flows (assignment, records, arrays, closure
+  // returns and parameter/return aliases) can recover TextEncoder without
+  // spelling its name as a bare Identifier. A bounded syntax scan cannot
+  // prove receiver ownership through such flows. If the selected private
+  // source both reads a host root and a TextEncoder member, conservatively
+  // keep that source on the client. Other read-only global Math/Number calls
+  // and independently owned TextEncoder properties remain eligible.
+  const ambientRoots=new Set(['globalThis','window','self','global']);
+  let ambientRootObserved=false;
+  let encoderMemberObserved=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='Identifier'&&ambientRoots.has(node.name)&&
+       !isStaticKey(parent,key))ambientRootObserved=true;
+    if(node.type==='MemberExpression'&&
+       (node.computed?staticString(node.property):
+         node.property.type==='Identifier'?node.property.name:null)==='TextEncoder'){
+      encoderMemberObserved=true;
+    }
     if(node.type==='DebuggerStatement')observed=true;
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
        !ownedFunctions.has(node.name)&&!explicitServerBindings.has(node.name)&&
@@ -260,7 +277,7 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
       observed=true;
     }
   });
-  return observed;
+  return observed||(ambientRootObserved&&encoderMemberObserved);
 }
 
 /**
