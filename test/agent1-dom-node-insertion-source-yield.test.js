@@ -105,3 +105,23 @@ test('alias, destructuring, prototype and Reflect factory writes all veto siblin
       'Native factory alias can invalidate a Node brand assumption: '+source);
   }
 });
+
+
+test('unlisted executable HTML script can mutate native document factory before loader',()=>{
+  const original='globalThis.opaqueScriptObservation="original bytes remain needed for unknown host scripts";';
+  const loader='const script=document.createElement("script");'+
+    'script.src="./client.js";document.head.append(script);';
+  const html=Buffer.from('<!doctype html><html><body>'+
+    '<script src="./unlisted-factory-patch.js"></script>'+
+    '<script src="./bootstrap.js"></script></body></html>');
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const out=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:original},
+      {path:'bootstrap.js',sourceType:'script',code:loader},
+      {path:'index.html',sourceType:'asset',code:html}
+    ],{mode,seed:'agent1-unlisted-executable-host-script/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(out.files[0].code,original,
+      'Unreviewed HTML script can replace factory before native Node insertion '+mode);
+  }
+});
