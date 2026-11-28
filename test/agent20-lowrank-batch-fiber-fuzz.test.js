@@ -143,3 +143,29 @@ test('seeded hidden-affine fiber permutations obey multi-coset batch caps',()=>{
   assert.ok(totals.sampledCompletionCalls>0,'must exercise quotient completion');
   console.log('LOWRANK_BATCH_FIBER_FUZZ '+JSON.stringify(totals));
 });
+
+
+test('noninjective and stateful sources are explicitly outside batch-permutation guarantees',()=>{
+  const noninjective=[5,3,4,0,0,5,5,1];
+  const collision=prepareLowRankBatchInverter(x=>noninjective[x],{
+    bits:3,rankBound:3
+  });
+  assert.throws(()=>collision.invert(1),/not injective/u,
+    'observable duplicate outputs must not be silently certified as a permutation');
+
+  // This is a deliberate out-of-contract counterexample, not a bug in the
+  // deterministic implementation. A session-rotating oracle invalidates
+  // previously cached values after the state changes.
+  let version=0;
+  const stateful=x=>(x^version)&7;
+  const cached=prepareLowRankBatchInverter(stateful,{bits:3,rankBound:0});
+  const original=cached.invert(5);
+  assert.equal(original.preimage,5);
+  assert.equal(stateful(original.preimage),5);
+  version=1;
+  const stale=cached.invert(5);
+  assert.equal(stale.newOracleCalls,0);
+  assert.equal(stale.preimage,5);
+  assert.notEqual(stateful(stale.preimage),5,
+    'state transition invalidates any earlier chosen-oracle memoization');
+});
