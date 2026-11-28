@@ -103,12 +103,12 @@ async function main(){
     '}',
     'const expectedSubWarm=workSub.native(120000);',
     'for(let warm=0;warm<6;warm++)for(const name of namesSub){',
-    ' if(workSub[name](120000)!==expectedSubWarm)'
+    ' if(workSub[name](120000)!==expectedSubWarm)',
     '  throw Error("subtraction warm checksum mismatch "+name);',
     '}',
     'const benchmarkExpected=work.native(180000);',
     'const benchmarkExpectedSub=workSub.native(180000);',
-    'const measuresSub={native:[],wasm:[],reconstructed:[],minified:[]};'
+    'const measuresSub={native:[],wasm:[],reconstructed:[],minified:[]};',
     'const measures={native:[],wasm:[],reconstructed:[]};',
     'const orders=[["native","wasm","reconstructed"],',
     ' ["reconstructed","wasm","native"],',
@@ -116,7 +116,7 @@ async function main(){
     'const ordersSub=[["native","wasm","reconstructed","minified"],',
     ' ["minified","reconstructed","wasm","native"],',
     ' ["wasm","minified","native","reconstructed"],',
-    ' ["reconstructed","native","minified","wasm"]];'
+    ' ["reconstructed","native","minified","wasm"]];',
     'for(let trial=0;trial<13;trial++){',
     ' for(const name of orders[trial%3]){',
     '  const start=performance.now();',
@@ -127,7 +127,7 @@ async function main(){
     '  measures[name].push(time);',
     ' }',
     ' for(const name of ordersSub[trial%4]){',
-    '  const subStart=performance.now();'
+    '  const subStart=performance.now();',
     '  const subResult=workSub[name](180000);',
     '  const subTime=performance.now()-subStart;',
     '  if(subResult!==benchmarkExpectedSub||!Number.isFinite(subTime)||subTime<=0)',
