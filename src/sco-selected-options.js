@@ -21,7 +21,7 @@ function snapshotSelectedOptions(options){
   /** @type {(keyof ScoSelectedHandlerOptions)[]} */
   const permitted=[
     'routePrefix','allowedHosts','authorizeRead','authorizeRpc',
-    'authorizeOperation','runRpcIsolated','maxRpcBytes',
+    'admitRpcEarly','authorizeOperation','runRpcIsolated','maxRpcBytes',
     'closedWorld','reviewedOpaqueAssets'
   ];
   for(const key of permitted){
