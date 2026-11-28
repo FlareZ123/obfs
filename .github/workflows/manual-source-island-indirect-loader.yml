@@ -116,3 +116,23 @@ jobs:
         run: npm run typecheck
       - name: Strict external corpus JSDoc
         run: npm run typecheck:external
+  # Independent browser traces: each shape remains source-pinned even if
+  # the legacy integration job encounters unrelated baseline failures.
+  agent5-sri-runtime-falsifiers:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [dynamic-selector, reflective-insert, computed-setter]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Native, tampered and generated modulepreload integrity results
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }}
