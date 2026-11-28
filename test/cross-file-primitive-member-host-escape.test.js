@@ -99,12 +99,12 @@ for(const control of [
         'import {state} from "./state.mjs";',
         'const own='+control.expression+';',
         'console.log(JSON.stringify([state.secretField,own]));'
-      ].join('\\n')}
+      ].join('\n')}
     ];
     const native=await execute(files);
     const result=transform(files,'primitive-own-string-'+control.label);
     const emitted=await execute(result.files);
-    assert.equal(native,JSON.stringify([53,control.expected])+'\\n');
+    assert.equal(native,JSON.stringify([53,control.expected])+'\n');
     assert.equal(emitted,native);
     assert.equal(result.crossFile.properties,1,'An own String data read cannot invoke a host getter');
   });
