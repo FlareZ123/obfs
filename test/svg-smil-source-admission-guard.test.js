@@ -84,3 +84,37 @@ test('XHTML namespace-aware scanner refuses SVG SMIL target while retaining iner
     .replace('to="window.sourceObserver=23"','to="green"');
   assert.doesNotThrow(()=>audit('page.xhtml',safe));
 });
+
+
+test('COO/SCO/SNO and SCO publication refuse executable SMIL even in opaque HTML',()=>{
+  const {obfuscateFiles,createScoHandler}=require('../src');
+  const entry={path:'entry.cjs',sourceType:'commonjs',code:'module.exports=7;'};
+  const cases=[['index.html',html],
+    ['index.html','<!doctype html><svg><a href="#safe"><set attributeName="href" to="javascript:window.sourceObserver=23" begin="0s" dur="indefinite"/><rect width="90" height="50"/></a></svg>'],
+    ['icon.svg',rawSvg],['index.xhtml',xhtml]];
+  for(const [path,code] of cases){
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      assert.throws(()=>obfuscateFiles([
+        entry,{path,sourceType:'asset',code:Buffer.from(code)}
+      ],{mode,seed:'smil-source-preflight'}),/asset contains/,path+' '+mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path,sourceType:'asset',code:Buffer.from(code)}
+    ]),/asset contains/,path+' SCO publication');
+  }
+});
+
+test('three modes retain byte-identical safe animation assets',()=>{
+  const {obfuscateFiles}=require('../src');
+  const entry={path:'entry.cjs',sourceType:'commonjs',code:'module.exports=7;'};
+  const safe=html.replace('attributeName="onmouseover"','attributeName="fill"')
+    .replace('to="window.sourceObserver=23"','to="green"');
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const out=obfuscateFiles([entry,
+      {path:'index.html',sourceType:'asset',code:Buffer.from(safe)}
+    ],{mode,seed:'smil-benign-pass'});
+    const asset=out.files.find(file=>file.path==='index.html');
+    assert.ok(asset);
+    assert.deepEqual(asset.code,Buffer.from(safe));
+  }
+});
