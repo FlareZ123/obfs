@@ -198,3 +198,56 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])) {
     assert.deepEqual(await evaluate(/** @type {File[]} */ (output.files)),native);
   });
 }
+
+/**
+ * Mutable exports can carry a source-coercing native method even though the
+ * compiler cannot prove the binding never changes. They demand MAY-alias
+ * preservation, rather than an exact-immutable-only positive analysis.
+ * @type {Array<[string,string]>}
+ */
+const mutableExports=[
+  ['let-initializer','export let escape=CSS.escape;'],
+  ['var-initializer','export var escape=CSS.escape;'],
+  ['assignment','let escape;escape=CSS.escape;export {escape};']
+];
+
+for(const [name,methods] of mutableExports){
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    for(const observes of [true,false]){
+      test(mode+' mutable native CSS export '+name+
+        (observes?' source':' primitive'),async()=>{
+        /** @type {File[]} */
+        const files=[
+          {path:'methods.mjs',sourceType:'module',code:methods},
+          {path:'user.mjs',sourceType:'module',
+            code:'import {escape as htmlEsc} from "./methods.mjs";'+
+              'export function sample(x){return x^17;}'+
+              'export const text=htmlEsc('+(observes?'sample':'"ordinary"')+');'}
+        ];
+        const native=await evaluate(files);
+        if(observes)assert.match(native.text,/x\^17/);
+        /** @type {ReturnType<typeof obfuscateFiles>|null} */
+        let output=null;
+        try {
+          output=obfuscateFiles(files,{
+            mode,seed:'css-mutable/'+name+'/'+mode+'/'+observes,
+            identifiers:false,strings:false,properties:false,
+            experimentalWasmI32:{'user.mjs':['sample']}
+          });
+        }catch(error) {
+          if(!observes)throw error;
+          assert.match(String(error),/Wasm|source|declined/i);
+          return;
+        }
+        assert.ok(output);
+        if(!observes){
+          const user=output.files.find(file=>file.path==='user.mjs');
+          assert.ok(user);
+          assert.match(String(user.code),/WebAssembly/,
+            'Primitive source leaves selected Wasm eligible');
+        }
+        assert.deepEqual(await evaluate(/** @type {File[]} */(output.files)),native);
+      });
+    }
+  }
+}
