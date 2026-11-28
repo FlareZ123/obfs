@@ -80,6 +80,37 @@ async function runEvidence(){
     const nativeOutput=nativeApp.runScenario(-817,events,{
       emit(value){nativeTrace.push(value);}
     });
+    assert.equal(nativeTrace.length,events.length,
+      'Full graph must call the unknown host exactly once per event');
+    assert.equal(JSON.parse(nativeOutput).trace.length,events.length,
+      'The observable serialized result must also carry a real event trace');
+    // Distinct from the typed-return mutation: intentionally remove ONLY
+    // externally supplied host callbacks, while retaining every returned
+    // byte and the application's private event trace. The host comparator
+    // must detect an output-equivalent but externally distinguishable clone.
+    const entryFile=graphs.native.find(file=>file.path==='entry.mjs');
+    assert.ok(entryFile,'Missing native application entry for host trace mutation');
+    const originalEntry=entryFile.code;
+    const mutatedEntry=originalEntry.replace('if(host)host.emit(item);',
+      'if(host&&false)host.emit(item);');
+    assert.notEqual(mutatedEntry,originalEntry,'Host-drop mutation did not apply');
+    const hostMutationDir=path.join(root,'mutated-host-graph');
+    await fs.mkdir(hostMutationDir,{recursive:true});
+    for(const file of graphs.native)
+      await fs.writeFile(path.join(hostMutationDir,file.path),
+        file.path==='entry.mjs'?mutatedEntry:file.code,'utf8');
+    const hostMutation=await import(pathToFileURL(path.join(hostMutationDir,'entry.mjs')).href);
+    const missingHostTrace=[];
+    const hostMutationOutput=hostMutation.runScenario(-817,events,{
+      emit(value){missingHostTrace.push(value);}
+    });
+    assert.equal(hostMutationOutput,nativeOutput,
+      'Host-drop mutant must preserve the exact app return payload');
+    assert.equal(missingHostTrace.length,0,
+      'Host-drop mutant must be observable only through external callback effects');
+    oracleMutationControl.hostDropMaintainsReturnValue=true;
+    oracleMutationControl.externalTraceRejectsHostDrop=true;
+    oracleMutationControl.nonVacuousNativeTraceEvents=nativeTrace.length;
     /** @type {Record<string,unknown>} */
     const variants={};
     for(const variant of TARGETS){
