@@ -322,3 +322,50 @@ test('selected SCO handler retains inherited nonenumerable early-admission callb
     assert.equal(executions,1);
   }finally{await close(server);}
 });
+
+test('SCO pre-admission true cannot outlive a revocation while another RPC holds the principal queue',async()=>{
+  const holdEntered=gate(),secondLookup=gate(),release=gate();
+  let allowed=true,lookups=0,earlyPasses=0,finalChecks=0,reads=0;
+  const handler=createScoHandler([],{
+    remoteMethods:{
+      hold:async()=>{holdEntered.resolve();await release.promise;return 'held';},
+      read:()=>{reads++;return 'protected';}
+    },
+    admitRpcEarly:()=>{
+      if(allowed)earlyPasses++;
+      return allowed;
+    },
+    authorizeRpc:()=>{finalChecks++;return allowed;},
+    runRpcIsolated:createScoKeyedIsolation(()=>{
+      lookups++;
+      if(lookups===2)secondLookup.resolve();
+      return 'verified';
+    },{maxPendingPerPrincipal:2,maxPendingTotal:2})
+  });
+  const {server,url}=await start(handler);
+  const first=rpc(url,'verified','{"method":"hold","args":[]}');
+  /** @type {Promise<{status:number,body:any}>|undefined} */
+  let queued;
+  try {
+    await holdEntered.promise;
+    queued=rpc(url,'verified','{"method":"read","args":[]}');
+    await secondLookup.promise;
+    assert.equal(earlyPasses,2,'Both requests passed pre-admission before revocation');
+    assert.equal(finalChecks,1,'Queued request has not reached final authorization');
+    allowed=false;
+    release.resolve();
+    assert.deepEqual(await first,{
+      status:200,body:{ok:true,value:'held'}
+    });
+    assert.deepEqual(await queued,{
+      status:403,body:{ok:false,error:'Forbidden'}
+    },'Fresh authoritative check must reject a previously pre-admitted request');
+    assert.equal(reads,0);
+    assert.equal(finalChecks,2);
+    assert.equal(lookups,2);
+  }finally{
+    release.resolve();
+    await Promise.allSettled(queued?[first,queued]:[first]);
+    await close(server);
+  }
+});
