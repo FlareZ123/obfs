@@ -1,0 +1,18 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/public-seed-property-dictionary.js",
+    "sims/public-property-neutralizer.js",
+    "sims/equaltrust-secret-property-minifier.js",
+    "test/agent8-public-seed-property-dictionary.test.js",
+    "test/agent8-private-property-entropy.test.js",
+    "test/agent8-cli-private-property-entropy.test.js",
+    "test/agent8-private-property-key.test.js",
+    "test/agent8-private-property-entropy-browser.test.js",
+    "test/agent8-private-property-entropy-performance.test.js",
+    "test/agent8-equaltrust-secret-property-minifier.test.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
