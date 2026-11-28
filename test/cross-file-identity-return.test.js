@@ -45,12 +45,14 @@ async function check(utility,main,renamed) {
  * @param {string} main
  * @param {number} renamed
  * @param {'coo'|'sno'|'sco'} [mode]
+ * @param {string} [relay]
  * @returns {Promise<void>}
  */
-async function checkFactory(factory,main,renamed,mode='coo') {
+async function checkFactory(factory,main,renamed,mode='coo',relay) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
   const files=/** @type {import('../src/core').SourceFile[]} */ ([
     {path:'state.mjs',sourceType:'module',code:factory},
+    ...(relay?[{path:'relay.mjs',sourceType:'module',code:relay}]:[]),
     {path:'main.mjs',sourceType:'module',code:main}
   ]);
   try {
@@ -211,4 +213,14 @@ test('imported exported factory proof declines escaping and source-observed call
   for(const [description,main] of cases) {
     await checkFactory(factory,main,0);
   }
+});
+
+
+test('imported factory proof declines namespace reexports of the producer module',async()=>{
+  await checkFactory(
+    'export function makeState(){return {secretField:17,otherField:5};}',
+    'import {state} from "./relay.mjs";const first=state.makeState();'+
+      'console.log(first.secretField);',
+    0,'coo','export * as state from "./state.mjs";'
+  );
 });
