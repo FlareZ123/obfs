@@ -33,7 +33,8 @@ function graph() {
   ];
 }
 
-/** @param {SourceFile[]} files @returns {Promise<unknown>} */
+/** @typedef {{watchedSource:string,domSource:string,domValue:number,leaf:number}} Observation */
+/** @param {SourceFile[]} files @returns {Promise<Observation>} */
 async function execute(files) {
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-dom-island-composed-'));
   try {
