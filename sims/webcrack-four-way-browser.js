@@ -60,6 +60,9 @@ async function runBrowserEvidence(){
     assets.set('/host-drop/'+file.path,file.path==='entry.mjs'?dropped:file.code);
   assets.set('/index.html','<!doctype html><html><head><meta charset="utf-8"></head><body>audit</body></html>');
   assert.equal(assets.size,13,'Must serve four disjoint 3-file ESM graphs');
+  // A hostile-but-ordinary application can prohibit dynamic string execution.
+  // The independently reconstructed ESM must work without unsafe-eval.
+  const strictCsp="default-src 'none'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'";
   let moduleRequests=0;
   const server=http.createServer((request,response)=>{
     const target=request.url??'';
@@ -72,7 +75,8 @@ async function runBrowserEvidence(){
       'Content-Type':target.endsWith('.mjs')?
         'text/javascript; charset=utf-8':'text/html; charset=utf-8',
       'Cache-Control':'no-store',
-      'X-Content-Type-Options':'nosniff'
+      'X-Content-Type-Options':'nosniff',
+      'Content-Security-Policy':strictCsp
     });
     response.end(body);
   });
@@ -94,6 +98,11 @@ async function runBrowserEvidence(){
     const version=await browser.version();
     const page=await browser.newPage();
     await page.goto(origin+'/index.html',{waitUntil:'domcontentloaded',timeout:60000});
+    const cspProbe=await page.evaluate(()=>{
+      try { (0,eval)('1+1'); return false; }
+      catch(error) { return /EvalError|Content Security Policy|unsafe-eval|Refused to evaluate/u.test(String(error)); }
+    });
+    assert.equal(cspProbe,true,'The strict CSP must actually block string evaluation');
     const result=await page.evaluate(async ()=>{
       /** @type {Record<string,(seed:number,records:{kind:string,payload:string}[],host:{emit:(value:unknown)=>void})=>string>} */
       const variants={};
@@ -152,10 +161,11 @@ async function runBrowserEvidence(){
     assert.deepEqual(result.rows.map(row=>row.events),[1,17,50,1000,10000]);
     assert.equal(moduleRequests,12,'All four 3-module graphs must be served from real HTTP');
     const evidence={
-      scope:'Actual browser HTTP ESM direct Webcrack output, 2 recovered 3-module variants, five stateful workloads',
+      scope:'Strict-CSP browser HTTP ESM direct Webcrack output, 2 recovered 3-module variants, five stateful workloads',
       frozenSource:'a8a22f9aef6e7f0d487cebc23c87063376df55cb',
       node:process.version,platform:process.platform,chromeVersion:version,
       browserOrigin:'http://127.0.0.1:<ephemeral-port>',
+      strictCsp,probedEvalBlocked:cspProbe,
       webcrack:'2.16.0',provenance,servedEsmRequests:moduleRequests,
       rows:result.rows,
       originalSourceFormulasRecovered:'not measured',
