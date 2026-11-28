@@ -73,3 +73,24 @@ Nine measured rounds per arm, 5,000,000 stateful calculations per round:
 | Obfuscated | 15.60 ms |
 
 Obfuscated/native = 1.0065×; obfuscated/minified = 1.0000× (rounded). This is a representative stateful browser workload, not a universal bound. The focused cross-mode Node regression for the same compound-write shape is being run separately.
+
+
+## CPU-time measurement (supersedes wall-only budget observations)
+
+The manual browser workflow now samples Chromium's cumulative renderer CPU seconds through CDP `SystemInfo.getProcessInfo` before and after each module evaluation, summing CPU time across renderer processes. This is CPU accounting, unlike `performance.now()`, which is wall time.
+
+[Run 46184333787](https://github.com/FlareZ123/obfs/actions/runs/46184333787) checked out exact source SHA `1d73c70b38aa72d6c5a66796bf6978b78e9e6c15` and passed all checks, including the positive multi-root factory graph, browser URL/POSIX alias negative control, checksum parity, strict core/external JSDoc, and the 2.5× CPU assertion.
+
+Across nine measured rounds per arm (5,000,000 stateful compound-write calculations per round; 45M calculations per variant), summed renderer CPU time was:
+
+| Variant | Renderer CPU total |
+|---|---:|
+| Native | 150 ms |
+| Minified | 170 ms |
+| Obfuscated | 150 ms |
+
+- Obfuscated/native CPU ratio: **1.000×**
+- Obfuscated/minified CPU ratio: **0.882×**
+- Median wall time per module evaluation: native 15.0 ms, minified 15.1 ms, obfuscated 14.9 ms.
+
+The CPU counters are quantized/coarse at this sample size (the totals are reported at 10 ms granularity), so treat the ratios as approximate. This is a real Chromium renderer CPU measurement for one finite COO workload, not a universal bound across all applications, browsers, architectures or tiny operations. It does not measure server CPU, SCO, or SNO.
