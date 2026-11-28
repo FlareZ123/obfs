@@ -143,6 +143,40 @@ test('owned userland indexed array keeps genuine positive own-property rewrite y
   }
 });
 
+test('separately proved primitive ESM island retains own-property yield next to native observer',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:/** @type {const} */('module'),
+      code:'export const elements=document.querySelectorAll("div.locked");'},
+    {path:'safe.mjs',sourceType:/** @type {const} */('module'),
+      code:'const owner={safePrivate:23};export function safe(){return owner.safePrivate;}'},
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),
+      code:'import {elements} from "./state.mjs";'+
+        'import {safe} from "./safe.mjs";'+
+        'const owner={sourceSensitive:71};'+
+        'function inspected(){return owner.sourceSensitive;}'+
+        'const element=elements[0];element.setAttribute("data-observed",inspected);'+
+        'export const answer={value:safe(),text:element.getAttribute("data-observed")};'}
+  ];
+  const native=run(files);
+  assert.equal(native.value,23);
+  assert.equal(hasImportedDomStringSourceSink(files),true);
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const output=obfuscateFiles(files,{
+      mode,seed:'agent1-collection-island-'+mode,closedWorld:true,
+      identifiers:true,properties:true,strings:true,
+      experimentalSourceObserverIslands:['safe.mjs']
+    });
+    const safe=output.files.find(file=>file.path==='safe.mjs');
+    assert.ok(safe,'safe island missing');
+    assert.ok(safe.metrics.properties>=1,
+      mode+': must protect provably independent own property despite native DOM source');
+    assert.equal(safe.metrics.bindings,0,'source island must not rename function source');
+    assert.equal(safe.metrics.literals,0,'source island must not rewrite literals');
+    assert.deepEqual(run(output.files),native,
+      mode+': source-observed Function text must remain identical');
+  }
+});
+
 for(const fixture of cases){
   for(const mode of /** @type {const} */(['coo','sco','sno'])){
     test(mode+': imported DOM collection native Function source: '+fixture.name,()=>{
