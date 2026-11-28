@@ -3,6 +3,8 @@ name: Manual SNO post-init resident compute audit
 on:
   workflow_dispatch:
 
+  workflow_call:
+
 permissions:
   contents: read
 

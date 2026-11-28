@@ -3,6 +3,8 @@ name: Manual frozen application SCO source-withholding and relay
 on:
   workflow_dispatch:
 
+  workflow_call:
+
 permissions:
   contents: read
 

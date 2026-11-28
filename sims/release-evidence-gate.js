@@ -392,6 +392,7 @@ if(require.main===module)run().then(async summary=>{
   if(process.env.OBFS_RELEASE_AUDIT_FILE){
     await atomicWrite(process.env.OBFS_RELEASE_AUDIT_FILE,
       JSON.stringify({source:'sims/release-evidence-gate.js',
+        sourceCommit:process.env.GITHUB_SHA||null,
         node:process.version,platform:process.platform,summary},null,2)+'\n');
   }
 }).catch(error=>{
