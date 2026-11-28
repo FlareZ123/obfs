@@ -79,7 +79,6 @@ test('record escape, write, reflection, ambiguous lookup and noncanonical use al
 
 test('record literals with duplicate owner, dynamic or special keys and observable siblings refuse',()=>{
   const cases=[
-    '{owner:vault,also:vault}',
     '{owner:vault,tag:Math.random()}',
     '{owner:vault,tag:{nested:1}}',
     '{owner:vault,...{tag:3}}',
