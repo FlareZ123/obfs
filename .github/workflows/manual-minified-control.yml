@@ -19,37 +19,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install exact declared minifier and project libraries
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Checkout pinned JSIMPLIFIER external attacker
-        uses: actions/checkout@v4
-        with:
-          repository: XingTuLab/JSIMPLIFIER
-          ref: eaa72ae63758957ac95b2f5e3391fefb96827987
-          path: external/JSIMPLIFIER
-          persist-credentials: false
-      - name: Record JSIMPLIFIER provenance and normalize temporary registry URLs
-        working-directory: external/JSIMPLIFIER
-        run: node -e 'const fs=require("node:fs");const crypto=require("node:crypto");const lock=fs.readFileSync("package-lock.json","utf8");fs.appendFileSync(process.env.GITHUB_ENV,"JSIMPLIFIER_LOCK_SHA256="+crypto.createHash("sha256").update(lock).digest("hex")+"\n");fs.writeFileSync("package-lock.json",lock.replaceAll("https://registry.npmmirror.com/","https://registry.npmjs.org/"));const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));const lic=fs.readFileSync("LICENSE","utf8");console.log(JSON.stringify({packageLicense:pkg.license,licenseHeader:lic.split(/\r?\n/).slice(0,2).join(" ")}));'
-      - name: Install pinned JSIMPLIFIER dependencies without lifecycle scripts
-        working-directory: external/JSIMPLIFIER
+      - name: Confirm frozen production source
+        shell: bash
+        run: |
+          node -e 'if(process.env.GITHUB_SHA==="")throw Error("Missing commit ref")'
+          git diff --exit-code a8a22f9aef6e7f0d487cebc23c87063376df55cb -- src/ bin/ examples/ package.json package-lock.json test/
+      - name: Install project dependencies without changing package manifests
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Run LLM-disabled JSIMPLIFIER against minified and published math
+      - name: Install pinned external static deobfuscator
+        run: npm install --no-save --no-package-lock --ignore-scripts --omit=optional --no-audit --no-fund webcrack@2.16.0
+      - name: Record external install version and immutable package entry hash
+        run: node -e "const fs=require('node:fs');const c=require('node:crypto');const p=require.resolve('webcrack');console.log(JSON.stringify({entry:p,sha256:c.createHash('sha256').update(fs.readFileSync(p)).digest('hex')}))"
+      - name: Independently transform minified and COO math, check heldout original outputs
         env:
-          OBFS_JSIMPLIFIER_ROOT: \${{ github.workspace }}/external/JSIMPLIFIER
-          OBFS_JSIMPLIFIER_REPORT: jsimplifier-\${{ runner.os }}.json
-        run: node sims/jsimplifier-static-attacker.js
-      - name: Upload external deobfuscator attack report
+          OBFS_WEBCRACK_REPORT: webcrack-${{ runner.os }}.json
+        run: node sims/webcrack-four-way-attacker.js
+      - name: Upload pinned external tool evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jsimplifier-\${{ runner.os }}
-          path: jsimplifier-\${{ runner.os }}.json
-          if-no-files-found: error
+          name: webcrack-${{ runner.os }}
+          path: webcrack-${{ runner.os }}.json
+          if-no-files-found: warn
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Validate falsifiable candidate decision and strict sample veto
         run: node --test test/candidate-vs-minified-decision.test.js
-      - name: Verify cross-runtime evidence merge, source commitment and strict CPU veto
+      - name: Verify cross-runtime evidence merge and strict CPU veto
         run: node --test test/four-way-cross-runtime-verdict.test.js
       - name: Verify matched three-query oracle and nonlinear rejection control
         run: node --test test/polyvariant-app-three-query-competitor.test.js
@@ -90,6 +86,6 @@ jobs:
           name: four-way-cross-runtime-${{ runner.os }}
           path: four-way-cross-runtime-${{ runner.os }}.json
           if-no-files-found: error
-      - name: Strict JSDoc across the branch after independent experiment results
+      - name: Strict JSDoc across the branch
         if: always()
         run: npm run typecheck:external
