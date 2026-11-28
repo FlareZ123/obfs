@@ -74,3 +74,12 @@ The release decision remains NO-GO / RELEASE-BLOCKED pending the broader indepen
 This branch is a child of the Agent 11 live-policy branch, itself based on Agent 14's exact minimax work (PR #413). Keep the evidence and code together when integrating; do not merge the live test without its exact policy source and public quotient.
 
 There are already separate open hW live-HTTP investigations (PR #378 and PR #381). Coordinate with those authors before attempting another live hW harness; the new Agent 17 contribution is the offline hW budget sweep plus this exact three-state live-policy acceptance and post-shutdown clone check.
+
+
+## Post-run hardening queued after the cited evidence run
+
+After workflow 46185164570 passed, the child branch received two follow-up hardening changes:
+- require the 27-state out-of-prior extension to have exactly 27 distinct behavior classes (not merely more than three);
+- import the private SCO module from a data URL instead of materializing its source file, and run the attacker child with its working directory set to the public-artifact directory.
+
+These changes are committed on the same branch, but they are **not covered by run 46185164570**. A follow-up manual workflow was dispatched; do not treat the revised branch head as validated until that run passes on both platforms. The test remains process-separated but not OS-sandboxed, as stated above.
