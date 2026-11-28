@@ -9,7 +9,7 @@ const {spawnSync}=require('node:child_process');
 const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
-const {recoverNamedEsmPropertySpellings}=require('../sims/public-seed-property-dictionary');
+const {recoverNamedEsmPropertySpellings,recoverLocalFieldSpellings}=require('../sims/public-seed-property-dictionary');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 const SEED='public-documented-name-seed-20261128';
@@ -132,4 +132,86 @@ test('dictionary inversion rejects non-ESM input, invalid seed and unbounded nam
   assert.throws(()=>recoverNamedEsmPropertySpellings(sample,{
     ...ok,dictionary:Array.from({length:20001},(_,i)=>'name'+i)
   }),/Expected delivered ESM/);
+});
+
+
+/**
+ * Execute the original or published CJS as the real Node loader would.
+ * @param {string} source
+ * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
+ */
+async function executeCjs(source){
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-local-dict-'));
+  try{
+    const filename=path.join(dir,'protected.cjs');
+    await atomicWrite(filename,source);
+    const result=spawnSync(process.execPath,[filename],{
+      encoding:'utf8',timeout:12000
+    });
+    assert.equal(result.error,undefined,result.error?.message);
+    return {status:result.status,stdout:result.stdout,stderr:result.stderr};
+  }finally{
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
+test('public build seed plus bounded source-offset search reconstructs local original property names',async()=>{
+  const source="'use strict';"+
+    'const record={secretField:41,otherField:13,sessionMark:7};'+
+    'console.log(JSON.stringify([record.secretField,record["otherField"],record.sessionMark]));';
+  const output=obfuscateFiles([
+    {path:'protected.cjs',sourceType:'commonjs',code:source}
+  ],{
+    mode:'coo',seed:SEED,properties:true,identifiers:false,strings:false
+  });
+  assert.equal(output.crossFile.properties,0);
+  assert.equal(output.files[0].metrics.properties,3,
+    'Local positive control must transform all three actual original keys');
+  const published=output.files[0].code;
+  assert.equal(typeof published,'string');
+  for(const name of ['secretField','otherField','sessionMark'])
+    assert.ok(!published.includes(name),'Published local source concealed '+name);
+  const native=await executeCjs(source);
+  assert.equal(native.stdout,'[41,13,7]\n');
+  assert.deepEqual(await executeCjs(/** @type {string} */(published)),native);
+
+  const delivered={path:'protected.cjs',sourceType:/** @type {'commonjs'} */('commonjs'),
+    code:/** @type {string} */(published)};
+  const started=performance.now();
+  const recovered=recoverLocalFieldSpellings(delivered,{
+    seed:SEED,dictionary:names(),maxSourceOffset:256
+  });
+  const attackerMs=performance.now()-started;
+  assert.equal(recovered.targets,3);
+  assert.equal(recovered.lookups,names().length*256);
+  assert.deepEqual([...recovered.recovered.values()].map(x=>x.original).sort(),
+    ['otherField','secretField','sessionMark']);
+  const guessedOffsets=[...new Set([...recovered.recovered.values()].map(x=>x.originalOffset))];
+  assert.deepEqual(guessedOffsets,[source.indexOf('{')],
+    'Attacker recovers source offset without ever receiving native source');
+  assert.doesNotMatch(recovered.code,/_p[a-f0-9]{10}/u);
+  assert.deepEqual(await executeCjs(recovered.code),native);
+
+  const invalid=recoverLocalFieldSpellings(delivered,{
+    seed:'wrong-build-seed',dictionary:names(),maxSourceOffset:256
+  });
+  assert.equal(invalid.recovered.size,0,'Unknown seed invalidates hash inversion');
+  const insufficient=recoverLocalFieldSpellings(delivered,{
+    seed:SEED,dictionary:names(),maxSourceOffset:8
+  });
+  assert.equal(insufficient.recovered.size,0,
+    'A bounded source-offset scan is not a universal reconstruction oracle');
+  process.stdout.write('KNOWN_SEED_LOCAL_PROPERTY_OFFSET_RECOVERY '+JSON.stringify({
+    mode:'coo',originalProperties:3,
+    publicOnlyInput:'emitted protected.cjs, public build seed and name dictionary',
+    recoveredOriginalNames:[...recovered.recovered.values()].map(x=>x.original).sort(),
+    guessedOriginalByteOffset:guessedOffsets[0],
+    dictionarySize:names().length,offsetWindow:256,
+    attackerSha256Lookups:recovered.lookups,
+    attackerWallMs:attackerMs,originalNamesRecovered:3,
+    noRuntimeOracleQueries:true,
+    wrongSeedMatches:invalid.recovered.size,
+    insufficientOffsetWindowMatches:insufficient.recovered.size,
+    nativeExecutionMatched:true
+  })+'\n');
 });
