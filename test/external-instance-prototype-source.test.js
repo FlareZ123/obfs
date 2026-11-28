@@ -170,7 +170,7 @@ test('declared ESM prototype method toLocaleString retains exact original source
   }
 });
 
-test('proven primitive toLocaleString keeps independent protected field rewrites',async t=>{
+test('mutable native Number toLocaleString refuses cross-file protected-key rewrites',async t=>{
   /** @type {Input[]} */
   const safe=[
     {path:'owner.mjs',sourceType:'module',
@@ -196,7 +196,41 @@ test('proven primitive toLocaleString keeps independent protected field rewrites
         assert.deepEqual(actual,native);
         const rewrites=built.crossFile.properties+
           built.files.reduce((sum,file)=>sum+file.metrics.properties,0);
-        assert.ok(rewrites>0,mode+' must retain proven primitive locale positive');
+        assert.equal(rewrites,0,mode+' must not rewrite owner observed through host-mutable primitive locale call');
+      });
+    }
+  }finally{
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
+
+test('non-coercing primitive template preserves independent cross-file field rewrite',async t=>{
+  /** @type {Input[]} */
+  const safe=[
+    {path:'owner.mjs',sourceType:'module',code:'export const owner={secretField:7};'},
+    {path:'consumer.mjs',sourceType:'module',code:[
+      "import {owner} from './owner.mjs';",
+      'const nativeNumber=7;',
+      'console.log(JSON.stringify({value:owner.secretField,',
+      'source:`${nativeNumber}`,privateValue:13}));'
+    ].join('\n')}
+  ];
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-primitive-template-'));
+  try {
+    const native=await observe(path.join(directory,'native'),safe);
+    assert.deepEqual(native,{value:7,source:'7',privateValue:13});
+    for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+      await t.test(mode,async()=>{
+        const built=obfuscateFiles(safe,{
+          mode,closedWorld:true,properties:true,identifiers:false,
+          strings:false,seed:'primitive-template-positive/'+mode
+        });
+        const actual=await observe(path.join(directory,mode),built.files);
+        assert.deepEqual(actual,native);
+        const rewrites=built.crossFile.properties+
+          built.files.reduce((sum,file)=>sum+file.metrics.properties,0);
+        assert.ok(rewrites>0,
+          mode+' must retain actual cross-file private-key rewrite yield');
       });
     }
   }finally{

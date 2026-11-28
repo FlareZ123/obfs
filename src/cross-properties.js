@@ -2361,8 +2361,9 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
   // The ordinary own-record proof is not applicable to either operation.
   // Use a monotone may-primitive set, not a claim that host prototypes are
   // immutable. Ambiguous lexical shadows may cause refusal, never admission.
+  const verifiedPrimitives=collectVerifiedImportedPrimitives(files,parseFile);
   for(const module of modules.values()) {
-    const maybePrimitives=new Set();
+    const maybePrimitives=new Set(verifiedPrimitives.get(module.file.path)??[]);
     const primitiveReturningFunctions=new Set(
       boxedPrimitiveReturnExports.get(module.file.path)??[]);
     for(const statement of module.ast.body) {
@@ -2386,7 +2387,39 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         ['number','string','boolean','bigint'].includes(typeof value.value);
       if(value.type==='TemplateLiteral')return true;
       if(value.type==='Identifier')return maybePrimitives.has(value.name);
-      if(value.type==='UnaryExpression')return true;
+      // Every BinaryExpression yields a primitive on normal completion.
+      // Update expressions yield numbers/BigInts; await can unwrap primitives.
+      // The ordinary per-file source observer can prove e.g. 3+4 inert, so
+      // these must also reach the cross-file hostile-host primitive guard.
+      if(['UnaryExpression','BinaryExpression','UpdateExpression',
+          'AwaitExpression'].includes(value.type))return true;
+      // Native own data slots of a fresh array and its length are primitives.
+      // Mirror the source observer's proven array-slot coercion exception:
+      // otherwise a numeric slot may be boxed for a host-overridden method
+      // after this preflight has wrongly certified an unrelated ESM owner.
+      if(value.type==='MemberExpression' && !value.optional &&
+         value.object.type==='ArrayExpression' &&
+         value.object.elements.every((/** @type {AstNode|null} */ part)=>
+           part?.type!=='SpreadElement')) {
+        const key=value.computed?staticString(value.property):staticName(value.property);
+        if(key==='length')return true;
+        if(value.computed && value.property.type==='Literal' &&
+           typeof value.property.value==='number' &&
+           Number.isSafeInteger(value.property.value) && value.property.value>=0 &&
+           value.property.value<value.object.elements.length) {
+          return mayBeBoxedPrimitive(value.object.elements[value.property.value]);
+        }
+      }
+      // A mutable ambient prototype can host arbitrary getters/methods that
+      // reenter the supposedly closed ESM graph and read protected owner keys.
+      // The result of Number.prototype is an object, but this preflight
+      // deliberately overapproximates it as a hostile member-dispatch root.
+      if(value.type==='MemberExpression' && !value.optional &&
+         (value.computed?staticString(value.property):staticName(value.property))==='prototype' &&
+         value.object.type==='Identifier' &&
+         ['Number','String','Boolean','BigInt','Symbol','Date','Array',
+          'Object','Function','RegExp','Map','Set','Promise','Error'].
+           includes(value.object.name))return true;
       if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
          (['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name)||
           primitiveReturningFunctions.has(value.callee.name)))
@@ -2396,7 +2429,31 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         const key=value.computed?staticString(value.property):staticName(value.property);
         return key!==null&&!['prototype','for','keyFor'].includes(key);
       }
-      if(value.type==='ConditionalExpression')return mayBeBoxedPrimitive(value.consequent)||mayBeBoxedPrimitive(value.alternate);
+      if(value.type==='ConditionalExpression') {
+        if(mayBeBoxedPrimitive(value.consequent)||
+           mayBeBoxedPrimitive(value.alternate))return true;
+        // The per-file source observer proves typeof x==='string'?x:null
+        // primitive even when x comes from an opaque runtime source such as
+        // process.argv[2]. The cross-file boxed-receiver guard must mirror
+        // that refinement: a host-installed String.prototype formatter can
+        // otherwise import an unrelated ESM owner and observe renamed keys.
+        const guard=value.test;
+        const candidate=value.consequent;
+        if(guard.type!=='BinaryExpression'||guard.operator!=='==='||
+           candidate.type!=='Identifier')return false;
+        /** @param {AstNode} node @returns {boolean} */
+        function isGuardedTypeof(node) {
+          return node.type==='UnaryExpression'&&node.operator==='typeof'&&
+            node.argument.type==='Identifier'&&
+            node.argument.name===candidate.name;
+        }
+        /** @param {AstNode} node @returns {boolean} */
+        function isStringType(node) {
+          return node.type==='Literal'&&node.value==='string';
+        }
+        return (isGuardedTypeof(guard.left)&&isStringType(guard.right))||
+          (isStringType(guard.left)&&isGuardedTypeof(guard.right));
+      }
       if(value.type==='LogicalExpression')return mayBeBoxedPrimitive(value.left)||mayBeBoxedPrimitive(value.right);
       if(value.type==='SequenceExpression')return mayBeBoxedPrimitive(value.expressions[value.expressions.length-1]);
       if(value.type==='AssignmentExpression')return mayBeBoxedPrimitive(value.right);
@@ -2660,7 +2717,6 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
   const knownFiles=new Set(files.map(file=>file.path));
   const verifiedClones=collectVerifiedImportedCloneAliases(files,parseFile);
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files,parseFile);
-  const verifiedPrimitives=collectVerifiedImportedPrimitives(files,parseFile);
   const acyclicImports=hasAcyclicStaticImports(modules);
   const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
