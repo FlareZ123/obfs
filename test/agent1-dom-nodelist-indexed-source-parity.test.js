@@ -26,7 +26,8 @@ function execute(code) {
   };
   /** @returns {(typeof element)[] & {item:(index:number)=>typeof element|null}} */
   function elements(){
-    return Object.assign([element],{item(/** @type {number} */ index){return index===0?element:null;}});
+    return Object.assign([element],{item(/** @type {number} */ index){return index===0?element:null;},
+      namedItem(/** @type {string} */ name){return name==='target'?element:null;}});
   }
   const document={
     querySelectorAll:elements,getElementsByName:elements,
@@ -75,7 +76,8 @@ for(const [name,receiver] of /** @type {const} */ ([
   ['getElementsByName indexed item','document.getElementsByName("locked")[0]'],
   ['querySelectorAll item method','document.querySelectorAll("input").item(0)'],
   ['getElementsByClassName indexed item','document.getElementsByClassName("locked")[0]'],
-  ['getElementsByTagName item method','document.getElementsByTagName("input").item(0)']
+  ['getElementsByTagName item method','document.getElementsByTagName("input").item(0)'],
+  ['getElementsByClassName named item','document.getElementsByClassName("locked").namedItem("target")']
 ])) {
   for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     test(mode+' indexed DOMString setter preserves native function-source text: '+name,()=>{
