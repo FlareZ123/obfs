@@ -134,6 +134,7 @@ async function runBrowserBoundary(){
   const server=fork(path.join(__dirname,'sco-two-state-process-boundary.js'),
     ['--server'],{execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
   const readyPromise=receive(server,'ready');
+  server.send({kind:'configure',modelId:null});
   /** @type {Awaited<ReturnType<typeof makeBrowserOrigin>>[]} */
   const bridges=[];
   const workdir=await fs.mkdtemp(path.join(os.tmpdir(),'sco-two-state-browser-'));
