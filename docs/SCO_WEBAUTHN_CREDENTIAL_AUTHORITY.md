@@ -48,3 +48,45 @@ The label cannot address clock skew, credential enrollment, callback-specific
 semantics, stolen bearer tokens, authorized online relaying, hostile client
 instrumentation, or source reconstruction. Overall three-mode strong-protection
 release status remains **RELEASE-BLOCKED**.
+
+
+## Optional cryptographic authority-key identity (provisional v3)
+
+A trusted SCO deployment may additionally supply
+`credentialAuthorityKey: Buffer` containing an **application-managed,
+persistent, uniformly random 32-byte secret**, independently generated for
+each distinct credential registry. Replicas of one authority must share
+the **same** key. Obtain it from a trusted server-side secret manager; do not
+embed it into browser-distributed COO/SCO JavaScript, logs, response payloads,
+source maps or unauthenticated configuration. Never regenerate a fresh key on
+each worker startup, or replicas will correctly refuse their shared store.
+
+For a key-bearing gate, construction computes a SHA-256 domain-separated
+digest of the key, then includes that digest in the **v3** policy tuple. The
+existing atomic store configuration check rejects a peer with a **different
+key even if both peers accidentally use the same `credentialAuthorityId`**.
+No key bytes are stored in `ScoWebAuthnStateStore` or returned by this helper.
+The policy hash is not a bearer MAC and does not authenticate browser requests.
+The key identity is computed **once at gate initialization**; ordinary token
+authorization and verification remain unchanged.
+
+Versioning is intentionally strict:
+
+- With neither label nor key, use the unchanged **v1** policy fingerprint.
+- With a label and no key, use the unchanged **v2** label fingerprint.
+- With a key (with or without a label), use a distinct **v3** fingerprint
+  containing the key's domain-separated digest and the optional label.
+
+An already-bound v1/v2 SQLite database deliberately refuses v3; coordinate
+a new namespace and migration with the original application rather than
+rewriting the policy table or losing revocation history. Rotating a key likewise
+requires a planned transition of challenges/sessions and all replicas.
+
+**Limitations:** The helper cannot prove that callback implementations, credential
+enrollments or principal namespaces are equal. Copying the **same key and
+label** into two unrelated registries still permits the original cross-admission
+misconfiguration, intentionally covered by a negative-control test. An
+untrusted or compromised SCO server can also deliberately lie. This is an
+application-owned identity assertion with high-entropy collision separation,
+not general hardware attestation, an end-user authorization scheme,
+source secrecy, replay-proof CAPTCHAs or a universal 2.5× compute guarantee.
