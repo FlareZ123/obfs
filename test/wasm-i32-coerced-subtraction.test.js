@@ -124,6 +124,78 @@ test('COO ESM and SNO CommonJS opt-in work for modular subtraction',async()=>{
   }
 });
 
+
+test('seeded nested subtractive bitvector grammar preserves native and independent clone',()=>{
+  let state=0x14f3b627;
+  /** @returns {number} */
+  function rand() {
+    state^=state<<13;state^=state>>>17;state^=state<<5;
+    return state>>>0;
+  }
+  const names=['a','b','c','d'];
+  const constants=['0','1','-1','2147483647','-2147483648'];
+  /** @returns {string} */
+  function leaf() {
+    return rand()%3===0?constants[rand()%constants.length]:
+      names[rand()%names.length];
+  }
+  /**
+   * Permit arithmetic only beneath a surrounding bitwise operation; a
+   * ternary predicate has its own fresh no-arithmetic boundary.
+   * @param {number} depth
+   * @param {boolean} coerced
+   * @returns {string}
+   */
+  function tree(depth,coerced) {
+    if(depth===0)return leaf();
+    const kind=rand()%12;
+    if(coerced&&kind<=2) {
+      const op=kind===0?'+':'-';
+      return '('+tree(depth-1,true)+' '+op+' '+tree(depth-1,true)+')';
+    }
+    if(kind===3) {
+      return '('+tree(depth-1,false)+'?'+
+        tree(depth-1,coerced)+':'+tree(depth-1,coerced)+')';
+    }
+    if(kind===4)return '(~'+tree(depth-1,true)+')';
+    const operators=['&','|','^','<<','>>','>>>'];
+    return '('+tree(depth-1,true)+operators[rand()%operators.length]+
+      tree(depth-1,true)+')';
+  }
+  let compiledTrees=0,comparisons=0;
+  for(let sample=0;sample<72;sample++) {
+    const expr='((a - b)^'+tree(2+(sample%3),true)+')';
+    const source='function f(a,b,c,d){return '+expr+';}module.exports=f;';
+    const native=load(source);
+    for(const strategy of /** @type {('if'|'select')[]} */ (['if','select'])) {
+      const result=lowerWasmI32Functions(source,'commonjs',{
+        names:['f'],seed:'sub-fuzz-'+sample+'/'+strategy,conditionalStrategy:strategy
+      });
+      assert.equal(result.functions,1,'Unexpected decline '+expr);
+      assert.ok(extractPublicWasm(result.code).includes(0x6b));
+      const wasm=load(result.code);
+      const recovered=recoverPublicWasmExpression(result.code,names);
+      const cloned=load('function f(a,b,c,d){return '+
+        recovered.expression+';}module.exports=f;');
+      for(let trial=0;trial<96;trial++) {
+        const args=names.map((_,i)=>trial<boundary.length?
+          boundary[(trial+i)%boundary.length]:rand()|0);
+        const expected=native(...args);
+        assert.ok(Object.is(wasm(...args),expected),
+          'Generated Wasm mismatch '+sample+'/'+strategy+'/'+trial);
+        assert.ok(Object.is(cloned(...args),expected),
+          'Source-only clone mismatch '+sample+'/'+strategy+'/'+trial);
+        comparisons++;
+      }
+      compiledTrees++;
+    }
+  }
+  assert.equal(compiledTrees,144);
+  assert.equal(comparisons,13824);
+  console.log(JSON.stringify({subtractiveTrees:72,sourceOnlyVariants:compiledTrees,
+    typedComparisons:comparisons,fuzzSeed:'0x14f3b627'}));
+});
+
 test('non-Int32 Number inputs remain outside the explicit backend contract',()=>{
   const source='function f(a,b){return (a-b)|0;}module.exports=f;';
   const result=lowerWasmI32Functions(source,'commonjs',{
