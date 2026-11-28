@@ -27,9 +27,9 @@ function sourceGraph(){
         'const length=Number(process.argv[2]);let checksum=0;'+
         'for(let i=0;i<length;i++){'+
         'const owner=identity(bag);checksum=(checksum+(owner[key]^i))|0;}'+
-        'const usage=process.resourceUsage();'+
+        'const usage=process.cpuUsage();'+
         'console.log(JSON.stringify({answer:checksum,'+
-        'cpuMicroseconds:usage.userCPUTime+usage.systemCPUTime}));'}
+        'cpuMicroseconds:usage.user+usage.system}));'}
   ];
 }
 
