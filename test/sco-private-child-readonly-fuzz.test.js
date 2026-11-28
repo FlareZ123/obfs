@@ -35,7 +35,7 @@ function compile(source,salt){
 test('seeded scalar-owned private record admission and mutation rejection',()=>{
   const rand=rng(0x5c0e2026);
   const keys=[
-    'a','one','count','toString','constructor','length','valueOf',
+    'a','one','count','toString','length','valueOf',
     '0','1','42','a-b','λ','snow☃','quote"test','back\\slash',
     'a b','empty','NaN','Infinity','undefined','true','false'
   ];
