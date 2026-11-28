@@ -31,7 +31,18 @@
     "workplace/sco-five-state-block-packed-benchmark.js",
     "test/sco-five-state-block-packed-benchmark.test.js",
     "sims/sco-step-only-smt.js",
-    "test/sco-step-only-smt.test.js"
+    "test/sco-step-only-smt.test.js",
+    "sims/sco-two-state-optimal-network-policy.js",
+    "sims/sco-two-state-process-boundary.js",
+    "test/sco-two-state-process-boundary.test.js",
+    "sims/sco-two-state-browser-live.js",
+    "sims/sco-two-state-public-attacker.js",
+    "sims/sco-two-state-out-of-class-census.js",
+    "test/sco-two-state-out-of-class-census.test.js",
+    "sims/sco-three-state-minimax-lower-bound.js",
+    "test/sco-three-state-minimax-lower-bound.test.js",
+    "sims/sco-three-state-minimax.js",
+    "test/sco-three-state-minimax.test.js"
   ],
   "exclude": [
     "node_modules"

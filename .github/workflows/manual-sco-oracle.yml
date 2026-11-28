@@ -2,12 +2,19 @@ name: Manual SCO authorized oracle extraction
 
 on:
   workflow_dispatch:
+    inputs:
+      exact_three_state_minimax:
+        description: Run only the exact three-state minimax proof on Ubuntu
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   authorized-oracle:
+    if: ${{ inputs.exact_three_state_minimax != true }}
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +94,17 @@ jobs:
         run: node sims/sco-step-only-version-space-report.js --holdout
       - name: Validate two through five-state continuation through real authenticated SCO RPC
         run: node --test test/sco-step-only-live-rpc.test.js
+      - name: Test independent two-state minimax and process-separated public SCO versus matched ordinary RPC
+        run: node --test test/sco-two-state-process-boundary.test.js
+      - name: Falsify two-state certificate across 46,656 three-state source tables
+        run: node --test test/sco-two-state-out-of-class-census.test.js
+      - name: Prove a ten-query lower bound for the complete three-state Mealy class
+        run: node --test test/sco-three-state-minimax-lower-bound.test.js
+      - name: Verify Linux different-UID SCO client with real generated HTTP facade
+        if: runner.os == 'Linux'
+        env:
+          OBFS_SCO_UID_TEST: '1'
+        run: node --test test/sco-two-state-process-boundary.test.js
       - name: Publish real SCO server-private to public continuation result
         run: node sims/sco-step-only-live-rpc.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
@@ -104,7 +122,28 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-sync-diversified-browser.js
+      - name: Recover process-separated SCO two-state model in real Chromium versus matched ordinary RPC
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-two-state-browser-live.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
         run: npm run typecheck
+
+  exact-three-state-minimax:
+    if: ${{ inputs.exact_three_state_minimax == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Solve exact three-state no-reset minimax value
+        run: node --max-old-space-size=4096 --test test/sco-three-state-minimax.test.js
+      - name: Strict JSDoc type safety
+        run: npx tsc -p jsconfig.sco-oracles.json
