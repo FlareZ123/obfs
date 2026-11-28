@@ -136,6 +136,52 @@ const cases=[
     exposed:false
   },
   {
+    name:'WeakMap constructor through temporary object literal member',
+    source:'const C=({ctor:WeakMap}).ctor;const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap constructor through temporary array literal index',
+    source:'const C=[WeakMap][0];const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap constructor through Object.values literal array',
+    source:'const C=Object.values({ctor:WeakMap})[0];const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap constructor from named record binding',
+    source:'const holder={ctor:WeakMap};const C=holder.ctor;'+
+      'const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap constructor written after record initialization',
+    source:'const holder={ctor:Object};holder.ctor=WeakMap;'+
+      'const carrier={instance:new holder.ctor()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'ordinary constructor through literal object member remains eligible',
+    source:'class Ordinary{}const C=({ctor:Ordinary}).ctor;'+
+      'const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
+    name:'ordinary constructor through literal array index remains eligible',
+    source:'class Ordinary{}const C=[Ordinary][0];'+
+      'const carrier={instance:new C()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
