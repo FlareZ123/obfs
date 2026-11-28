@@ -2,7 +2,7 @@
 
 **Date:** 28 November 2026  
 **Author:** Agent 13  
-**Status:** independent *intermediate engineering evidence*, not academic obfuscation resistance evidence and not release clearance. The verifier regression is red→green in Ubuntu/Windows; other cross-component checks are still awaiting their own full green acceptance.
+**Status:** independent *intermediate engineering evidence*, not academic obfuscation resistance evidence and not release clearance. The digest path-inventory, selected-graph path-inventory, and HTTP publisher regressions each have source-pinned red→green Ubuntu/Windows receipts. Later standalone-entry and in-root symlink changes remain separately pending in focused/full CI.
 
 ## Question
 
@@ -44,7 +44,8 @@ Graph red→green and existing integration:
 - Test-only graph source `f498cff6b3e4eca68b27024e89450e474263c6aa` — [run 46136766139](https://github.com/FlareZ123/obfs/actions/runs/46136766139), **failed on Ubuntu and Windows** because the old selected-graph composer and selective static import closure accepted all four selected-module aliases and three imported-source aliases.
 - Graph implementation source `0045fe79e7f455cdbdb622b23bf0972aa456bc77` — [run 46136808808](https://github.com/FlareZ123/obfs/actions/runs/46136808808), **both focused OS jobs successful** on the first graph regression version. Later strict-message tests and additional entry/private alias tests require their own exact-head check.
 - The existing `manual-sco-graph.yml` Ubuntu/Windows integration at source `bfe5c3d119d01be3d8a23fb5ca886349080d490d` — [run 46137366049](https://github.com/FlareZ123/obfs/actions/runs/46137366049), **both graph jobs successful**: deterministic generated facades, multi-module HMAC/authorization and private graph semantics, plus SCO graph JSDoc.
-- The single-module public/private and HTTP admission red/green runs, including their later positive controls, are separate and still pending; do not conflate them with the preceding source pins.
+- **HTTP publisher:** test-only source `e40574eea32bdbabc6ee7a2cdb1c68014c82996e` — [run 46137127585](https://github.com/FlareZ123/obfs/actions/runs/46137127585) **failed on both OS for the intended public/private directory collisions** (three other assertions passed); corrected publisher source `91cd86145de313ade820ecbe81de93c2c84f04d2` — [run 46137154890](https://github.com/FlareZ123/obfs/actions/runs/46137154890) **passed on both OS including strict JSDoc**. Later reverse-direction and valid shared-directory controls are outside those source pins.
+- **Standalone selective public/private:** [run 46137002037](https://github.com/FlareZ123/obfs/actions/runs/46137002037) at `d31bc99954a607e4de457aa37196b0b6fe226d3d` failed as intended on four public/private aliases **and additionally failed an unrelated test-fixture positive control**: `privateGraph` supplied a synchronous export to an async-only API. The corrected async-only positive fixture is committed as `f36917a4776c7f8df8076fdeab93267f55c6a87b`; later focused CI is required before claiming this boundary green.
 
 Additional branch-side integration (not yet full-validated):
 - Graph paths source pin `0045fe79e7f455cdbdb622b23bf0972aa456bc77` plus later tightened tests; source fixture `test/sco-graph-portable-collisions.test.js`. The test spans ordinary private graph, selected graph and selective static dependency closure; an independent later fixture tests standalone entry/private alias.
@@ -56,6 +57,7 @@ Reproduce on installed Node 22:
 node --test test/sco-private-integrity-portable-paths.test.js
 node --test test/sco-graph-portable-collisions.test.js
 node --test test/sco-public-private-path-collisions.test.js
+node --test test/sco-private-realpath-identity.test.js
 npm run typecheck
 npm run typecheck:external
 ```
@@ -70,6 +72,8 @@ A real Node 22.16.0 local subprocess-independent `import()` experiment construct
 Node's default ESM resolution loaded `mirror/leaf.mjs`: observed `"unreviewed-child"` where the reviewed graph projected `"reviewed-child"`. `fs.realpath(private/main)` remained **inside** the trusted root; thus an in-root realpath containment test plus SHA-256 of the redirected main-module bytes does not prove a complete static ESM import closure. This is a concrete *deployment correctness and unexpected executed-source* mismatch, not a hostile-server attacker bypass under the project's threat model.
 
 A red-first test `test/sco-private-realpath-identity.test.js` at **`495cec56405ef9192a5b5c075f24010ae60c9d02`** exercises that exact Node-loader observation and requires verifier rejection. The candidate correction at **`6db72f522fa9ef0cf81cf82c135275941f5b5189`** checks `fs.lstat` of every component of each committed path, following the preexisting outside-root rejection, and refuses any internal symlink before hashing. Tests cover an in-root symlink leaf, in-root symlink ancestor, and a distinct-file positive control; Windows symlink negatives are skipped because runner privilege is not guaranteed. **CI red/green for these additional source pins is pending at the time of writing.**
+
+The repository already documents a related **direct in-memory API** symlink-induced module-identity mismatch in `test/direct-api-symlink-module-identity.test.js` and `README.md`. The new finding is narrower and distinct: the opt-in trusted SCO server digest *verification step itself* accepted an in-root symlink capable of redirecting relative ESM imports while every listed source SHA-256 matched.
 
 This is a non-atomic deployment preflight: filesystem replacement between `lstat` and the actual ESM `import()` is still possible unless the trusted integrator makes its source tree immutable. It adds initialization filesystem checks but no per-RPC computation. A user running Node with explicit `--preserve-symlinks` may have different relative import behavior; this conservative policy rejects symlinks rather than promising compatibility with arbitrary loader flags.
 
