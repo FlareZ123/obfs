@@ -77,3 +77,33 @@ for(const mode of /** @type {const} */ (['coo','sco','sno']))test(
       'an ambient host reader exposed a byte-level semantic mismatch; properties='+selected.metrics.properties);
   }
 );
+
+for(const mode of /** @type {const} */ (['coo','sco','sno']))test(
+  mode+': a dead nested declaration cannot launder an outer host reader',()=>{
+    /** @type {SourceFile[]} */
+    const shadowGraph=files.map(file=>file.path!=='entry.mjs'?file:{
+      ...file,code:String(file.code).replace(
+        'const fd=ambientFilesystem.openSync',
+        'function unused(){const ambientFilesystem=0;return ambientFilesystem;}\n'+
+        'const fd=ambientFilesystem.openSync'
+      )
+    });
+    const native=run(shadowGraph);
+    let output;
+    try {
+      output=obfuscateFiles(shadowGraph,{
+        mode,seed:'agent3-shadowed-ambient-reader-'+mode,
+        closedWorld:true,properties:true,identifiers:true,strings:false,
+        experimentalSourceObserverIslands:['independent.mjs']
+      });
+    }catch(error) {
+      assert.match(String(error),/source|opaque|island|reader|closed|refuse/i);
+      return;
+    }
+    const emitted=run(output.files.map(file=>({
+      path:file.path,sourceType:file.sourceType,code:String(file.code)
+    })));
+    assert.equal(emitted,native,
+      'scope-insensitive name resolution incorrectly authorized a host reader');
+  }
+);
