@@ -510,7 +510,10 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         provenStrings.has(node.name)||locallyImmutablePrimitive.has(node.name);
       if(node.type==='UnaryExpression'&&
          ['!','typeof','void','+','-','~'].includes(node.operator))return true;
-      if(node.type==='BinaryExpression')return true;
+      // Binary operators, notably string +, can coerce a function to its
+      // exact source text. An operand is inert only when both inputs are.
+      if(node.type==='BinaryExpression')return
+        isInertSinkOperand(node.left)&&isInertSinkOperand(node.right);
       if(node.type==='TemplateLiteral')return node.expressions.every(
         isInertSinkOperand);
       if(node.type==='ConditionalExpression')return (
