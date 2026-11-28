@@ -282,9 +282,14 @@ function proveSourceObserverIslands(files,selections) {
           parent?.type==='BreakStatement' && key==='label' ||
           parent?.type==='ContinueStatement' && key==='label'
         );
-        if(!nonReference && (forbiddenIdentifiers.has(node.name) ||
-           (!module.bindings.has(node.name) && !inertAmbientNames.has(node.name))))
+        // Preserve the original syntactic veto even for a noncomputed
+        // member key named after an ambient root; the new free-name proof
+        // is *additional*, never a relaxation of an existing refusal.
+        if(forbiddenIdentifiers.has(node.name) &&
+           !(parent?.type==='Property' && key==='key' && !parent.computed))
           opaque=true;
+        if(!nonReference && !module.bindings.has(node.name) &&
+           !inertAmbientNames.has(node.name))opaque=true;
       }
       if(node.type==='MemberExpression') {
         const name=memberName(node);
