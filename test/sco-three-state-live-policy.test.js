@@ -492,7 +492,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
       modelCount:models.length,transports:2,policySha256:policyHash,
       queryBound:24,heldoutLength:64,receipts
     };
-    await fs.writeFile(receiptPath,JSON.stringify(receipt,null,2)+'\\n');
+    await fs.writeFile(receiptPath,JSON.stringify(receipt,null,2));
     console.log('THREE_STATE_LIVE_POLICY '+JSON.stringify(receipt));
 
     // Negative control: the 24-call guarantee is conditional on the <=3-state
