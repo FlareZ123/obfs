@@ -275,7 +275,7 @@ function findInlineHtmlSource(html) {
   function visit(node) {
     if(issue)return;
     const attrs=node.attrs??[];
-    if(node.namespaceURI===svgNamespace&&SMIL_ANIMATION_ELEMENTS.has(node.tagName??'')) {
+    if(node.namespaceURI===svgNamespace&&SMIL_ANIMATION_ELEMENTS.has((node.tagName??'').toLowerCase())) {
       if(smilTargetsExecutableAttribute(node.tagName??'',
         attrs.find(attr=>attr.name.toLowerCase()==='attributename')?.value)) {
         issue='SVG animation targets executable attribute';return;
