@@ -800,6 +800,10 @@ function hasImportedDomStringSourceSink(files) {
             receiverNames.add(target.name);changed=true;
           }
         }
+        if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'&&
+           isImportedReceiver(node.right)&&!receiverNames.has(node.left.name)){
+          receiverNames.add(node.left.name);changed=true;
+        }
         if(node.type==='FunctionDeclaration'&&node.id?.name){
           const name=node.id.name;
           if(returnsProved(node,isImportedReceiver)&&!factoryNames.has(name)){
