@@ -2020,7 +2020,13 @@ function obfuscateFiles(files, options = {}) {
   // wrapper itself has no later per-transform guard. Reuse the same broad
   // source-observer proof used for multi-file publication so Error.stack,
   // console/native stack formatting and related observers fail closed.
-  const directSourceObserver=prepared.some(file=>
+  // Ordinary unselected transforms already have per-pass source guards.
+  // Avoid an extra full-graph parse unless a host lock or a specifically
+  // requested source-changing backend requires a group-wide proof.
+  const hasSelectedBackend=[...selectedFunctionNames.values()]
+    .some(byPath=>[...byPath.values()].some(names=>names.length>0));
+  const directSourceObserver=(Boolean(allowedHosts?.length)||hasSelectedBackend) &&
+    prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     observesFunctionSource(parse(file.code,file.sourceType),
       importedStringProof.get(file.path),importedCloneProof.get(file.path),
