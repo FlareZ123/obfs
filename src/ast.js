@@ -4865,12 +4865,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'createTextNode','createComment','createDocumentFragment']);
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function directNativeNodeFactory(value) {
-    return Boolean(value?.type==='CallExpression' &&
-      value.callee.type==='MemberExpression' && !value.callee.computed &&
-      value.callee.object.type==='Identifier' &&
-      value.callee.object.name==='document' &&
-      domNodeFactoryMethods.has(memberName(value.callee)??'') &&
-      value.arguments.every((/** @type {AstNode} */ arg)=>isDefinitelyPrimitive(arg)));
+    if(value?.type!=='CallExpression'||value.optional||
+       value.callee.type!=='MemberExpression'||value.callee.computed||
+       value.callee.optional||
+       value.callee.object.type!=='Identifier'||
+       value.callee.object.name!=='document')return false;
+    const method=memberName(value.callee);
+    if(!domNodeFactoryMethods.has(method??''))return false;
+    // createElement may invoke an unreviewed customElements constructor.
+    // Customized built-ins use the optional "is" argument; reject them and
+    // hyphenated custom names rather than pretending the constructor is inert.
+    function staticNoncustomTag(node) {
+      const name=staticString(node);
+      return typeof name==='string'&&/^[A-Za-z][A-Za-z0-9]*$/u.test(name);
+    }
+    if(method==='createElement')return value.arguments.length===1&&
+      staticNoncustomTag(value.arguments[0]);
+    if(method==='createElementNS')return value.arguments.length===2&&
+      ['http://www.w3.org/1999/xhtml','http://www.w3.org/2000/svg',
+       'http://www.w3.org/1998/Math/MathML'].includes(staticString(value.arguments[0])??'')&&
+      staticNoncustomTag(value.arguments[1]);
+    if(method==='createDocumentFragment')return value.arguments.length===0;
+    if(method==='createTextNode'||method==='createComment')
+      return value.arguments.length===1&&isDefinitelyPrimitive(value.arguments[0]);
+    return false;
   }
   let factoryMayBeReplaced=false;
   walk(ast,(node,parent)=>{
