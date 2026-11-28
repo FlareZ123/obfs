@@ -28,6 +28,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/agent6-multi-slot-record-browser.js
+      - name: Agent 6 source-pinned real Chromium multi-slot tuple ESM and 2.5x workload
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/agent6-multi-slot-tuple-browser.js
       - name: Agent 6 additional external JSDoc gate
         run: npm run typecheck:external
       - name: Strict core and cross-file alias JSDoc
