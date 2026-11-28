@@ -2059,7 +2059,11 @@ function hasWeakMapPrototypeExposure(ast) {
           // or replace supplied arguments. The normal forwarding summary is
           // unsound when source writes may override that protocol.
           if(functionProtocolOverrideTargets.has(owner)||
-             globalFunctionProtocolOverride)exposed=true;
+             globalFunctionProtocolOverride||
+             // One declaration and one protocol use prove the private
+             // function object has not escaped through another name or field.
+             // Multi-use callables need a stronger whole-use escape proof.
+             identifierOccurrences.get(owner)!==2)exposed=true;
           /** @type {AstNode[]} */
           let argumentsToReplay=[];
           if(method==='call'||method==='bind')
