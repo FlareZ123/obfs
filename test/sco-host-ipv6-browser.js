@@ -6,9 +6,17 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {createScoHandler}=require('../src');
 
+// Keep the executed SCO script in the compiler's proved host-safe subset.
+// DOM observers belong to an independently served HTML shell; an attempted
+// obfuscation of a script that itself uses opaque DOM APIs is refused.
 const html='<!doctype html><html><body><pre id="out">pending</pre>'+
-  '<script src="./client.js"></script></body></html>';
-const original='document.getElementById("out").textContent=location.hostname+"|42";';
+  '<script src="./client.js"></script>'+
+  '<script>document.getElementById("out").textContent='+
+    'String(globalThis.obfsIpv6Ready)+"|42";</script></body></html>';
+// Read the real IPv6 hostname inside the protected script, but do not
+// concatenate an unproved ambient value (a source-observer boundary).
+const original='globalThis["obfsIpv6Ready"]=location.hostname;';
+const refusedSource='document.getElementById("out").textContent=location.hostname+"|42";';
 
 /** @param {http.RequestListener} handler @param {(origin:string)=>Promise<string>} run @returns {Promise<string>} */
 async function withServer(handler,run) {
@@ -63,6 +71,17 @@ async function main() {
   },readDom);
   assert.equal(native,'[::1]|42');
   assert.equal(generated,native);
+  // Preserve the security significance of the earlier fixture. The
+  // source-observer preflight must refuse an opaque DOM-reading script
+  // instead of silently emitting an unsafe host-lock/source rewrite.
+  const refused=createScoHandler([
+    {path:'client.js',sourceType:'script',code:refusedSource}
+  ],{allowedHosts:['[::1]'],publicPaths:['client.js']});
+  const blocked=await withServer(refused,async url=>{
+    const response=await fetch(new URL('./client.js',url));
+    return {status:response.status,body:await response.text()};
+  });
+  assert.deepEqual(blocked,{status:500,body:'Obfuscation failed'});
   process.stdout.write('Real IPv6 Chromium native and SCO host-locked script parity: '+generated+'\n');
 }
 
