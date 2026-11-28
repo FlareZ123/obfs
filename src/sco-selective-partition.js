@@ -13,7 +13,7 @@ const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity'
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerNodeGlobals?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
 /** @typedef {{path:string,sha256:string}} ScoPrivateSourceDigest */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
 /** @type {WeakMap<ScoSelectivePartition,string>} */
@@ -147,6 +147,219 @@ function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
     });
   });
   return unproved;
+}
+
+/**
+ * Refuse unqualified references whose lexical owner cannot be found in the
+ * shipped private module graph. A browser host can supply arbitrary extra
+ * global names (for example externalBridge); moving those reads to the Node
+ * RPC server would silently change their value or throw a ReferenceError.
+ *
+ * This is a conservative syntax-level admission check, not proof that known
+ * host intrinsics have identical client/server semantics. The separate
+ * host-effect and realm-state guards retain responsibility for known globals.
+ * In particular, an unrelated sibling's parameter must never prove ownership
+ * of a same-spelled read in the selected function.
+ *
+ * @param {import('./ast').AstNode} root
+ * @param {ReadonlySet<string>} moduleBindings Declared server-only module bindings
+ * @param {ReadonlySet<string>} rootFormals Parameters of the selected export
+ * @param {boolean} [allowServerNodeGlobals] Explicit Node-origin private source only
+ * @returns {string|null}
+ */
+function firstUnprovedUnqualifiedReference(root,moduleBindings,rootFormals,allowServerNodeGlobals=false){
+  const recognizedGlobals=new Set([
+    ...standardRealmGlobals,...browserOnlyRoots,
+    'globalThis','global','process','Buffer','console','performance','crypto',
+    'URL','URLSearchParams','TextEncoder','TextDecoder','DOMException','AbortController',
+    'AbortSignal','structuredClone','atob','btoa','fetch','Request','Response',
+    'Headers','Worker','WebSocket','EventSource','BroadcastChannel',
+    'MessageChannel','setTimeout','clearTimeout','setInterval','clearInterval',
+    'setImmediate','clearImmediate','queueMicrotask','postMessage',
+    'addEventListener','removeEventListener','dispatchEvent','alert',
+    'confirm','prompt'
+  ]);
+  // Node's free Buffer and process globals are absent in ordinary Chromium.
+  // They may be retained without lexical owners only for Node-origin source
+  // under an explicit opt-in; inferred server ownership cannot prove browser parity.
+  if(!allowServerNodeGlobals){
+    recognizedGlobals.delete('Buffer');
+    recognizedGlobals.delete('process');
+  }
+  /**
+   * Accumulate each actual binding name exactly once per lexical scope.
+   * Pattern defaults and computed keys are expressions, not bound names.
+   * @param {import('./ast').AstNode|null|undefined} pattern
+   * @param {Set<string>} names
+   * @returns {void}
+   */
+  function collectPatternNames(pattern,names){
+    if(!pattern)return;
+    if(pattern.type==='Identifier'){names.add(pattern.name);return;}
+    if(pattern.type==='RestElement'){collectPatternNames(pattern.argument,names);return;}
+    if(pattern.type==='AssignmentPattern'){collectPatternNames(pattern.left,names);return;}
+    if(pattern.type==='ArrayPattern'){
+      for(const item of pattern.elements)collectPatternNames(item,names);
+      return;
+    }
+    if(pattern.type==='ObjectPattern'){
+      for(const property of pattern.properties){
+        collectPatternNames(property.type==='RestElement'?property.argument:
+          property.value,names);
+      }
+    }
+  }
+
+  /**
+   * Only statements directly owned by this lexical scope bind locally.
+   * Nested block/function declarations do not leak into sibling regions.
+   * @param {import('./ast').AstNode} statement
+   * @param {Set<string>} names
+   * @returns {void}
+   */
+  function collectStatementNames(statement,names){
+    const declaration=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+    if(!declaration)return;
+    if(declaration.type==='VariableDeclaration'){
+      for(const item of declaration.declarations)collectPatternNames(item.id,names);
+      return;
+    }
+    if(declaration.type==='FunctionDeclaration'||
+       declaration.type==='ClassDeclaration'){
+      collectPatternNames(declaration.id,names);
+      return;
+    }
+    if(declaration.type==='ImportDeclaration'){
+      for(const specifier of declaration.specifiers){
+        collectPatternNames(specifier.local,names);
+      }
+    }
+  }
+
+  /**
+   * Vars are function/program scoped even when a nested conditional never
+   * executes. Exclude inner functions/classes, whose vars have other owners.
+   * @param {import('./ast').AstNode} node
+   * @param {Set<string>} names
+   * @param {boolean} [top]
+   * @returns {void}
+   */
+  function collectHoistedVars(node,names,top=true){
+    if(!top&&['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression','ClassDeclaration','ClassExpression']
+      .includes(node.type))return;
+    if(node.type==='VariableDeclaration'&&node.kind==='var'){
+      for(const item of node.declarations)collectPatternNames(item.id,names);
+    }
+    for(const [key,value] of Object.entries(node)){
+      if(key==='parent'||key==='comments')continue;
+      if(Array.isArray(value)){
+        for(const item of value){
+          if(item&&typeof item==='object'&&typeof item.type==='string'){
+            collectHoistedVars(item,names,false);
+          }
+        }
+      }else if(value&&typeof value==='object'&&
+                typeof value.type==='string'){
+        collectHoistedVars(value,names,false);
+      }
+    }
+  }
+
+  /**
+   * Each enclosing scope's declaration inventory is computed once, even
+   * when it contains thousands of differently spelled identifier reads.
+   * Function-body var hoists are stored separately because their names do
+   * not bind earlier parameter-default expressions.
+   * @typedef {{direct:Set<string>,hoisted:Set<string>}} ScopedNames
+   */
+  /** @type {WeakMap<import('./ast').AstNode,ScopedNames>} */
+  const indexedScopes=new WeakMap();
+  /**
+   * @param {import('./ast').AstNode} scope
+   * @returns {ScopedNames}
+   */
+  function namesForScope(scope){
+    const prior=indexedScopes.get(scope);
+    if(prior)return prior;
+    /** @type {ScopedNames} */
+    const result={direct:new Set(),hoisted:new Set()};
+    indexedScopes.set(scope,result);
+    const {direct,hoisted}=result;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(scope.type)){
+      collectPatternNames(scope.id,direct);
+      for(const parameter of scope.params)collectPatternNames(parameter,direct);
+      if(scope.type!=='ArrowFunctionExpression')direct.add('arguments');
+      collectHoistedVars(scope.body,hoisted);
+    }else if(scope.type==='ClassDeclaration'||scope.type==='ClassExpression'){
+      collectPatternNames(scope.id,direct);
+    }else if(scope.type==='CatchClause'){
+      collectPatternNames(scope.param,direct);
+    }else if(['Program','BlockStatement','StaticBlock'].includes(scope.type)){
+      for(const statement of scope.body)collectStatementNames(statement,direct);
+      if(scope.type==='Program')collectHoistedVars(scope,hoisted);
+    }else if(scope.type==='ForStatement'&&scope.init?.type==='VariableDeclaration'){
+      for(const item of scope.init.declarations)collectPatternNames(item.id,direct);
+    }else if((scope.type==='ForOfStatement'||scope.type==='ForInStatement')&&
+             scope.left?.type==='VariableDeclaration'){
+      for(const item of scope.left.declarations)collectPatternNames(item.id,direct);
+    }else if(scope.type==='SwitchStatement'){
+      for(const group of scope.cases){
+        for(const statement of group.consequent)collectStatementNames(statement,direct);
+      }
+    }
+    return result;
+  }
+  /**
+   * @param {import('./ast').AstNode} scope
+   * @param {string} name
+   * @param {import('./ast').AstNode} read
+   * @returns {boolean}
+   */
+  function indexedScopedBinding(scope,name,read){
+    const {direct,hoisted}=namesForScope(scope);
+    if(direct.has(name))return true;
+    if(!hoisted.has(name))return false;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(scope.type)){
+      return Boolean(scope.body&&read.start>=scope.body.start);
+    }
+    return scope.type==='Program';
+  }
+  /** @type {string|null} */
+  let missing=null;
+  walk(root,(node,parent,key,ancestors)=>{
+    if(missing!==null||node.type!=='Identifier'||isStaticKey(parent,key))return;
+    // An ESM reexport's ExportSpecifier.local is the source module's
+    // exported name, not a local identifier read. A local export without
+    // `from` must still resolve against the current module's bindings.
+    if(parent?.type==='ExportSpecifier'&&key==='local'&&
+       ancestors.some(ancestor=>ancestor.type==='ExportNamedDeclaration'&&ancestor.source))return;
+    if(parent&&(
+      ['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent.type)&&
+        key==='label'||
+      parent.type==='MetaProperty'||
+      parent.type==='ImportSpecifier'&&key==='imported'||
+      parent.type==='ExportSpecifier'&&key==='exported'))return;
+    // A function literal used solely as a direct operand of typeof is
+    // created, not executed. The existing typeof proof admits this precise
+    // lazy case; do not falsely convert it into a free-host read.
+    const lazyTypeofLiteral=ancestors.some((scope,index)=>{
+      if(!['FunctionExpression','ArrowFunctionExpression'].includes(scope.type))return false;
+      const enclosing=ancestors[index-1];
+      return enclosing?.type==='UnaryExpression'&&enclosing.operator==='typeof'&&
+        enclosing.argument===scope;
+    });
+    if(lazyTypeofLiteral)return;
+    const name=node.name;
+    if(moduleBindings.has(name)||rootFormals.has(name))return;
+    if(ancestors.some(scope=>indexedScopedBinding(scope,name,node)))return;
+    if(recognizedGlobals.has(name))return;
+    missing=name;
+  });
+  return missing;
 }
 
 /**
@@ -1309,9 +1522,10 @@ function isCanonicalPrivateModulePath(sourcePath,specifier){
  *
  * @param {string[]} directPaths
  * @param {ScoPrivateModuleSource[]} sources
+ * @param {boolean} [allowServerNodeGlobals] Explicitly Node-origin private source only
  * @returns {string[]}
  */
-function collectPrivateStaticImportClosure(directPaths,sources) {
+function collectPrivateStaticImportClosure(directPaths,sources,allowServerNodeGlobals=false) {
   /** @type {Map<string,string>} */
   const sourceByPath=new Map();
   const caseNames=new Set();
@@ -1500,6 +1714,11 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     if(freeTypeof!==null){
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
+    }
+    const missingStatic=firstUnprovedUnqualifiedReference(ast,new Set(),new Set(),allowServerNodeGlobals);
+    if(missingStatic!==null){
+      throw new TypeError('SCO private static dependency has unproved unqualified free reference: '+
+        filename+':'+missingStatic);
     }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
@@ -1720,6 +1939,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       additionalPrivateModulePaths:snapshotOptionArray(options.additionalPrivateModulePaths),
       privateModuleSources:sourceInputs,
       allowServerEnvConstants:options.allowServerEnvConstants,
+      allowServerNodeGlobals:options.allowServerNodeGlobals,
       allowServerImports:options.allowServerImports,
       seed:options.seed,endpoint:options.endpoint,
       batch:options.batch,maxBatchCalls:options.maxBatchCalls
@@ -1736,6 +1956,8 @@ function partitionScoSelectedAsyncExports(file,options) {
        new Set(options.publicHelperNames).size!==options.publicHelperNames.length)||
       options.allowServerEnvConstants!==undefined &&
       typeof options.allowServerEnvConstants!=='boolean'||
+      options.allowServerNodeGlobals!==undefined &&
+      typeof options.allowServerNodeGlobals!=='boolean'||
       options.allowServerImports!==undefined &&
       typeof options.allowServerImports!=='boolean'||
       options.privateModuleImports!==undefined &&
@@ -1793,7 +2015,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
   }
   if(auditedSources!==undefined){
-    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,auditedSources)){
+    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,auditedSources,options.allowServerNodeGlobals===true)){
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
@@ -1875,11 +2097,14 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateChunks=[];
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
+  /** @type {WeakMap<import('./ast').AstNode,import('./ast').AstNode>} */
+  const privateFunctionByBody=new WeakMap();
   /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
   const privateFormals=new WeakMap();
   /** @param {import('./ast').AstNode} fn @returns {void} */
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
+    privateFunctionByBody.set(fn.body,fn);
     const parameters=new Set();
     for(const parameter of fn.params){
       if(parameter.type==='Identifier')parameters.add(parameter.name);
@@ -2280,6 +2505,13 @@ function partitionScoSelectedAsyncExports(file,options) {
       serverConstants,privateFormals.get(body)??new Set());
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
+    const missingSelected=firstUnprovedUnqualifiedReference(
+      privateFunctionByBody.get(body)??body,
+      new Set([...serverConstants,...privateHelperNames,...selected]),
+      privateFormals.get(body)??new Set(),options.allowServerNodeGlobals===true);
+    if(missingSelected!==null){
+      throw new TypeError('Private SCO export or helper uses unproved unqualified free reference: '+missingSelected);
     }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
