@@ -209,6 +209,14 @@ const cases=[
 ['object-reflect-getter-this-cache-weakmap','const carrier={};Reflect.defineProperty(carrier,"instance",{get(){return this.cache;}});carrier.cache=new WeakMap();','carrier.instance'],
 ['object-literal-getter-lexical-weakmap','const hidden=new WeakMap();const carrier={get instance(){return hidden;}};','carrier.instance'],
 ['object-literal-getter-this-ordinary-yield','class Ordinary{} const carrier={get instance(){return this.cache;}};carrier.cache=new Ordinary();','carrier.instance'],
+// A read accessor can pair with a write accessor that redirects assignments
+// to a separate slot on the same receiver. Model the setter side effect.
+['object-accessor-setter-receiver-map','const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new WeakMap();','carrier.instance'],
+['object-defineproperty-setter-receiver-map','const carrier={cache:{}};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set(v){this.cache=v;}});carrier.instance=new WeakMap();','carrier.instance'],
+['class-static-setter-receiver-map','class Holder{static cache={};static get instance(){return this.cache;}static set instance(v){this.cache=v;}}Holder.instance=new WeakMap();','Holder.instance'],
+['class-expression-static-setter-receiver-map','const Holder=class{static cache={};static get instance(){return this.cache;}static set instance(v){this.cache=v;}};Holder.instance=new WeakMap();','Holder.instance'],
+['object-accessor-setter-ordinary-yield','class Ordinary{} const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new Ordinary();','carrier.instance'],
+['class-static-setter-ordinary-yield','class Ordinary{} class Holder{static cache={};static get instance(){return this.cache;}static set instance(v){this.cache=v;}}Holder.instance=new Ordinary();','Holder.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -327,6 +335,10 @@ for(const [name,setup,access] of cases) {
         'object-defineproperties-getter-this-cache-weakmap',
         'object-reflect-getter-this-cache-weakmap',
         'object-literal-getter-lexical-weakmap',
+        'object-accessor-setter-receiver-map',
+        'object-defineproperty-setter-receiver-map',
+        'class-static-setter-receiver-map',
+        'class-expression-static-setter-receiver-map',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
@@ -344,7 +356,9 @@ for(const [name,setup,access] of cases) {
         'class-declaration-static-getter-ordinary-yield',
         'class-expression-static-getter-ordinary-yield',
         'class-declaration-getter-this-ordinary-yield',
-        'object-literal-getter-this-ordinary-yield'].includes(name))
+        'object-literal-getter-this-ordinary-yield',
+        'object-accessor-setter-ordinary-yield',
+        'class-static-setter-ordinary-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
