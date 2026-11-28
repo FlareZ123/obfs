@@ -119,3 +119,21 @@ for(const variant of variants) {
     console.log('LEXICAL_DOCUMENT '+JSON.stringify({name:variant.name,observed,native,evidence}));
   });
 }
+
+test('classic scripts never inherit isolated ESM document proof',()=>{
+  const source='const document={title:""};document.title=function protectedFn(secretArg){return secretArg;};';
+  assert.equal(observesFunctionSource(parse(source,'script')),true);
+  const file={path:'second.js',sourceType:'script',code:source};
+  for(const mode of ['coo','sco','sno']) {
+    const compiled=obfuscateFiles([file],{
+      mode,seed:'agent4-classic-document-'+mode,
+      strings:false,properties:false,identifiers:true,closedWorld:true
+    });
+    assert.equal(compiled.files[0].metrics.bindings,0);
+  }
+});
+
+test('unproved imported ESM module cannot bypass local Document TDZ',()=>{
+  const source='import "./first.mjs";const document={title:""};document.title=function protectedFn(secretArg){return secretArg;};';
+  assert.equal(observesFunctionSource(parse(source,'module')),true);
+});
