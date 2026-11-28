@@ -25,6 +25,16 @@ Parsed the complete `CFG_CARRIER` JSON lines from the Ubuntu job of the source-p
 
 All five misses correspond exactly to the call-protocol and inline-class constructor cases above; the two refusals on the ordinary native path are `iterator-ordinary-negative` and `destructure-proxy-ordinary-negative`. The 2:5 error counts are not a static-analysis proof of false positives/negatives for all possible host environments: a single native execution of an opaque iterator or Proxy is not sufficient to establish whole-program property-renaming safety. The instrumented source values distinguish runtime parity from numeric parity and isolate candidate work from the separate frozen protection-yield gate.
 
+## Independent 3-OS falsification of own-call-protocol forwarding
+
+A second, **source-pinned and separate** causal control froze the initial helper/inline-constructor repair but intentionally did **not** carry the own-call-protocol mutation guard. GitHub Actions run [46132429908](https://github.com/FlareZ123/obfs/actions/runs/46132429908) at source SHA `f514ce3e2baf6f6c773ff4f280afbed88ee1fc26` **FAILED identically on Ubuntu, macOS and Windows**. In each mode COO, SCO, SNO, the following three cases executed a real WeakMap prototype source hook but emitted a source-mutated function (`bindings=4`, `group=false`, `local=false`, `parity=false`):
+
+- `own-call-drops-forwarded-argument`: `fill.call=function(){fill();}` overrides forwarding so the apparently provided numeric argument is silently dropped and a WeakMap-producing formal default executes.
+- `own-apply-drops-forwarded-argument`: same via an own `apply` method.
+- `own-bind-drops-prebound-argument`: an own `bind` returns the target, so a later call executes the default despite an apparently bound numeric argument.
+
+The `Object.defineProperty(fill,'call',...)` control was **already** conservatively protected in this donor (`group=true`, `bindings=0`, native/emitted source parity). The two earlier Ordinary-path yield-only failures remained; they are separate from these three newly verified semantic regressions. This 3-OS red control establishes a clear target for the scoped own-call and alias guard, not a general proof that the guard is sufficient.
+
 ## Candidate, not a verified fix
 
 Research branch `agent2/host-call-own-property-donor-falsifier-20261128`, currently `fdc9e28f099dc052232ca03afb05d609dfc8734f`, carries a **120-case** matrix plus bounded source changes. Its compiler records indirect calls, supplies the receiver's actual abstract value, joins effects through an identically cloned lexical heap, handles inline class constructors and concise arrows, conservatively recognizes own `.call/.apply/.bind` method overrides/aliases, and includes possible async/generator body effects. The test added own protocol overrides that intentionally *drop* supplied arguments, transitive and mutable aliases, object-field function escape, `this` receiver writes, repeated safe protocol calls, ordinary negative-yield controls, and asynchronous body effects. Do not claim it passes; exact run `46133186759` is queued as of 10:01 UTC.
