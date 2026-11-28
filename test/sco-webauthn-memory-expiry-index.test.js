@@ -16,6 +16,7 @@ function originalStore(){
   const challenges=new Map();
   /** @type {Map<string,{principal:string,expiresAt:number}>} */
   const sessions=new Map();
+  /** @type {Map<string,number>} */
   const versions=new Map();
   /** @type {string|null} */
   let policy=null;
@@ -25,6 +26,7 @@ function originalStore(){
     for(const [id,row] of sessions)if(row.expiresAt<=time)sessions.delete(id);
   }
   /** @param {string} principal */
+  /** @param {string} principal @returns {number} */
   const generation=principal=>versions.get(principal)??0;
   return {
     insertChallenge(id,principal,sessionId,challenge,expiresAt,now,maxChallenges){
