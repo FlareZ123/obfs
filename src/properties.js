@@ -622,7 +622,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const memberName=parent?.type==='MemberExpression'&&
         (parent.computed?staticString(parent.property):staticName(parent.property));
       const read=parent?.type==='MemberExpression'&&key==='object'&&
-        !parent.optional&&memberName!==null&&ownedKeys.has(memberName);
+        !parent.optional&&typeof memberName==='string'&&ownedKeys.has(memberName);
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
