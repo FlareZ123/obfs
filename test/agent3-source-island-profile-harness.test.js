@@ -18,4 +18,16 @@ test('source-island profile times the same actually executed ESM leaf outside it
   assert.ok(measured.originalBytes>0 && measured.emittedBytes>0);
   assert.ok(measured.overBudgetWorkPairs>=0 && measured.overBudgetWorkPairs<=3);
   assert.ok(measured.overBudgetWallPairs>=0 && measured.overBudgetWallPairs<=3);
+  // A zero-tick Windows CPU sample is an unknown, never a proven budget pass.
+  assert.ok(Number.isFinite(measured.medianNativeCpuMs) &&
+    measured.medianNativeCpuMs>=0);
+  assert.ok(Number.isFinite(measured.medianEmittedCpuMs) &&
+    measured.medianEmittedCpuMs>=0);
+  assert.ok(measured.medianCpuRatio===null ||
+    Number.isFinite(measured.medianCpuRatio) && measured.medianCpuRatio>=0);
+  assert.ok(Number.isInteger(measured.comparableCpuPairs) &&
+    measured.comparableCpuPairs>=0 && measured.comparableCpuPairs<=3);
+  assert.ok(Number.isInteger(measured.overBudgetCpuPairs) &&
+    measured.overBudgetCpuPairs>=0 &&
+    measured.overBudgetCpuPairs<=measured.comparableCpuPairs);
 });
