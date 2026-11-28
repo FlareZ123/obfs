@@ -215,3 +215,54 @@ test('public build seed plus bounded source-offset search reconstructs local ori
     nativeExecutionMatched:true
   })+'\n');
 });
+
+
+test('the public seed also recovers original spellings in anonymous default ESM exports',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export default {secretField:41,otherField:13,sessionMark:7};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import hidden from "./state.mjs";'+
+      'console.log(JSON.stringify([hidden.secretField,hidden.otherField,hidden.sessionMark]));'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:SEED,
+    properties:true,identifiers:false,strings:false
+  });
+  assert.equal(output.crossFile.objects,1,
+    'Default export must be a real transformed cross-file object');
+  assert.equal(output.crossFile.properties,3);
+  /** @type {ModuleFile[]} */
+  const published=output.files.map(file=>({
+    path:file.path,sourceType:'module',code:/** @type {string} */(file.code)
+  }));
+  const emitted=published.map(file=>file.code).join('\n');
+  for(const name of ['secretField','otherField','sessionMark'])
+    assert.ok(!emitted.includes(name),'Default export should hide '+name);
+  const started=performance.now();
+  const recovered=recoverNamedEsmPropertySpellings(published,{
+    seed:SEED,dictionary:names()
+  });
+  const durationMs=performance.now()-started;
+  assert.equal(recovered.targets,3);
+  assert.equal(recovered.recovered.size,3);
+  assert.equal(recovered.lookups,names().length);
+  assert.deepEqual([...recovered.recovered.values()].map(x=>x.original).sort(),
+    ['otherField','secretField','sessionMark']);
+  assert.ok([...recovered.recovered.values()].every(x=>x.exportName==='default'),
+    'The inversion must derive the public default export hash path');
+  const native=await execute(files);
+  assert.equal(native.status,0,native.stderr);
+  assert.deepEqual(await execute(published),native);
+  assert.deepEqual(await execute(recovered.files),native);
+  assert.doesNotMatch(recovered.files.map(f=>f.code).join('\n'),/_p[a-f0-9]{12}/u);
+  process.stdout.write('KNOWN_SEED_DEFAULT_ESM_PROPERTY_RECOVERY '+JSON.stringify({
+    mode:'coo',exportName:'default',file:'state.mjs',
+    recoveredOriginalNames:[...recovered.recovered.values()].map(x=>x.original).sort(),
+    sourceOnlyAttacker:true,publicBuildSeedAssumed:true,
+    dictionarySize:names().length,hashLookups:recovered.lookups,
+    attackerWallMs:durationMs,
+    exactNativeEsmOutputUnchanged:true
+  })+'\n');
+});
