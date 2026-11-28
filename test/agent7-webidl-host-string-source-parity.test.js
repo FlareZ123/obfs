@@ -38,6 +38,9 @@ function execute(source){
   };
   const document={
     body,
+    getElementById:(_id)=>body,
+    querySelector:(_selector)=>body,
+    createElement:(_tag)=>body,
     set cookie(value){observe(value);}
   };
   const context={
@@ -111,5 +114,31 @@ test('opaque host functions remain outside the bounded native DOM provenance pro
     assert.ok(output.files[0].metrics.bindings>0,operation.id+' positive transform');
     assert.notDeepEqual(execute(String(output.files[0].code)).captures,
       execute(source).captures,operation.id+' remains an explicit source-parity risk');
+  }
+});
+
+test('DOMString source proof follows document/element/style aliases and destructuring',()=>{
+  const forms=[
+    'const doc=document;const target=doc.getElementById("target");target.setAttribute("data-source",inspect);',
+    'const {body:target}=document;target.dataset.source=inspect;',
+    'const doc=globalThis.document;const {body:target}=doc;target.textContent=inspect;',
+    'const target=document.querySelector("#target");const alias=target;const style=alias.style;style.setProperty("--source",inspect);',
+    'const {document:doc}=globalThis;const node=doc.createElement("span");node.innerText=inspect;'
+  ];
+  for(const form of forms){
+    const source=functionSource+form+'\nmodule.exports=inspect();';
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,
+      form+' source observer classification');
+    const native=execute(source);
+    assert.equal(native.result,17);
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],
+        {mode,seed:'agent7-dom-alias-coverage',properties:false,strings:false,identifiers:true});
+      const compiled=execute(String(result.files[0].code));
+      assert.deepEqual(compiled.captures,native.captures,mode+' '+form);
+      assert.equal(compiled.result,native.result,mode+' '+form);
+      assert.equal(result.files[0].metrics.bindings,0,
+        mode+' '+form+' source identity must remain');
+    }
   }
 });
