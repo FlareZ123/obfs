@@ -1,6 +1,6 @@
 'use strict';
 
-const {parse}=require('parse5');
+const {parse,Tokenizer,TokenizerMode}=require('parse5');
 const {createHash}=require('node:crypto');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
@@ -258,6 +258,71 @@ function isEmbeddedRefreshUrl(content) {
 }
 
 /**
+ * parse5's DOM tree is insufficient as a source-admission oracle for all
+ * Chromium HTML insertion modes. In particular a <select> containing foreign
+ * <svg> markup can be dropped by parse5's tree builder while real Chrome
+ * preserves an SVG-namespace script, event handler or animated javascript:
+ * URL. Scan the original token stream as a second, deliberately fail-closed
+ * view when HTML contains a SELECT. The tokenizer decodes character
+ * references in attributes and excludes comments; no parser-recovery shape
+ * may silently erase source-bearing tokens.
+ *
+ * This fallback does not claim to model arbitrary HTML DOM tree construction:
+ * a suspicious token inside SELECT is refused even if a different engine
+ * ultimately discards it. Ordinary SELECT forms with plain OPTION nodes pass.
+ * @param {string} html
+ * @returns {string|null}
+ */
+function findSelectTokenDisclosure(html) {
+  if(!/<select(?=[\x20\t\n\f\r/>])/iu.test(html))return null;
+  /** @type {string|null} */
+  let issue=null;
+  let selects=0;
+  const noop=()=>{};
+  const handler={
+    onComment:noop,onDoctype:noop,onEof:noop,onCharacter:noop,
+    onNullCharacter:noop,onWhitespaceCharacter:noop,
+    /** @param {import('parse5').Token.TagToken} token */
+    onStartTag(token) {
+      // In contrast to the stand-alone tokenizer's DATA default, script
+      // contents are raw text. Avoid inventing tags in a safe import-map
+      // JSON string while scanning a later real SELECT.
+      if(token.tagName==='script')tokenizer.state=TokenizerMode.SCRIPT_DATA;
+      if(token.tagName==='select')selects++;
+      if(!selects||issue)return;
+      const name=token.tagName;
+      const attrs=token.attrs??[];
+      if(name==='script') {issue='inline script source in select context';return;}
+      if(SMIL_ANIMATION_ELEMENTS.has(name) &&
+         smilTargetsExecutableAttribute(name,
+           attrs.find(attr=>attr.name==='attributename')?.value)) {
+        issue='SVG animation targets executable attribute';return;
+      }
+      for(const {name:key,value} of attrs) {
+        if(/^on[a-z]/u.test(key)) {issue='inline event handler';return;}
+        if(key==='srcdoc') {issue='embedded iframe source';return;}
+        if(['src','href','action','formaction','xlink:href','data','poster'].includes(key) &&
+           isEmbeddedExecutableUrl(value)) {
+          issue='embedded executable URL';return;
+        }
+        if(SMIL_ANIMATION_ELEMENTS.has(name) &&
+           ['from','to','by','values'].includes(key) &&
+           (key==='values'?value.split(';'):[value]).some(isEmbeddedExecutableUrl)) {
+          issue='SVG animation embeds executable URL';return;
+        }
+      }
+    },
+    /** @param {import('parse5').Token.TagToken} token */
+    onEndTag(token) {
+      if(token.tagName==='select'&&selects>0)selects--;
+    }
+  };
+  const tokenizer=new Tokenizer({},handler);
+  tokenizer.write(html,true);
+  return issue;
+}
+
+/**
  * Identify executable JavaScript embedded in browser-parsed HTML.
  * External script references are allowed because their targets must be
  * transformed and published separately. The original HTML is left untouched.
@@ -340,7 +405,7 @@ function findInlineHtmlSource(html) {
     if(node.content)visit(node.content);
   }
   visit(root);
-  return issue;
+  return issue??findSelectTokenDisclosure(html);
 }
 
 /**
