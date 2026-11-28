@@ -264,8 +264,11 @@ function printExpression(expr,parameters) {
     printExpression(expr.test,parameters)+'?'+
     printExpression(expr.consequent,parameters)+':'+
     printExpression(expr.alternate,parameters)+')';
-  return '('+printExpression(expr.left,parameters)+expr.operator+
+  const binary='('+printExpression(expr.left,parameters)+expr.operator+
     printExpression(expr.right,parameters)+')';
+  // Public Wasm arithmetic wraps every time; reconstruction should preserve
+  // those i32 semantics even when moved away from the original source context.
+  return expr.operator==='+'||expr.operator==='-'?'('+binary+'|0)':binary;
 }
 
 /**
