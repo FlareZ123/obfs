@@ -292,7 +292,8 @@ function hasImportedDomStringSourceSink(files) {
         const method=property(node.callee);
         if(isImportedReceiver(owner) &&
             ['setAttribute','setAttributeNS','insertAdjacentText',
-             'insertAdjacentHTML'].includes(method??'')&&
+             'insertAdjacentHTML','append','prepend','replaceChildren',
+             'before','after','replaceWith'].includes(method??'')&&
             node.arguments.some(potentiallySourceBearing)) {
           observed=true;return;
         }
@@ -310,7 +311,9 @@ function hasImportedDomStringSourceSink(files) {
         const key=property(node.left);
         if(isImportedReceiver(owner)&&
           ['textContent','innerText','innerHTML','outerHTML',
-           'id','title','className'].includes(key??'')) {
+           'id','title','className','href','src','action','formAction',
+           'value','placeholder','alt','name','role','download','srcdoc',
+           'poster','integrity','rel','type','target','media'].includes(key??'')) {
           observed=true;return;
         }
         if(owner?.type==='MemberExpression'&&isImportedReceiver(owner.object)&&
