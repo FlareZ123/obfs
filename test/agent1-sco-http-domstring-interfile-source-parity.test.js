@@ -149,6 +149,15 @@ for(const fixture of fixtures)test(
   }
 );
 
+test('actual SCO route refuses a host lock that would rewrite observed source',()=>{
+  for(const fixture of fixtures){
+    assert.throws(()=>createScoHandler(graph(fixture),{
+      closedWorld:true,allowedHosts:['example.com']
+    }),/Host locking cannot preserve observable source bytes/,
+    'SCO publication with '+fixture.name+' cannot claim a source-preserving host lock');
+  }
+});
+
 test('unobserved private SCO file still gains genuine per-request protected rewriting',async()=>{
   const files=[{path:'safe.mjs',sourceType:'module',
     code:'const owner={protectedField:17};export const result=owner.protectedField;'}];
