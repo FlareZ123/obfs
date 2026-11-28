@@ -494,3 +494,13 @@ test('factory proof refuses namespace import and factory re-export paths',async(
     for(const mode of ['coo','sno','sco'])
       await checkFactory(factory,main,0,mode);
 });
+
+
+test('factory proof handles separate direct roots imported under multiple local aliases',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const main='import {makeState as makeA,makeState as makeB} from "./state.mjs";'+
+    'const first=makeA();const second=makeB();'+
+    'console.log(first.secretField+second.otherField);';
+  for(const mode of ['coo','sno','sco'])
+    await checkFactory(factory,main,2,mode);
+});
