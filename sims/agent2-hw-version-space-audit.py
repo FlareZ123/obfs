@@ -172,6 +172,66 @@ def trace_state_separation_pairs(trace, max_depth: int = 4, max_pairs: int = 100
     return sorted(pairs)
 
 
+def trace_output_diversity_state_lower_bound(trace, max_depth: int = 12):
+    """Certified lower bound from fixed input words with distinct outputs.
+
+    In a deterministic Mealy machine, a given input word has precisely one
+    output word from each start state. Hence if the *same* input word occurs
+    in the public no-reset trace with m distinct output words, any machine
+    reproducing that trace must have at least m states. This never uses the
+    held-out target table or an inferred state assignment.
+
+    The certificate contains one trace index for each distinct output word;
+    reviewers can validate it directly from the public input/output trace.
+    Depth is bounded for predictable O(depth * trace_length) work and memory.
+    """
+    if max_depth < 1:
+        raise ValueError("max_depth must be positive")
+    if not trace:
+        return {
+            "minimum_states": 1, "depth": 0, "input_word": "",
+            "output_witnesses": [],
+        }
+    bits = []
+    for i, pair in enumerate(trace):
+        if len(pair) != 2 or str(pair[0]) not in ("0", "1") or str(pair[1]) not in ("0", "1"):
+            raise ValueError(f"nonbinary public Mealy trace at index {i}")
+        bits.append((int(pair[0]), int(pair[1])))
+    best_count = 1
+    best_depth = 1
+    best_input_word = 0
+    best_witnesses = {bits[0][1]: 0}
+    for depth in range(1, min(max_depth, len(bits)) + 1):
+        mask = (1 << depth) - 1
+        input_word = 0
+        output_word = 0
+        # input-pattern -> (output-pattern -> first trace index)
+        groups = {}
+        for index, (input_bit, output_bit) in enumerate(bits):
+            input_word = ((input_word << 1) | input_bit) & mask
+            output_word = ((output_word << 1) | output_bit) & mask
+            if index + 1 < depth:
+                continue
+            outputs = groups.setdefault(input_word, {})
+            if output_word not in outputs:
+                outputs[output_word] = index - depth + 1
+                if len(outputs) > best_count:
+                    best_count = len(outputs)
+                    best_depth = depth
+                    best_input_word = input_word
+                    best_witnesses = outputs.copy()
+    return {
+        "minimum_states": best_count,
+        "depth": best_depth,
+        "input_word": format(best_input_word, f"0{best_depth}b"),
+        "output_witnesses": [
+            {"output_word": format(output_word, f"0{best_depth}b"),
+             "start_index": start_index}
+            for output_word, start_index in sorted(best_witnesses.items())
+        ],
+    }
+
+
 def target_alternate_start_witness(
     target_transitions,
     target_outputs,
@@ -473,7 +533,8 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
     }
 
 
-def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor"):
+def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor",
+              trace_lower_bound_depth: int = 0):
     if row.get("status") != "completed":
         return {"status": "skipped", "reason": "learner row did not complete"}
     if "fixture_table" not in row or "observed_trace" not in row:
@@ -518,9 +579,37 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor"):
             "witness": alternate_start,
         }
 
-    unsat_sizes = []
+    # Optional independently checkable state-count certificate. The legacy
+    # audit remains default (depth 0) for source-pinned solver comparisons.
+    lower_bound = None
+    minimum_size = 1
+    if trace_lower_bound_depth:
+        lower_bound = trace_output_diversity_state_lower_bound(
+            row["observed_trace"], trace_lower_bound_depth
+        )
+        minimum_size = lower_bound["minimum_states"]
+        if minimum_size > target_n:
+            raise AssertionError("public trace lower bound exceeds hidden target states")
+        # Check every claimed witness against its exact public trace window.
+        word = lower_bound["input_word"]
+        seen_outputs = set()
+        for witness in lower_bound["output_witnesses"]:
+            start = witness["start_index"]
+            segment = row["observed_trace"][start:start + len(word)]
+            if "".join(str(pair[0]) for pair in segment) != word:
+                raise AssertionError("state lower-bound certificate input mismatch")
+            output_word = "".join(str(pair[1]) for pair in segment)
+            if output_word != witness["output_word"] or output_word in seen_outputs:
+                raise AssertionError("state lower-bound certificate output mismatch")
+            seen_outputs.add(output_word)
+        if len(seen_outputs) != minimum_size:
+            raise AssertionError("state lower-bound certificate is incomplete")
+    # These sizes have *analytical* UNSAT certificates; never conflate them
+    # with solver-proved UNSAT candidate sizes or solver-timeout UNKNOWN.
+    analytical_unsat_sizes = list(range(1, minimum_size))
+    unsat_sizes = analytical_unsat_sizes.copy()
     unknown_sizes = []
-    for candidate_size in range(1, target_n + 1):
+    for candidate_size in range(minimum_size, target_n + 1):
         status, detail = solve_for_size(row, candidate_size, timeout_ms, candidate_labeling)
         if status == "sat":
             return {
@@ -529,8 +618,10 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor"):
                 "trace_digest": row.get("trace_digest"),
                 "target_state_count": target_n,
                 "target_class_verified": True,
+                "trace_lower_bound_certificate": lower_bound,
                 "candidate_size_search": {
                     "unsat_sizes_before_witness": unsat_sizes,
+                    "analytical_unsat_sizes_before_witness": analytical_unsat_sizes,
                     "unknown_sizes_before_witness": unknown_sizes,
                 },
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
@@ -548,8 +639,10 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor"):
         "trace_digest": row.get("trace_digest"),
         "target_state_count": target_n,
         "target_class_verified": True,
+        "trace_lower_bound_certificate": lower_bound,
         "candidate_size_search": {
             "unsat_sizes": unsat_sizes,
+            "analytical_unsat_sizes": analytical_unsat_sizes,
             "unknown_sizes": unknown_sizes,
         },
         "elapsed_seconds": round(time.perf_counter() - started, 4),
@@ -573,9 +666,13 @@ def main():
     parser.add_argument("--candidate-labeling", choices=("predecessor", "bfs"),
                         default="predecessor",
                         help="Root-reachable model label symmetry (experimental bfs canonicalization)")
+    parser.add_argument("--trace-lower-bound-depth", type=int, default=0,
+                        help="Optional public-trace output-diversity proof depth (0 disables)")
     args = parser.parse_args()
     if args.max_cases < 1 or args.timeout_ms < 1:
         raise SystemExit("--max-cases and --timeout-ms must be positive")
+    if not 0 <= args.trace_lower_bound_depth <= 20:
+        raise SystemExit("--trace-lower-bound-depth must be between 0 and 20")
 
     source = json.loads(Path(args.input).read_text(encoding="utf-8"))
     completed = [row for row in source.get("results", []) if row.get("status") == "completed"]
@@ -606,7 +703,8 @@ def main():
             "seed": row.get("seed"),
             "candidate_hypothesis_starts": row.get("trace_matching_initial_candidates"),
             "hW_future_clone_success": row.get("future_clone_success"),
-            "audit": audit_row(row, args.timeout_ms, args.candidate_labeling),
+            "audit": audit_row(row, args.timeout_ms, args.candidate_labeling,
+                               args.trace_lower_bound_depth),
         })
 
     counts = {
@@ -622,6 +720,11 @@ def main():
             "candidate_state_counts": "1..target_state_count inclusive",
             "candidate_class": "complete deterministic minimal strongly connected Mealy machines",
             "candidate_labeling": args.candidate_labeling,
+            "trace_lower_bound_depth": args.trace_lower_bound_depth,
+            "trace_lower_bound_justification": (
+                "For any fixed input word, each different observed output word "
+                "requires a distinct state in every deterministic matching machine."
+            ),
             "observation": "the public one-shot input/output trace only",
             "target_state_count": "hidden from learner; used only as evaluator upper bound",
             "target_fixture": "held-out evaluator data; never passed to hW",
