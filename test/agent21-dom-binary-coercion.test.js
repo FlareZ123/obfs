@@ -150,6 +150,14 @@ test('shadowed primitive name and opaque callback routes retain exact imported f
     assert.equal(native.value,57,variant.label+' native numeric result');
     assert.equal(native.independent,73,variant.label+' unrelated result');
     assert.ok(native.source.includes('secretField'),variant.label+' native source control');
+    // A controlled private-property-only mutation keeps callable outputs
+    // equal yet must change the observed source: a non-vacuity oracle.
+    const counterfactual=original.map(file=>file.path==='logic.mjs'?
+      {...file,code:file.code.replaceAll('secretField','controlRenamed')} : file);
+    const mutated=execute(counterfactual);
+    assert.equal(mutated.value,native.value,variant.label+' mutation numeric control');
+    assert.equal(mutated.independent,native.independent,variant.label+' mutation sibling control');
+    assert.notEqual(mutated.source,native.source,variant.label+' mutation source sensitivity');
     for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       const result=obfuscateFiles(original,{
         mode,seed:'agent21-shadowed-source/'+mode+'/'+variant.label,
@@ -161,6 +169,8 @@ test('shadowed primitive name and opaque callback routes retain exact imported f
       assert.ok(producer&&independent);
       assert.equal(emitted.value,57,mode+'/'+variant.label+' result');
       assert.equal(emitted.independent,73,mode+'/'+variant.label+' independent');
+      assert.ok(independent.metrics.properties>=1,
+        mode+'/'+variant.label+' unrelated primitive must retain a real field rewrite');
       classifications.push({
         mode,flow:variant.label,sourceParity:emitted.source===native.source,
         producerRewrites:producer.metrics.properties,
