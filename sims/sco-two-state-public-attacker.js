@@ -18,7 +18,7 @@ async function runAttacker(){
     if(!data||typeof data!=='object')return;
     const typed=/** @type {ProcessMessage} */(data);
     if(typed.kind!=='start')return;
-    const {scoOrigin,ordinaryOrigin,cookie}=typed;
+    const {scoOrigin,ordinaryOrigin,cookie,expectBoundFailure}=typed;
     try{
       // In the Linux elevated test, demonstrate the public client cannot
       // signal the separately owned privileged server even given its PID.
@@ -85,7 +85,7 @@ async function runAttacker(){
       assert.deepEqual(ordinary.inputs,sco.inputs);
       assert.deepEqual(ordinary.outputs,sco.outputs);
       assert.ok(sco.queries<=9);
-      const followup=[0,1,1,0,1,0,0,1,1,1,0,0,1,0,1,1];
+      const followup=expectBoundFailure?[0]:[0,1,1,0,1,0,0,1,1,1,0,0,1,0,1,1];
       const scoClone=continuation(sco.clone,sco.currentState,followup);
       const ordinaryClone=continuation(ordinary.clone,ordinary.currentState,followup);
       assert.deepEqual(scoClone.outputs,ordinaryClone.outputs);
@@ -97,8 +97,17 @@ async function runAttacker(){
         bindFetch(ordinaryOrigin,'ordinary');
         actualOrdinary.push(await ordinaryApi.step(input));
       }
-      assert.deepEqual(actualSco,scoClone.outputs);
-      assert.deepEqual(actualOrdinary,ordinaryClone.outputs);
+      if(expectBoundFailure){
+        // The public learner has certified within its declared 2-state class,
+        // but the selected 3-state source is outside that class. The same
+        // unqueried suffix must falsify the clone for both matched services.
+        assert.notDeepEqual(actualSco,scoClone.outputs);
+        assert.notDeepEqual(actualOrdinary,ordinaryClone.outputs);
+        assert.deepEqual(actualSco,actualOrdinary);
+      }else{
+        assert.deepEqual(actualSco,scoClone.outputs);
+        assert.deepEqual(actualOrdinary,ordinaryClone.outputs);
+      }
       globalThis.fetch=nativeFetch;
       // Compare every method, argument body, fetch option, and JSON reply.
       // Origins intentionally differ because each arm has independent state.
@@ -107,7 +116,11 @@ async function runAttacker(){
       }
       assert.equal(wires.sco.length,sco.queries+followup.length);
       reply({kind:'attacker-result',result:{sco,ordinary,followup,
-        followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
+        followupOutputs:actualSco,ordinaryFollowupOutputs:actualOrdinary,
+        scoPredictedOutputs:scoClone.outputs,
+        ordinaryPredictedOutputs:ordinaryClone.outputs,
+        boundFalsified:expectBoundFailure===true,
+        scoPublicBytes:Buffer.byteLength(scoSource),
         ordinaryPublicBytes:Buffer.byteLength(ordinarySource),
         attackerUid:process.getuid?.()??-1,
         attackerProcessPid:process.pid,signalPermissionDenied,

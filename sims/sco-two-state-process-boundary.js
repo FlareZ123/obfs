@@ -8,8 +8,10 @@ const path=require('node:path');
 const readline=require('node:readline');
 const {randomBytes,randomInt}=require('node:crypto');
 const http=require('node:http');
-const {createPolicy,equivalent}=
+const {createPolicy,sameFutureBehavior}=
   require('./sco-two-state-optimal-network-policy');
+const {decodeThreeState}=
+  require('./sco-two-state-out-of-class-census');
 
 /** @typedef {import('./sco-two-state-optimal-network-policy').Machine} Machine */
 /** @typedef {{input:number,output:number}} Event */
@@ -38,12 +40,9 @@ async function runServer(){
   const tamperOrdinary=process.argv.includes('--tamper-wire');
   const {transform}=require('esbuild');
   const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
-  // Uniformly sample the exact prior: four one-state plus 256 two-state
-  // labelled machines, initially at state zero.
-  // The evaluator can choose a test-table ID through a one-time *private*
-  // parent/server IPC handshake, not argv, environment or public HTTP.
-  // This enables adversarially selected heldout fixtures without publishing
-  // the ID to the different-UID client or the generated SCO facade.
+  // IDs 0..259 select the declared one-/two-state prior. IDs 260+ select
+  // the independent three-state out-of-class falsification corpus. The
+  // evaluator supplies an ID only over private IPC, never to the attacker.
   /** @type {number} */
   const modelId=await new Promise((resolve,reject)=>{
     process.once('message',raw=>{
@@ -52,23 +51,16 @@ async function runServer(){
         reject(new Error('Expected private server configuration IPC'));return;
       }
       const id=item.modelId===null?randomInt(260):item.modelId;
-      if(!Number.isSafeInteger(id)||id<0||id>=260){
-        reject(new RangeError('Private model ID must be 0..259'));return;
+      if(!Number.isSafeInteger(id)||id<0||id>=46916){
+        reject(new RangeError('Private model ID must be 0..46915'));return;
       }
       resolve(id);
     });
   });
-  const states=modelId<4?1:2;
-  let code=modelId<4?modelId:modelId-4;
   /** @type {Machine} */
-  const machine={next:Array.from({length:states},()=>[0,0]),
-    output:Array.from({length:states},()=>[0,0])};
-  for(let state=0;state<states;state++)for(let input=0;input<2;input++){
-    const choice=code%(2*states);
-    code=Math.floor(code/(2*states));
-    machine.next[state][input]=Math.floor(choice/2);
-    machine.output[state][input]=choice%2;
-  }
+  const machine=modelId<260
+    ?createPolicy().models[modelId]
+    :decodeThreeState(modelId-260);
   const canary='private-'+randomBytes(24).toString('hex');
   const cookie='session='+randomBytes(24).toString('hex');
   let scoState=0,ordinaryState=0;
@@ -241,17 +233,25 @@ function receive(child,expected,timeoutMs=45000){
  * @param {boolean} [isolatedUid]
  * @param {boolean} [tamperOrdinary]
  * @param {number|null} [modelId] Private evaluator-only source-table index.
+ *   Values 0..259 select the one-/two-state prior; 260+ encode a 3-state ID.
+ * @param {boolean} [expectBoundFailure] Expect the public 2-state learner to
+ *   produce a false terminal certificate for the selected 3-state witness.
  * @returns {Promise<{queries:number,rank:number,beliefs:number,
- *   exact:boolean,matchedControl:boolean,unauthorizedSco:number,
+ *   exact:boolean,boundFalsified:boolean,matchedControl:boolean,
+ *   predictedOutputs:number[],observedOutputs:number[],unauthorizedSco:number,
  *   unauthorizedOrdinary:number,publicServerPrivateCanary:boolean,
  *   scoBytes:number,ordinaryBytes:number,serverPid:number,
  *   attackerPid:number,traceLength:number,serverUid:number,attackerUid:number,
  *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean,
  *   modelId:number}>}
  */
-async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId=null){
-  if(modelId!==null&&(!Number.isSafeInteger(modelId)||modelId<0||modelId>=260)){
-    throw new RangeError('Expected private model ID 0..259');
+async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId=null,
+  expectBoundFailure=false){
+  if(modelId!==null&&(!Number.isSafeInteger(modelId)||modelId<0||modelId>=46916)){
+    throw new RangeError('Expected private model ID 0..46915');
+  }
+  if(typeof expectBoundFailure!=='boolean'){
+    throw new TypeError('Expected boolean out-of-class expectation');
   }
   if(typeof tamperOrdinary!=='boolean')throw new TypeError('Expected boolean wire mutation');
   if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
@@ -322,7 +322,8 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId
     }
     const attackerReady=receive(attacker,'attacker-result');
     const invocation={kind:'start',scoOrigin:ready.scoOrigin,
-      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie,serverPid:server.pid};
+      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie,serverPid:server.pid,
+      expectBoundFailure};
     if(isolatedUid){
       if(!attacker.stdin)throw new Error('Missing isolated attacker stdin');
       attacker.stdin.write(JSON.stringify(invocation)+'\n');
@@ -339,8 +340,11 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId
     const snapshotReady=receive(server,'snapshot');
     server.send({kind:'snapshot'});
     const snapshot=await snapshotReady;
-    assert.ok(Number.isInteger(snapshot.modelId)&&snapshot.modelId>=0&&snapshot.modelId<260);
-    assert.deepEqual(snapshot.machine,createPolicy().models[snapshot.modelId]);
+    assert.ok(Number.isInteger(snapshot.modelId)&&snapshot.modelId>=0&&snapshot.modelId<46916);
+    const expectedMachine=snapshot.modelId<260
+      ?createPolicy().models[snapshot.modelId]
+      :decodeThreeState(snapshot.modelId-260);
+    assert.deepEqual(snapshot.machine,expectedMachine);
     /** @type {import('./sco-two-state-optimal-network-policy').Learned} */
     const sco=attack.result.sco;
     const ordinary=attack.result.ordinary;
@@ -350,18 +354,34 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId
     const expected=inputTranscript.map((input,index)=>({input,output:outputTranscript[index]}));
     assert.deepEqual(snapshot.scoTrace,expected);
     assert.deepEqual(snapshot.ordinaryTrace,expected);
+    assert.deepEqual(attack.result.ordinaryFollowupOutputs,attack.result.followupOutputs);
     assert.equal(snapshot.publicClient.includes(snapshot.canary),false);
     assert.equal(snapshot.ordinaryClient.includes(snapshot.canary),false);
     let trueState=0;
     for(const input of inputTranscript.slice(0,sco.queries)){
       trueState=snapshot.machine.next[trueState][input];
     }
-    assert.equal(equivalent([sco.clone,snapshot.machine],sco.currentState,
-      2+trueState),true);
-    assert.equal(equivalent([ordinary.clone,snapshot.machine],ordinary.currentState,
-      2+trueState),true);
+    const scoEquivalent=sameFutureBehavior(sco.clone,sco.currentState,
+      snapshot.machine,trueState);
+    const ordinaryEquivalent=sameFutureBehavior(ordinary.clone,ordinary.currentState,
+      snapshot.machine,trueState);
+    if(expectBoundFailure){
+      assert.equal(scoEquivalent,false);
+      assert.equal(ordinaryEquivalent,false);
+      assert.equal(attack.result.boundFalsified,true);
+      assert.deepEqual(attack.result.scoPredictedOutputs,[1]);
+      assert.deepEqual(attack.result.ordinaryPredictedOutputs,[1]);
+      assert.deepEqual(attack.result.followupOutputs,[0]);
+    }else{
+      assert.equal(scoEquivalent,true);
+      assert.equal(ordinaryEquivalent,true);
+      assert.equal(attack.result.boundFalsified,false);
+    }
     return {queries:sco.queries,rank:sco.initialRank,beliefs:sco.beliefCount,
-      exact:true,matchedControl:true,unauthorizedSco:deniedSco.status,
+      exact:!expectBoundFailure,boundFalsified:expectBoundFailure,
+      predictedOutputs:attack.result.scoPredictedOutputs,
+      observedOutputs:attack.result.followupOutputs,
+      matchedControl:true,unauthorizedSco:deniedSco.status,
       unauthorizedOrdinary:deniedOrdinary.status,
       publicServerPrivateCanary:false,scoBytes:attack.result.scoPublicBytes,
       ordinaryBytes:attack.result.ordinaryPublicBytes,serverPid:server.pid||-1,

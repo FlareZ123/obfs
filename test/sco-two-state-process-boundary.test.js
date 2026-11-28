@@ -155,3 +155,24 @@ test('three-state model falsifies any unconditional two-state clone certificate'
   assert.deepEqual(continuation(learned.clone,learned.currentState,[0]).outputs,[1]);
   assert.deepEqual(continuation(model,state,[0]).outputs,[0]);
 });
+
+test('real generated SCO and matched RPC falsify a 2-state clone on the 3-state witness',async()=>{
+  // The server chooses table 52 only through private evaluator IPC. The public
+  // attacker receives no model ID and runs the unchanged 2-state learner.
+  const result=await runProcessBoundary(false,false,260+52,true);
+  assert.equal(result.modelId,312);
+  assert.equal(result.queries,7);
+  assert.equal(result.rank,9);
+  assert.equal(result.beliefs,4429);
+  assert.equal(result.exact,false);
+  assert.equal(result.boundFalsified,true);
+  assert.equal(result.matchedControl,true);
+  assert.equal(result.wireMatched,true);
+  assert.deepEqual(result.predictedOutputs,[1]);
+  assert.deepEqual(result.observedOutputs,[0]);
+  assert.equal(result.traceLength,8);
+  assert.equal(result.wireCalls,8);
+  assert.equal(result.unauthorizedSco,403);
+  assert.equal(result.unauthorizedOrdinary,403);
+  assert.equal(result.publicServerPrivateCanary,false);
+});
