@@ -29,6 +29,15 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
       statement.declaration&&!statement.source?statement.declaration:
       statement.type==='ExportDefaultDeclaration'&&
       statement.declaration?statement.declaration:statement;
+    // Each independently loaded browser ESM graph allocates its own module
+    // lexical cells. A server-resident child is instead instantiated once:
+    // even an apparently direct function call can increment one shared
+    // top-level let/var across distinct callers. Refuse mutable declarations
+    // rather than assume the initializer is never reassigned.
+    if(declaration.type==='VariableDeclaration'&&declaration.kind!=='const'){
+      throw new TypeError(
+        'Selected SCO private dependency has unproved shared module lexical state: '+filename);
+    }
     if((declaration.type==='FunctionDeclaration'||
         declaration.type==='ClassDeclaration')&&
        declaration.id?.type==='Identifier'){
