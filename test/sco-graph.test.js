@@ -186,6 +186,10 @@ test('SCO private graph declines exact private function-source disclosure while 
     'export async function reveal(){return Function.prototype.toString.call(reveal);}',
     'export async function reveal(){return String(reveal);}',
     'export async function reveal(){const alias=reveal;return alias.toString();}',
+    'function get(){return reveal;}export async function reveal(){return get().toString();}',
+    'const get=()=>reveal;export async function reveal(){return get().toString();}',
+    'const identity=x=>x;export async function reveal(){return identity(reveal).toString();}',
+    'function hop(){return identity(reveal);}function identity(x){return x;}export async function reveal(){return hop().toString();}',
     'export async function reveal(){return [reveal].join();}',
     'export async function reveal(i){return String.prototype.charCodeAt.call(reveal,i);}',
     'export async function reveal(i){const read=String.prototype.charCodeAt;return read.call(reveal,i);}',
@@ -213,7 +217,9 @@ test('SCO private graph declines exact private function-source disclosure while 
   const safe=[
     'export async function score(x){return x*7+2;}',
     'export async function scalar(){return (42).toString(16);}',
-    'export async function scalar(){return "safe".toString();}'
+    'export async function scalar(){return "safe".toString();}',
+    'function get(){return 41;}export async function scalar(){return get().toString(16);}',
+    'function identity(x){return x;}export async function scalar(){return identity(41).toString(16);}'
   ];
   for(const code of safe){
     const graph=partitionScoAsyncGraph([{path:'api.mjs',code}],{
