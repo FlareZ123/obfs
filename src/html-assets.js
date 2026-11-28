@@ -678,4 +678,64 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   return false;
 }
 
-module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup,hasPinnedLocalJavaScriptIntegrity};
+/**
+ * If an HTML document executes a script not contained in the supplied file
+ * inventory, a preceding unreviewed script can replace document.createElement
+ * or another native factory. No per-source-file factory proof may assume a
+ * native Node in that realm. This is a may-dependency veto, not an import
+ * analyzer; ambiguous URL resolution fails closed.
+ *
+ * @param {IntegrityFile[]} files
+ * @returns {boolean}
+ */
+function hasUnreviewedHtmlExecutableScripts(files) {
+  const knownScripts=new Set(files.filter(file=>file.sourceType!=='asset')
+    .map(file=>file.path));
+  for(const file of files) {
+    if(file.sourceType!=='asset')continue;
+    const isHtml=/\.html?$/iu.test(file.path);
+    const isXhtml=/\.(?:xhtml|xht|xml)$/iu.test(file.path);
+    if(!isHtml&&!isXhtml)continue;
+    const source=decodeMarkup(file.path,file.code,'HTML');
+    if(isXhtml) {
+      // This conservative XML fallback does not equate XML and HTML parsing.
+      // A namespaced script may be executable; decline instead of silently
+      // accepting a resolved URL under an incompatible tree-construction model.
+      if(/<(?:[A-Za-z_][\w.-]*:)?script\b/iu.test(source))return true;
+      continue;
+    }
+    const root=/** @type {HtmlNode} */ (/** @type {unknown} */ (parse(source)));
+    let hasBase=false;
+    /** @type {string[]} */
+    const scriptUrls=[];
+    /** @param {HtmlNode} node @returns {void} */
+    function visit(node) {
+      if(node.tagName==='base'&&
+         node.attrs?.some(attr=>attr.name==='href'))hasBase=true;
+      if(node.tagName==='script') {
+        const src=node.attrs?.find(attr=>attr.name==='src')?.value;
+        if(src!==undefined)scriptUrls.push(src);
+      }
+      // A same-origin iframe may access its parent document and change the
+      // factory from a source not in this compilation graph.
+      if(['iframe','frame','object','embed'].includes(node.tagName??''))
+        hasBase=true;
+      for(const child of node.childNodes??[])visit(child);
+      if(node.content)visit(node.content);
+    }
+    visit(root);
+    if((hasBase&&scriptUrls.length)||hasBase)return true;
+    for(const url of scriptUrls) {
+      if(!url || /[?#%\\]/u.test(url) || url.includes('//') ||
+         /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(url) ||
+         url.startsWith('/'))return true;
+      const relative=path.posix.normalize(path.posix.join(
+        path.posix.dirname(file.path),url));
+      if(relative==='..'||relative.startsWith('../')||
+         !knownScripts.has(relative))return true;
+    }
+  }
+  return false;
+}
+
+module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup,hasPinnedLocalJavaScriptIntegrity,hasUnreviewedHtmlExecutableScripts};
