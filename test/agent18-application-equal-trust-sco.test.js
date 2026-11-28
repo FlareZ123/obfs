@@ -107,17 +107,17 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       body:JSON.stringify({method,args:[5,100]})
     });
     assert.equal(anonRpc.status,403);
-    for(const invalid of [
-      {method:'forged-extra-operation',args:[5,100]},
-      {method,args:[5,150001]},
-      {method,args:['5',100]}
+    for(const [invalid,expectedStatus] of [
+      [{method:'forged-extra-operation',args:[5,100]},400],
+      [{method,args:[5,150001]},403],
+      [{method,args:['5',100]},403]
     ]){
       const forged=await oldFetch(origin+'/obfs/rpc',{
         method:'POST',
         headers:{'content-type':'application/json','x-demo-token':token},
         body:JSON.stringify(invalid)
       });
-      assert.equal(forged.status,403,
+      assert.equal(forged.status,expectedStatus,
         'The server, not the copied public facade, must reject tampering');
     }
 
