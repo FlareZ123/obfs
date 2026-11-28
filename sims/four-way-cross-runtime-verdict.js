@@ -37,9 +37,10 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * experiment ran; this result separately evaluates the user's strict budget.
  *
  * The paired distribution estimate concerns medians. A single recorded
- * >2.5x compute pair vetoes a sampled strict-budget pass, irrespective of its
- * median bound. Cold HTTP/import duration is deliberately excluded from the
- * browser compute-only category; it is preserved in the original raw audit.
+ * >2.5x CPU pair vetoes a sampled strict-budget pass, irrespective of its
+ * median bound. Browser ScriptDuration covers V8 JavaScript execution for
+ * warmed work and cold ESM import/evaluation plus first execution; network
+ * wait and wall latency remain separate diagnostics.
  *
  * @param {NodeFourWay} node
  * @param {BrowserFourWay} browser
@@ -66,7 +67,7 @@ function evaluateFourWayCrossRuntime(node,browser){
     }
   }
   if(!Number.isFinite(browser.clockProbeMs)||browser.clockProbeMs<0.1){
-    throw new Error('No positive real-clock Chromium CPU witness');
+    throw new Error('No positive monotonic-clock Chromium control');
   }
   if(browser.verifiedFullOutputs!==true||
      browser.verifiedExternalCallbacks!==true||
