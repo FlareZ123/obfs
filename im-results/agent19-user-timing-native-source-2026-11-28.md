@@ -94,3 +94,38 @@ are investigated separately.
 
 Evidence class: reproducible native differential / prototype repair.
 Place in `im-results/` until broad acceptance is established.
+
+## Follow-up falsifiers and corrected negative evidence (2026-11-28 12:30Z)
+
+The *pre-ESM-provenance-collector* branch `agent19/user-timing-imported-receiver-red-20261128`
+at `e1e870781e0756c04a9d0465ba5de0fe3902de1e` passed
+[CI 46144261154](https://github.com/FlareZ123/obfs/actions/runs/46144261154)
+on Ubuntu and Windows: all **15/15** real Node ESM source-parity cases
+(three modes × four imported receiver/method/factory/detail shapes and
+three primitive-positive controls) already preserved behavior.
+Consequently the subsequent `collectImportedTimingAliases` proof is
+**additional explicit graph provenance/defense in depth, not a verified
+repair of an ESM runtime mismatch in those 15 fixtures**. Do not describe
+the successful precollector baseline as a red result.
+
+The standalone Wasm lowerer itself calls `observesFunctionSource(ast)`
+before lowering (`src/wasm-i32.js`, source guard within
+`lowerWasmI32Functions`). When the new User Timing detector returns
+true, its raw `functions` count is intentionally zero; the original
+counterfactual had incorrectly asserted the lowerer should still
+transform observed source. [CI 46144474817](https://github.com/FlareZ123/obfs/actions/runs/46144474817)
+exposes that **test-harness mistake** on both OS, not an actual unsafe
+compiler output. The corrected counterfactual lowers an otherwise
+identical *nonobserved* safe function and reattaches the native observer
+afterward, to exhibit what an unsafe bypass would disclose, then checks
+that the real compiler refuses the unsafe selection. The new top-level
+guard in `src/core.js` for seven selected backends duplicates existing
+lowerer checks by design; it is defense in depth, **not evidence that
+any of the seven backends previously emitted a source-unsafe program**
+after the AST detector correction.
+
+The only runtime-semantic false-safe demonstrated in this report remains
+the 21-case native `Performance.mark/measure` structured-clone detail
+error text described above. The initial bare mark and record-holder
+findings were classifier-only. Strong protection/2.5x/GO claims remain
+out of scope.
