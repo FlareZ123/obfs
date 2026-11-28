@@ -117,6 +117,7 @@ async function main(){
   let active=false;
   try{
     backend=await startServer({token});
+    const native=backend.native;
     const browserOrigin=await listen(proxy);
     active=true;
     const chromium=process.env.CHROMIUM_BIN??'google-chrome';
@@ -130,7 +131,7 @@ async function main(){
     const actual=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
     assert.equal(actual.length,CASES.length);
     const expected=await Promise.all(CASES.map(async ([seed,count])=>
-      wire(await backend.native(seed,count))));
+      wire(await native(seed,count))));
     for(let i=0;i<CASES.length;i++){
       assert.deepEqual(actual[i].protectedResult,expected[i]);
       assert.deepEqual(actual[i].ordinaryResult,expected[i]);
