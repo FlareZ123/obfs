@@ -3490,6 +3490,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'getEntries','getEntriesByType','getEntriesByName',
     'decodedBodySize','encodedBodySize','transferSize']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Bare WindowProxy globals can reach same-origin DOM and parser-created
+  // integrity checks without any explicit window/document or fetch token.
+  // Treat only actual identifier references as capability uses below.
+  const windowProxyRoots=new Set(['top','parent','opener','frameElement']);
   // Resource timing methods can be called through a mutable property name
   // on performance itself, or a simple alias of globalThis.performance.
   const performanceRoots=new Set(['performance']);
@@ -3876,8 +3880,21 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return argument?.type!=='ArrayExpression' ||
       mayWriteIntegrityMarkup(argument.elements);
   }
+  /**
+   * Parser-active HTML injection can install a link/script with an SRI byte
+   * pin. A non-static fragment must fail closed. Complete, proven benign
+   * markup is not a byte observer; a dangling tag is conservatively opaque.
+   * @param {AstNode|null|undefined} fragment
+   * @returns {boolean}
+   */
+  function mayParseIntegrityMarkup(fragment) {
+    if(!fragment||fragment.type==='SpreadElement')return true;
+    const markup=knownKey(fragment);
+    return markup===null || /integrity\s*=/iu.test(markup) ||
+      /<[^>]*$/u.test(markup);
+  }
   let observed=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent,propertyKey)=>{
     // HTMLScriptElement.integrity can pin another published script's exact
     // response bytes even when no static HTML asset declares SRI. The target
     // may be chosen dynamically, so conservatively retain the entire group.
@@ -3889,6 +3906,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         node.left.property.type==='Identifier'?node.left.property.name:null;
       if(key==='integrity' || key===null && node.left.computed &&
          (isScriptElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
+      // Parser-controlled DOM replacements can install modulepreload/SRI
+      // without a script.integrity assignment in the analyzed AST.
+      if(['innerHTML','outerHTML','srcdoc'].includes(key??'') &&
+         (node.operator!=='=' || mayParseIntegrityMarkup(node.right)))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3898,6 +3919,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
       const receiver=node.callee.object;
+      // Element.insertAdjacentHTML accepts parsed HTML as its second input.
+      // The receiver may be a Document-derived host object tracked by aliases
+      // not modeled in this source-observation preflight.
+      if(method==='insertAdjacentHTML' &&
+         mayParseIntegrityMarkup(node.arguments[1]))observed=true;
       const isDocument=receiver.type==='Identifier' && documentRoots.has(receiver.name) ||
         receiver.type==='MemberExpression' && receiver.object.type==='Identifier' &&
           globals.has(receiver.object.name) &&
@@ -4023,6 +4049,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    if(node.type==='Identifier' && windowProxyRoots.has(node.name) &&
+       !(parent?.type==='Property' && propertyKey==='key' && !parent.computed) &&
+       !(parent?.type==='MemberExpression' && propertyKey==='property' && !parent.computed) &&
+       !((parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
+         propertyKey==='key' && !parent.computed))observed=true;
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
