@@ -1399,9 +1399,10 @@ function hasWeakMapPrototypeExposure(ast) {
     return node?.type==='Literal'&&typeof node.value==='boolean'?node.value:null;
   }
   /**
-   * Resolve a simple static getter at access time, after later assignments
-   * to its class object may have changed captured/receiver-backed slots.
-   * Complex bodies use the conservative initializer-time fallback.
+   * Resolve a simple getter at access time, after later assignments may have
+   * changed its captured environment or its receiver-backed slots. Referenced
+   * local helpers and concise arrow functions are legal descriptor getters.
+   * Unproven bindings and complex bodies stay MaybeWeakMap, not false-safe.
    * @param {AstNode} getter
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierContainer} receiver
@@ -1409,21 +1410,35 @@ function hasWeakMapPrototypeExposure(ast) {
    * @returns {CarrierValue}
    */
   function evaluateCarrierGetterResult(getter,environment,receiver,fallback) {
-    if(activeCarrierGetterReads.has(getter))return carrierMaybe;
-    const body=getter.body;
-    if(body?.type!=='BlockStatement'||body.body?.length!==1||
-       body.body[0]?.type!=='ReturnStatement')return fallback;
-    const result=body.body[0].argument;
-    if(!result)return carrierOther;
-    // Avoid inferring purity or carrier identity from an opaque call,
-    // complex coercion, or user-defined effect in a getter expression.
-    if(!['Identifier','MemberExpression','NewExpression','Literal',
-         'ThisExpression'].includes(result.type))return fallback;
-    activeCarrierGetterReads.add(getter);
+    let functionNode=getter;
+    if(getter.type==='Identifier') {
+      if(localBindingCounts.get(getter.name)!==1||
+         reassignedLocalFunctions.has(getter.name))return carrierMaybe;
+      functionNode=localFunctionNodes.get(getter.name)??getter;
+    }
+    if(!functionTypes.has(functionNode.type)||functionNode.params?.length)
+      return carrierMaybe;
+    if(activeCarrierGetterReads.has(functionNode))return carrierMaybe;
+    const body=functionNode.body;
+    let result;
+    if(body?.type==='BlockStatement') {
+      if(body.body?.length!==1||body.body[0]?.type!=='ReturnStatement')
+        return carrierMaybe;
+      result=body.body[0].argument;
+      if(!result)return carrierOther;
+    } else result=body;
+    // Avoid proving safety from expressions with opaque calls, coercion,
+    // writes, or nested control flow. Fall back to uncertain carrier flow.
+    if(!result||!['Identifier','MemberExpression','NewExpression','Literal',
+                 'ThisExpression'].includes(result.type))return carrierMaybe;
+    if(functionNode.type==='ArrowFunctionExpression'&&
+       result.type==='MemberExpression'&&
+       result.object?.type==='ThisExpression')return carrierMaybe;
+    activeCarrierGetterReads.add(functionNode);
     try {
       return evaluateCarrierValue(result,environment,receiver);
     } finally {
-      activeCarrierGetterReads.delete(getter);
+      activeCarrierGetterReads.delete(functionNode);
     }
   }
   /**
