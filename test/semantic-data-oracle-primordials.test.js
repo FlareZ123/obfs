@@ -12,6 +12,12 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
     Symbol.for('registry'),shared,shared];
   graph.push(graph);
   const baseline=snapshotDataGraph(graph);
+  const nativeMap=new Map();
+  const originalObject=globalThis.Object;
+  const originalArray=globalThis.Array;
+  const originalTypeError=globalThis.TypeError;
+  const originalRangeError=globalThis.RangeError;
+  let globalsRebound=false;
   /** @type {{target:object,key:PropertyKey,original:PropertyDescriptor}[]} */
   const saved=[];
   let unexpectedGetterCalls=0;
@@ -51,6 +57,13 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
     patch(Array.prototype,'map',{value:()=>[],writable:true});
     patch(types,'isProxy',{value:()=>false,writable:true});
     patch(types,'isMap',{value:()=>false,writable:true});
+    // Replacement of the global constructor bindings must not change the
+    // previously captured ordinary-realm prototypes or refusal constructors.
+    Reflect.set(globalThis,'Object',function FakeObject(){});
+    Reflect.set(globalThis,'Array',function FakeArray(){});
+    Reflect.set(globalThis,'TypeError',function FakeTypeError(){});
+    Reflect.set(globalThis,'RangeError',function FakeRangeError(){});
+    globalsRebound=true;
 
     observed=snapshotDataGraph(graph);
     try{
@@ -59,9 +72,15 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
         getPrototypeOf(){unexpectedGetterCalls++;return Object.prototype;}
       }));
     }catch(error){proxyError=error;}
-    try{snapshotDataGraph(new Map());}
+    try{snapshotDataGraph(nativeMap);}
     catch(error){exoticError=error;}
   }finally{
+    if(globalsRebound){
+      Reflect.set(globalThis,'Object',originalObject);
+      Reflect.set(globalThis,'Array',originalArray);
+      Reflect.set(globalThis,'TypeError',originalTypeError);
+      Reflect.set(globalThis,'RangeError',originalRangeError);
+    }
     for(let i=saved.length-1;i>=0;i--){
       const item=saved[i];
       Object.defineProperty(item.target,item.key,item.original);
