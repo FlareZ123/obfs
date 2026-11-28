@@ -192,10 +192,27 @@ function hasWeakMapPrototypeExposure(ast) {
         memberKey(node)==='WeakMap'
     ));
   }
+  /**
+   * Reflect.construct(Target, args, newTarget?) creates a WeakMap when its
+   * target is the native constructor and the intrinsic operation has not
+   * been replaced. A replaced/aliased Reflect method is still a conservative
+   * possibly-WeakMap carrier: such syntax must not justify source rewriting.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isReflectConstructedWeakMap(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      memberKey(node.callee)==='construct' &&
+      isNamespace(node.callee.object,reflectNamespaces) &&
+      node.arguments.length>=2 &&
+      isWeakMapConstructor(node.arguments[0]));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isWeakMapInstance(node) {
     return Boolean(node&&(
       node.type==='NewExpression'&&isWeakMapConstructor(node.callee)||
+      isReflectConstructedWeakMap(node)||
       node.type==='Identifier'&&weakMapInstances.has(node.name)
     ));
   }
@@ -1443,6 +1460,7 @@ function hasWeakMapPrototypeExposure(ast) {
       return base.kind==='maybe'?carrierMaybe:carrierOther;
     }
     if(node.type==='CallExpression') {
+      if(isReflectConstructedWeakMap(node))return carrierWeakMap;
       // An imported binding or unresolved CommonJS module can return a
       // WeakMap even when its implementation is outside this compilation.
       // Preserve that uncertainty through calls and member-call receivers.
