@@ -81,13 +81,23 @@ function provenPrimitiveInitializer(value,depth=0){
   if(!value||depth>16)return false;
   switch(value.type){
     case 'Literal':
-      return value.regex===undefined;
+      // A BigInt may throw under unary +, mixed numeric operations, zero
+      // division or negative exponentiation. Non-finite numeric literals do
+      // not belong to this JSON-facing scalar proof either.
+      return value.regex===undefined&&typeof value.value!=='bigint'&&
+        (typeof value.value!=='number'||Number.isFinite(value.value));
     case 'TemplateLiteral':
       return value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
     case 'UnaryExpression':
       return ['+','-','!','~','void','typeof'].includes(value.operator)&&
         provenPrimitiveInitializer(value.argument,depth+1);
     case 'BinaryExpression':
+      // With primitive RHS, `in` and `instanceof` can throw during
+      // original browser module initialization. Do not relocate that failure
+      // to the trusted server's loading phase.
+      return !['in','instanceof'].includes(value.operator)&&
+        provenPrimitiveInitializer(value.left,depth+1)&&
+        provenPrimitiveInitializer(value.right,depth+1);
     case 'LogicalExpression':
       return provenPrimitiveInitializer(value.left,depth+1)&&
         provenPrimitiveInitializer(value.right,depth+1);
@@ -164,6 +174,14 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
         throw new TypeError(
           'Selected SCO private dependency has '+reason+': '+filename);
       }
+    }
+    // Parenthesized default expressions are FunctionExpression AST nodes,
+    // not FunctionDeclaration. A named expression can mutate its shared
+    // own fields through its internal self-binding.
+    if(statement.type==='ExportDefaultDeclaration'&&
+       declaration.type==='FunctionExpression'&&
+       declaration.id?.type==='Identifier'){
+      functions.add(declaration.id.name);
     }
     if((declaration.type==='FunctionDeclaration'||
         declaration.type==='ClassDeclaration')&&
