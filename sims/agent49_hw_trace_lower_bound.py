@@ -41,7 +41,7 @@ def trace_output_diversity_state_lower_bound(trace, max_depth: int = 12):
         bits.append((int(pair[0]), int(pair[1])))
     best_count = 1
     best_depth = 1
-    best_input_word = 0
+    best_input_word = bits[0][0]
     best_witnesses = {bits[0][1]: 0}
     for depth in range(1, min(max_depth, len(bits)) + 1):
         mask = (1 << depth) - 1
