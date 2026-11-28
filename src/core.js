@@ -643,6 +643,29 @@ function hasImportedDomStringSourceSink(files) {
       }
       return false;
     }
+    /** @type {Set<string>} */
+    const materializedElementArrays=new Set();
+    /**
+     * The elements of a native DOM collection remain native Elements after
+     * Array.from or spread materialization. This is a source-observer effect
+     * proof only: userland mutation of Array.from is deliberately not used to
+     * authorize any transformation.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function isMaterializedElementArray(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return materializedElementArrays.has(node.name);
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&
+         node.callee.object.name==='Array'&&
+         property(node.callee)==='from'&&
+         isImportedCollection(node.arguments[0]))return true;
+      if(node.type==='ArrayExpression')
+        return node.elements.some(item=>item?.type==='SpreadElement'&&
+          isImportedCollection(item.argument));
+      return false;
+    }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isImportedReceiver(node) {
       if(!node)return false;
@@ -658,10 +681,14 @@ function hasImportedDomStringSourceSink(files) {
         if(node.callee.type==='MemberExpression'&&
            ['item','namedItem'].includes(property(node.callee)??'')&&
            isImportedCollection(node.callee.object))return true;
+        if(node.callee.type==='MemberExpression'&&
+           property(node.callee)==='at'&&
+           isMaterializedElementArray(node.callee.object))return true;
       }
       if(node.type==='MemberExpression'){
         const key=property(node);
-        if(node.computed&&isImportedCollection(node.object)&&
+        if(node.computed&&
+           (isImportedCollection(node.object)||isMaterializedElementArray(node.object))&&
            (key===null||/^(0|[1-9][0-9]*)$/u.test(key)))return true;
         return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
           exported.get(origin)?.receivers.has(key));
@@ -746,6 +773,24 @@ function hasImportedDomStringSourceSink(files) {
     do {
       changed=false;
       walk(ast,node=>{
+        // Iterator and array-destructuring forms read native element values
+        // without writing a simple Identifier initializer.
+        if(node.type==='VariableDeclarator'&&
+           node.id.type==='ArrayPattern'&&
+           isImportedCollection(node.init)){
+          for(const element of node.id.elements??[]){
+            if(element?.type==='Identifier'&&!receiverNames.has(element.name)){
+              receiverNames.add(element.name);changed=true;
+            }
+          }
+        }
+        if(node.type==='ForOfStatement'&&isImportedCollection(node.right)){
+          const target=node.left.type==='VariableDeclaration'?
+            node.left.declarations?.[0]?.id:node.left;
+          if(target?.type==='Identifier'&&!receiverNames.has(target.name)){
+            receiverNames.add(target.name);changed=true;
+          }
+        }
         if(node.type==='FunctionDeclaration'&&node.id?.name){
           const name=node.id.name;
           if(returnsProved(node,isImportedReceiver)&&!factoryNames.has(name)){
@@ -767,6 +812,10 @@ function hasImportedDomStringSourceSink(files) {
           collectionFactoryNames.add(name);changed=true;
         }
         if(inspectForwarding(name,node.init))changed=true;
+        if(isMaterializedElementArray(node.init)&&
+           !materializedElementArrays.has(name)){
+          materializedElementArrays.add(name);changed=true;
+        }
         if(node.init.type==='Identifier'){
           // Forwarder functions are ordinary values: a const assignment
           // must carry the same return-argument provenance to its aliases.
