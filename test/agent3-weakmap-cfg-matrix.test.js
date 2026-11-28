@@ -240,7 +240,7 @@ const cases=[
  'carrier.instance'],
 ['extra-false-conditional-bypasses-default',
  'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false?(carrier={instance:new WeakMap()}):123)){}fill();',
- 'carrier.instance']
+ 'carrier.instance'],
 // Further native-confirmed callable/iterator/proxy parameter effects and corresponding negative-yield controls.
 ['host-call-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null);",'carrier.instance'],
 ['host-apply-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[]);",'carrier.instance'],
