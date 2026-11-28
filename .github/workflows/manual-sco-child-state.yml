@@ -1,4 +1,4 @@
-name: Manual SCO private child factory-state admission
+name: Manual SCO private child primitive-prototype admission
 
 on:
   workflow_dispatch:
@@ -21,15 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Run child-state and existing positive/refusal regressions
-        run: >-
-          node --test
-          test/sco-private-child-dynamic-factory-state.test.js
-          test/sco-private-child-lexical-state.test.js
-          test/sco-private-child-own-function-state-probe.test.js
-          test/sco-private-child-readonly-literal.test.js
-          test/sco-private-child-readonly-fuzz.test.js
-          test/sco-private-child-transitive-identity.test.js
+      - name: Run implicit prototype falsifier
+        run: node --test test/sco-private-child-primitive-prototype-read.test.js
       - name: Strict SCO oracle JSDoc
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict project JSDoc
