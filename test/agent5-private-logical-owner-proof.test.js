@@ -26,7 +26,7 @@ const positives=[
   ['nullish optional read',
     'const owner={privateCount:17};const alias=owner??null;module.exports=alias?.privateCount;'],
   ['opaque right-hand branch never executes',
-    'const owner={privateCount:17};const alias=owner??(function(){throw Error("never");})();'+
+    'const owner={privateCount:17};const alias=owner??JSON.parse("invalid");'+
     'module.exports=alias.privateCount;']
 ];
 
