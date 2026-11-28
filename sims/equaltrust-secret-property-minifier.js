@@ -40,7 +40,7 @@ function minifyWithPrivatePropertyCache(files,options) {
     const result=esbuild.transformSync(file.code,{
       loader:'js',format:'esm',platform:'neutral',target:'es2022',
       minify:true,sourcemap:false,
-      mangleProps:/^(secretField|otherField|sessionMark)$/u,
+      mangleProps:/^(secretField|otherField|sessionMark)$/,
       mangleCache:cache
     });
     return {...file,code:result.code};
