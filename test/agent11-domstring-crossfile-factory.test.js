@@ -25,7 +25,7 @@ const fixtures=[
  * Execute a real Node ESM graph with a host-provided DOMString sink.
  * The shim models only the native ToString conversion edge; browser-specific
  * DOM behavior is tested separately.
- * @param {ReadonlyArray<ModuleFile>} files
+ * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
  * @returns {Promise<{result:number,safe:number,source:string}>}
  */
 async function execute(files){
