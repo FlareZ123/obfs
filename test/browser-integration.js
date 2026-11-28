@@ -27,6 +27,12 @@ async function main(){
   // Node is the relocated server realm; Chromium below is the client realm.
   const relocatedServerPrimitiveResult=''.toString().length;
   assert.equal(relocatedServerPrimitiveResult,0);
+  const relocatedServerMetadataResult=(()=>{
+    const fn=()=>1;
+    const name=fn.name;
+    return name.toString().length;
+  })();
+  assert.equal(relocatedServerMetadataResult,2);
   const sources=[
     {path:'state.mjs',code:'export const state={privateValue:41};'},
     {path:'entry.mjs',code:'import {state} from "./state.mjs";document.getElementById("answer").textContent=state.privateValue;'}
@@ -295,6 +301,12 @@ async function main(){
     'const transformedClient="".toString().length;'+
     'document.getElementById("answer").textContent=['+
     'originalClient,transformedClient,'+relocatedServerPrimitiveResult+'].join(",");</script></body></html>');
+  content.set('/primitive-metadata-realm.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>String.prototype.toString=function(){return "browser"};'+
+    'const originalClient=(()=>{const fn=()=>1;const name=fn.name;return name.toString().length;})();'+
+    'const transformedClient=(()=>{const fn=()=>1;const name=fn.name;return name.toString().length;})();'+
+    'document.getElementById("answer").textContent=['+
+    'originalClient,transformedClient,'+relocatedServerMetadataResult+'].join(",");</script></body></html>');
   content.set('/parameter-shorthand.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-shorthand-entry.mjs"></script></body></html>');
   content.set('/parameter-owner.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-owner.mjs"></script></body></html>');
   content.set('/parameter-refusal.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-refusal.mjs"></script></body></html>');
@@ -354,6 +366,7 @@ async function main(){
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/primitive-realm.html','7,7,0'],
+      ['/primitive-metadata-realm.html','7,7,2'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
     ]){
       const html=await dumpDom(chromium,base+path);
