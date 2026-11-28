@@ -82,7 +82,9 @@ const cases=[
 ['post-try-shared-alias','const carrier={instance:{}}; const alias=carrier; try{}catch{alias.instance={};} alias.instance=new WeakMap();','carrier.instance'],
 ['post-switch-shared-alias','const carrier={instance:{}}; const alias=carrier; switch(0){case 1:alias.instance={};break;} alias.instance=new WeakMap();','carrier.instance'],
 ['throw-before-unreachable-write','const carrier={instance:new WeakMap()}; try{throw 1;carrier.instance={};}catch{}','carrier.instance'],
-['throw-after-weakmap-before-unreachable-write','const carrier={instance:{}};try{carrier.instance=new WeakMap();throw 1;carrier.instance={};}catch{}','carrier.instance']
+['throw-after-weakmap-before-unreachable-write','const carrier={instance:{}};try{carrier.instance=new WeakMap();throw 1;carrier.instance={};}catch{}','carrier.instance'],
+['if-disjunctive-may-alias','const root={instance:{}}; const left=root; let right=root; if(false) right={instance:{}}; left.instance=new WeakMap();','right.instance'],
+['if-nested-disjunctive-alias','const root={child:{instance:{}}};const left=root.child;let right=root.child;if(false)right={instance:{}};left.instance=new WeakMap();','right.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
