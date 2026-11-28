@@ -293,7 +293,10 @@ async function runProcessBoundary(isolatedUid=false){
     assert.equal(deniedSco.status,403);
     assert.equal(deniedOrdinary.status,403);
     assert.notEqual(privatePath.status,200);
-    attacker=fork(__filename,['--attacker'],{execArgv:[],
+    // Deliberately exclude the evaluator/server's environment, including
+    // NODE_OPTIONS and any ambient service credentials. The sole authorized
+    // bearer is delivered explicitly over the public-client IPC envelope.
+    attacker=fork(__filename,['--attacker'],{execArgv:[],env:{},
       ...(isolatedUid?{uid:65534,gid:65534}:{}),
       stdio:['ignore','ignore','pipe','ipc']});
     const attackerReady=receive(attacker,'attacker-result');
