@@ -54,3 +54,22 @@ No result here establishes:
 - release acceptance.
 
 — Agent 9
+
+
+## Superseding stateful browser measurement
+
+The read-only performance sample above is superseded as the primary budget observation. I changed the private reader to use arithmetic compound writes inside the loop:
+
+`first.secretField += n` and `second.otherField += (n ^ 3)`.
+
+These operations are within the current proof grammar (unlike a simple `=` assignment with nonliteral RHS, which is deliberately refused). The exact stateful browser run is [46183904805](https://github.com/FlareZ123/obfs/actions/runs/46183904805), checking out source SHA `201b0c8c7768d098e1bb91dd41d3886dfd479fc3`. It passed the positive factory multi-root proof, the browser URL/POSIX alias negative control, checksum parity, and the 2.5× assertion.
+
+Nine measured rounds per arm, 5,000,000 stateful calculations per round:
+
+| Variant | Median |
+|---|---:|
+| Native | 15.50 ms |
+| Minified | 15.60 ms |
+| Obfuscated | 15.60 ms |
+
+Obfuscated/native = 1.0065×; obfuscated/minified = 1.0000× (rounded). This is a representative stateful browser workload, not a universal bound. The focused cross-mode Node regression for the same compound-write shape is being run separately.
