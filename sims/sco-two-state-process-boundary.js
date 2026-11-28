@@ -277,7 +277,8 @@ async function runAttacker(){
       reply({kind:'attacker-result',result:{sco,ordinary,followup,
         followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
         ordinaryPublicBytes:Buffer.byteLength(ordinarySource),
-        attackerUid:process.getuid?.()??-1,signalPermissionDenied,
+        attackerUid:process.getuid?.()??-1,
+        attackerProcessPid:process.pid,signalPermissionDenied,
         wireCalls:wires.sco.length,wireMatched:true}});
     }catch(error){
       reply({kind:'attacker-error',message:String(error),
@@ -305,7 +306,11 @@ async function runAttacker(){
  */
 function receive(child,expected,timeoutMs=45000){
   return new Promise((resolve,reject)=>{
-    const timer=setTimeout(()=>{cleanup();reject(new Error(expected+' child timeout'));},timeoutMs);
+    let stderr='';
+    /** @param {Buffer|string} chunk */
+    const onStderr=chunk=>{stderr=(stderr+String(chunk)).slice(-1800);};
+    child.stderr?.on('data',onStderr);
+    const timer=setTimeout(()=>{cleanup();reject(new Error(expected+' child timeout: '+stderr));},timeoutMs);
     /** @param {unknown} value */
     function onMessage(value){
       const message=/** @type {ProcessMessage|null} */(value);
@@ -317,9 +322,10 @@ function receive(child,expected,timeoutMs=45000){
     /** @param {Error} error */
     function onError(error){cleanup();reject(error);}
     /** @param {number|null} code */
-    function onExit(code){cleanup();reject(new Error('Child exited before '+expected+': '+code));}
+    function onExit(code){cleanup();reject(new Error('Child exited before '+expected+': '+code+' '+stderr));}
     function cleanup(){
       clearTimeout(timer);
+      child.stderr?.off('data',onStderr);
       child.off('message',onMessage);
       child.off('error',onError);
       child.off('exit',onExit);
@@ -419,7 +425,7 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
       attacker.stdin.write(JSON.stringify(invocation)+'\n');
     }else attacker.send(invocation);
     const attack=await attackerReady;
-    const attackerPid=attacker.pid||-1;
+    const attackerPid=attack.result.attackerProcessPid;
     // End the adversarial process before obtaining evaluator-only truth.
     const activeAttacker=attacker;
     /** @type {Promise<void>} */
