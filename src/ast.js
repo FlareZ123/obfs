@@ -3502,6 +3502,12 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // A detached writer method can be invoked with Function#call/apply or
   // Reflect.apply. Track simple source-visible aliases conservatively.
   const documentWriterRoots=new Set();
+  // Inserting SRI-marked HTML through a detached Element method or its
+  // bound alias has the same byte-observation effect as a direct DOM call.
+  /** @type {Set<string>} */
+  const htmlParserWriterRoots=new Set();
+  /** @type {Set<string>} */
+  const domElementRoots=new Set();
   // Track DOM script-element creation and aliases for opaque integrity keys.
   const scriptElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
@@ -3551,6 +3557,58 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return method==='write'||method==='writeln'||
       value.computed&&method===null;
   }
+  /**
+   * Follow aliases of an actual Element insertion method and common bound
+   * aliases. The early fixed point uses only literal keys; a second pass
+   * can use verified immutable selector bindings after they are collected.
+   *
+   * @param {AstNode|null|undefined} value
+   * @param {boolean} [verified]
+   * @returns {boolean}
+   */
+  function isHtmlParserWriterReference(value,verified=false) {
+    if(value?.type==='Identifier')return htmlParserWriterRoots.has(value.name);
+    if(value?.type==='MemberExpression') {
+      const key=value.computed ? (verified ? knownKey(value.property) :
+        staticString(value.property)) :
+        value.property.type==='Identifier'?value.property.name:null;
+      return key==='insertAdjacentHTML';
+    }
+    if(value?.type==='CallExpression' &&
+       value.callee.type==='MemberExpression' && !value.optional) {
+      const method=value.callee.computed ?
+        (verified ? knownKey(value.callee.property) :
+          staticString(value.callee.property)) :
+        value.callee.property.type==='Identifier'?
+          value.callee.property.name:null;
+      return method==='bind' &&
+        isHtmlParserWriterReference(value.callee.object,verified);
+    }
+    return false;
+  }
+  /**
+   * Static provenance for DOM element roots, including document.head/body,
+   * elements returned by DOM queries, and simple element aliases. It is
+   * deliberately one-way conservative: an opaque member may be an Element.
+   * @param {AstNode|null|undefined} value
+   * @returns {boolean}
+   */
+  function mayBeDomElement(value) {
+    if(!value)return false;
+    if(value.type==='Identifier')
+      return documentRoots.has(value.name)||domElementRoots.has(value.name);
+    if(value.type==='MemberExpression')
+      return mayBeDomElement(value.object);
+    if(value.type==='CallExpression' && value.callee.type==='MemberExpression') {
+      const method=value.callee.computed?staticString(value.callee.property):
+        value.callee.property.type==='Identifier'?
+          value.callee.property.name:null;
+      return mayBeDomElement(value.callee.object) &&
+        (method===null || ['getElementById','querySelector','createElement',
+          'createElementNS','getElementsByTagName'].includes(method));
+    }
+    return false;
+  }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function createsDomScript(value) {
     if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
@@ -3577,7 +3635,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,scriptElementRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,htmlParserWriterRoots,domElementRoots,scriptElementRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3587,6 +3645,16 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(binding?.type==='Identifier'&&isDocumentWriterReference(initial)&&
          !documentWriterRoots.has(binding.name)){
         documentWriterRoots.add(binding.name);
+        changed=true;
+      }
+      if(binding?.type==='Identifier'&&isHtmlParserWriterReference(initial)&&
+         !htmlParserWriterRoots.has(binding.name)){
+        htmlParserWriterRoots.add(binding.name);
+        changed=true;
+      }
+      if(binding?.type==='Identifier'&&mayBeDomElement(initial)&&
+         !domElementRoots.has(binding.name)){
+        domElementRoots.add(binding.name);
         changed=true;
       }
       // The Node process builtin is available from a CJS require and from
