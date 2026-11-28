@@ -86,7 +86,11 @@ const cases=[
 ['if-disjunctive-may-alias','const root={instance:{}}; const left=root; let right=root; if(false) right={instance:{}}; left.instance=new WeakMap();','right.instance'],
 ['if-nested-disjunctive-alias','const root={child:{instance:{}}};const left=root.child;let right=root.child;if(false)right={instance:{}};left.instance=new WeakMap();','right.instance'],
 ['if-disjunctive-nonalias-weakmap','const root={instance:{}};const left=root;let right=root;if(true)right={instance:new WeakMap()};left.instance={};','right.instance'],
-['if-nested-nonalias-weakmap','const root={child:{instance:{}}};const left=root.child;let right=root.child;if(true)right={instance:new WeakMap()};left.instance={};','right.instance']
+['if-nested-nonalias-weakmap','const root={child:{instance:{}}};const left=root.child;let right=root.child;if(true)right={instance:new WeakMap()};left.instance={};','right.instance'],
+['reflect-construct-weakmap','const carrier={instance:Reflect.construct(WeakMap,[])};','carrier.instance'],
+['computed-reflect-construct-weakmap','const carrier={instance:Reflect["construct"](WeakMap,[])};','carrier.instance'],
+['alias-reflect-construct-weakmap','const R=Reflect; const carrier={instance:R.construct(WeakMap,[])};','carrier.instance'],
+['global-reflect-construct-weakmap','const carrier={instance:globalThis.Reflect.construct(globalThis.WeakMap,[])};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
