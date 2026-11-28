@@ -661,10 +661,25 @@ function hasWeakMapPrototypeExposure(ast) {
   // Keep this precision proof deliberately scoped to module bindings.
   /** @type {Map<string,number>} */
   const identifierOccurrences=new Map();
+  /** @type {Set<string>} */
+  const callableEscapedBeyondPrivateCalls=new Set();
   let hasDirectEval=false;
-  walk(ast,node=>{
-    if(node.type==='Identifier')
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='Identifier') {
       identifierOccurrences.set(node.name,(identifierOccurrences.get(node.name)??0)+1);
+      const isDeclaration=key==='id'&&(
+        parent?.type==='VariableDeclarator'||
+        parent?.type==='FunctionDeclaration'||
+        parent?.type==='FunctionExpression');
+      const grandparent=ancestors.at(-2);
+      const isPrivateProtocolUse=parent?.type==='MemberExpression'&&
+        key==='object'&&grandparent?.type==='CallExpression'&&
+        grandparent.callee===parent&&
+        ['call','apply','bind'].includes(memberKey(parent)??'');
+      const isPrivateDirectCall=parent?.type==='CallExpression'&&key==='callee';
+      if(!isDeclaration&&!isPrivateProtocolUse&&!isPrivateDirectCall)
+        callableEscapedBeyondPrivateCalls.add(node.name);
+    }
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
   });
@@ -2060,10 +2075,10 @@ function hasWeakMapPrototypeExposure(ast) {
           // unsound when source writes may override that protocol.
           if(functionProtocolOverrideTargets.has(owner)||
              globalFunctionProtocolOverride||
-             // One declaration and one protocol use prove the private
-             // function object has not escaped through another name or field.
-             // Multi-use callables need a stronger whole-use escape proof.
-             identifierOccurrences.get(owner)!==2)exposed=true;
+             // Multiple protected calls are permitted, but aliases, stores,
+             // mutations and other references may replace inherited methods.
+             callableEscapedBeyondPrivateCalls.has(owner)||
+             exportedFunctionNames.has(owner))exposed=true;
           /** @type {AstNode[]} */
           let argumentsToReplay=[];
           if(method==='call'||method==='bind')
