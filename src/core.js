@@ -126,8 +126,9 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     for(const statement of producerAst.body??[]) {
       if(statement.type==='ExportDefaultDeclaration') {
         const declaration=statement.declaration;
-        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
-            'ClassDeclaration','ClassExpression'].includes(declaration?.type)) {
+        if(declaration&&['FunctionDeclaration','FunctionExpression',
+            'ArrowFunctionExpression','ClassDeclaration','ClassExpression'].
+              includes(declaration.type)) {
           const origins=callableExportOrigins.get('default')??new Set();
           origins.add(producerPath);
           callableExportOrigins.set('default',origins);
