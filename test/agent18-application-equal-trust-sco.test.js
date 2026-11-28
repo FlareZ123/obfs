@@ -244,10 +244,13 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
     })+'\n');
   }finally{
     globalThis.fetch=oldFetch;
-    if(oldWindow===undefined)delete globalThis.window;
+    if(oldWindow===undefined)Reflect.deleteProperty(globalThis,'window');
     else globalThis.window=oldWindow;
-    if(service)await new Promise((resolve,reject)=>
-      service.server.close(error=>error?reject(error):resolve()));
+    if(service){
+      const server=service.server;
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
     if(temp)await fs.rm(temp,{recursive:true,force:true});
   }
 });
