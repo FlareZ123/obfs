@@ -4,7 +4,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createScoHandler}=require('../src/sco');
-const {partitionScoSelectedAsyncExports,createScoSelectedHandler}=require('../src');
+const {partitionScoSelectedAsyncExports,createScoSelectedHandler,
+  partitionScoAsyncGraph,createScoGraphHandler}=require('../src');
 const {createScoKeyedIsolation}=require('../src/rpc-keyed-isolation');
 
 /** @returns {{promise:Promise<void>,resolve:()=>void}} */
@@ -368,4 +369,49 @@ test('SCO pre-admission true cannot outlive a revocation while another RPC holds
     await Promise.allSettled(queued?[first,queued]:[first]);
     await close(server);
   }
+});
+
+test('SCO graph handler retains hidden inherited deny-only admission policy',async()=>{
+  const graph=partitionScoAsyncGraph([{
+    path:'api.mjs',
+    code:'export async function protectedCalc(x){return x+9;}'
+  }],{seed:'sco-pre-admission-graph-entrypoint',exposedPaths:['api.mjs']});
+  let getterReads=0,earlyCalls=0,finalChecks=0,executions=0;
+  const inherited=Object.create(null);
+  Object.defineProperty(inherited,'admitRpcEarly',{
+    enumerable:false,
+    get(){
+      getterReads++;
+      return (/** @type {import('node:http').IncomingMessage} */request)=>{
+        earlyCalls++;
+        return request.headers['x-fixture-credential']==='verified';
+      };
+    }
+  });
+  /** @type {Omit<import('../src/sco').ScoOptions,'publicPaths'|'remoteMethods'>} */
+  const options=Object.create(inherited);
+  options.authorizeRpc=()=>{finalChecks++;return true;};
+  options.runRpcIsolated=createScoKeyedIsolation(()=>'verified');
+  const handler=createScoGraphHandler(graph,{
+    'api.mjs':{
+      protectedCalc:async(/** @type {number} */x)=>{executions++;return x+9;}
+    }
+  },options);
+  assert.equal(getterReads,1);
+  const {server,url}=await start(handler);
+  try {
+    const body=JSON.stringify({
+      method:graph.partitions['api.mjs'].methodNames.protectedCalc,args:[2]
+    });
+    assert.deepEqual(await rpc(url,'unauthenticated',body),{
+      status:403,body:{ok:false,error:'Forbidden'}
+    });
+    assert.deepEqual(await rpc(url,'verified',body),{
+      status:200,body:{ok:true,value:11}
+    });
+    assert.equal(getterReads,1);
+    assert.equal(earlyCalls,2);
+    assert.equal(finalChecks,1);
+    assert.equal(executions,1);
+  }finally{await close(server);}
 });
