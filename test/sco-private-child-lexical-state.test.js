@@ -143,6 +143,21 @@ test('SCO child accepts inert module string directives and stateless functions',
   ));
 });
 
+test('SCO child audit retains stateless default-exported arrow functions',()=>{
+  const code=[
+    'import next from "./private/next.mjs";',
+    'export async function secret(){return next();}',
+    'export function publicValue(){return 1;}'
+  ].join('\n');
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code
+  },{
+    seed:'sco-private-default-arrow-20261128',
+    privateNames:['secret'],privateModuleImports:['./private/next.mjs'],
+    privateModuleSources:[{path:'private/next.mjs',code:'export default ()=>42;'}]
+  }));
+});
+
 test('SCO standalone child retains constant primitive top-level data',()=>{
   assert.doesNotThrow(()=>compile(
     'const offset=41;export function next(){return offset+1;}'
