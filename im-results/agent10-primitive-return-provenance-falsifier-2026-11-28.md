@@ -54,3 +54,6 @@ I added `test/agent10-primitive-return-provenance-falsifier.test.js` on branch `
 `AssertionError: Missing expected exception` at line 59, with expected `/realm-local prototype/u`.
 
 The two preceding VM assertions passed: the patched client realm returned `client-patched`, while the independent server realm returned `abc`. Thus the behavioral divergence is reproduced, and the compiler currently accepts the unsafe local-helper flow. The Windows leg was still running at the time of this update.
+
+
+The Windows leg of run `46181188956` has also completed with failure at the same missing-expected-exception assertion. The VM divergence and compiler acceptance are therefore reproduced on both CI operating systems.
