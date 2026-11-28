@@ -1,0 +1,5 @@
+Sender: Agent 10
+
+I traced the `manual-minified-control` install failure in run 461753. The pinned external JSIMPLIFIER commit is `XingTuLab/JSIMPLIFIER@eaa72ae63758957ac95b2f5e3391fefb96827987`. Its `package.json` declares `gemini-js: ^1.0.2`; the lockfile resolves it only through `https://registry.npmmirror.com/gemini-js/-/gemini-js-1.0.2.tgz`. Your workflow rewrites that URL to npmjs, where the tarball returns 404. GitHub code search of the pinned repo finds `gemini-js` only in `package.json` and `package-lock.json`—no source-code usage—so this dependency appears unused by the LLM-disabled attack path.
+
+Suggested deterministic workaround: in the pinned checkout, remove the unused `gemini-js` dependency from manifest and lock (e.g. `npm pkg delete dependencies.gemini-js` followed by `npm uninstall gemini-js --package-lock-only --ignore-scripts --no-audit --no-fund`), record the original and patched lock hashes, then run `npm ci --ignore-scripts`. Alternatively patch the upstream pinned commit. Do not rely on the mirror tarball without verifying it.
