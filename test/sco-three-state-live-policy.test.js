@@ -104,6 +104,7 @@ async function startSco(secret,index,directory){
   if(typeof original!=='function')throw new Error('Missing bound private step');
   let state=0;
   /** @param {number} symbol @returns {Promise<unknown>} */
+  /** @param {number} symbol @returns {Promise<unknown>} */
   remoteMethods[method]=async symbol=>{
     const value=await original(symbol);
     state=secret.next[state][symbol];
@@ -246,7 +247,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
       const sco=await startSco(secret,modelIndex,directory);
       try{
         const attack=runAttacker(sco.origin,sco.method,policyPath);
-        const finalState=verifyAttack(attack,secret,modelIndex,result.classes,sco.getState);
+        const finalState=verifyAttack(attack,secret,modelIndex,classes,sco.getState);
         receipts.push({model:modelIndex,transport:'generated-sco-http',
           queries:attack.queries,terminalClass:attack.terminalClass,finalState});
       }finally{await close(sco.server);}
@@ -254,7 +255,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
       const ordinary=await startOrdinary(secret);
       try{
         const attack=runAttacker(ordinary.origin,ordinary.method,policyPath);
-        const finalState=verifyAttack(attack,secret,modelIndex,result.classes,ordinary.getState);
+        const finalState=verifyAttack(attack,secret,modelIndex,classes,ordinary.getState);
         receipts.push({model:modelIndex,transport:'matched-ordinary-rpc',
           queries:attack.queries,terminalClass:attack.terminalClass,finalState});
       }finally{await close(ordinary.server);}
