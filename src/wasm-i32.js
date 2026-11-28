@@ -7,7 +7,7 @@ const {parse,walk,applyEdits,observesFunctionSource}=require('./ast');
 /** @typedef {{code:string,functions:number,instructions:number,wasmBytes:number,declined:number}} WasmI32Result */
 
 /** @type {Readonly<Record<string,number>>} */
-const OPS=Object.freeze({'&':0x71,'|':0x72,'^':0x73,'<<':0x74,'>>':0x75,'>>>':0x76});
+const OPS=Object.freeze({'+':0x6a,'-':0x6b,'&':0x71,'|':0x72,'^':0x73,'<<':0x74,'>>':0x75,'>>>':0x76});
 
 /** Encode an unsigned LEB128 integer. @param {number} value @returns {number[]} */
 function uleb(value) {
@@ -50,9 +50,10 @@ function utf8(name) {
  * @param {AstNode} node
  * @param {readonly string[]} parameters
  * @param {number} depth
+ * @param {boolean} toInt32 Whether the enclosing operation consumes only the low 32 bits.
  * @returns {boolean}
  */
-function accepted(node,parameters,depth=0) {
+function accepted(node,parameters,depth=0,toInt32=false) {
   if(depth>16)return false;
   if(node.type==='Identifier')return parameters.includes(node.name);
   if(node.type==='Literal')return typeof node.value==='number' &&
@@ -60,12 +61,12 @@ function accepted(node,parameters,depth=0) {
   if(node.type==='ConditionalExpression') {
     // All three operands are pure primitive-i32 expressions. Evaluating both
     // arms eagerly with Wasm select cannot trigger source-level side effects.
-    return accepted(node.test,parameters,depth+1) &&
-      accepted(node.consequent,parameters,depth+1) &&
-      accepted(node.alternate,parameters,depth+1);
+    return accepted(node.test,parameters,depth+1,false) &&
+      accepted(node.consequent,parameters,depth+1,toInt32) &&
+      accepted(node.alternate,parameters,depth+1,toInt32);
   }
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='~') {
-    return accepted(node.argument,parameters,depth+1);
+    return accepted(node.argument,parameters,depth+1,true);
   }
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='-'&&
       node.argument.type==='Literal'&&typeof node.argument.value==='number'&&
@@ -76,8 +77,15 @@ function accepted(node,parameters,depth=0) {
     if(Object.is(-node.argument.value,-0))return false;
     return -node.argument.value>=-2147483648&&-node.argument.value<=2147483647;
   }
-  return node.type==='BinaryExpression'&&Object.hasOwn(OPS,node.operator)&&
-    accepted(node.left,parameters,depth+1)&&accepted(node.right,parameters,depth+1);
+  if(node.type!=='BinaryExpression'||!Object.hasOwn(OPS,node.operator))return false;
+  // Arithmetic Number addition/subtraction is safely reduced modulo 2^32
+  // only when its result is consumed by a bitwise ToInt32/ToUint32 boundary.
+  // This grammar has no multiplication and depth <=16; even a full tree of
+  // signed/unsigned 32-bit leaves sums to <2^48, exactly representable in JS.
+  // A truthiness test or a direct return must NOT see the wrapped value.
+  if((node.operator==='+'||node.operator==='-')&&!toInt32)return false;
+  return accepted(node.left,parameters,depth+1,true)&&
+    accepted(node.right,parameters,depth+1,true);
 }
 
 /**
