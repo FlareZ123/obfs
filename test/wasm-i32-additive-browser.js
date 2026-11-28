@@ -5,6 +5,7 @@ const http=require('node:http');
 const {accessSync,constants}=require('node:fs');
 const {delimiter,isAbsolute,join}=require('node:path');
 const puppeteer=require('puppeteer-core');
+const {transformSync}=require('esbuild');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
@@ -51,6 +52,9 @@ async function main(){
   assert.equal(subtractEmitted.functions,1);
   const subtractRecovered=recoverPublicWasmExpression(subtractEmitted.code,['a','b']);
   const subtractCloned='export function f(a,b){return '+subtractRecovered.expression+';}';
+  const subtractMinified=transformSync(subtractSource,{
+    format:'esm',target:'es2022',minify:true,legalComments:'none'
+  }).code;
   const script=[
     'import {f as native} from "/native.mjs";',
     'import {f as wasm} from "/wasm.mjs";',
@@ -58,6 +62,7 @@ async function main(){
     'import {f as nativeSub} from "/native-sub.mjs";',
     'import {f as wasmSub} from "/wasm-sub.mjs";',
     'import {f as reconstructedSub} from "/clone-sub.mjs";',
+    'import {f as minifiedSub} from "/minified-sub.mjs";',
     'let checked=0,checkedSub=0;' ,
     'try {',
     ' for(let i=0;i<2000;i++){',
@@ -70,7 +75,8 @@ async function main(){
     '  checked++;',
     '  const expectedSub=nativeSub(a,b);',
     '  if(!Object.is(wasmSub(a,b),expectedSub)||',
-    '     !Object.is(reconstructedSub(a,b),expectedSub))',
+    '     !Object.is(reconstructedSub(a,b),expectedSub)||',
+    '     !Object.is(minifiedSub(a,b),expectedSub))',
     '    throw Error("subtraction native/Wasm/clone mismatch "+i);',
     '  checkedSub++;',
     ' }',
@@ -88,24 +94,29 @@ async function main(){
     'const work={native:makeWork(native),wasm:makeWork(wasm),',
     ' reconstructed:makeWork(reconstructed)};',
     'const workSub={native:makeWork(nativeSub),wasm:makeWork(wasmSub),',
-    ' reconstructed:makeWork(reconstructedSub)};',
+    ' reconstructed:makeWork(reconstructedSub),minified:makeWork(minifiedSub)};' ,
     'const names=["native","wasm","reconstructed"];',
+    'const namesSub=["native","wasm","reconstructed","minified"];',
     'const expected=work.native(120000);',
     'for(let warm=0;warm<6;warm++)for(const name of names){',
     ' if(work[name](120000)!==expected)throw Error("warm checksum mismatch "+name);',
     '}',
     'const expectedSubWarm=workSub.native(120000);',
-    'for(let warm=0;warm<6;warm++)for(const name of names){',
-    ' if(workSub[name](120000)!==expectedSubWarm)',
+    'for(let warm=0;warm<6;warm++)for(const name of namesSub){',
+    ' if(workSub[name](120000)!==expectedSubWarm)'
     '  throw Error("subtraction warm checksum mismatch "+name);',
     '}',
     'const benchmarkExpected=work.native(180000);',
     'const benchmarkExpectedSub=workSub.native(180000);',
-    'const measuresSub={native:[],wasm:[],reconstructed:[]};',
+    'const measuresSub={native:[],wasm:[],reconstructed:[],minified:[]};'
     'const measures={native:[],wasm:[],reconstructed:[]};',
     'const orders=[["native","wasm","reconstructed"],',
     ' ["reconstructed","wasm","native"],',
     ' ["wasm","native","reconstructed"]];',
+    'const ordersSub=[["native","wasm","reconstructed","minified"],',
+    ' ["minified","reconstructed","wasm","native"],',
+    ' ["wasm","minified","native","reconstructed"],',
+    ' ["reconstructed","native","minified","wasm"]];'
     'for(let trial=0;trial<13;trial++){',
     ' for(const name of orders[trial%3]){',
     '  const start=performance.now();',
@@ -114,7 +125,9 @@ async function main(){
     '  if(result!==benchmarkExpected||!Number.isFinite(time)||time<=0)',
     '    throw Error("browser timing invalid "+name);',
     '  measures[name].push(time);',
-    '  const subStart=performance.now();',
+    ' }',
+    ' for(const name of ordersSub[trial%4]){',
+    '  const subStart=performance.now();'
     '  const subResult=workSub[name](180000);',
     '  const subTime=performance.now()-subStart;',
     '  if(subResult!==benchmarkExpectedSub||!Number.isFinite(subTime)||subTime<=0)',
@@ -144,7 +157,8 @@ async function main(){
     ['/clone.mjs',{type:'text/javascript; charset=utf-8',body:cloned}],
     ['/native-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractSource}],
     ['/wasm-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractEmitted.code}],
-    ['/clone-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractCloned}]
+    ['/clone-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractCloned}],
+    ['/minified-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractMinified}]
   ]);
   const server=http.createServer((request,response)=>{
     const item=assets.get(request.url??'');
@@ -185,7 +199,7 @@ async function main(){
     assert.ok(observed.startsWith('pass:'),observed);
     const details=/** @type {{
       checked:number,checkedSub:number,browserRatio:number,subtractionRatio:number,
-      subtractMeasurements:{native:number[],wasm:number[],reconstructed:number[]},
+      subtractMeasurements:{native:number[],wasm:number[],reconstructed:number[],minified:number[]},
       measurements:{native:number[],wasm:number[],reconstructed:number[]},
       note:string
     }} */(JSON.parse(observed.slice(5)));
@@ -203,9 +217,13 @@ async function main(){
       hotRatio:details.browserRatio,measurements:details.measurements,
       subtractionRatio:details.subtractionRatio,
       subtractionBytes:subtractEmitted.wasmBytes,
+      subtractionMinifiedBytes:Buffer.byteLength(subtractMinified),
       subtractionMeasurements:details.subtractMeasurements,
       subtractionBudget:pairedBudgetBound(details.subtractMeasurements.native,
         details.subtractMeasurements.wasm),
+      subtractionEqualTrustMinifierBudget:
+        pairedBudgetBound(details.subtractMeasurements.minified,
+          details.subtractMeasurements.wasm),
       pairedBudget:pairedBudgetBound(details.measurements.native,details.measurements.wasm),
       scope:'selected Chromium warm function, not universal 2.5x or security'}));
   }finally{
