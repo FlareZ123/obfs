@@ -2500,7 +2500,13 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // The opt-in island proof relaxes only local property renaming for
+    // explicitly selected primitive ESM leaves. Keep every other backend,
+    // cross-file rewrite, identifier rename and string transform behind the
+    // original source-observer guard.
+    const localPropertyIsland=sourceObserverIslands.has(filename)&&
+      !esmDomSourceProducers.has(filename);
+    if ((!fileSourceObserver || localPropertyIsland) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
