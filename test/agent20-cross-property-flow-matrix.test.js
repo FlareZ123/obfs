@@ -34,13 +34,13 @@ function graph(seed,shape) {
       '    value:schema[key],',
       '    enumerable:Object.getOwnPropertyDescriptor(schema,"externalFormat")?.enumerable===true};',
       '}'
-    ].join('\\n')},
+    ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       "import {state} from './state.mjs';",
       "import {inspectRecord} from './record.mjs';",
       "const result=[inspectRecord('externalFormat'),inspectRecord('auditCount')];",
       'console.log(JSON.stringify([state.secretField,result]));'
-    ].join('\\n')}
+    ].join('\n')}
   ];
   /** @type {ModuleFile[]} */
   const files=[{
