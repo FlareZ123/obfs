@@ -241,6 +241,23 @@ const cases=[
 ['extra-false-conditional-bypasses-default',
  'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false?(carrier={instance:new WeakMap()}):123)){}fill();',
  'carrier.instance']
+// Further native-confirmed callable/iterator/proxy parameter effects and corresponding negative-yield controls.
+['host-call-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null);",'carrier.instance'],
+['host-apply-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[]);",'carrier.instance'],
+['host-reflect-apply-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Reflect.apply(fill,null,[]);",'carrier.instance'],
+['host-bound-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const bound=fill.bind(null);bound();",'carrier.instance'],
+['host-function-call-call-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Function.prototype.call.call(fill,null);",'carrier.instance'],
+['iterator-generator-captured-write',"let carrier={};const iterable={*[Symbol.iterator](){carrier={instance:new WeakMap()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['iterator-method-captured-write',"let carrier={};const iterable={[Symbol.iterator](){carrier={instance:new WeakMap()};return [1][Symbol.iterator]();}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['destructure-proxy-get-captured-write',"let carrier={};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new WeakMap()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance'],
+['destructure-computed-getter-captured-write',"let carrier={};const obj={get x(){carrier={instance:new WeakMap()};return 1;}};function fill({['x']:x}){}fill(obj);",'carrier.instance'],
+['destructure-nested-proxy-get',"let carrier={};const obj=new Proxy({x:{y:1}},{get(o,k){if(k==='x')carrier={instance:new WeakMap()};return Reflect.get(o,k);}});function fill({x:{y}}){}fill(obj);",'carrier.instance'],
+['direct-class-expression-new-default',"let carrier={};new (class {constructor(x=(carrier={instance:new WeakMap()})) {}})();",'carrier.instance'],
+['direct-derived-class-expression-default',"let carrier={};class Base{};new (class extends Base {constructor(x=(carrier={instance:new WeakMap()})){super();}})();",'carrier.instance'],
+['host-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null,23);",'carrier.instance'],
+['host-apply-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[3]);",'carrier.instance'],
+['iterator-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const iterable={*[Symbol.iterator](){carrier={instance:new Ordinary()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['destructure-proxy-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new Ordinary()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
