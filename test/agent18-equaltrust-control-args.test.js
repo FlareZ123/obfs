@@ -24,11 +24,11 @@ async function compareWire(){
   try{
     globalThis.fetch=/** @type {typeof fetch} */ ((endpoint,init)=>{
       assert.equal(String(endpoint),'/obfs/rpc');
-      assert.ok(init?.body&&typeof init.body==='string');
+      if(typeof init?.body!=='string')throw TypeError('Missing request body');
       observed=JSON.parse(init.body);
-      return Promise.resolve(/** @type {Response} */ (
-        {ok:true,json:async()=>({ok:true,value:371})}
-      ));
+      return Promise.resolve(new Response(
+        JSON.stringify({ok:true,value:371}),
+        {status:200,headers:{'content-type':'application/json'}}));
     });
     const generated=await import('data:text/javascript;base64,'+
       Buffer.from(generatedSource).toString('base64'));
