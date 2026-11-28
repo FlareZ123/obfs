@@ -38,6 +38,22 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
       throw new TypeError(
         'Selected SCO private dependency has unproved shared module lexical state: '+filename);
     }
+    if(declaration.type==='VariableDeclaration'&&declaration.kind==='const'){
+      for(const item of declaration.declarations){
+        // A const binding freezes only the binding, not its record, array or
+        // RegExp object. These literal objects can accumulate per-client state
+        // through a retained closure even when all calls are syntactically
+        // direct. Keep dynamic/nonliteral initializers as separately
+        // unproved; this guard closes explicit object/array/regexp literals.
+        const value=item.init;
+        if(value&&(
+          value.type==='ObjectExpression'||value.type==='ArrayExpression'||
+          value.type==='Literal'&&value.regex!==undefined)){
+          throw new TypeError(
+            'Selected SCO private dependency has unproved shared module object state: '+filename);
+        }
+      }
+    }
     if((declaration.type==='FunctionDeclaration'||
         declaration.type==='ClassDeclaration')&&
        declaration.id?.type==='Identifier'){
