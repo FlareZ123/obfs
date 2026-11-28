@@ -153,8 +153,15 @@ Exact immutable raw profiles and the Windows timer caveat are archived in
 [`agent18-equal-trust-sco-raw-20261128.json`](agent18-equal-trust-sco-raw-20261128.json).
 The subsequent *facade-free trace attacker* copies only one intercepted RPC
 method name, legitimate account token and endpoint, and replays held-outs
-without loading **either** public facade. This extension is pending its own
-source-pinned acceptance run.
+without loading **either** public facade. This extension passed the entire
+existing application SCO workflow and JSDoc on Ubuntu and Windows at exact
+`18a7a493455939aa21ee1014f4baff1c36d37e79`,
+[run 46126086165](https://github.com/FlareZ123/obfs/actions/runs/46126086165).
+It reconstructs **40/40 fresh held-out outputs without copying either
+facade** using one previously captured legitimate RPC shape. This is
+authorized online functional relaying, not an offline algorithm clone
+or compromised server. A further repeated-call process-CPU comparison
+is being evaluated separately.
 
 These observations support a **bounded negative protection-value finding**:
 on the measured six-module app, the generated source-private SCO facade
