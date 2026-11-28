@@ -227,3 +227,24 @@ test('global SQLite challenge capacity and invalid path refuse across connection
     }finally{a.close();b.close();}
   });
 });
+
+test('SQLite rejects mismatched RP origin/session policy across worker instances',async()=>{
+  await withDatabase('policy.sqlite',async file=>{
+    const one=store(file),two=store(file);
+    try{
+      fixture(one);
+      assert.doesNotThrow(()=>fixture(two),
+        'Identical RP/UV/TTL policy should be admitted by another SQLite handle');
+      assert.throws(()=>createScoWebAuthnAdmission({
+        rpId:'localhost',allowedOrigins:['http://localhost:8081'],
+        allowInsecureLocalhost:true,stateStore:two,
+        lookupCredential:()=>null,updateSignCount:()=>false
+      }),/replica configuration/u,'Different exact origin must refuse at startup');
+      assert.throws(()=>createScoWebAuthnAdmission({
+        rpId:'localhost',allowedOrigins:['http://localhost:8080'],
+        allowInsecureLocalhost:true,requireUserVerification:false,stateStore:two,
+        lookupCredential:()=>null,updateSignCount:()=>false
+      }),/replica configuration/u,'Different UV requirement must refuse at startup');
+    }finally{one.close();two.close();}
+  });
+});
