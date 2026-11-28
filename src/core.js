@@ -323,6 +323,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     }
     return targets;
   }
+  /** @param {string} target @returns {Set<string>} */
   function namespaceSourceOrigins(target) {
     const origins=new Set();
     const pending=[target];
