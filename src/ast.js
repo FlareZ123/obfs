@@ -4465,6 +4465,83 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     return isReferenceOnlyStorageOverride(current);
   }
+  // Ordinary browser DOMString setters can reveal Function#toString without a
+  // literal String()/toString() call. Track a narrow set of DOM objects from
+  // native document factories and stable-looking aliases. Alias unions are
+  // conservative: a later reassignment may cause refusal but never grant an
+  // unproved source-changing rewrite.
+  const domElementNames=new Set();
+  const domStyleNames=new Set();
+  const domDatasetNames=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDocument(node) {
+    return Boolean(node && (node.type==='Identifier'&&node.name==='document' ||
+      node.type==='MemberExpression'&&isGlobal(node.object)&&
+      memberName(node)==='document'));
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isNativeDomElement(node,depth=0) {
+    if(!node||depth>12)return false;
+    if(node.type==='Identifier')return domElementNames.has(node.name);
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(isNativeDocument(node.object) &&
+         ['body','head','documentElement','activeElement','scrollingElement'].includes(name??''))return true;
+      if(['parentNode','parentElement','firstChild','lastChild',
+           'nextSibling','previousSibling','firstElementChild',
+           'lastElementChild','nextElementSibling',
+           'previousElementSibling'].includes(name??'')) {
+        return isNativeDomElement(node.object,depth+1);
+      }
+      return false;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const name=memberName(node.callee);
+      const owner=node.callee.object;
+      return Boolean(isNativeDocument(owner)&&[
+        'getElementById','querySelector','createElement','createElementNS',
+        'createTextNode','createComment','createDocumentFragment',
+        'getElementsByName'
+      ].includes(name??'') || isNativeDomElement(owner,depth+1)&&
+        ['querySelector','closest','cloneNode','appendChild','insertBefore',
+         'replaceChild'].includes(name??''));
+    }
+    return false;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomStyle(node) {
+    return Boolean(node && (node.type==='Identifier'&&domStyleNames.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='style'&&
+      isNativeDomElement(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomDataset(node) {
+    return Boolean(node && (node.type==='Identifier'&&domDatasetNames.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='dataset'&&
+      isNativeDomElement(node.object)));
+  }
+  let changedDom;
+  do {
+    changedDom=false;
+    walk(ast,node=>{
+      const destination=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(destination?.type!=='Identifier'||!value)return;
+      const name=destination.name;
+      if(isNativeDomElement(value)&&!domElementNames.has(name)) {
+        domElementNames.add(name);changedDom=true;
+      }
+      if(isNativeDomStyle(value)&&!domStyleNames.has(name)) {
+        domStyleNames.add(name);changedDom=true;
+      }
+      if(isNativeDomDataset(value)&&!domDatasetNames.has(name)) {
+        domDatasetNames.add(name);changedDom=true;
+      }
+    });
+  }while(changedDom);
+
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -5670,6 +5747,49 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if((name==='toString'||name==='toSource'||name==='toLocaleString') &&
           !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
+    }
+    // DOMString/USVString host setters: source-transform parity is broken when
+    // a local callable is implicitly converted by a real DOM binding. Direct
+    // document factories and their aliases are the only admitted receivers.
+    // Unknown dynamic keys may refer to a string-valued property; over-refuse.
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      const owner=node.left.object;
+      const attribute=memberName(node.left);
+      const unsafeValue=!isDefinitelyPrimitive(node.right);
+      const unsafeKey=node.left.computed &&
+        !isDefinitelyPrimitive(node.left.property);
+      if(unsafeValue && (
+        isNativeDomDataset(owner) ||
+        isNativeDomStyle(owner) && (attribute==='cssText'||attribute===null) ||
+        isNativeDomElement(owner) && (
+          attribute===null ||
+          ['textContent','innerText','innerHTML','outerHTML',
+           'nodeValue','data','id','className','title','slot','dir',
+           'lang','ariaLabel'].includes(attribute))
+        ||isNativeDocument(owner) &&
+          ['cookie','title','domain'].includes(attribute??'')
+      ) || unsafeKey && (isNativeDomDataset(owner)||isNativeDomElement(owner)))
+        observed=true;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const owner=node.callee.object;
+      const method=memberName(node.callee);
+      if(isNativeDomElement(owner) &&
+         (['setAttribute','setAttributeNS','insertAdjacentText',
+           'insertAdjacentHTML'].includes(method??'') ||
+           node.callee.computed&&method===null) &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDomStyle(owner) &&
+         (['setProperty','getPropertyValue','removeProperty'].includes(method??'') ||
+          node.callee.computed&&method===null) &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDocument(owner) &&
+         ['createTextNode','createComment','querySelector','getElementById',
+          'createElement','createElementNS'].includes(method??'') &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
     }
     // Web Storage's indexed/named property setter is a separate Web IDL
     // DOMString coercion sink: Storage.prototype.setItem may be replaced
