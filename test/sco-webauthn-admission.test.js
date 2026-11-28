@@ -247,3 +247,50 @@ test('trusted SCO callback is denied before private work, accepts verified sessi
     await new Promise((resolve,reject)=>server.close(err=>err?reject(err):resolve(undefined)));
   }
 });
+
+test('principal revocation cancels assertion paused in credential lookup',async()=>{
+  /** @type {()=>void} */
+  let release=()=>{};
+  const gate=new Promise(resolve=>{release=()=>resolve(undefined);});
+  /** @type {ReturnType<typeof harness>} */
+  let h;
+  h=harness({lookupCredential:async(_principal,id)=>{
+    await gate;
+    return h.records.get(id)??null;
+  }});
+  const challenge=h.admission.issueChallenge('accountA','loginA');
+  const inFlight=h.admission.verifyAssertion(assertion(h,challenge));
+  h.admission.revokePrincipal('accountA');
+  release();
+  assert.equal((await inFlight).ok,false);
+  assert.equal(h.updates,0);
+});
+
+test('principal revocation cancels assertion paused in durable counter CAS',async()=>{
+  /** @type {()=>void} */
+  let release=()=>{};
+  /** @type {()=>void} */
+  let signal=()=>{};
+  const gate=new Promise(resolve=>{release=()=>resolve(undefined);});
+  const entered=new Promise(resolve=>{signal=()=>resolve(undefined);});
+  /** @type {ReturnType<typeof harness>} */
+  let h;
+  h=harness({updateSignCount:async(_principal,id,previous,next)=>{
+    signal();
+    await gate;
+    const row=h.records.get(id);
+    if(!row||row.signCount!==previous)return false;
+    row.signCount=next;
+    return true;
+  }});
+  const challenge=h.admission.issueChallenge('accountA','loginA');
+  const inFlight=h.admission.verifyAssertion(assertion(h,challenge));
+  await entered;
+  h.admission.revokePrincipal('accountA');
+  release();
+  assert.equal((await inFlight).ok,false,
+    'A stale but signed assertion must not mint authority after revocation');
+  const after=h.admission.issueChallenge('accountA','loginA');
+  assert.equal((await h.admission.verifyAssertion(assertion(h,after,{counter:2}))).ok,true,
+    'New independent challenge after revocation may authorize fresh ceremony');
+});
