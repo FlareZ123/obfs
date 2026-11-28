@@ -182,6 +182,37 @@ const cases=[
     exposed:false
   },
   {
+    name:'WeakMap written through local record alias is tracked',
+    source:'const holder={ctor:Object};const alias=holder;alias.ctor=WeakMap;'+
+      'const carrier={instance:new holder.ctor()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap written through local helper parameter is tracked',
+    source:'function install(target){target.ctor=WeakMap;}'+
+      'const holder={ctor:Object};install(holder);'+
+      'const carrier={instance:new holder.ctor()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'WeakMap written through immediate function parameter is tracked',
+    source:'const holder={ctor:Object};'+
+      '(function(target){target.ctor=WeakMap;})(holder);'+
+      'const carrier={instance:new holder.ctor()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'ordinary helper parameter remains a positive rename candidate',
+    source:'class Ordinary{}function install(target){target.ctor=Ordinary;}'+
+      'const holder={ctor:Object};install(holder);'+
+      'const carrier={instance:new holder.ctor()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
