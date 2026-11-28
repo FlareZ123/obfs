@@ -22,7 +22,8 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
     code:'export async function ordinary(){return 7;}'
   }],{
     remoteMethods:{reveal:privateModule.disclose},
-    authorizeRead:()=>true,authorizeRpc:()=>true
+    authorizeRead:()=>true,
+    authorizeRpc:req=>req.headers['x-test-token']==='allowed'
   }));
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   try{
@@ -32,9 +33,15 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
     const served=await fetch(base+'public.mjs');
     assert.equal(served.status,200);
     assert.equal((await served.text()).includes(MARKER),false);
-    const response=await fetch(base+'rpc',{
+    const unauthenticated=await fetch(base+'rpc',{
       method:'POST',
       headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:'reveal',args:[]})
+    });
+    assert.equal(unauthenticated.status,403);
+    const response=await fetch(base+'rpc',{
+      method:'POST',
+      headers:{'content-type':'application/json','x-test-token':'allowed'},
       body:JSON.stringify({method:'reveal',args:[]})
     });
     assert.equal(response.status,200);
