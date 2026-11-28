@@ -46,6 +46,30 @@ const cases=[
     exposed:true
   },
   {
+    name:'Reflect.construct native WeakMap is an implicit carrier',
+    source:'const carrier={instance:Reflect.construct(WeakMap,[])};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'computed Reflect construct static name is a native carrier',
+    source:'const carrier={instance:Reflect["construct"](WeakMap,[])};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'bound local Reflect namespace constructs a native WeakMap',
+    source:'const R=Reflect;const carrier={instance:R.construct(WeakMap,[])};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'globalThis Reflect and WeakMap construct nested native carrier',
+    source:'const carrier={instance:globalThis.Reflect.construct(globalThis.WeakMap,[])};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
