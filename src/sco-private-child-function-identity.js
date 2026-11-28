@@ -86,6 +86,7 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
         // Unknown dynamic initializers remain outside this bounded proof.
         if(carriesSharedLiteralObject(item.init)&&
            !(item.id.type==='Identifier'&&
+             statement.type!=='ExportNamedDeclaration'&&
              isReadOnlyOwnedLiteral(ast,item.id.name,item.init))){
           throw new TypeError(
             'Selected SCO private dependency has unproved shared module object state: '+filename);
