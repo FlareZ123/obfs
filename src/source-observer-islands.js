@@ -241,6 +241,35 @@ function proveSourceObserverIslands(files,selections) {
     'Float32Array','Float64Array','BigInt64Array','BigUint64Array',
     'TextEncoder','TextDecoder','Buffer'
   ]);
+  /**
+   * A global name is shadowed for the whole ESM module by a *top-level*
+   * declaration. The generic collectBindings index also includes declarations
+   * in unrelated nested scopes and must not establish closure here:
+   * e.g. a dead function-local const named ambientFilesystem cannot shadow an
+   * ambient host file reader used by the outer module.
+   * @param {AstNode} ast
+   * @returns {Set<string>}
+   */
+  function moduleLevelNames(ast) {
+    const names=new Set();
+    for(const statement of ast.body) {
+      if(statement.type==='ImportDeclaration') {
+        for(const specifier of statement.specifiers)
+          if(specifier.local?.type==='Identifier')names.add(specifier.local.name);
+        continue;
+      }
+      const declaration=statement.type==='ExportNamedDeclaration' ||
+        statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+      if(!declaration)continue;
+      if(declaration.type==='VariableDeclaration') {
+        for(const declarator of declaration.declarations)
+          if(declarator.id?.type==='Identifier')names.add(declarator.id.name);
+      }else if((declaration.type==='FunctionDeclaration' ||
+                declaration.type==='ClassDeclaration') &&
+               declaration.id?.type==='Identifier')names.add(declaration.id.name);
+    }
+    return names;
+  }
   const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
     // An unselected module is retained byte-for-byte, but exporting an
@@ -268,6 +297,7 @@ function proveSourceObserverIslands(files,selections) {
         }
       }
     }
+    const moduleLevel=moduleLevelNames(module.ast);
     let opaque=false;
     walk(module.ast,(node,parent,key)=>{
       if(node.type==='ImportExpression' || node.type==='MetaProperty' ||
@@ -288,7 +318,10 @@ function proveSourceObserverIslands(files,selections) {
         if(forbiddenIdentifiers.has(node.name) &&
            !(parent?.type==='Property' && key==='key' && !parent.computed))
           opaque=true;
-        if(!nonReference && !module.bindings.has(node.name) &&
+        // Deliberately fail closed on references declared *only* in a
+        // nested scope. A scope-insensitive name index cannot prove that an
+        // outer use does not resolve to a hostile ambient global capability.
+        if(!nonReference && !moduleLevel.has(node.name) &&
            !inertAmbientNames.has(node.name))opaque=true;
       }
       if(node.type==='MemberExpression') {
