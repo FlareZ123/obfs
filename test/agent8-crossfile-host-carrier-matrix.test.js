@@ -169,3 +169,27 @@ for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       JSON.stringify({mode,scenarios:CARRIERS.length,compiled,refused,rewriteCases})+'\n');
   });
 }
+
+
+test('positive cross-file owner control performs actual field rewrites',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:41,otherField:13};'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {state} from "./state.mjs";'+
+        'console.log(JSON.stringify([state.secretField,state.otherField]));'}
+  ];
+  const native=await execute(files);
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'[41,13]\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
+    seed:'agent8-host-carrier-nonvacuous-positive'
+  });
+  assert.equal(output.crossFile.objects,1,
+    'A closed safe imported owner must remain transformable');
+  assert.equal(output.crossFile.properties,2,
+    'The control must rewrite both owned fields, not just run unmodified code');
+  assert.deepEqual(await execute(output.files),native);
+});
