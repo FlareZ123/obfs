@@ -64,7 +64,7 @@ async function serve(){
     ['original',original],
     ['emitted',compiled.files],
     ['tampered',original.map(file=>file.path==='leaf.mjs' ?
-      {...file,code:String(file.code).replace('privateField','tamperedField')} : file)]
+      {...file,code:String(file.code)+'/* change bytes without changing behavior */'} : file)]
   ];
   for(const [folder,group] of graphs){
     for(const file of group)files.set('/'+folder+'/'+file.path,String(file.code));
