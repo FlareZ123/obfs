@@ -281,3 +281,25 @@ test('imported factory proof declines implicit-coercion and integer-index keys',
     0
   );
 });
+
+
+test('factory results retain ownership through multi-slot records and tuples',async()=>{
+  const identityModule='export function identity(value){return value;}';
+  const recordMain='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const carrier={left:first,right:second};'+
+    'const carried=identity(carrier.left);'+
+    'console.log(carried.secretField+carrier.right.otherField);';
+  const tupleMain='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const carrier=[first,second];'+
+    'const carried=identity(carrier[0]);'+
+    'console.log(carried.secretField+carrier[1].otherField);';
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  for(const mode of ['coo','sno','sco']) {
+    await checkFactory(factory,recordMain,2,mode,undefined,identityModule);
+    await checkFactory(factory,tupleMain,2,mode,undefined,identityModule);
+  }
+});
