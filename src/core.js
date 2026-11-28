@@ -494,6 +494,11 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           locallyImmutablePrimitive.add(entry.id.name);
       }
     }
+    // A same-named nested formal or destructuring binding can shadow even a
+    // proven top-level primitive. Never use name-only primitive evidence when
+    // the source module declares that name in more than one lexical scope.
+    // This declines ambiguous cases without pretending to resolve them.
+    const declarationCounts=collectBindings(ast);
     /**
      * Proven inert operands cannot source-coerce an imported callable. Every
      * other unmodeled operand could be a function wrapped in an object, an
@@ -506,8 +511,9 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     function isInertSinkOperand(node) {
       if(!node)return false;
       if(node.type==='Literal')return true;
-      if(node.type==='Identifier')return provenPrimitive.has(node.name)||
-        provenStrings.has(node.name)||locallyImmutablePrimitive.has(node.name);
+      if(node.type==='Identifier')return declarationCounts.get(node.name)===1&&
+        (provenPrimitive.has(node.name)||provenStrings.has(node.name)||
+         locallyImmutablePrimitive.has(node.name));
       if(node.type==='UnaryExpression'&&
          ['!','typeof','void','+','-','~'].includes(node.operator))return true;
       if(node.type==='BinaryExpression')return true;
