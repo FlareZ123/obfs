@@ -905,6 +905,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isDomParserMethod(node) {
     if(!node)return false;
     if(node.type==='Identifier')return domParserMethods.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')return isDomParserMethod(node.callee.object);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     const owner=node.object;
