@@ -11,5 +11,5 @@ test('static source scanner: direct handler refused, animated target currently a
   assert.equal(findInlineSvgSource(animatedXml),null);
 });
 
-test('red-team Chromium SVG animated handler source witness (pass means BYPASS)',
+test('red-team Chromium HTML-inline SVG SMIL href execution bypass (pass means BYPASS)',
   {skip:process.platform!=='linux',timeout:45000},main);
