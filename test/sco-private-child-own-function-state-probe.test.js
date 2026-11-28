@@ -39,10 +39,27 @@ function graph(){
   }]);
 }
 
-test('SCO private child self-property current standalone admission is explicitly recorded',()=>{
-  const partition=standalone();
-  assert.ok(partition.clientFile);
-  console.log('SCO_CHILD_FUNCTION_STATE_PROBE standalone currently accepts a direct call to stateful exported private dependency');
+test('standalone SCO refuses stateful own-property mutation in imported child',()=>{
+  assert.throws(standalone,/private dependency escapes a shared function identity/u);
+});
+
+test('standalone SCO refuses const-arrow child own-property state',()=>{
+  const alternate={...options(),privateModuleSources:[{
+    path:'private/next.mjs',
+    code:'export const next=()=>{next.count=(next.count??0)+1;return next.count;};'
+  }]};
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:selectedCode
+  },alternate),/private dependency escapes a shared function identity/u);
+});
+
+test('standalone SCO retains direct stateless private function calls',()=>{
+  const safe={...options(),privateModuleSources:[{
+    path:'private/next.mjs',code:'export function next(){return 7;}'
+  }]};
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:selectedCode
+  },safe));
 });
 
 test('SCO private child self-property graph composer refuses shared function identity',()=>{
