@@ -6,7 +6,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {test}=require('node:test');
-const {obfuscateFiles}=require('../src/core');
+const {obfuscateFiles,hasImportedDomStringSourceSink}=require('../src/core');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
@@ -56,7 +56,11 @@ function graph(variant){
     'export {element} from "./state.mjs";',
     'import {element as alias} from "./state.mjs";export {alias as element};',
     'export * from "./state.mjs";',
-    'export {default as element} from "./state.mjs";'
+    'export {default as element} from "./state.mjs";',
+    'import {element as local} from "./state.mjs";const alias=local;export {alias as element};',
+    'import {element as local} from "./state.mjs";export const element=local;',
+    'import * as ns from "./state.mjs";export const element=ns.element;',
+    'import * as ns from "./state.mjs";const alias=ns.element;export {alias as element};'
   ][variant];
   return [
     {path:'state.mjs',sourceType:'module',code:state},
@@ -81,7 +85,23 @@ test('positive control transforms private own property when no DOMString observe
     'The compiler must have real own-property renaming yield in a safe control');
 });
 
-for(let variant=0;variant<4;variant++){
+test('graph source effect recognizes all direct, barrel, and const-alias DOM element carriers',()=>{
+  for(let variant=0;variant<8;variant++){
+    assert.equal(hasImportedDomStringSourceSink(graph(variant)),true,
+      'Native DOMString source effect must survive ESM reexport variant '+variant);
+  }
+  const unrelated=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const element={setAttribute() {return 17;}};'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {element} from "./state.mjs";'+
+        'function inspected(){return 17;}element.setAttribute("data-source",inspected);'}
+  ];
+  assert.equal(hasImportedDomStringSourceSink(unrelated),false,
+    'A proven userland setter cannot be conflated with native DOMString');
+});
+
+for(let variant=0;variant<8;variant++){
   for(const mode of /** @type {const} */(['coo','sco','sno'])){
     test(mode+': native DOMString coercion preserves source via reexport bridge '+variant,()=>{
       const original=graph(variant);
