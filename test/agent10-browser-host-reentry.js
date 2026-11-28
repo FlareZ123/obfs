@@ -77,10 +77,12 @@ async function main() {
       properties:true,identifiers:false,strings:false,
       seed:'agent10-browser-reentrant/'+scenario.name});
     admitted.push({name:scenario.name,renamed:built.crossFile.properties});
-    for(const [variant,files] of [
+    /** @type {Array<[string,ReadonlyArray<{path:string,code:string|Buffer}>]>} */
+    const variants=[
       ['native',scenario.inputs],
       ['emitted',built.files]
-    ]) {
+    ];
+    for(const [variant,files] of variants) {
       const root='/'+scenario.name+'/'+variant+'/';
       routes.set(root+'index.html',html);
       routes.set(root+'bootstrap.mjs',bootstrap);
