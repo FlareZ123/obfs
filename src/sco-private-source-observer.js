@@ -27,6 +27,14 @@ function exposesPrivateFunctionText(ast){
   const functionArrays=new Set();
   /** @type {Set<string>} */
   const sourceReceiverMethods=new Set();
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const localFunctionDeclarations=new Map();
+  /** @type {Set<string>} */
+  const functionReturningFunctions=new Set();
+  /** @type {Set<string>} */
+  const definitelyReturningFunctions=new Set();
+  /** @type {Map<string,number>} */
+  const forwardedParameters=new Map();
 
   /**
    * @param {import('./ast').AstNode|null|undefined} node
@@ -38,6 +46,17 @@ function exposesPrivateFunctionText(ast){
   function carriesFunction(node,localOnly=false){
     if(!node)return false;
     if(node.type==='Identifier')return (localOnly?definitelyLocalFunctions:functions).has(node.name);
+    if(node.type==='AwaitExpression')return carriesFunction(node.argument,localOnly);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'){
+      const name=node.callee.name;
+      if((localOnly?definitelyReturningFunctions:functionReturningFunctions).has(name)){
+        return true;
+      }
+      const forwarded=forwardedParameters.get(name);
+      if(forwarded!==undefined){
+        return carriesFunction(node.arguments[forwarded],localOnly);
+      }
+    }
     if(['ArrowFunctionExpression','FunctionExpression','ClassExpression'].includes(node.type))return true;
     if(node.type==='SequenceExpression'&&node.expressions.length){
       return carriesFunction(node.expressions[node.expressions.length-1],localOnly);
@@ -88,11 +107,15 @@ function exposesPrivateFunctionText(ast){
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration')&&
         node.id?.type==='Identifier'){
       functions.add(node.id.name); definitelyLocalFunctions.add(node.id.name);
+      if(node.type==='FunctionDeclaration'){
+        localFunctionDeclarations.set(node.id.name,node);
+      }
     }
     if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
         node.init&&['FunctionExpression','ArrowFunctionExpression',
           'ClassExpression'].includes(node.init.type)){
       functions.add(node.id.name); definitelyLocalFunctions.add(node.id.name);
+      localFunctionDeclarations.set(node.id.name,node.init);
     }
     if(node.type==='ImportDeclaration'&&typeof node.source?.value==='string'&&
         (node.source.value.startsWith('./')||node.source.value.startsWith('../'))){
@@ -137,6 +160,36 @@ function exposesPrivateFunctionText(ast){
         }
       }
     });
+    // Bounded interprocedural proof. A direct return of a private function,
+    // or a directly forwarded parameter, preserves function identity at
+    // its local call site. Local control-flow branches and opaque callbacks
+    // deliberately remain outside this finite summary.
+    for(const [name,fn] of localFunctionDeclarations){
+      /** @type {(import('./ast').AstNode|null|undefined)[]} */
+      const returned=fn.body?.type==='BlockStatement'?
+        fn.body.body.filter(
+          (/** @type {import('./ast').AstNode} */ statement)=>
+            statement.type==='ReturnStatement').map(
+          (/** @type {import('./ast').AstNode} */ statement)=>statement.argument):
+        [fn.body];
+      for(const expression of returned){
+        if(!expression)continue;
+        if(carriesFunction(expression)&&!functionReturningFunctions.has(name)){
+          functionReturningFunctions.add(name);changed=true;
+        }
+        if(carriesFunction(expression,true)&&!definitelyReturningFunctions.has(name)){
+          definitelyReturningFunctions.add(name);changed=true;
+        }
+        if(expression.type==='Identifier'){
+          const index=fn.params.findIndex(
+            (/** @type {import('./ast').AstNode} */ param)=>
+              param.type==='Identifier'&&param.name===expression.name);
+          if(index>=0&&!forwardedParameters.has(name)){
+            forwardedParameters.set(name,index);changed=true;
+          }
+        }
+      }
+    }
   }
   let exposed=false;
   walk(ast,node=>{
