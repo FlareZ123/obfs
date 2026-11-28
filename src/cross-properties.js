@@ -2389,7 +2389,9 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
     function provablyOwnStringRead(node) {
       if(node.type!=='MemberExpression'||node.optional||
          node.object.type!=='Literal'||typeof node.object.value!=='string')return false;
-      const key=node.computed?staticString(node.property):staticName(node.property);
+      const key=node.computed?
+        node.property.type==='Literal'&&typeof node.property.value==='number'?
+          String(node.property.value):staticString(node.property):staticName(node.property);
       if(key==='length')return true;
       if(key===null||!/^(?:0|[1-9][0-9]*)$/u.test(key))return false;
       const index=Number(key);
