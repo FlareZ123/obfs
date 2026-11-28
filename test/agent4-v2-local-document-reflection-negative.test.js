@@ -48,7 +48,7 @@ const cases=[
     body:'const host=globalThis.document;document.title=inspect;host.title=inspect;',
     observed:true},
   {name:'compound-write-source-operand',init:'{title:""}',
-    body:'document.title=inspect;document.title+=inspect;',
+    body:'document.title=inspect;globalThis.seen=String(document.title+=inspect);',
     observed:true},
   {name:'other-property-no-observer-conservative',init:'{title:""}',
     body:'document.title=inspect;document.other=17;',
