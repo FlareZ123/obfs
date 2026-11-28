@@ -12,20 +12,28 @@ on:
           - random
           - delayed-pair
       min_states:
-        description: "Minimum target states (random: 2-12; delayed-pair: 3-64)"
+        description: "Minimum target states (random: 2-24; delayed-pair: 3-64)"
         required: false
         default: 2
         type: number
       max_states:
-        description: "Maximum target states (random: 2-12; delayed-pair: 3-64)"
+        description: "Maximum target states (random: 2-24; delayed-pair: 3-64)"
         required: false
         default: 5
         type: number
       seeds:
-        description: "Deterministic seeds per state count (1-20)"
+        description: "Target samples per state count (1-20)"
         required: false
         default: 2
         type: number
+      target_seed_mode:
+        description: "Target seed source; random uses 64-bit OS entropy, deterministic is for replay"
+        required: false
+        default: random
+        type: choice
+        options:
+          - random
+          - deterministic
       timeout_seconds:
         description: "Per-arm hW learner timeout"
         required: false
@@ -46,12 +54,50 @@ on:
         required: false
         default: 41342
         type: number
+      version_space_max_cases:
+        description: "Number of prioritized live traces for bounded version-space audit"
+        required: false
+        default: 4
+        type: number
+      version_space_timeout_ms:
+        description: "Per-candidate-size Z3 timeout in milliseconds"
+        required: false
+        default: 10000
+        type: number
+      version_space_candidate_labeling:
+        description: "Experimental candidate-state symmetry; predecessor retains historical solver"
+        required: false
+        default: predecessor
+        type: choice
+        options:
+          - predecessor
+          - bfs
+          - trace-anchor
+      version_space_trace_lower_bound_depth:
+        description: "Optional deterministic public-trace state lower bound depth (0 off, max 20)"
+        required: false
+        default: 0
+        type: number
+      version_space_future_difference_encoding:
+        description: "Optional bounded future difference solver encoding"
+        required: false
+        default: word
+        type: choice
+        options:
+          - word
+          - ranked-product
+      historical_audit_run_id:
+        description: "Optional same-repository prior matched-control run ID; if set, audit only archived traces (no live rerun)"
+        required: false
+        default: 0
+        type: number
 
 permissions:
   contents: read
 
 jobs:
   matched-control:
+    if: ${{ inputs.historical_audit_run_id == 0 }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -67,7 +113,7 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
       - name: Install pinned hW implementation
-        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6
+        run: python -m pip install --disable-pip-version-check aalpy==2.0.0 numpy==2.2.6 z3-solver==5.4.1.0
       - name: Check server and harness syntax
         run: |
           node --check sims/agent2-hw-live-sco-server.js
@@ -78,17 +124,40 @@ jobs:
             sims/agent2-hw-live-matched-control.py \
             sims/agent2_hw_process_isolation.py \
             sims/agent49-process-isolation-probe.py \
-            sims/agent2-hw-no-reset-benchmark.py
+            sims/agent49-hw-single-arm-network-probe.py \
+            sims/test_agent49-hw-single-arm-network-probe.py \
+            sims/test_agent49_hw_public_module_archive.py \
+            sims/agent2-hw-no-reset-benchmark.py \
+            sims/agent2-hw-version-space-audit.py \
+            sims/agent49_hw_trace_lower_bound.py \
+            sims/agent49_hw_passive_reconstruction.py \
+            sims/agent49_hw_passive_stress.py \
+            sims/test_agent49_hw_passive_reconstruction.py \
+            sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
+      - name: Test IPv4/IPv6 local TCP listener discovery
+        run: python sims/test_agent49-hw-single-arm-network-probe.py
+      - name: Verify sequential single-arm localhost isolation
+        run: python sims/agent49-hw-cross-arm-network-probe-runner.py
       - name: Test exact evaluator semantics
-        run: python sims/test_agent2_hw_no_reset_evaluator.py
+        run: |
+          python sims/test_agent2_hw_no_reset_evaluator.py
+          python sims/test_agent49_hw_public_module_archive.py
+          python sims/test_agent2_hw_version_space.py
+          python sims/test_agent49_hw_passive_reconstruction.py
+          python sims/agent49_hw_passive_stress.py --seed 49 --samples-per-n 12 --min-n 2 --max-n 10 --depth 10 --output hw-passive-stress.json
+          # Independent long-trace family: unlike the targeted hW learner,
+          # random 500-step traces do not identify these 16–24 state machines.
+          python sims/agent49_hw_passive_stress.py --seed 149 --samples-per-n 8 --min-n 16 --max-n 24 --depth 12 --lengths 500 4000 --output hw-passive-stress-large.json
+          python sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Run paired live HTTP hW benchmark
         env:
           FIXTURE_FAMILY: ${{ inputs.fixture_family || 'random' }}
           MIN_STATES: ${{ inputs.min_states || 2 }}
           MAX_STATES: ${{ inputs.max_states || 5 }}
           SEEDS: ${{ inputs.seeds || 2 }}
+          TARGET_SEED_MODE: ${{ inputs.target_seed_mode || 'random' }}
           TIMEOUT_SECONDS: ${{ inputs.timeout_seconds || 120 }}
           RANDOM_WALK_LENGTH: ${{ inputs.random_walk_length || 30 }}
           ORIGIN_STATES: ${{ inputs.origin_states || 20 }}
@@ -97,12 +166,15 @@ jobs:
           python sims/agent2-hw-live-matched-control.py \
             --fixture-family "$FIXTURE_FAMILY" \
             --min-states "$MIN_STATES" --max-states "$MAX_STATES" \
-            --seeds "$SEEDS" --timeout-seconds "$TIMEOUT_SECONDS" \
+            --seeds "$SEEDS" --target-seed-mode "$TARGET_SEED_MODE" \
+            --timeout-seconds "$TIMEOUT_SECONDS" \
             --random-walk-length "$RANDOM_WALK_LENGTH" \
             --origin-states "$ORIGIN_STATES" \
             --learner-seed "$LEARNER_SEED" \
             > live-hw-matched-results.json
           python - <<'PY'
+          import base64
+          import hashlib
           import json
           import os
           from pathlib import Path
@@ -128,6 +200,21 @@ jobs:
               if row["status"] != "completed":
                   continue
               assert row["comparison"]["matched"], row
+              # The artifact now contains byte-exact published SCO and ordinary
+              # client modules, not just hashes. Preserve independent analyst
+              # access to the actual static bytes used by this learning run.
+              for arm in ("sco", "ordinary"):
+                  preflight = row[arm]["preflight"]
+                  encoded = preflight["public_module_base64"]
+                  published = base64.b64decode(encoded, validate=True)
+                  assert 0 < len(published) <= 1024 * 1024, row
+                  assert len(published) == preflight["source_bytes"], row
+                  assert hashlib.sha256(published).hexdigest() == preflight["source_sha256"], row
+                  assert hashlib.sha256(published).hexdigest() == row[arm]["client_module_body_sha256"], row
+                  assert published.decode("utf-8").encode("utf-8") == published, row
+                  assert preflight["source_disclosed"] is False, row
+              assert row["sco"]["preflight"]["public_module_base64"] != row["ordinary"]["preflight"]["public_module_base64"], row
+              assert row["comparison"]["session_tokens_distinct"] is True, row
               assert row["server_user_isolated"] is True, row
               assert row["sco"]["server_process"]["uid"] == result["scope"]["server_uid"], row
               assert row["ordinary"]["server_process"]["uid"] == result["scope"]["server_uid"], row
@@ -230,9 +317,155 @@ jobs:
                   summary_file.write(json.dumps(summary, indent=2, sort_keys=True))
                   summary_file.write("\n~~~\n")
           PY
+      - name: Independently certify lower state counts from the public traces
+        run: |
+          python sims/agent49_hw_trace_lower_bound.py \
+            --input live-hw-matched-results.json \
+            --output hw-trace-state-certificate.json \
+            --max-depth 12 --check-fixture
+      - name: Attempt solver-free full future reconstruction from public trace
+        run: |
+          python sims/agent49_hw_passive_reconstruction.py \
+            --input live-hw-matched-results.json \
+            --output hw-passive-reconstruction.json \
+            --max-depth 12 --check-fixture
+      - name: Audit bounded full Mealy version space from evaluator-only live traces
+        env:
+          CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
+          TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
+          FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
+        run: |
+          python sims/agent2-hw-version-space-audit.py \
+            --input live-hw-matched-results.json \
+            --output hw-version-space-audit.json \
+            --max-cases "${{ inputs.version_space_max_cases || 4 }}" \
+            --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}" \
+            --candidate-labeling "$CANDIDATE_LABELING" \
+            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH" \
+            --future-difference-encoding "$FUTURE_DIFFERENCE_ENCODING"
+      - name: Print bounded version-space uncertainty details
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("hw-version-space-audit.json").read_text())
+          for case in result["cases"]:
+              audit = case["audit"]
+              print("VERSION_SPACE_CASE", json.dumps({
+                  "state_count": case["state_count"],
+                  "seed": case["seed"],
+                  "status": audit["status"],
+                  "elapsed_seconds": audit.get("elapsed_seconds"),
+                  "candidate_size_search": audit.get("candidate_size_search"),
+                  "witness": audit.get("witness"),
+              }, sort_keys=True))
+          PY
       - name: Preserve matched-control evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agent2-live-hw-matched-control
-          path: live-hw-matched-results.json
+          path: |
+            live-hw-matched-results.json
+            agent49-cross-arm-probe-result.json
+            hw-version-space-audit.json
+            hw-trace-state-certificate.json
+            hw-passive-reconstruction.json
+            hw-passive-stress.json
+            hw-passive-stress-large.json
+
+  historical-audit:
+    if: ${{ inputs.historical_audit_run_id > 0 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HISTORY_RUN: ${{ inputs.historical_audit_run_id }}
+      CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
+      TRACE_LOWER_BOUND_DEPTH: ${{ inputs.version_space_trace_lower_bound_depth || 0 }}
+      FUTURE_DIFFERENCE_ENCODING: ${{ inputs.version_space_future_difference_encoding || 'word' }}
+      MAX_CASES: ${{ inputs.version_space_max_cases || 4 }}
+      SOLVER_TIMEOUT_MS: ${{ inputs.version_space_timeout_ms || 10000 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned exact finite-state solver
+        run: python -m pip install --disable-pip-version-check z3-solver==5.4.1.0
+      - name: Fetch the exact prior evaluator artifact without executing its code
+        run: |
+          case "$HISTORY_RUN" in
+            *[!0-9]*|'') echo "Invalid run ID" >&2; exit 2;;
+          esac
+          gh run download "$HISTORY_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name agent2-live-hw-matched-control --dir historical
+          test -s historical/live-hw-matched-results.json
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          path = Path("historical/live-hw-matched-results.json")
+          data = json.loads(path.read_bytes())
+          assert data["benchmark"] == "agent2-live-http-no-reset-hW-matched-control"
+          assert isinstance(data["results"], list) and data["results"]
+          print("HISTORICAL_EVIDENCE_SOURCE",
+                json.dumps({"bytes": path.stat().st_size,
+                            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                            "cases": len(data["results"])}, sort_keys=True))
+          PY
+      - name: Certify public-trace-only state-count lower bound independently of Z3
+        run: |
+          python sims/agent49_hw_trace_lower_bound.py \
+            --input historical/live-hw-matched-results.json \
+            --output hw-trace-state-certificate.json \
+            --max-depth 12 --check-fixture
+      - name: Check complete public-trace machine certificates against historical fixture
+        run: |
+          python sims/agent49_hw_passive_reconstruction.py \
+            --input historical/live-hw-matched-results.json \
+            --output hw-passive-reconstruction.json \
+            --max-depth 12 --check-fixture
+      - name: Audit archived same-trace exact Z3 space with selected solver options
+        run: |
+          python sims/agent2-hw-version-space-audit.py \
+            --input historical/live-hw-matched-results.json \
+            --output hw-version-space-audit.json \
+            --max-cases "$MAX_CASES" \
+            --timeout-ms "$SOLVER_TIMEOUT_MS" \
+            --candidate-labeling "$CANDIDATE_LABELING" \
+            --trace-lower-bound-depth "$TRACE_LOWER_BOUND_DEPTH" \
+            --future-difference-encoding "$FUTURE_DIFFERENCE_ENCODING"
+      - name: Preserve all reproducible output and algorithm/source metadata
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          manifest = {
+              "historical_run_id": int(os.environ["HISTORY_RUN"]),
+              "audit_source_commit": os.environ["GITHUB_SHA"],
+              "candidate_labeling": os.environ["CANDIDATE_LABELING"],
+              "trace_lower_bound_depth": int(os.environ["TRACE_LOWER_BOUND_DEPTH"]),
+              "future_difference_encoding": os.environ["FUTURE_DIFFERENCE_ENCODING"],
+              "max_cases": int(os.environ["MAX_CASES"]),
+              "solver_timeout_ms_per_size": int(os.environ["SOLVER_TIMEOUT_MS"]),
+              "artifact_files": [p.name for p in Path(".").glob("hw-*.json")],
+          }
+          Path("hw-audit-manifest.json").write_text(json.dumps(manifest, indent=2)+"\n")
+          print("HISTORICAL_AUDIT_PROVENANCE "+json.dumps(manifest, sort_keys=True))
+          PY
+      - name: Upload historical proof certificates and full bounded search outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent49-hw-historical-audit
+          path: |
+            hw-audit-manifest.json
+            hw-trace-state-certificate.json
+            hw-passive-reconstruction.json
+            hw-version-space-audit.json

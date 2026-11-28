@@ -153,6 +153,27 @@ class EvaluatorTests(unittest.TestCase):
             BENCHMARK.digest_fixture(same_fixture),
         )
 
+    def test_random_fixture_generator_supports_16_and_24_state_machines(self):
+        for state_count in (16, 24):
+            for seed in (0, 41342):
+                with self.subTest(state_count=state_count, seed=seed):
+                    fixture = BENCHMARK.generate_fixture(state_count, seed)
+                    transitions = [list(row) for row in fixture.transitions]
+                    outputs = [list(row) for row in fixture.outputs]
+
+                    self.assertEqual(fixture.state_count, state_count)
+                    self.assertGreaterEqual(fixture.generation_attempts, 1)
+                    self.assertGreaterEqual(fixture.initial_state, 0)
+                    self.assertLess(fixture.initial_state, state_count)
+                    self.assertTrue(BENCHMARK.is_strongly_connected(transitions))
+                    self.assertTrue(BENCHMARK.is_minimal_mealy(transitions, outputs))
+
+                    replay = BENCHMARK.generate_fixture(state_count, seed)
+                    self.assertEqual(
+                        BENCHMARK.digest_fixture(fixture),
+                        BENCHMARK.digest_fixture(replay),
+                    )
+
     def test_oracle_steps_are_a_subset_of_total_sul_steps(self):
         metrics = BENCHMARK.derive_step_metrics(1188, 720)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.metadata
 import hashlib
 import importlib.util
@@ -89,7 +90,7 @@ def terminate_process_group(process):
     process.wait(timeout=5)
 
 
-def start_server(fixture, seed: int):
+def start_server(fixture):
     node_path = shutil.which("node")
     if not node_path:
         raise RuntimeError("node is required for isolated live SCO server")
@@ -139,12 +140,12 @@ def start_server(fixture, seed: int):
             "output": [list(row) for row in fixture.outputs],
             "initial_state": fixture.initial_state,
         }
-        canary = f"agent2-live-sco-private-canary-{fixture.state_count}-{seed}"
+        canary = "agent2-live-sco-private-canary-" + secrets.token_urlsafe(32)
         session_token = secrets.token_urlsafe(32)
         payload = {
             "machine": machine,
             "canary": canary,
-            "partition_seed": f"agent2-live-sco-{fixture.state_count}-{seed}",
+            "partition_seed": "agent2-live-sco-partition-" + secrets.token_urlsafe(32),
             "session_token": session_token,
         }
         process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
@@ -240,11 +241,21 @@ def preflight(
     canary: str,
     session_token: str,
     method_name: str,
+    archive_public_module: bool = False,
 ):
+    """Check the published surface; optionally preserve its exact UTF-8 bytes.
+
+    The bounded base64 field is for trusted post-run evaluator artifacts only,
+    never for the learner argv/environment or the private server payload.
+    """
+    max_public_bytes = 1024 * 1024
     with urllib.request.urlopen(origin + public_path, timeout=10) as response:
         if response.status != 200:
             raise AssertionError(f"public module returned HTTP {response.status}")
-        public_source = response.read().decode("utf-8")
+        raw_public = response.read(max_public_bytes + 1)
+        if len(raw_public) > max_public_bytes:
+            raise AssertionError("public module exceeds one-MiB evidence archive limit")
+        public_source = raw_public.decode("utf-8", errors="strict")
         set_cookie = response.headers.get("Set-Cookie")
         published_method_name = response.headers.get("X-SCO-Method")
 
@@ -291,16 +302,19 @@ def preflight(
     if reset_status != 404:
         raise AssertionError(f"unexpected reset route status: {reset_status}")
 
-    return {
+    result = {
         "source_disclosed": source_disclosed,
         "session_cookie_issued": session_cookie_issued,
         "session_token_in_public_module": session_token_in_public_module,
         "method_name_published": method_name_published,
-        "source_bytes": len(public_source.encode("utf-8")),
-        "source_sha256": hashlib.sha256(public_source.encode("utf-8")).hexdigest(),
+        "source_bytes": len(raw_public),
+        "source_sha256": hashlib.sha256(raw_public).hexdigest(),
         "unauthorized_status": unauthorized_status,
         "reset_status": reset_status,
     }
+    if archive_public_module:
+        result["public_module_base64"] = base64.b64encode(raw_public).decode("ascii")
+    return result
 
 
 def stop_server(process):
@@ -364,7 +378,7 @@ def run_one(state_count: int, seed: int, args):
     server_stats = None
     server_stderr = ""
     try:
-        server_process, ready, canary, session_token, server_root = start_server(fixture, seed)
+        server_process, ready, canary, session_token, server_root = start_server(fixture)
         preflight_result = preflight(
             ready["origin"],
             ready["public_module_path"],

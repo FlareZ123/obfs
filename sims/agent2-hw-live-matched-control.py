@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 import shutil
+import secrets
 import subprocess
 import sys
 import time
@@ -149,7 +150,6 @@ def module_public_metadata(trace):
                 "cache_control",
                 "nosniff",
                 "set_cookie_present",
-                "set_cookie_value_sha256",
                 "set_cookie_attributes",
                 "method_name",
             )
@@ -205,6 +205,18 @@ def validate_server_stats(stats, steps: int, label: str):
             )
 
 
+def comparable_invalid_probe(result):
+    """Compare public request/response semantics without requiring shared cookies."""
+    return {
+        "request": {
+            key: value
+            for key, value in result["request"].items()
+            if key != "cookie_sha256"
+        },
+        "response": result["response"],
+    }
+
+
 def run_one(state_count: int, seed: int, args):
     server_user, learner_user = BASE.isolation_accounts()
     learner_seed = args.learner_seed
@@ -217,44 +229,23 @@ def run_one(state_count: int, seed: int, args):
     ordinary_process = None
     mirror_root = None
     try:
-        sco_process, sco_ready, canary, session_token, mirror_root = BASE.start_server(fixture, seed)
-        ordinary_process, ordinary_ready = start_ordinary_server(
-            fixture,
-            canary,
-            session_token,
-            sco_ready["method_name"],
-            mirror_root,
-        )
-        if ordinary_ready["method_name"] != sco_ready["method_name"]:
-            raise AssertionError("matched arms published different method identifiers")
-
+        # Run exactly one service at a time. The other arm must not be available
+        # as an alternate localhost oracle to the untrusted learner.
+        sco_process, sco_ready, sco_canary, sco_session_token, mirror_root = BASE.start_server(fixture)
         sco_preflight = BASE.preflight(
             sco_ready["origin"],
             sco_ready["public_module_path"],
             sco_ready["rpc_path"],
-            canary,
-            session_token,
+            sco_canary,
+            sco_session_token,
             sco_ready["method_name"],
-        )
-        ordinary_preflight = BASE.preflight(
-            ordinary_ready["origin"],
-            ordinary_ready["public_module_path"],
-            ordinary_ready["rpc_path"],
-            canary,
-            session_token,
-            ordinary_ready["method_name"],
+            archive_public_module=True,
         )
         sco_invalid = invalid_operation_probe(
-            sco_ready["origin"], sco_ready["method_name"], session_token
+            sco_ready["origin"], sco_ready["method_name"], sco_session_token
         )
-        ordinary_invalid = invalid_operation_probe(
-            ordinary_ready["origin"], ordinary_ready["method_name"], session_token
-        )
-        if sco_invalid != ordinary_invalid:
-            raise AssertionError("authorized invalid-argument response traces differ")
         if sco_invalid["response"]["status"] != 403:
-            raise AssertionError("authorized invalid-argument probe did not return HTTP 403")
-
+            raise AssertionError("SCO authorized invalid-argument probe did not return HTTP 403")
         sco_client = run_client(sco_ready["origin"], learner_seed, args, mirror_root)
         if sco_client.get("status") == "timeout":
             return {
@@ -266,6 +257,38 @@ def run_one(state_count: int, seed: int, args):
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
+        sco_eval = evaluate_client(fixture, sco_client)
+        sco_stats, sco_stderr = BASE.stop_server(sco_process)
+        sco_process = None
+        validate_server_stats(sco_stats, sco_client["sul_num_steps"], "SCO")
+
+        # The ordinary arm gets a fresh cookie. The same fixture and learner RNG
+        # seed preserve the paired experiment without sharing an auth capability.
+        ordinary_canary = secrets.token_urlsafe(24)
+        ordinary_session_token = secrets.token_urlsafe(32)
+        ordinary_process, ordinary_ready = start_ordinary_server(
+            fixture,
+            ordinary_canary,
+            ordinary_session_token,
+            sco_ready["method_name"],
+            mirror_root,
+        )
+        if ordinary_ready["method_name"] != sco_ready["method_name"]:
+            raise AssertionError("matched arms published different method identifiers")
+        ordinary_preflight = BASE.preflight(
+            ordinary_ready["origin"],
+            ordinary_ready["public_module_path"],
+            ordinary_ready["rpc_path"],
+            ordinary_canary,
+            ordinary_session_token,
+            ordinary_ready["method_name"],
+            archive_public_module=True,
+        )
+        ordinary_invalid = invalid_operation_probe(
+            ordinary_ready["origin"], ordinary_ready["method_name"], ordinary_session_token
+        )
+        if ordinary_invalid["response"]["status"] != 403:
+            raise AssertionError("ordinary authorized invalid-argument probe did not return HTTP 403")
         ordinary_client = run_client(ordinary_ready["origin"], learner_seed, args, mirror_root)
         if ordinary_client.get("status") == "timeout":
             return {
@@ -277,20 +300,13 @@ def run_one(state_count: int, seed: int, args):
                 "fixture_digest": BENCHMARK.digest_fixture(fixture),
                 "elapsed_seconds": round(time.perf_counter() - started, 4),
             }
-
-        sco_eval = evaluate_client(fixture, sco_client)
         ordinary_eval = evaluate_client(fixture, ordinary_client)
-
-        sco_stats, sco_stderr = BASE.stop_server(sco_process)
-        sco_process = None
         ordinary_stats, ordinary_stderr = BASE.stop_server(ordinary_process)
         ordinary_process = None
+        validate_server_stats(ordinary_stats, ordinary_client["sul_num_steps"], "ordinary")
 
         sco_steps = sco_client["sul_num_steps"]
         ordinary_steps = ordinary_client["sul_num_steps"]
-        validate_server_stats(sco_stats, sco_steps, "SCO")
-        validate_server_stats(ordinary_stats, ordinary_steps, "ordinary")
-
         sco_module_trace = sco_client["client_module_trace"]
         ordinary_module_trace = ordinary_client["client_module_trace"]
         module_metadata_equal = (
@@ -307,7 +323,10 @@ def run_one(state_count: int, seed: int, args):
             sco_client["rpc_record_count"] == ordinary_client["rpc_record_count"]
             and sco_client["rpc_trace_sha256"] == ordinary_client["rpc_trace_sha256"]
         )
-        invalid_probe_equal = sco_invalid == ordinary_invalid
+        invalid_probe_equal = (
+            comparable_invalid_probe(sco_invalid)
+            == comparable_invalid_probe(ordinary_invalid)
+        )
         preflight_equal = (
             sco_preflight["unauthorized_status"] == ordinary_preflight["unauthorized_status"]
             and sco_preflight["reset_status"] == ordinary_preflight["reset_status"]
@@ -318,6 +337,7 @@ def run_one(state_count: int, seed: int, args):
         )
         stats_equal = sco_stats == ordinary_stats
         evaluation_equal = sco_eval == ordinary_eval
+        session_tokens_distinct = sco_session_token != ordinary_session_token
 
         matched = all((
             trace_equal,
@@ -330,6 +350,7 @@ def run_one(state_count: int, seed: int, args):
             stats_equal,
             evaluation_equal,
             sco_steps == ordinary_steps,
+            session_tokens_distinct,
             sco_ready.get("uid") == server_user.pw_uid,
             ordinary_ready.get("uid") == server_user.pw_uid,
             server_user.pw_uid != learner_user.pw_uid,
@@ -348,8 +369,8 @@ def run_one(state_count: int, seed: int, args):
                     "preflight_equal": preflight_equal,
                     "stats_equal": stats_equal,
                     "evaluation_equal": evaluation_equal,
-                    "sco_steps": sco_steps,
-                    "ordinary_steps": ordinary_steps,
+                    "steps_equal": sco_steps == ordinary_steps,
+                    "session_tokens_distinct": session_tokens_distinct,
                 }, sort_keys=True)
             )
 
@@ -361,6 +382,17 @@ def run_one(state_count: int, seed: int, args):
             "learner_seed": learner_seed,
             "fixture_digest": BENCHMARK.digest_fixture(fixture),
             "trace_digest": BENCHMARK.digest_trace(sco_client["trace"]),
+            # Evaluator-only evidence for the bounded full-version-space audit.
+            # These fields are written by the trusted parent after the learner exits;
+            # they are never passed to the learner argv, environment, or HTTP API.
+            "fixture_table": {
+                "transitions": [list(row) for row in fixture.transitions],
+                "outputs": [list(row) for row in fixture.outputs],
+                "initial_state": fixture.initial_state,
+            },
+            "observed_trace": [list(item) for item in sco_client["trace"]],
+            "target_post_trace_state": sco_eval["target_post_trace_state"],
+            "trace_matching_initial_candidates": sco_eval["candidate_count"],
             "server_user_isolated": (
                 sco_ready.get("uid") == server_user.pw_uid
                 and ordinary_ready.get("uid") == server_user.pw_uid
@@ -400,7 +432,9 @@ def run_one(state_count: int, seed: int, args):
                 "steps_non_oracle": sco_steps - sco_client["oracle_num_steps"],
                 "rpc_record_count": sco_client["rpc_record_count"],
                 "rpc_trace_sha256": sco_client["rpc_trace_sha256"],
+                "rpc_trace_full_sha256": sco_client["rpc_trace_full_sha256"],
                 "learner_elapsed_seconds": sco_client["elapsed_seconds"],
+                "http_step_latency_ms": sco_client["http_step_latency_ms"],
                 "server_stats": sco_stats,
                 "preflight": sco_preflight,
                 "invalid_operation_probe": sco_invalid,
@@ -436,7 +470,9 @@ def run_one(state_count: int, seed: int, args):
                 "steps_non_oracle": ordinary_steps - ordinary_client["oracle_num_steps"],
                 "rpc_record_count": ordinary_client["rpc_record_count"],
                 "rpc_trace_sha256": ordinary_client["rpc_trace_sha256"],
+                "rpc_trace_full_sha256": ordinary_client["rpc_trace_full_sha256"],
                 "learner_elapsed_seconds": ordinary_client["elapsed_seconds"],
+                "http_step_latency_ms": ordinary_client["http_step_latency_ms"],
                 "server_stats": ordinary_stats,
                 "preflight": ordinary_preflight,
                 "invalid_operation_probe": ordinary_invalid,
@@ -454,6 +490,7 @@ def run_one(state_count: int, seed: int, args):
                 "server_request_counts_equal": stats_equal,
                 "exact_evaluation_equal": evaluation_equal,
                 "steps_equal": sco_steps == ordinary_steps,
+                "session_tokens_distinct": session_tokens_distinct,
             },
             "elapsed_seconds": round(time.perf_counter() - started, 4),
             "server_stderr": {
@@ -493,6 +530,7 @@ def main():
     parser.add_argument("--min-states", type=int, default=2)
     parser.add_argument("--max-states", type=int, default=5)
     parser.add_argument("--seeds", type=int, default=2)
+    parser.add_argument("--target-seed-mode", choices=("random", "deterministic"), default="random")
     parser.add_argument("--timeout-seconds", type=int, default=120)
     parser.add_argument("--random-walk-length", type=int, default=30)
     parser.add_argument("--origin-states", type=int, default=20)
@@ -500,8 +538,8 @@ def main():
     args = parser.parse_args()
 
     if args.fixture_family == "random":
-        if not (2 <= args.min_states <= args.max_states <= 12):
-            raise ValueError("random fixture range must satisfy 2 <= min <= max <= 12")
+        if not (2 <= args.min_states <= args.max_states <= 24):
+            raise ValueError("random fixture range must satisfy 2 <= min <= max <= 24")
     else:
         if not (3 <= args.min_states <= args.max_states <= 64):
             raise ValueError("delayed-pair fixture range must satisfy 3 <= min <= max <= 64")
@@ -517,8 +555,13 @@ def main():
     started = time.perf_counter()
     results = []
     for state_count in range(args.min_states, args.max_states + 1):
-        for seed in range(args.seeds):
-            results.append(run_one(state_count, seed, args))
+        for sample_index in range(args.seeds):
+            target_seed = (
+                secrets.randbits(64)
+                if args.target_seed_mode == "random"
+                else sample_index
+            )
+            results.append(run_one(state_count, target_seed, args))
 
     completed = [row for row in results if row["status"] == "completed"]
     timeouts = [row for row in results if row["status"] == "timeout"]
@@ -530,6 +573,17 @@ def main():
             "fixture_family": args.fixture_family,
             "state_counts": [args.min_states, args.max_states],
             "seeds_per_state_count": args.seeds,
+            "target_seed_mode": args.target_seed_mode,
+            "target_seed_source": (
+                "secrets.randbits(64)"
+                if args.target_seed_mode == "random"
+                else "deterministic seed indices 0..seeds-1 per state count"
+            ),
+            "target_seed_behavior_note": (
+                "delayed-pair fixture uses only seed parity to select one of two initial states per state count"
+                if args.fixture_family == "delayed-pair"
+                else "random fixture is generated from the full recorded 64-bit seed"
+            ),
             "random_walk_length": args.random_walk_length,
             "origin_states": args.origin_states,
             "learner_seed": args.learner_seed,
