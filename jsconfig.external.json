@@ -8,6 +8,7 @@
     "test/semantic-data-oracle-external-trace.test.js",
     "test/semantic-abrupt-yield-probe.test.js",
     "test/semantic-data-oracle-browser.test.js",
+    "test/semantic-data-oracle-generated-esm.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
