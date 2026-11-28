@@ -1,0 +1,9 @@
+{
+  "name": "obfs-webcrack-independent-attacker",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "webcrack": "2.16.0"
+  }
+}
