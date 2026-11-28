@@ -66,7 +66,13 @@ expression bodies, property/array values, and function-call sinks. The
 includes a real three-tree Node ESM realm-state witness and a safe direct-call
 admission control. The analysis remains syntactic: dynamic higher-order
 identity transfers, other AST sinks, native API effects and other cross-module
-behavior still lack a general proof.
+behavior still lack a general proof. The private child's own function-object
+identity admission is now factored into a shared checker used by both the
+graph and standalone selective compiler when audited source bytes are provided;
+the standalone closure also checks relative imported-function identity at each
+transitive child. The graph still additionally refuses unproved mutable
+module-top-level initialization. See the [bounded candidate report and native
+counterexamples](../im-results/sco-private-child-function-identity-2026-11-28.md).
 
 Source-audited static child modules also decline observable console and
 debugger effects and unproved browser-owned host reads. A browser private
