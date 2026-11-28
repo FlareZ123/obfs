@@ -288,6 +288,11 @@ function findSelectTokenDisclosure(html) {
       // contents are raw text. Avoid inventing tags in a safe import-map
       // JSON string while scanning a later real SELECT.
       if(token.tagName==='script')tokenizer.state=TokenizerMode.SCRIPT_DATA;
+      if(!selects&&['textarea','title'].includes(token.tagName))
+        tokenizer.state=TokenizerMode.RCDATA;
+      if(!selects&&['style','xmp','iframe','noembed','noframes'].includes(token.tagName))
+        tokenizer.state=TokenizerMode.RAWTEXT;
+      if(!selects&&token.tagName==='plaintext')tokenizer.state=TokenizerMode.PLAINTEXT;
       if(token.tagName==='select')selects++;
       if(!selects||issue)return;
       const name=token.tagName;
