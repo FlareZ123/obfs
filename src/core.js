@@ -2344,8 +2344,13 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
-    const fileSourceObserver=(remoteSourceObserver&&!sourceObserverIslands.has(filename))||
-      esmDomSourceProducers.has(filename);
+    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
+    // The opt-in source-observer island only proves that a selected, inert
+    // primitive ESM leaf can safely use *local own-property* substitution.
+    // Keep all other backends forbidden: register/branch VMs, identifier
+    // renaming and string decoding have separate function-source effects.
+    const islandPropertyOnly=sourceObserverIslands.has(filename)&&
+      !esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
@@ -2501,7 +2506,7 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    if ((!fileSourceObserver||islandPropertyOnly) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
