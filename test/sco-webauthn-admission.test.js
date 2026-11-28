@@ -180,6 +180,32 @@ test('WebAuthn state adapters must not grant on truthy nonboolean or async outco
     'Truthy nonboolean revocation result is not proof of revocation');
 });
 
+test('shared memory store must not mint strong-policy tokens through weaker origin and UV',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const strong=harness({stateStore:shared}); // secure.example.com, mandatory UV
+  const weak=createScoWebAuthnAdmission({
+    rpId:'example.com',allowedOrigins:['https://weaker.example.com'],
+    requireUserVerification:false,stateStore:shared,
+    lookupCredential:(principal,id)=>principal==='accountA'?strong.records.get(id)??null:null,
+    updateSignCount:(principal,id,previous,next)=>{
+      const record=strong.records.get(id);
+      if(principal!=='accountA'||!record||record.signCount!==previous||
+         next<=previous)return false;
+      record.signCount=next;return true;
+    }
+  });
+  const issued=strong.admission.issueChallenge('accountA','loginA');
+  const forgedForWeak=assertion(strong,issued,{
+    origin:'https://weaker.example.com',flags:0x01 // user-present, NOT user-verified
+  });
+  const result=await weak.verifyAssertion(forgedForWeak);
+  if(result.ok)console.log('WEBAUTHN_POLICY_CROSS_MINT '+JSON.stringify({
+    acceptedByWeak:result.ok,acceptedByStrong:strong.admission.authorizeSession(result.token,'accountA')
+  }));
+  assert.equal(result.ok,false,
+    'A weaker trusted RP policy must not consume a stronger policy\'s challenge');
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
