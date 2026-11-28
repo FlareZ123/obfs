@@ -179,6 +179,12 @@ function sampleHousekeeping(store,capacity){
 }
 
 test('paired CPU and monotonic wall receipt: 1536-row memory-store housekeeping',()=>{
+  // Prime both implementations independently before measuring. Cold JIT or
+  // first-use Node process startup is not part of the repeated hot work.
+  for(let repeat=0;repeat<2;repeat++){
+    sampleHousekeeping(originalStore(),1536);
+    sampleHousekeeping(createScoWebAuthnMemoryStore(),1536);
+  }
   /** @type {Array<{cpuUs:number,wallUs:number}>} */
   const linear=[];
   /** @type {Array<{cpuUs:number,wallUs:number}>} */
@@ -247,6 +253,10 @@ function sampleSparseHousekeeping(store,iterations){
 }
 
 test('paired sparse-regime control: single-live-record expiry guard overhead',()=>{
+  for(let repeat=0;repeat<2;repeat++){
+    sampleSparseHousekeeping(originalStore(),12_000);
+    sampleSparseHousekeeping(createScoWebAuthnMemoryStore(),12_000);
+  }
   /** @type {Array<{cpuUs:number,wallUs:number}>} */
   const control=[];
   /** @type {Array<{cpuUs:number,wallUs:number}>} */
