@@ -70,6 +70,39 @@ The opt-in accepts only named imports from explicit canonical `node:` specifiers
 
 The same selective API accepts `privateModuleImports:['./private/engine.mjs']`, an explicit exact allowlist of canonical relative `.mjs` server dependencies beneath the source module's own directory. The import must use a simple named binding. The compiler refuses `../` paths, URL escapes, percent encoding, query or fragment aliases, directory-traversal spellings, and unsafe Windows names. It also refuses a retained public function or public helper that refers to any imported private binding. The trusted Node server resolves the original module graph, while the generated public module contains only the RPC facades and preserved public functions. There is no automatic deployment isolation: the operator must keep every private module outside publicly served directories and **must not** include private modules in the SCO `sourceFiles` list.
 
+### Indexed free-reference boundary for relocated source
+
+Selective SCO executes selected browser-origin exports inside a trusted Node.js
+module, not inside the original browser realm. A free identifier absent in the
+browser (for example `process` or `Buffer`) can resolve on the server, changing
+observable behavior. The opt-in indexed lexical admission checks selected
+private functions, their nested function bodies and explicitly audited private
+ESM source dependencies, including callback bodies invoked through native
+operations. Identifiers are considered locally owned only when their lexical
+function, block, parameter or import owner can be established; an unrelated
+sibling declaration does not prove ownership.
+
+**Default:** free `process` and `Buffer` reads are refused for browser-origin
+selected source. Other known standard globals remain subject to the separate
+host-effect, shared-state and realm checks; lexical admission by itself is
+**not** a full browser/Node equivalence theorem.
+
+**Explicit server-origin exception:** `allowServerNodeGlobals:true` permits
+those two free globals only for sources already known by the caller to be
+Node-only. This applies both to selected private exports and to
+`privateModuleSources` static graph audits. This is a trust assertion, **not**
+a way to make browser-selected source portable. It must never be used simply
+to suppress a refusal on a browser script: doing so can turn a browser
+`ReferenceError` into a successful Node result. The opt-in is distinct from
+`allowServerEnvConstants`, which authorizes a narrow top-level server
+environment read; both remain separately guarded.
+
+The conservative check may decline dynamically invoked or semantically inert
+functions when ownership or execution safety cannot be proved. A compiler
+admission says only that this particular static free-name hazard was
+excluded, not that arbitrary host APIs, source observers, authorization
+or hostile runtime integrity are safe.
+
 ### Optional transitive private-source audit
 
 The programmatic selective compiler also accepts `privateModuleSources`, an array
