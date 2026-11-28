@@ -2344,8 +2344,12 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
-    const fileSourceObserver=(remoteSourceObserver&&!sourceObserverIslands.has(filename))||
-      esmDomSourceProducers.has(filename);
+    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
+    // A proven source island admits only local own-key substitution. Other
+    // backends have independent source and side-effect obligations and remain
+    // vetoed while another module observes source bytes.
+    const islandPropertyOnly=sourceObserverIslands.has(filename)&&
+      !esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
@@ -2501,7 +2505,7 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    if ((!fileSourceObserver||islandPropertyOnly) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
