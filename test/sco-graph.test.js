@@ -173,3 +173,59 @@ test('real private SCO graph preserves authenticated remote behavior and withhol
     else process.env.OBFS_SCO_GRAPH_KEY=oldKey;
   }
 });
+
+test('SCO private graph declines exact private function-source disclosure while retaining scalar work',async()=>{
+  // The original server-side function's textual body is an observable RPC
+  // value. Merely withholding its .mjs file does not prevent disclosure when
+  // an approved caller may invoke a source-producing export.
+  const direct='export async function reveal(){return reveal.toString();}';
+  const native=await import('data:text/javascript,'+encodeURIComponent(direct));
+  assert.ok((await native.reveal()).includes('return reveal.toString()'));
+  const exposed=[
+    direct,
+    'export async function reveal(){return Function.prototype.toString.call(reveal);}',
+    'export async function reveal(){return String(reveal);}',
+    'export async function reveal(){const alias=reveal;return alias.toString();}',
+    'function get(){return reveal;}export async function reveal(){return get().toString();}',
+    'const get=()=>reveal;export async function reveal(){return get().toString();}',
+    'const identity=x=>x;export async function reveal(){return identity(reveal).toString();}',
+    'function hop(){return identity(reveal);}function identity(x){return x;}export async function reveal(){return hop().toString();}',
+    'export async function reveal(){return [reveal].join();}',
+    'export async function reveal(i){return String.prototype.charCodeAt.call(reveal,i);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt;return read.call(reveal,i);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt;const alias=read;return alias.call(reveal,i);}',
+    'export async function reveal(i){return Reflect.apply(String.prototype.charCodeAt,reveal,[i]);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt.bind(reveal);return read(i);}',
+    'export async function reveal(){const read=Function.prototype.toString;return read.call(reveal);}',
+    'export async function reveal(){return encodeURIComponent(reveal);}',
+    'export async function reveal(){return new String(reveal);}',
+    'function hidden(){return 873;};export async function reveal(){return hidden.toString();}'
+  ];
+  for(const code of exposed){
+    assert.throws(()=>partitionScoAsyncGraph([{path:'api.mjs',code}],{
+      seed:'function-source-disclosure',exposedPaths:['api.mjs']
+    }),/private function source/u,code);
+  }
+  // Imported function bodies are also server-private, even if selected
+  // exports only return their primitive code units to authorized clients.
+  assert.throws(()=>partitionScoAsyncGraph([
+    {path:'api.mjs',
+      code:'import {hidden} from "./secret.mjs";export async function reveal(i){return String.prototype.charCodeAt.call(hidden,i);}'},
+    {path:'secret.mjs',code:'export function hidden(){return "PRIVATE_IMPORTED_SOURCE_789";}'}
+  ],{seed:'function-source-disclosure',exposedPaths:['api.mjs']}),
+  /private function source/u);
+  const safe=[
+    'export async function score(x){return x*7+2;}',
+    'export async function scalar(){return (42).toString(16);}',
+    'export async function scalar(){return "safe".toString();}',
+    'function get(){return 41;}export async function scalar(){return get().toString(16);}',
+    'function identity(x){return x;}export async function scalar(){return identity(41).toString(16);}'
+  ];
+  for(const code of safe){
+    const graph=partitionScoAsyncGraph([{path:'api.mjs',code}],{
+      seed:'function-source-disclosure',exposedPaths:['api.mjs']
+    });
+    assert.equal(graph.clientFiles.length,1,code);
+    assert.ok(!graph.clientFiles[0].code.includes('42'));
+  }
+});

@@ -2,6 +2,7 @@
 
 const {createHash,randomBytes}=require('node:crypto');
 const {parse,walk}=require('./ast');
+const {exposesPrivateFunctionText}=require('./sco-private-source-observer');
 const {safePath}=require('./core');
 const {createScoBatchMethod}=require('./rpc-batch');
 
@@ -48,6 +49,13 @@ function partitionScoAsyncModule(file,options={}) {
     throw new TypeError('RPC endpoint must be a same-origin absolute path');
   }
   const ast=parse(file.code,'module');
+  // A generated RPC facade does not withhold source text if an approved
+  // server-resident export can stringify its own or a private helper's body.
+  // Refuse recognizable function-origin text sinks while retaining ordinary
+  // Buffer/primitive toString methods in legitimate private computations.
+  if(exposesPrivateFunctionText(ast)){
+    throw new TypeError('Private SCO module exposes private function source');
+  }
   /** @type {{name:string,params:string[],expression:boolean,functionName:string|null}[]} */
   const exported=[];
   /** @type {Set<string>} */
