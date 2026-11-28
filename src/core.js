@@ -200,6 +200,13 @@ function hasImportedDomStringSourceSink(files) {
       if(factories.has(local))exportedFactories.add(external);
     }
     for(const node of ast.body??[]) {
+      if(node.type==='ExportDefaultDeclaration') {
+        const value=node.declaration;
+        if(value?.type==='Identifier')expose(value.name,'default');
+        else if(isDom(value))receivers.add('default');
+        else if(producesDom(value))exportedFactories.add('default');
+        continue;
+      }
       if(node.type!=='ExportNamedDeclaration')continue;
       const declaration=node.declaration;
       if(declaration?.type==='VariableDeclaration') {
@@ -216,6 +223,83 @@ function hasImportedDomStringSourceSink(files) {
       }
     }
     exported.set(filename,{receivers,factories:exportedFactories});
+  }
+  // A direct DOM element import can traverse ESM barrel files. The first
+  // inventory above proves only direct declarations, so close its published
+  // receiver/factory graph over explicit reexports and named import aliases
+  // before deciding that a consumer's DOMString sink is a userland method.
+  // This is a monotone, bounded fixed point over names already in the input
+  // graph; ambiguous export-star resolution is conservatively treated as a
+  // potential DOM capability, not proof of a safe receiver.
+  /** @param {string} origin @param {string} specifier @returns {string|null} */
+  function localModule(origin,specifier) {
+    if(!specifier.startsWith('./')&&!specifier.startsWith('../')||
+       /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+       hasUrlPathnameNormalizationHazard(specifier)||
+       hasTerminalUrlDotSegment(specifier))return null;
+    const target=path.posix.normalize(path.posix.join(path.posix.dirname(origin),specifier));
+    return modules.has(target)?target:null;
+  }
+  /** @param {string} origin @param {import('./ast').AstNode} source @returns {ReturnType<typeof exported.get>} */
+  function importedGraph(origin,source) {
+    if(typeof source.value!=='string')return undefined;
+    const target=localModule(origin,source.value);
+    return target?exported.get(target):undefined;
+  }
+  let propagated=true;
+  while(propagated) {
+    propagated=false;
+    for(const [filename,ast] of modules) {
+      const own=exported.get(filename);
+      if(!own)continue;
+      /** @type {Set<string>} */
+      const receivedElements=new Set();
+      /** @type {Set<string>} */
+      const receivedFactories=new Set();
+      for(const node of ast.body??[]) {
+        if(node.type!=='ImportDeclaration')continue;
+        const donor=importedGraph(filename,node.source);
+        if(!donor)continue;
+        for(const specifier of node.specifiers??[]) {
+          if(specifier.type!=='ImportSpecifier'&&
+             specifier.type!=='ImportDefaultSpecifier')continue;
+          const local=specifier.local?.name;
+          const imported=specifier.type==='ImportDefaultSpecifier'?'default':
+            specifier.imported?.name??specifier.imported?.value;
+          if(typeof local!=='string'||typeof imported!=='string')continue;
+          if(donor.receivers.has(imported))receivedElements.add(local);
+          if(donor.factories.has(imported))receivedFactories.add(local);
+        }
+      }
+      /** @param {string} external @param {boolean} receiver @param {boolean} factory */
+      function add(external,receiver,factory) {
+        if(receiver&&!own.receivers.has(external)) {
+          own.receivers.add(external);propagated=true;
+        }
+        if(factory&&!own.factories.has(external)) {
+          own.factories.add(external);propagated=true;
+        }
+      }
+      for(const node of ast.body??[]) {
+        if(node.type==='ExportAllDeclaration'&&!node.exported) {
+          const donor=importedGraph(filename,node.source);
+          if(!donor)continue;
+          for(const key of donor.receivers)if(key!=='default')add(key,true,false);
+          for(const key of donor.factories)if(key!=='default')add(key,false,true);
+        }
+        if(node.type==='ExportNamedDeclaration'&&node.specifiers?.length) {
+          const donor=node.source?importedGraph(filename,node.source):null;
+          for(const item of node.specifiers) {
+            if(item.type!=='ExportSpecifier')continue;
+            const external=item.exported?.name??item.exported?.value;
+            const local=item.local?.name??item.local?.value;
+            if(typeof external!=='string'||typeof local!=='string')continue;
+            add(external,donor?donor.receivers.has(local):receivedElements.has(local),
+              donor?donor.factories.has(local):receivedFactories.has(local));
+          }
+        }
+      }
+    }
   }
   /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
   function potentiallySourceBearing(value) {
