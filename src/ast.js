@@ -2516,6 +2516,9 @@ function hasNativeDocumentFactoryMutation(ast) {
   const docs=new Set(['document']);
   const docConstructors=new Set(['Document','HTMLDocument','XMLDocument']);
   const docPrototypes=new Set();
+  const insertionHostNames=new Set();
+  const insertionConstructors=new Set(['Element','HTMLElement',
+    'SVGElement','Document','DocumentFragment','Node','CharacterData']);
   /** @param {AstNode|null|undefined} node @returns {string|null} */
   function key(node) {
     if(!node||node.type!=='MemberExpression')return null;
@@ -2546,6 +2549,18 @@ function hasNativeDocumentFactoryMutation(ast) {
        node.callee.object.name==='Object'&&
        key(node.callee)==='getPrototypeOf'&&isDocument(node.arguments[0])));
   }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isInsertionHost(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return insertionHostNames.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    const field=key(node);
+    return ['head','body','documentElement'].includes(field??'')&&
+        isDocument(node.object) ||
+      field==='prototype'&&node.object.type==='Identifier'&&
+        insertionConstructors.has(node.object.name) ||
+      field==='__proto__'&&isDocument(node.object);
+  }
   let changed;
   do {
     changed=false;
@@ -2575,6 +2590,9 @@ function hasNativeDocumentFactoryMutation(ast) {
       if(value.type==='Identifier'&&docConstructors.has(value.name)&&
          !docConstructors.has(name)){docConstructors.add(name);changed=true;}
       if(isDocument(value)&&!docs.has(name)){docs.add(name);changed=true;}
+      if(isInsertionHost(value)&&!insertionHostNames.has(name)){
+        insertionHostNames.add(name);changed=true;
+      }
       if(isDocPrototype(value)&&!docPrototypes.has(name)){
         docPrototypes.add(name);changed=true;
       }
@@ -2603,6 +2621,7 @@ function hasNativeDocumentFactoryMutation(ast) {
       if(isDocument(receiver)||isDocPrototype(receiver)) {
         if(field===null||factories.has(field)||field==='__proto__')mutated=true;
       }
+      if(isInsertionHost(receiver)&&field===null)mutated=true;
       if(isGlobal(receiver)&&(field===null||field==='document'))mutated=true;
     }
     // A detached Reflect.set/defineProperty or an application-defined
@@ -2627,6 +2646,15 @@ function hasNativeDocumentFactoryMutation(ast) {
       if(['assign','defineProperty','defineProperties','set','deleteProperty',
           'setPrototypeOf'].includes(method??'') &&
           insertions.has(name??''))mutated=true;
+      if(['assign','defineProperties','setPrototypeOf'].includes(method??'') &&
+         isInsertionHost(first))mutated=true;
+      if(['assign','defineProperties','setPrototypeOf'].includes(method??'') &&
+         node.arguments.slice(1).some((/** @type {AstNode} */ arg)=>
+           arg?.type==='ObjectExpression'&&arg.properties.some(
+             (/** @type {AstNode} */ prop)=>prop.type==='Property'&&
+               insertions.has((prop.computed?staticString(prop.key):
+                 prop.key.type==='Identifier'?prop.key.name:
+                 staticString(prop.key))??''))))mutated=true;
       if(['assign','defineProperty','defineProperties','set','deleteProperty',
           'setPrototypeOf','preventExtensions'].includes(method??'') &&
         ((isDocument(first)||isDocPrototype(first)) &&
