@@ -33,13 +33,16 @@ jobs:
       - name: Independently transform minified and COO math, check heldout original outputs
         env:
           OBFS_WEBCRACK_REPORT: webcrack-${{ runner.os }}.json
+          OBFS_WEBCRACK_ARTIFACT_DIR: webcrack-source-${{ runner.os }}
         run: node sims/webcrack-four-way-attacker.js
       - name: Upload pinned external tool evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: webcrack-${{ runner.os }}
-          path: webcrack-${{ runner.os }}.json
+          path: |
+            webcrack-${{ runner.os }}.json
+            webcrack-source-${{ runner.os }}/*.mjs
           if-no-files-found: warn
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
