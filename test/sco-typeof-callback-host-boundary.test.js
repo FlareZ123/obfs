@@ -61,16 +61,39 @@ test('callback host guard leaves non-reading and locally owned primitives usable
  * intended target-realm contract rather than assuming a Node VM is a browser.
  * Opt in only for the focused CI lane, where Chromium is available on Linux.
  */
-test('real Chromium reproduces the nested typeof callback host mismatch',{
+/** @type {{label:string,expression:string,node:string}[]} */
+const nativeTypeofCases=[
+  {label:'map',expression:'typeof [0].map(()=>process)[0]',node:'object'},
+  {label:'flatMap',expression:'typeof [0].flatMap(()=>[process])[0]',node:'object'},
+  {label:'filter',expression:'typeof [0].filter(()=>Boolean(process))[0]',node:'number'},
+  {label:'every',expression:'typeof [0].every(()=>Boolean(process))',node:'boolean'},
+  {label:'some',expression:'typeof [0].some(()=>Boolean(process))',node:'boolean'},
+  {label:'find',expression:'typeof [0].find(()=>Boolean(process))',node:'number'},
+  {label:'forEach',expression:'typeof [0].forEach(()=>process)',node:'undefined'},
+  {label:'reduce',expression:'typeof [0].reduce(()=>process,0)',node:'object'},
+  {label:'Array.from',expression:'typeof Array.from([0],()=>process)[0]',node:'object'},
+  {label:'replace',expression:'typeof "x".replace(/x/,()=>process)',node:'string'},
+  {label:'sort',expression:'typeof [2,1].sort(()=>process)',node:'object'},
+  {label:'getter',expression:'typeof ({get value(){return process;}}).value',node:'object'},
+  {label:'Proxy getter',expression:'typeof (new Proxy({},{get(){return process;}})).value',node:'object'},
+  {label:'generator next',expression:'typeof (function*(){return process})().next().value',node:'object'},
+  {label:'optional map',expression:'typeof [0]?.map?.(()=>process)?.[0]',node:'object'}
+];
+
+test('real Chromium native ESM mismatch and compiler refusal for fifteen eager typeof bodies',{
   skip:process.platform==='win32'||
     process.env.OBFS_FOCUSED_TEST!=='test/sco-typeof-callback-host-boundary.test.js',
   timeout:45000
 },async()=>{
-  const source='export async function protectedOp(){'+
-    'return typeof [0].map(()=>process)[0];}'+
-    'export function visible(){return 7;}';
-  const native=await import('data:text/javascript,'+encodeURIComponent(source));
-  assert.equal(await native.protectedOp(),'object');
+  /** @type {{label:string,value:string}[]} */
+  const nodeResults=[];
+  for(const sample of nativeTypeofCases){
+    const source='export async function protectedOp(){return '+sample.expression+';}';
+    const imported=await import('data:text/javascript,'+encodeURIComponent(source));
+    const value=await imported.protectedOp();
+    assert.equal(value,sample.node,sample.label+' Node ESM');
+    nodeResults.push({label:sample.label,value});
+  }
   const puppeteer=require('puppeteer-core');
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
@@ -82,27 +105,40 @@ test('real Chromium reproduces the nested typeof callback host mismatch',{
     });
     const page=await browser.newPage();
     await page.goto('about:blank');
-    const observed=await page.evaluate(async code=>{
-      const module=await import('data:text/javascript,'+encodeURIComponent(code));
-      try{
-        return {globalType:typeof process,
-          result:'value:'+String(await module.protectedOp())};
-      }catch(error){
-        return {globalType:typeof process,
-          result:'throw:'+String(error&&typeof error==='object'&&'name' in error?
-            error.name:error)};
+    const observed=await page.evaluate(async cases=>{
+      /** @type {{label:string,result:string}[]} */
+      const results=[];
+      for(const sample of cases){
+        const source='export async function protectedOp(){return '+sample.expression+';}';
+        const imported=await import('data:text/javascript,'+encodeURIComponent(source));
+        try{
+          results.push({label:sample.label,
+            result:'value:'+String(await imported.protectedOp())});
+        }catch(error){
+          results.push({label:sample.label,
+            result:'throw:'+String(error&&typeof error==='object'&&'name' in error?
+              error.name:error)});
+        }
       }
-    },source);
-    assert.deepEqual(observed,{
-      globalType:'undefined',result:'throw:ReferenceError'
-    });
-    assert.throws(()=>partitionScoSelectedAsyncExports({
-      path:'typeof-callback.mjs',sourceType:'module',code:source
-    },{seed:'typeof-callback-browser-proof',privateNames:['protectedOp']}),
-    /unproved|host|realm|browser/i);
+      return {processType:typeof process,results};
+    },nativeTypeofCases);
+    assert.equal(observed.processType,'undefined');
+    assert.deepEqual(observed.results,nativeTypeofCases.map(sample=>({
+      label:sample.label,result:'throw:ReferenceError'
+    })));
+    for(const sample of nativeTypeofCases){
+      const code='export async function protectedOp(){return '+sample.expression+';}'+
+        'export function visible(){return 7;}';
+      assert.throws(()=>partitionScoSelectedAsyncExports({
+        path:'typeof-callback.mjs',sourceType:'module',code
+      },{seed:'typeof-callback-browser-proof',privateNames:['protectedOp']}),
+      /unproved|host|realm|browser/i,sample.label);
+    }
     console.log('SCO_TYPEOF_CALLBACK_BROWSER '+JSON.stringify({
-      node:'object',browser:observed.result,
-      compilerDeclined:true
+      nativeCases:nativeTypeofCases.length,nodeResults,
+      browserProcess:observed.processType,
+      browserReferenceErrors:observed.results.length,
+      compilerRefusals:nativeTypeofCases.length
     }));
   }finally{
     if(browser)await browser.close();
