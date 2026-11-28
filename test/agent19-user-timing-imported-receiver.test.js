@@ -28,7 +28,7 @@ async function execute(files) {
 }
 
 /**
- * @param {'receiver'|'record'|'factory'|'detail'} shape
+ * @param {'receiver'|'record'|'factory'|'detail'|'services'|'recordFactory'} shape
  * @param {boolean} primitive
  * @returns {ESMFile[]}
  */
@@ -37,19 +37,25 @@ function fixtures(shape,primitive) {
     receiver:'export const timing=performance;',
     record:'export const hooks={native:performance.mark};',
     factory:'export function makeTiming(){return performance;}',
-    detail:'export const timing=performance;'
+    detail:'export const timing=performance;',
+    services:'export const services={clock:performance};',
+    recordFactory:'export function makeServices(){return {clock:performance};}'
   };
   const invocations={
     receiver:'timing.mark(inspect).name',
     record:'hooks.native.call(performance,inspect).name',
     factory:'makeTiming().mark(inspect).name',
-    detail:'(()=>{let source="";try{timing.mark("fixed",{detail:{fn:inspect}});}catch(error){source=error.message;}return source;})()'
+    detail:'(()=>{let source="";try{timing.mark("fixed",{detail:{fn:inspect}});}catch(error){source=error.message;}return source;})()',
+    services:'services.clock.mark(inspect).name',
+    recordFactory:'makeServices().clock.mark(inspect).name'
   };
   const imports={
     receiver:'import {timing} from "./host.mjs";',
     record:'import {hooks} from "./host.mjs";',
     factory:'import {makeTiming} from "./host.mjs";',
-    detail:'import {timing} from "./host.mjs";'
+    detail:'import {timing} from "./host.mjs";',
+    services:'import {services} from "./host.mjs";',
+    recordFactory:'import {makeServices} from "./host.mjs";'
   };
   const producer='export function inspect(){const owner={secretField:61};return owner.secretField;}';
   const consumer=primitive?
@@ -74,7 +80,7 @@ function compile(files,seed,mode) {
 }
 
 for(const mode of /** @type {const} */(['coo','sno','sco'])) {
-  for(const shape of /** @type {const} */(['receiver','record','factory','detail'])) {
+  for(const shape of /** @type {const} */(['receiver','record','factory','detail','services','recordFactory'])) {
     test(mode+' imported ESM User Timing source observer via '+shape,async()=>{
       const original=fixtures(shape,false);
       const native=await execute(original);
