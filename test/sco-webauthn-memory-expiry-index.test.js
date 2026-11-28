@@ -77,16 +77,6 @@ function originalStore(){
  * @param {string} label
  */
 function paired(baseline,candidate,method,args,label){
-  /** @param {ScoWebAuthnStateStore} store */
-  const invoke=store=>{
-    try{
-      /** @type {Function} */ (store[method]).apply(store,args);
-      return {ok:true,output:/** @type {unknown} */(undefined)};
-    }catch(error){
-      if(!(error instanceof Error))throw error;
-      return {ok:false,name:error.name,message:error.message};
-    }
-  };
   // Methods that return values must be compared; exceptions stay in-band.
   /** @param {ScoWebAuthnStateStore} store */
   const invokeOutput=store=>{
@@ -97,14 +87,13 @@ function paired(baseline,candidate,method,args,label){
     }
   };
   assert.deepEqual(invokeOutput(candidate),invokeOutput(baseline),label);
-  void invoke;
 }
 
 test('ordered and out-of-order memory expiry behavior matches historical linear scan',()=>{
   const a=originalStore(),b=createScoWebAuthnMemoryStore();
   const buffer=Buffer.from('a');
-  const call=(/** @type {keyof ScoWebAuthnStateStore} */method,
-    /** @type {any[]} */args)=>paired(a,b,method,args,method+' '+JSON.stringify(args));
+  /** @param {keyof ScoWebAuthnStateStore} method @param {any[]} args */
+  const call=(method,args)=>paired(a,b,method,args,method+' '+JSON.stringify(args));
   call('insertChallenge',['far','principal','session',buffer,100,0,2]);
   call('insertChallenge',['near','principal','session',buffer,10,0,2]);
   call('insertChallenge',['middle','principal','session',buffer,80,20,2]);
