@@ -30,6 +30,7 @@ function options(mode) {
 }
 
 test('unproved ambient globals, scoped-shadow decoys and console value escapes refuse in all modes',()=>{
+  /** @type {Array<[string,string]>} */
   const unsafe=[
     ['unlisted host file reader',
       'const fd=ambientFilesystem.openSync("./independent.mjs","r");console.log(fd);'],
