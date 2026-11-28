@@ -61,6 +61,28 @@ median and every strict >2.5× ratio. Do not present an initialization
 deduction as a per-call discount or treat a median alone as proof that
 all required workloads satisfy the budget.
 
+## Separately scored threat-model dimensions
+
+The measured candidate is the **actual served SCO facade** for the
+frozen application, *not* the complete hypothetical strongest obfuscator.
+Distinguish the trusted-server advantage (shared by both clients) from an
+incremental obfuscation advantage:
+
+| Dimension required by PRIMARY OBJECTIVE | Grounded observation | Confidence and limitation |
+| --- | --- | --- |
+| Static recovery / private program reconstruction | The public 515-byte SCO ESM contains a literal RPC method and route but **not** the original engine code. The ordinary equal-trust client likewise withholds that engine. A bounded literal-only static extractor was added as a separate attacker control. | Server-source withholding is shared, hence **no incremental advantage established**; full offline algorithm recovery is untested. New static extractor still awaits a green pinned gate. |
+| Dynamic extraction / instrumentation | Both facades expose an **identical instrumented JSON wire** and 40/40 held-out authorized results from a fresh copied-client process. A child with *no facade at all* reproduces 40/40 after receiving one intercepted method identity. | Strong for the tested online authorized RPC interface, not proof of offline engine reconstruction. |
+| Unauthorized modifications and integrity | Unauthorized token requests returned HTTP 403, unauthorized argument shapes 403 and unknown method keys 400. Those checks run on the **same server** for both facades, not through client-side assertions. | A valid unauthorized-policy defense, **not attributable to SCO obfuscation**. Tampering within an authorized request's policy bounds still invokes the original operation. |
+| Environment locking | Each delivered client executes from a new temporary file under a separate Node process while its `fetch` connects to the original server with a legitimate token. Real Chromium also executes both from a same-origin fixture. | Demonstrates **no unforgeable location lock** in the public client; server credential checks still work. No arbitrary cross-site CORS bypass is claimed. |
+| Functional cloning / authorized relay | Identical 40/40 application held-outs from both public clients and from a facade-free intercepted request, without original code. | Clones the *online oracle behavior*, not the original offline algorithm. Both controls share the same token/server. |
+| 2.5× compute constraint | Post-init repeated independent calls: thin-work SCO/native medians **272.47× Ubuntu** and **253.97× Windows** in varying-input samples, 7/7 strict breaches each. Sustained work medians 1.28–1.33×, no sampled breaches. | Only process CPU for one frozen application and loopback service; cross-machine network, different workloads and browser CPU not measured. |
+
+There is **no supported measured uplift** on these attacked client-side
+dimensions over the matched ordinary-minifier control. The result
+does not say all SCO applications or all obfuscation techniques lack
+security value. In particular, private server code remains outside
+the attacker-controlled client and protected by the shared server policy.
+
 ## What this can and cannot establish
 
 Both clients intentionally lack the original five private module
