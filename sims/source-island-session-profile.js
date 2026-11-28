@@ -59,7 +59,7 @@ function measurementAdapter(iterations) {
     'for(let i=0;i<'+iterations+';i++){digest=(digest+unrelated())|0;}',
     'const workMs=performance.now()-start;',
     'console.log(JSON.stringify({digest,source:answer.source,workMs}));'
-  ].join('\\n');
+  ].join('\n');
 }
 
 /** @param {string} root @param {SourceFile[]} files @returns {Promise<void>} */
