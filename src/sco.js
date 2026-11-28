@@ -63,6 +63,7 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  *   construction. Composite work hidden inside a leaf method remains that
  *   method's application-level policy responsibility.
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
+ * @property {(request:import('node:http').IncomingMessage)=>boolean} [admitRpcEarly] Optional synchronous deny-only filter before RPC body and queue work. Only literal true proceeds to the mandatory final authorization; it cannot grant access.
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
  * @property {number} [maxRpcBytes]
@@ -92,11 +93,18 @@ function respondJson(response,status,payload) {
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
  * @param {import('node:http').IncomingMessage} request
  * @param {import('node:http').ServerResponse} response
- * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'> & {batchPreflightRoutes?:ReadonlySet<string>}} options
+ * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'|'admitRpcEarly'> & {batchPreflightRoutes?:ReadonlySet<string>}} options
  * @returns {Promise<void>}
  */
 async function handleRpc(request,response,options) {
   try {
+    // Optional cheap, synchronous denial-only gate. With isolation the
+    // authoritative stateful policy still runs inside its critical section.
+    // A true result is never authorization and cannot grant private work.
+    if(options.admitRpcEarly && options.admitRpcEarly(request)!==true) {
+      respondJson(response,403,{ok:false,error:'Forbidden'});
+      return;
+    }
     // Authorization callbacks must return true explicitly: truthy objects,
     // strings and numeric values are insufficient proof of permission.
     // Preserve the early coarse denial path when no isolation callback is
@@ -375,6 +383,7 @@ function createScoHandler(sourceFiles,options={}) {
   const suppliedMethods=options.remoteMethods;
   const remoteMethods=suppliedMethods?{...suppliedMethods}:undefined;
   const authorizeRpc=options.authorizeRpc;
+  const admitRpcEarly=options.admitRpcEarly;
   const authorizeRead=options.authorizeRead;
   const authorizeOperation=options.authorizeOperation;
   const suppliedBatchPreflight=options.batchPreflightRoutes;
@@ -433,6 +442,12 @@ function createScoHandler(sourceFiles,options={}) {
   }
   if (runRpcIsolated !== undefined && typeof runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');
+  }
+  if(admitRpcEarly!==undefined && typeof admitRpcEarly!=='function') {
+    throw new TypeError('admitRpcEarly must be a function');
+  }
+  if(admitRpcEarly!==undefined && runRpcIsolated===undefined) {
+    throw new TypeError('admitRpcEarly requires runRpcIsolated');
   }
   if (maxRpcBytes !== undefined && (!Number.isSafeInteger(maxRpcBytes) || maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
@@ -610,6 +625,7 @@ function createScoHandler(sourceFiles,options={}) {
     remoteMethods,
     batchPreflightRoutes,
     authorizeRpc,
+    admitRpcEarly,
     authorizeOperation,
     runRpcIsolated,
     maxRpcBytes,
@@ -640,6 +656,7 @@ function createScoHandler(sourceFiles,options={}) {
         remoteMethods:policy.remoteMethods,
         batchPreflightRoutes:policy.batchPreflightRoutes,
         authorizeRpc:policy.authorizeRpc,
+        admitRpcEarly:policy.admitRpcEarly,
         authorizeOperation:policy.authorizeOperation,
         runRpcIsolated:policy.runRpcIsolated,
         maxRpcBytes:policy.maxRpcBytes
