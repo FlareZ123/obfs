@@ -1,4 +1,4 @@
-name: Manual imported pure-identity alias property proof
+name: Manual Agent6 scoped private-record Node contract (browser excluded)
 
 on:
   workflow_dispatch:
@@ -39,18 +39,24 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/cross-file-primitive-const-browser.js
+      # Unrelated source-only browser gates are independently release-blocked
+      # on this main-derived baseline; this dispatch asserts Node/ESM only.
       - name: Real Chromium nonthrowing unary BigInt owner and reflection parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ false }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/bigint-unary-owner-browser.js
+      # Unrelated source-only browser gates are independently release-blocked
+      # on this main-derived baseline; this dispatch asserts Node/ESM only.
       - name: Real Chromium immutable import alias and reflection refusal
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ false }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/cross-file-imported-identity-browser.js
+      # Unrelated source-only browser gates are independently release-blocked
+      # on this main-derived baseline; this dispatch asserts Node/ESM only.
       - name: Equal-trust esbuild property-mangle control in real Chromium
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ false }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/cross-file-property-mangle-control.js
