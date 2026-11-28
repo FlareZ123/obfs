@@ -60,6 +60,19 @@ npm run typecheck
 npm run typecheck:external
 ```
 
+## Additional private ESM import-graph integrity: in-root symlinks (provisional)
+
+A real Node 22.16.0 local subprocess-independent `import()` experiment constructed two directories:
+
+- `private/main.mjs` is a symlink to `mirror/main.mjs`, whose exact source bytes equal the reviewed `private/main.mjs` commitment and contain `import "./leaf.mjs"`.
+- `private/leaf.mjs` contains the reviewed `"reviewed-child"`, while `mirror/leaf.mjs` contains an uncommitted `"unreviewed-child"` source.
+
+Node's default ESM resolution loaded `mirror/leaf.mjs`: observed `"unreviewed-child"` where the reviewed graph projected `"reviewed-child"`. `fs.realpath(private/main)` remained **inside** the trusted root; thus an in-root realpath containment test plus SHA-256 of the redirected main-module bytes does not prove a complete static ESM import closure. This is a concrete *deployment correctness and unexpected executed-source* mismatch, not a hostile-server attacker bypass under the project's threat model.
+
+A red-first test `test/sco-private-realpath-identity.test.js` at **`495cec56405ef9192a5b5c075f24010ae60c9d02`** exercises that exact Node-loader observation and requires verifier rejection. The candidate correction at **`6db72f522fa9ef0cf81cf82c135275941f5b5189`** checks `fs.lstat` of every component of each committed path, following the preexisting outside-root rejection, and refuses any internal symlink before hashing. Tests cover an in-root symlink leaf, in-root symlink ancestor, and a distinct-file positive control; Windows symlink negatives are skipped because runner privilege is not guaranteed. **CI red/green for these additional source pins is pending at the time of writing.**
+
+This is a non-atomic deployment preflight: filesystem replacement between `lstat` and the actual ESM `import()` is still possible unless the trusted integrator makes its source tree immutable. It adds initialization filesystem checks but no per-RPC computation. A user running Node with explicit `--preserve-symlinks` may have different relative import behavior; this conservative policy rejects symlinks rather than promising compatibility with arbitrary loader flags.
+
 ## Limits and decision
 
 This is **build/deployment admission correctness**, not an independent demonstration of static or dynamic deobfuscation resistance, tamper resistance against a compromised server, or locking on a hostile runtime. A trusted SCO publisher can still be bypassed by a compromised trusted host, and authorized clients can relay calls to private methods. The verifier still has a documented filesystem TOCTOU interval between digest check and the later ESM import.
