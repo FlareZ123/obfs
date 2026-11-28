@@ -95,13 +95,14 @@ test('SCO rejects named default function-expression own-state through reexport',
 });
 
 test('SCO refuses aliased function metadata that loses primitive provenance',()=>{
+  const prefix='import {next} from "./b.mjs";';
   const unsafe=[
-    'export function run(){const fn=()=>1;const name=fn.name;return name.toString().length;}',
-    'export function run(){const fn=()=>1;const name=fn.name;return name.length;}',
-    'export function run(){const fn=()=>1;const length=fn.length;return length.toString();}',
-    'export function run(){const fn=()=>1;const length=fn.name.length;return length.toString();}',
-    'export function run(){function consume(value){return value.toString();}'+
-      'const fn=()=>1;return consume(fn.name);}'
+    prefix+'export function run(){const fn=()=>1;const name=fn.name;return name.toString().length+next();}',
+    prefix+'export function run(){const fn=()=>1;const name=fn.name;return name.length+next();}',
+    prefix+'export function run(){const fn=()=>1;const length=fn.length;return length.toString()+next();}',
+    prefix+'export function run(){const fn=()=>1;const length=fn.name.length;return length.toString()+next();}',
+    prefix+'export function run(){function consume(value){return value.toString();}'+
+      'const fn=()=>1;return consume(fn.name)+next();}'
   ];
   for(const source of unsafe){
     assert.throws(()=>standalone(source,leaf),
@@ -109,7 +110,7 @@ test('SCO refuses aliased function metadata that loses primitive provenance',()=
     assert.throws(()=>graph(source,leaf),
       /realm-local prototype|escapes a shared function identity/u,source);
   }
-  const safe='export function run(){const fn=()=>1;return fn.name.length;}';
+  const safe=prefix+'export function run(){const fn=()=>1;return fn.name.length+next();}';
   assert.doesNotThrow(()=>standalone(safe,leaf));
   assert.doesNotThrow(()=>graph(safe,leaf));
 });
