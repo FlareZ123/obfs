@@ -77,6 +77,19 @@ The repository already documents a related **direct in-memory API** symlink-indu
 
 This is a non-atomic deployment preflight: filesystem replacement between `lstat` and the actual ESM `import()` is still possible unless the trusted integrator makes its source tree immutable. It adds initialization filesystem checks but no per-RPC computation. An independent local Node 22.16.0 paired subprocess check confirmed that runtime flag matters for the exact same symlinked file tree: default Node returned `"UNREVIEWED"`, while `--preserve-symlinks` returned `"REVIEWED"`. This strict policy rejects symlinks rather than relying on whichever loader-identity flag happens to be active. The paired observation is a native runtime experiment, not a security-performance measurement.
 
+## Orthogonal objective evaluation (this candidate only)
+
+| Objective dimension | Measured or logically bounded effect | Not established |
+|---|---|---|
+| Static reconstruction | No alteration to emitted client instructions or private source encryption | No advantage versus an equal-trust minifier or static attacker |
+| Dynamic instrumentation/extraction | No new anti-debugging; private Node startup runs extra path checks before `import()` | No protection against runtime extraction on an attacker-controlled client |
+| Integrity/tamper | Source-pinned cross-platform fail-closed rejection for path aliases; local native default-Node witness for the in-root symlink graph mismatch | No protection against filesystem TOCTOU, compromised SCO server, or altered Node loader |
+| Unauthorized execution | Rejects some ambiguous trusted deployments before exposure; existing RPC authorization is unchanged | No new domain lock, resistance to authorized SCO relay, or hostile-runtime integrity |
+| Compatibility | Plain distinct files, shared dependency references and existing two-OS SCO graph integration have positive controls; symlinked committed module names are conservatively refused | Universal filesystem equivalence; full current-head cross-mode parity is not demonstrated |
+| Performance | Added `registerFilePath` checks run only at build/handler initialization; `fs.lstat` checks run at trusted SCO startup. New work is proportional to path inventory size and path-segment count, with no instructions added to the client or per-RPC handler path | No fresh measured full-application 2.5× upper bound. Initialization discount applies only within the prompt's trusted SCO server setup allowance |
+
+This separation matters: a green startup-integrity regression cannot be promoted into evidence of resistance to a controlling attacker reading the client, making unlimited legitimate RPC requests, or changing the server under the SNO threat model.
+
 ## Limits and decision
 
 This is **build/deployment admission correctness**, not an independent demonstration of static or dynamic deobfuscation resistance, tamper resistance against a compromised server, or locking on a hostile runtime. A trusted SCO publisher can still be bypassed by a compromised trusted host, and authorized clients can relay calls to private methods. The verifier still has a documented filesystem TOCTOU interval between digest check and the later ESM import.
