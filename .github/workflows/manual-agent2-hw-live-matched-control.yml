@@ -147,6 +147,9 @@ jobs:
           python sims/test_agent2_hw_version_space.py
           python sims/test_agent49_hw_passive_reconstruction.py
           python sims/agent49_hw_passive_stress.py --seed 49 --samples-per-n 12 --min-n 2 --max-n 10 --depth 10 --output hw-passive-stress.json
+          # Independent long-trace family: unlike the targeted hW learner,
+          # random 500-step traces do not identify these 16–24 state machines.
+          python sims/agent49_hw_passive_stress.py --seed 149 --samples-per-n 8 --min-n 16 --max-n 24 --depth 12 --lengths 500 4000 --output hw-passive-stress-large.json
           python sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Run paired live HTTP hW benchmark
         env:
@@ -369,6 +372,7 @@ jobs:
             hw-trace-state-certificate.json
             hw-passive-reconstruction.json
             hw-passive-stress.json
+            hw-passive-stress-large.json
 
   historical-audit:
     if: ${{ inputs.historical_audit_run_id > 0 }}
