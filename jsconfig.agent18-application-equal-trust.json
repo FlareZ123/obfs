@@ -7,7 +7,8 @@
     "test/agent18-application-equal-trust-sco.test.js",
     "sims/agent18-equaltrust-facade.cjs",
     "sims/agent18-application-rpc-wire-relay.cjs",
-    "test/agent18-application-equal-trust-browser.cjs"
+    "test/agent18-application-equal-trust-browser.cjs",
+    "test/agent18-equaltrust-control-args.test.js"
   ],
   "exclude": [
     "node_modules"
