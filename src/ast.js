@@ -298,6 +298,7 @@ function hasWeakMapPrototypeExposure(ast) {
    * may instead return an ordinary constructor: this is deliberately a
    * conservative may-WeakMap test, never evidence of definite instance brand.
    * @param {AstNode|null|undefined} node
+   * @param {Set<string>} [seen=new Set()]
    * @returns {boolean}
    */
   function isWeakMapConstructor(node,seen=new Set()) {
