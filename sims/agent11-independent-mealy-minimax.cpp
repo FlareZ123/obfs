@@ -128,7 +128,7 @@ Quotient refine(const Corpus& c) {
 
 // Exact byte string; unordered_map resolves hash collisions with string equality.
 std::string encode(const std::vector<uint16_t>& belief) {
-  std::string key(belief.size() * 2, '\\0');
+  std::string key(belief.size() * 2, '\0');
   for (size_t i = 0; i < belief.size(); ++i) {
     key[2 * i] = static_cast<char>(belief[i] & 0xff);
     key[2 * i + 1] = static_cast<char>(belief[i] >> 8);
@@ -257,7 +257,7 @@ int main() {
   const Corpus corpus = enumerate_models();
   const Quotient q = refine(corpus);
   std::cout << "quotient classes=" << q.count
-            << " initial classes=" << q.roots.size() << "\\n";
+            << " initial classes=" << q.roots.size() << "\n";
   assert(q.count == 11500);
   assert(q.roots.size() == static_cast<size_t>(q.count));
 
@@ -265,12 +265,12 @@ int main() {
   const bool win23 = solver.can_win(q.roots, 23);
   const Counters c23 = solver.counters();
   std::cout << "budget23 win=" << win23 << " visited=" << c23.visited
-            << " hits=" << c23.hits << " memo=" << solver.memo_entries() << "\\n";
+            << " hits=" << c23.hits << " memo=" << solver.memo_entries() << "\n";
   assert(!win23);
   const bool win24 = solver.can_win(q.roots, 24);
   const Counters c24 = solver.counters();
   std::cout << "budget24 win=" << win24 << " visited=" << c24.visited
-            << " hits=" << c24.hits << " memo=" << solver.memo_entries() << "\\n";
+            << " hits=" << c24.hits << " memo=" << solver.memo_entries() << "\n";
   assert(win24);
   assert(c23.visited == 2488929 && c23.hits == 914343);
   assert(c24.visited == 4443360 && c24.hits == 1578390);
@@ -291,12 +291,12 @@ int main() {
   assert(max_queries == 24);
   assert(std::accumulate(histogram.begin(), histogram.end(), uint64_t{0}) == kModels);
   std::cout << "policy nodes=" << policy.size() << " terminal leaves=" << leaves
-            << " max path=" << max_depth << "\\n";
+            << " max path=" << max_depth << "\n";
   std::cout << "replay models=" << kModels << " min=" << min_queries
             << " max=" << max_queries << " mean="
-            << static_cast<double>(total_queries) / kModels << "\\n";
+            << static_cast<double>(total_queries) / kModels << "\n";
   std::cout << "histogram=";
   for (int i = 0; i <= 24; ++i)
     if (histogram[i]) std::cout << i << ':' << histogram[i] << ' ';
-  std::cout << "\\n";
+  std::cout << "\n";
 }
