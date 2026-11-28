@@ -101,6 +101,20 @@ test('SCO selected graph permits repeated identical private dependency with matc
 });
 
 
+
+for(const {kind,a,b} of collisions){
+  test('SCO selective publication refuses public/private '+kind+' collision',()=>{
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:a,code:simple,sourceType:'module'
+    },{
+      privateNames:['secret'],seed:'selected-public-private-alias-20261128',
+      additionalPrivateModulePaths:[b]
+    }),error=>error instanceof TypeError &&
+      /Selected SCO private source path aliases|Ambiguous directory spelling|File conflicts with directory/u
+        .test(error.message));
+  });
+}
+
 test('SCO path inventory preserves unambiguous source graphs',()=>{
   assert.equal(privateGraph('a.mjs','b.mjs').exposedPaths.length,1);
   assert.equal(selectedGraph('alpha.mjs','beta.mjs').exposedPaths.length,2);
