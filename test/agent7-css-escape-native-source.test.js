@@ -18,7 +18,20 @@ const cases=[
   {name:'global',declarations:'',expression:'globalThis.CSS.escape(protectedFn)'},
   {name:'namespace alias',declarations:'const C=CSS;',expression:'C.escape(protectedFn)'},
   {name:'destructured method',declarations:'const {escape:esc}=CSS;',expression:'esc(protectedFn)'},
-  {name:'method alias',declarations:'const esc=CSS.escape;',expression:'esc(protectedFn)'}
+  {name:'method alias',declarations:'const esc=CSS.escape;',expression:'esc(protectedFn)'},
+  {name:'destructured global namespace',
+    declarations:'const {CSS:C}=globalThis;',expression:'C.escape(protectedFn)'},
+  {name:'owned method record',
+    declarations:'const registry={esc:CSS.escape};',expression:'registry.esc(protectedFn)'},
+  {name:'owned method record alias',
+    declarations:'const registry={esc:CSS.escape};const copy=registry;',
+    expression:'copy.esc(protectedFn)'},
+  {name:'owned method record destructuring',
+    declarations:'const registry={esc:CSS.escape};const {esc}=registry;',
+    expression:'esc(protectedFn)'},
+  {name:'assigned method record',
+    declarations:'const registry={};registry.esc=CSS.escape;',
+    expression:'registry.esc(protectedFn)'}
 ];
 
 /**
