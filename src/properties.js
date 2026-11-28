@@ -512,11 +512,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return constantKeys.get(name)??null;
   }
-  // An unescaped, fixed-size private tuple can carry the owner through a
-  // known slot. Other slots must contain inert primitive literals, so
-  // constructing the tuple cannot invoke code that observes the owner.
-  // Every holder use must read that same slot into a local binding. Unknown
-  // indexes, mutation, reflection and all holder escapes retain original keys.
+  // An unescaped, fixed-size private tuple may carry the same uniquely
+  // bound owner through multiple known numeric slots. Every other slot must
+  // contain an inert primitive literal: array creation cannot invoke code
+  // observing the owner. Every holder use must read one of the proven slots
+  // into a unique local binding. Unknown indices, mutation, reflection and
+  // holder escapes all veto property renaming.
   const holderIdentifierUses=identifierUses;
   /** @type {Map<string,Set<number>>} */
   const privateOwnerTuples=new Map();
