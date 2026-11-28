@@ -17,7 +17,7 @@ from collections import deque
 from pathlib import Path
 
 import z3
-from z3 import And, Array, If, Implies, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
+from z3 import And, Array, BoolSort, If, Implies, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
 
 from agent49_hw_trace_lower_bound import (
     trace_output_diversity_state_lower_bound,
@@ -238,7 +238,8 @@ def target_alternate_start_witness(
 
 def solve_for_size(row, candidate_size: int, timeout_ms: int,
                    candidate_labeling: str = "predecessor",
-                   trace_lower_bound_certificate=None):
+                   trace_lower_bound_certificate=None,
+                   future_difference_encoding: str = "word"):
     fixture = row["fixture_table"]
     target_transitions = [[int(x) for x in r] for r in fixture["transitions"]]
     target_outputs = [[int(x) for x in r] for r in fixture["outputs"]]
@@ -250,6 +251,8 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
     tag = f"case_{row['state_count']}_{row['seed']}_k_{k}"
     if candidate_labeling not in ("predecessor", "bfs", "trace-anchor"):
         raise ValueError(f"unsupported candidate_labeling: {candidate_labeling}")
+    if future_difference_encoding not in ("word", "ranked-product"):
+        raise ValueError(f"unsupported future_difference_encoding: {future_difference_encoding}")
     trace_anchored = (
         candidate_labeling == "trace-anchor"
         and trace_lower_bound_certificate is not None
@@ -367,35 +370,75 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
             target_delta = Store(target_delta, index, target_transitions[state][a])
             target_output = Store(target_output, index, target_outputs[state][a])
 
-    # A product of N target states and k candidate states has N*k pairs. If
-    # future behavior differs, a distinguishing word exists within this bound.
-    future_length = target_n * k
-    candidate_future = [
-        Int(f"candidate_future_{tag}_{i}") for i in range(future_length + 1)
-    ]
-    target_future = [
-        Int(f"target_future_{tag}_{i}") for i in range(future_length + 1)
-    ]
-    future_inputs = [Int(f"future_input_{tag}_{i}") for i in range(future_length)]
-    solver.add(candidate_future[0] == trace_states[-1])
-    solver.add(target_future[0] == target_post)
-    mismatches = []
-    for i in range(future_length):
-        solver.add(candidate_future[i] >= 0, candidate_future[i] < k)
-        solver.add(target_future[i] >= 0, target_future[i] < target_n)
-        solver.add(future_inputs[i] >= 0, future_inputs[i] < 2)
-        candidate_index = 2 * candidate_future[i] + future_inputs[i]
-        target_index = 2 * target_future[i] + future_inputs[i]
-        mismatches.append(
-            Select(output, candidate_index) != Select(target_output, target_index)
-        )
+    if future_difference_encoding == "ranked-product":
+        # Product-graph reachability certificate, rather than a symbolic word
+        # of length N*k. A pair is marked distinguishable only if it differs
+        # immediately on one input, or leads to a marked pair of *strictly
+        # smaller* rank. Finite descent rules out cyclic false positives.
+        # Conversely a true differing future has a shortest witness of
+        # length <=N*k and admits this ranking, so SAT/UNSAT is unchanged.
+        product_count = target_n * k
+        distinguished = Array(f"distinguished_{tag}", IntSort(), BoolSort())
+        difference_rank = Array(f"difference_rank_{tag}", IntSort(), IntSort())
+        for target_state in range(target_n):
+            for candidate_state in range(k):
+                pair_index = target_state * k + candidate_state
+                rank = Select(difference_rank, pair_index)
+                solver.add(rank >= 0, rank < product_count)
+                witness_inputs = []
+                for a in range(2):
+                    candidate_index = 2 * candidate_state + a
+                    next_index = (
+                        target_transitions[target_state][a] * k
+                        + Select(delta, candidate_index)
+                    )
+                    witness_inputs.append(
+                        Or(
+                            Select(output, candidate_index) !=
+                            target_outputs[target_state][a],
+                            And(
+                                Select(distinguished, next_index),
+                                Select(difference_rank, next_index) < rank,
+                            ),
+                        )
+                    )
+                solver.add(
+                    Implies(Select(distinguished, pair_index),
+                            Or(witness_inputs))
+                )
         solver.add(
-            candidate_future[i + 1] == Select(delta, candidate_index)
+            Select(distinguished, target_post * k + trace_states[-1])
         )
-        solver.add(
-            target_future[i + 1] == Select(target_delta, target_index)
-        )
-    solver.add(Or(mismatches))
+    else:
+        # A product of N target states and k candidate states has N*k pairs. If
+        # future behavior differs, a distinguishing word exists within this bound.
+        future_length = target_n * k
+        candidate_future = [
+            Int(f"candidate_future_{tag}_{i}") for i in range(future_length + 1)
+        ]
+        target_future = [
+            Int(f"target_future_{tag}_{i}") for i in range(future_length + 1)
+        ]
+        future_inputs = [Int(f"future_input_{tag}_{i}") for i in range(future_length)]
+        solver.add(candidate_future[0] == trace_states[-1])
+        solver.add(target_future[0] == target_post)
+        mismatches = []
+        for i in range(future_length):
+            solver.add(candidate_future[i] >= 0, candidate_future[i] < k)
+            solver.add(target_future[i] >= 0, target_future[i] < target_n)
+            solver.add(future_inputs[i] >= 0, future_inputs[i] < 2)
+            candidate_index = 2 * candidate_future[i] + future_inputs[i]
+            target_index = 2 * target_future[i] + future_inputs[i]
+            mismatches.append(
+                Select(output, candidate_index) != Select(target_output, target_index)
+            )
+            solver.add(
+                candidate_future[i + 1] == Select(delta, candidate_index)
+            )
+            solver.add(
+                target_future[i + 1] == Select(target_delta, target_index)
+            )
+        solver.add(Or(mismatches))
 
     checked = solver.check()
     if checked == unknown:
@@ -403,11 +446,13 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
             "reason": solver.reason_unknown(),
             "trace_separation_constraints": len(separation_pairs),
             "effective_candidate_labeling": effective_labeling,
+            "future_difference_encoding": future_difference_encoding,
         }
     if checked != sat:
         return "unsat", {
             "trace_separation_constraints": len(separation_pairs),
             "effective_candidate_labeling": effective_labeling,
+            "future_difference_encoding": future_difference_encoding,
         }
 
     model = solver.model()
@@ -514,7 +559,8 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
 
 
 def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor",
-              trace_lower_bound_depth: int = 0):
+              trace_lower_bound_depth: int = 0,
+              future_difference_encoding: str = "word"):
     if row.get("status") != "completed":
         return {"status": "skipped", "reason": "learner row did not complete"}
     if "fixture_table" not in row or "observed_trace" not in row:
@@ -578,7 +624,8 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor",
     unknown_sizes = []
     for candidate_size in range(minimum_size, target_n + 1):
         status, detail = solve_for_size(
-            row, candidate_size, timeout_ms, candidate_labeling, lower_bound
+            row, candidate_size, timeout_ms, candidate_labeling,
+            lower_bound, future_difference_encoding
         )
         if status == "sat":
             return {
@@ -637,6 +684,9 @@ def main():
                         help="Root-reachable model label symmetry (experimental bfs canonicalization)")
     parser.add_argument("--trace-lower-bound-depth", type=int, default=0,
                         help="Optional public-trace output-diversity proof depth (0 disables)")
+    parser.add_argument("--future-difference-encoding",
+                        choices=("word", "ranked-product"), default="word",
+                        help="Exact future divergence witness encoding (word is historical)")
     args = parser.parse_args()
     if args.max_cases < 1 or args.timeout_ms < 1:
         raise SystemExit("--max-cases and --timeout-ms must be positive")
@@ -675,7 +725,8 @@ def main():
             "candidate_hypothesis_starts": row.get("trace_matching_initial_candidates"),
             "hW_future_clone_success": row.get("future_clone_success"),
             "audit": audit_row(row, args.timeout_ms, args.candidate_labeling,
-                               args.trace_lower_bound_depth),
+                               args.trace_lower_bound_depth,
+                               args.future_difference_encoding),
         })
 
     counts = {
@@ -691,6 +742,7 @@ def main():
             "candidate_state_counts": "1..target_state_count inclusive",
             "candidate_class": "complete deterministic minimal strongly connected Mealy machines",
             "candidate_labeling": args.candidate_labeling,
+            "future_difference_encoding": args.future_difference_encoding,
             "trace_lower_bound_depth": args.trace_lower_bound_depth,
             "trace_lower_bound_justification": (
                 "For any fixed input word, each different observed output word "
