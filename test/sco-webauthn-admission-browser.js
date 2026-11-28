@@ -84,6 +84,7 @@ async function main(){
     admission=createScoWebAuthnAdmission({
       rpId:'localhost',allowedOrigins:[origin],allowInsecureLocalhost:true,
       credentialAuthorityId:'chromium-virtual-authenticator-registry-v1',
+      credentialAuthorityKey:Buffer.alloc(32,0xc1),
       lookupCredential:(_principal,id)=>credentials.get(id)??null,
       updateSignCount:(_principal,id,previous,next)=>{
         const record=credentials.get(id);
