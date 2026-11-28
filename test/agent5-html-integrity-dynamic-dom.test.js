@@ -104,3 +104,23 @@ test('SRI source-observer gate treats member token names as grammar, not global 
   assert.equal(emitted?.metrics.properties,3,
     'actual browser-root reference is distinct from a private own key');
 });
+
+
+for(const root of ['top','parent','opener','frameElement']) {
+  test('pure WindowProxy identity check must retain default private rewrite: '+root,()=>{
+    // A bare identity comparison neither dereferences the WindowProxy nor
+    // obtains a source-capable host object. The global source preflight
+    // should distinguish this from top.document, which remains opaque.
+    const files=graph('const visible=('+root+'===self);void visible;');
+    const parsed=parse(String(files[1].code),'module');
+    assert.equal(observesDistributedSource(parsed),false,
+      root+': bare identity comparison is not a source-byte observer');
+    const result=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,
+      seed:'agent5-windowproxy-identity-'+root,
+      strings:false,identifiers:false
+    });
+    assert.ok((result.files.find(file=>file.path==='leaf.mjs')?.metrics.properties??0)>0,
+      root+': private own property must remain transformable');
+  });
+}
