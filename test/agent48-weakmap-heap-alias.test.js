@@ -75,9 +75,9 @@ function run(files) {
 const cases=[
 ['if-alias-false-write','const carrier={instance:new WeakMap()}; const alias=carrier; if(false) alias.instance={};','carrier.instance'],
 ['post-if-shared-alias-weakmap','const carrier={instance:{}}; const alias=carrier; if(false) alias.instance={}; alias.instance=new WeakMap();','carrier.instance'],
-['post-if-shared-alias-ordinary','const carrier={instance:new WeakMap()}; const alias=carrier; if(false) alias.instance={}; alias.instance={};','carrier.instance'],
+['post-if-shared-alias-ordinary','class Ordinary{} const carrier={instance:new WeakMap()}; const alias=carrier; if(false) alias.instance={}; alias.instance=new Ordinary();','carrier.instance'],
 ['self-cycle-preserve-weakmap','const carrier={instance:new WeakMap()}; carrier.self=carrier; if(false) carrier.instance={};','carrier.instance'],
-['self-cycle-ordinary','const carrier={instance:{}}; carrier.self=carrier; if(false) carrier.instance={};','carrier.instance'],
+['self-cycle-ordinary','class Ordinary{} const carrier={instance:new Ordinary()}; carrier.self=carrier; if(false) carrier.instance={};','carrier.instance'],
 ['post-loop-shared-alias','const carrier={instance:{}}; const alias=carrier; for(let i=0;i<0;i++) alias.instance={}; alias.instance=new WeakMap();','carrier.instance'],
 ['post-try-shared-alias','const carrier={instance:{}}; const alias=carrier; try{}catch{alias.instance={};} alias.instance=new WeakMap();','carrier.instance'],
 ['post-switch-shared-alias','const carrier={instance:{}}; const alias=carrier; switch(0){case 1:alias.instance={};break;} alias.instance=new WeakMap();','carrier.instance'],
