@@ -129,3 +129,29 @@ test('predeclared 16 real SCO private tables cover all four optimal public-query
     assert.equal(result.unauthorizedOrdinary,403);
   }
 });
+
+test('three-state model falsifies any unconditional two-state clone certificate',async()=>{
+  // Explicit smallest-ID witness from exhaustive labelled three-state
+  // enumeration (base-6 table index 52). The learner is not told that its
+  // assumed upper bound is false, and must not be described as universally
+  // sound on arbitrary SCO services.
+  const model={
+    next:[[2,1],[0,0],[0,0]],
+    output:[[0,0],[1,0],[0,0]]
+  };
+  const policy=createPolicy();
+  let state=0;
+  const learned=await learnExpected({step:async input=>{
+    const output=model.output[state][input];
+    state=model.next[state][input];
+    return output;
+  }},policy);
+  assert.equal(learned.queries,7);
+  assert.deepEqual(learned.inputs,[0,1,0,1,1,0,0]);
+  assert.deepEqual(learned.outputs,[0,0,0,0,0,1,0]);
+  assert.equal(state,2);
+  assert.equal(learned.currentState,1);
+  assert.equal(equivalent([learned.clone,model],learned.currentState,2+state),false);
+  assert.deepEqual(continuation(learned.clone,learned.currentState,[0]).outputs,[1]);
+  assert.deepEqual(continuation(model,state,[0]).outputs,[0]);
+});
