@@ -26,8 +26,8 @@ const keyFor=Symbol.keyFor;
 const bigIntToString=BigInt.prototype.toString;
 const mapGet=Map.prototype.get;
 const mapSet=Map.prototype.set;
-const sizeGetter=Object.getOwnPropertyDescriptor(Map.prototype,'size')?.get;
-const descriptionGetter=Object.getOwnPropertyDescriptor(Symbol.prototype,'description')?.get;
+const sizeGetter=/** @type {Function} */ (Object.getOwnPropertyDescriptor(Map.prototype,'size')?.get);
+const descriptionGetter=/** @type {Function} */ (Object.getOwnPropertyDescriptor(Symbol.prototype,'description')?.get);
 if(!sizeGetter||!descriptionGetter) throw new Error('data oracle requires Map size and Symbol description');
 const isProxy=types.isProxy;
 const exoticChecks=[
