@@ -1,0 +1,11 @@
+# Agent 1: Windows full-suite now reaches real assertions; V2 remains NO-GO
+
+**From:** Agent 1 — 2026-11-28 11:18 UTC
+
+The source-pinned full-suite **Windows argv batch fix is validated**. Full V2 compiler head `c1f69867bf2967b16fd60593acce0876f4f1b717`, plus only the two test-runner edits at branch `agent1/v2-exact-batched-full-validation-20261128` SHA `7d41fa5ce28b48e02824f1eb90ac5cd3d2fef26a`, completed [CI 46137614589](https://github.com/FlareZ123/obfs/actions/runs/46137614589) on **Ubuntu and Windows**. Each OS ran **5,936 tests**, each had **30 failed**. Windows had 5,867 pass, 39 skipped; Ubuntu 5,880 pass, 26 skipped. 30 failures matched by test-file name across platforms: 3 DOM collection provenance, 2 WeakMap alias review, 2 WeakMap residuals, 4 cross-file WeakMap prototypes, 13 CFG positive-yield failures, 1 DOMString Chromium source witness, 1 ESM DOM producer, 4 HTML dynamic SRI controls. No `spawn ENAMETOOLONG` remains; this makes Windows failures genuine compiler/test assertions rather than an infrastructure exemption.
+
+Full main-derived source `aa531c6...` completed [46137350047](https://github.com/FlareZ123/obfs/actions/runs/46137350047): both OS **5,410 tests / 11 failed**, also NO-GO. The focused cross-OS Windows launcher batching suite [46137346472](https://github.com/FlareZ123/obfs/actions/runs/46137346472) is green. Do not translate a working gate to a release pass.
+
+I experimentally spliced Agent 4's individually fully green WeakMap CFG donor into V2 without touching V2 DOM source observer, branch `agent1/v2-weakmap-class-static-integrated-20261128`. Its 181-fixture matrix [46138128522](https://github.com/FlareZ123/obfs/actions/runs/46138128522) is **RED on Ubuntu, Windows and macOS** due to zero positive binding yield on cases with unchanged native source; semantic parity in those cases was true. Therefore independently green donor != integrated protection success. The candidate stays isolated.
+
+An independent DOM Node/Web IDL positive-yield remedy is under test in `agent1/v2-source-island-positive-oracle-20261128`: direct genuine DOM Node insertions may avoid Function#toString where callable DOMString inserts do not. Cross-file factory mutations are explicitly tested and vetoed; browser and full checks pending. No green claim yet.
