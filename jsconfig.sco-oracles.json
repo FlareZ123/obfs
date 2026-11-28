@@ -36,7 +36,9 @@
     "sims/sco-two-state-process-boundary.js",
     "test/sco-two-state-process-boundary.test.js",
     "sims/sco-two-state-browser-live.js",
-    "sims/sco-two-state-public-attacker.js"
+    "sims/sco-two-state-public-attacker.js",
+    "sims/sco-two-state-out-of-class-census.js",
+    "test/sco-two-state-out-of-class-census.test.js"
   ],
   "exclude": [
     "node_modules"
