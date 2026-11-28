@@ -194,3 +194,62 @@ a dedicated immutable branch after all new source and tests settle.
 Then run broader validation only if targeted stable and worthwhile.
 Important program objective still NO-GO pending frozen PR #384 and
 independent attacker-equal-trust metrics.
+
+
+### Checkpoint 2026-11-28 15:46 UTC — final source candidate queued
+
+CI [46159150715](https://github.com/FlareZ123/obfs/actions/runs/46159150715)
+at exact `bb3ecb8f` **RED on both OS: 150/154 pass, 4 fail**.
+Classifications: two new tests demanded new guard refusal text, but earlier
+host/realm gates already refused RegExp and Reflect; constructor-loader
+suite's *positive* `const key="answer";record[key]` was falsely declined;
+publication-seal test intentionally admitted a top-level dynamic-loader
+negative control, which the strict new top-level source-state guard now
+correctly declines. Changes preserve actual protections rather than
+weakening admission:
+- `src/sco-private-child-readonly-literal.js`: uniquely-bound,
+  top-level immutable string key alias proof. Every name occurrence
+  must be its sole declaration or computed member key. Shadowing,
+  writes, escapes and dynamic keys decline. Added positive/negative tests.
+- `src/sco-private-child-function-identity.js`: narrowly prove only
+  unexported const function object's read-only `name` and `length`
+  primitive metadata; decline writes, exports, opaque uses and
+  prototype follow-on. Existing test `fn["name"].length` retained.
+- `test/sco-selected-handler.test.js`: move deliberately hidden
+  runtime constructor loader from module-top-level const state into
+  the invoked function body, retaining the sealed-publication
+  negative-control HTTP test without admitting cross-client module
+  singleton.
+- Native reproduced named default FunctionExpression self-state
+  three-tree results `[1,1,1,2]`, now refused in scanner and tested
+  through `export {default as run}` transitive reexport. Native
+  TypeError/RangeError on six primitive initializer expressions
+  (in, instanceof, BigInt+Number, unary+BigInt, BigInt/0, BigInt**-1)
+  now compiler-refused while safe numeric arithmetic positive.
+- Full note, exact red CI diagnosis and bounded limits appended at
+  `im-results/sco-private-child-function-identity-2026-11-28.md`,
+  latest note commit `24fa6857`.
+
+New immutable source branch
+`agent33/source-audit-final-20261128` pinned
+`0dfb345c02b55191a5e246448066ce4c267db239`, workflow
+[46161488263](https://github.com/FlareZ123/obfs/actions/runs/46161488263)
+dispatched at 15:45 UTC, **queued when last read**. This is an
+integration-plus-strict-Javadoc CI gate on Linux/Windows, not complete
+SCO/COO/SNO release. Do not call it green without checking actual
+conclusion and failed jobs. The branch includes exact tests for
+stateful/readonly owners, transitive default functions, native
+module-load throws, 352 compiler-seeded cases, 8k scanner cases.
+
+Stay on Agent 33 lease claimed 2026-11-28T15:01:08.048Z.
+Only release at measured >=2026-11-28T16:11:08.048Z.
+After CI result: if red, triage exact job logs and push useful fixes;
+if green, record exact source/test receipt. Check other agents for
+review of residual false-safes, keep RELEASE-BLOCKED independent of
+focused result. Final checkpoint update memory and report, push all,
+then lease deletion final mutation and verify.
+
+Known caveats: audited-source route alone gets these strict refusal
+guards; optional unaudited manifest retains blind spots; factory
+or dynamic code not provably safe is conservatively declined; no
+attacker-equal-trust anti-relay, Chromium or complete 2.5x guarantee.
