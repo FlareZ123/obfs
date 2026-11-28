@@ -180,6 +180,21 @@ test('WebAuthn state adapters must not grant on truthy nonboolean or async outco
     'Truthy nonboolean revocation result is not proof of revocation');
 });
 
+test('shared in-memory WebAuthn state refuses weaker RP origin and UV authority',()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  harness({stateStore:shared});
+  assert.doesNotThrow(()=>harness({stateStore:shared}),
+    'An identically configured second worker can reuse trusted memory state');
+  for(const [label,change] of [
+    ['origin',{allowedOrigins:['https://weaker.example.com']}],
+    ['UV',{requireUserVerification:false}],
+    ['session capacity',{maxSessions:2}]
+  ]){
+    assert.throws(()=>harness({stateStore:shared,...change}),/replica configuration/u,
+      'Shared bearer and challenges cannot mix a different '+label+' policy');
+  }
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
