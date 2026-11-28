@@ -87,6 +87,10 @@ function hasWeakMapPrototypeExposure(ast) {
     return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
   });
   const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
+  /** @type {Map<string,AstNode[]>} */
+  const constructorBindingExpressions=new Map();
+  /** @type {Map<string,Map<string,AstNode[]>>} */
+  const constructorMemberWrites=new Map();
   /** @type {Map<string,number>} */
   const weakMapDerivedConstructors=new Map();
   /**
@@ -135,6 +139,36 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     return node.property.type==='Identifier'?node.property.name:null;
   }
+  // Collect local assignments before constructor discovery. Indexing all
+  // source assignments yields a conservative may-constructor summary when
+  // an object field or binding is rewritten along a conditional path.
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&node.init) {
+      const values=constructorBindingExpressions.get(node.id.name)??[];
+      values.push(node.init);
+      constructorBindingExpressions.set(node.id.name,values);
+    }
+    if(node.type==='AssignmentExpression') {
+      if(node.left.type==='Identifier') {
+        const values=constructorBindingExpressions.get(node.left.name)??[];
+        values.push(node.right);
+        constructorBindingExpressions.set(node.left.name,values);
+      } else if(node.left.type==='MemberExpression'&&
+                node.left.object.type==='Identifier') {
+        const key=memberKey(node.left);
+        if(key===null)return;
+        const root=node.left.object.name;
+        let members=constructorMemberWrites.get(root);
+        if(!members) {
+          members=new Map();
+          constructorMemberWrites.set(root,members);
+        }
+        const values=members.get(key)??[];
+        values.push(node.right);
+        members.set(key,values);
+      }
+    }
+  });
   /** @type {Set<string>} */
   const knownGlobalConstructorNames=new Set([
     'WeakMap','Map','Set','Object','Reflect','Array','Function','String',
