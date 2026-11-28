@@ -16,7 +16,7 @@ const exec=promisify(execFile);
  * the string branch, exposing exact Function#toString through textContent.
  * The host-side inline reporter is deliberately outside distributed code.
  *
- * @param {'native'|'replaced'|'integrity'} variant
+ * @param {'native'|'replaced'|'integrity'|'patched-append'} variant
  * @returns {SourceFile[]}
  */
 function graph(variant) {
@@ -24,6 +24,8 @@ function graph(variant) {
   const digest=createHash('sha256').update(original).digest('base64');
   const source=[
     'const script=document.createElement("script");',
+    variant==='patched-append'?
+      'script.onclick=function privateHandler(){const privateLocal=41;return privateLocal;};':'',
     'script.src="./client.js";',
     variant==='integrity'?'script.integrity="sha256-'+digest+'";':'',
     'document.head.append(script);'
@@ -36,6 +38,8 @@ function graph(variant) {
     {path:'bootstrap.js',sourceType:'script',code:source}
   ];
   if(variant==='replaced')out.push({path:'poison.js',sourceType:'script',code:poison});
+  if(variant==='patched-append')out.push({path:'patch.js',sourceType:'script',
+    code:'Element.prototype.append=globalThis.hostObserver;'});
   return out;
 }
 
@@ -51,10 +55,15 @@ function page(variant) {
   return '<html><head></head><body>'+
     '<pre id="result"></pre>'+
     (variant==='replaced'?'<script src="./poison.js"></script>':'')+
+    (variant==='patched-append'?
+      '<script>window.originalAppend=Element.prototype.append;'+
+      'window.hostObserver=function(node){window.capturedSource=String(node.onclick);'+
+      'return window.originalAppend.call(this,node);};</script>'+
+      '<script src="./patch.js"></script>':'')+
     '<script src="./bootstrap.js"></script>'+
     '<script>window.addEventListener("load",()=>{'+
     'const result={answer:window.nodeMountAnswer??null,'+
-    'observed:document.head.lastChild?.textContent??""};'+
+    'observed:window.capturedSource??document.head.lastChild?.textContent??""};'+
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
     '});</script></body></html>';
 
@@ -66,7 +75,7 @@ async function main() {
   const files=new Map();
   /** @type {Record<string,{rewritten:boolean,parity:boolean,observed:string}>} */
   const report={};
-  const variants=/** @type {const} */(['native','replaced','integrity']);
+  const variants=/** @type {const} */(['native','replaced','integrity','patched-append']);
   for(const variant of variants) {
     const original=graph(variant);
     const output=obfuscateFiles(original,{
@@ -129,8 +138,14 @@ async function main() {
       } else {
         assert.equal(native.answer,
           'unmodified behavior despite transformed client payload');
-        assert.equal(native.observed,'',
-          'Real browser Node branch must not stringify an element');
+        if(variant==='patched-append') {
+          assert.ok(native.observed.includes('privateHandler')&&
+            native.observed.includes('privateLocal'),
+            'Overridden Element.append can inspect a callable property on a genuine DOM Node');
+        } else {
+          assert.equal(native.observed,'',
+            'Real browser Node branch must not stringify an element');
+        }
       }
       report[variant]={rewritten:variant==='native',parity:true,
         observed:native.observed};
