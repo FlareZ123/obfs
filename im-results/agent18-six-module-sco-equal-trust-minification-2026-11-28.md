@@ -270,15 +270,23 @@ was **RED on both platforms**: the ordinary comparator serialized a
 one-argument call `evaluateRemote(17)` as `[17,null]` whereas SCO
 serialized it as `[17]`. The isolated test did not examine any
 server secrets; it intercepted the public RPC JSON requests.
-The ordinary minified control was corrected to `[...arguments]` and
-to match the generated facade's null/error response handling.
-The corrected exact-arity and failure-response witness is
-`test/agent18-equaltrust-control-args.test.js`; its independent
-source-pinned acceptance remains a distinct required check. Therefore
-the previous 347-byte ordinary public-client size refers only to
-the original two-argument matched control, not a complete semantic
-equivalence baseline. Corrected byte counts must be read from the
-next successful workflow.
+The ordinary minified control was corrected to `[...arguments]`.
+The **corrected positional-arity baseline** at exact source
+`a242b8d8f982d9e006f44d5218f1f8f0cea7c09f` passed the full
+application workflow, including the new extra/missing argument
+regression, on **Ubuntu and Windows**:
+[run 46127266614](https://github.com/FlareZ123/obfs/actions/runs/46127266614).
+The corrected ordinary minified public facade is **356 bytes**, versus
+515 generated SCO bytes, and both remain native-correct on 40/40
+held-outs and Chromium's 6/6 cases with identical RPC traces.
+The previous 347-byte ordinary measurement belongs only to the
+older two-argument-only comparator, not the corrected parity baseline.
+A subsequent variant additionally aligns generated null/error response
+handling; that extra failure-response test has its own separate
+[source-pinned green 46127354089](https://github.com/FlareZ123/obfs/actions/runs/46127354089)
+at `f9329ac4100b34379163acd1cd2eaef737f0b5e2`.
+See `test/agent18-equaltrust-control-args.test.js` for the explicit
+behavioral control.
 
 A stronger subsequent static attacker simply extracts the same
 literal RPC method and endpoint from a public source file and
