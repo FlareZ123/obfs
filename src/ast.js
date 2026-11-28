@@ -703,6 +703,27 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(!changed)break;
   }
+  // A function's own call/apply/bind override mutates its *object*, not the
+  // lexical name. A distinct immutable alias may write the same function
+  // object while a later invocation uses the original name. Close the
+  // may-alias graph before admitting argument-forwarding assumptions.
+  /** @type {Map<string,Set<string>>} */
+  const functionAliasNeighbors=new Map();
+  for(const [alias,target] of immutableFunctionAliases) {
+    if(!functionAliasNeighbors.has(alias))functionAliasNeighbors.set(alias,new Set());
+    if(!functionAliasNeighbors.has(target))functionAliasNeighbors.set(target,new Set());
+    functionAliasNeighbors.get(alias)?.add(target);
+    functionAliasNeighbors.get(target)?.add(alias);
+  }
+  const pendingFunctionProtocolOverrides=[...functionProtocolOverrideTargets];
+  for(let index=0;index<pendingFunctionProtocolOverrides.length;index++) {
+    for(const neighbor of functionAliasNeighbors.get(
+      pendingFunctionProtocolOverrides[index])??[]) {
+      if(functionProtocolOverrideTargets.has(neighbor))continue;
+      functionProtocolOverrideTargets.add(neighbor);
+      pendingFunctionProtocolOverrides.push(neighbor);
+    }
+  }
   /**
    * @param {AstNode|null|undefined} root
    * @param {string} name
