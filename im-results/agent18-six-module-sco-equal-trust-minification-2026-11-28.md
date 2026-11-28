@@ -203,6 +203,68 @@ fits the sampled 2.5× budget. Neither client demonstrated a meaningful
 protection edge from its public JS representation once the same
 server-side trust boundary was held fixed.
 
+### Input-diversified paired CPU robustness
+
+The source-pinned **rotating-1,024-input** variant at
+`e02d696d496e7be9d370e72594bb681e1e1ad727`,
+[Ubuntu and Windows run 46126931909](https://github.com/FlareZ123/obfs/actions/runs/46126931909),
+completed successfully. Within each sample, a deterministic 1,024-seed
+corpus was cycled rather than repeating an identical arithmetic input.
+Seven paired trials used distinct corpus origins. Native, generated
+and ordinary calls still used the same original private application and
+one authenticated server; their individual per-call outputs were checked
+at the beginning and end of each repeated sample. Exact traces, process
+CPU totals, repetition counts and per-call wall times are preserved in
+[`agent18-equal-trust-sco-varying-input-raw-20261128.json`](agent18-equal-trust-sco-varying-input-raw-20261128.json).
+
+| Platform | Computation per call | SCO/native median CPU | Plain/native median CPU | SCO/plain median CPU | SCO strict 2.5× violations |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 1 event | **272.47×** | 281.91× | 1.0284× | **7/7** |
+| Windows | 1 event | **253.97×** | 230.10× | 1.1038× | **7/7** |
+| Ubuntu | 120,000 events | **1.2848×** | (see raw JSON) | 1.0071× | **0/7** |
+| Windows | 120,000 events | **1.3333×** | (see raw JSON) | 1.0505× | **0/7** |
+
+The direction of the result is robust to this specific input-variation
+intervention: per-operation authenticated RPC overhead dominates tiny
+native work, and the public SCO facade exhibits no conspicuous additional
+CPU protection cost or empirical attack advantage over its same-trust
+ordinary minified RPC peer. This does **not** settle across-service WAN,
+browser main-thread CPU, secrecy of keys on the honest server, or all
+possible application workloads. It is evidence of a **budget-veto class
+for sufficiently fine-grained protected functions**, not a proof that
+all SCO programs always exceed 2.5×.
+
+### Semantic-fidelity falsifier for the comparator
+
+The initial ordinary minified comparison had `args:[seed,count]` while
+the actual emitted SCO facade used `[...arguments]`. Those were
+identical on the 40 ordinary two-argument held-outs, but **not** on
+a missing or additional positional argument. A dedicated test-only
+control at `a2a0e96d6f1dafe76fc1c136165acf58fe66f56e`,
+[run 46127204486](https://github.com/FlareZ123/obfs/actions/runs/46127204486),
+was **RED on both platforms**: the ordinary comparator serialized a
+one-argument call `evaluateRemote(17)` as `[17,null]` whereas SCO
+serialized it as `[17]`. The isolated test did not examine any
+server secrets; it intercepted the public RPC JSON requests.
+The ordinary minified control was corrected to `[...arguments]` and
+to match the generated facade's null/error response handling.
+The corrected exact-arity and failure-response witness is
+`test/agent18-equaltrust-control-args.test.js`; its independent
+source-pinned acceptance remains a distinct required check. Therefore
+the previous 347-byte ordinary public-client size refers only to
+the original two-argument matched control, not a complete semantic
+equivalence baseline. Corrected byte counts must be read from the
+next successful workflow.
+
+A stronger subsequent static attacker simply extracts the same
+literal RPC method and endpoint from a public source file and
+reconstructs held-outs **without evaluating or importing that file**.
+Unlike the separate-process traced-wire attacker, it receives no
+dynamic interception metadata beyond a legitimate account token; its
+source-only extraction attempt is bounded to the frozen compiler's
+current `m<hex>` method format, not a general JS decompiler.
+This independent test is being checked in the same revised workflow.
+
 These observations support a **bounded negative protection-value finding**:
 on the measured six-module app, the generated source-private SCO facade
 does not obstruct a permitted client from copying its own network behavior
