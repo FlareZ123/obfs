@@ -467,6 +467,11 @@ function createScoHandler(sourceFiles,options={}) {
   // Refuse an accidentally co-served private dependency before constructing
   // any HTTP route, even if the private entry appears before its public facade.
   const forbidden=new Set();
+  // Private modules and public HTTP paths must form one portable file tree.
+  // A path that is a directory on one target and a file on another must not
+  // pass simply because the full leaf strings differ.
+  const graphPaths=createPathInventory();
+  const seenPrivatePaths=new Set();
   const privateOriginalDigests=new Set();
   // Read each caller-managed manifest getter only once. Multiple reads can
   // disagree, leaving a declared private source outside the forbidden sets.
@@ -499,6 +504,11 @@ function createScoHandler(sourceFiles,options={}) {
       paths=snapshotMetadataEntries(providedPaths).map(safePath);
       for(const privatePath of paths){
         for(const key of portableKeys(privatePath))forbidden.add(key);
+        // Each facade may repeat the same audited private dependency.
+        if(!seenPrivatePaths.has(privatePath)){
+          registerFilePath(graphPaths,privatePath,'SCO private source paths collide: ');
+          seenPrivatePaths.add(privatePath);
+        }
       }
     }
     return {paths,digests};
@@ -506,7 +516,6 @@ function createScoHandler(sourceFiles,options={}) {
   // Validate the public route namespace before creating the HTTP handler.
   // Exact duplicates silently overwrite Map values, and case-folded aliases
   // may collide when the source group is deployed on Windows.
-  const paths=createPathInventory();
   /** @type {import('./cross-properties').SourceFile[]} */
   const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
@@ -515,7 +524,7 @@ function createScoHandler(sourceFiles,options={}) {
       throw new TypeError('SCO source is not in publicPaths: '+filename);
     }
     if(collidesWithPrivate)throw new TypeError('SCO must not serve private source: '+filename);
-    registerFilePath(paths,filename);
+    registerFilePath(graphPaths,filename,'SCO must not serve private source: ');
     // Snapshot caller-controlled source exactly once before publication
     // policy checks and source scanning. This prevents a getter that returns
     // different values on successive reads from invalidating source proofs.
