@@ -94,6 +94,24 @@ const cases=[
     exposed:true
   },
   {
+    name:'native WeakMap from global own data descriptor',
+    source:'const carrier={instance:new (Object.getOwnPropertyDescriptor(globalThis,"WeakMap").value)()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'native bind.call produces a WeakMap constructor',
+    source:'const carrier={instance:new (Function.prototype.bind.call(WeakMap,null))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'transparent Proxy of WeakMap retains native constructor',
+    source:'const carrier={instance:new (new Proxy(WeakMap,{}))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
