@@ -34,7 +34,7 @@ function source(fixture){
 }
 
 test('real Chromium preserves Function#toString through native indexed DOMString setters',{
-  skip:process.platform!=='linux',timeout:120000
+  skip:process.platform!=='linux'||process.env.RUN_NATIVE_DOM_COLLECTION_BROWSER!=='1',timeout:120000
 },async()=>{
   /** @type {Map<string,{type:string,body:string}>} */
   const routes=new Map();
