@@ -67,7 +67,7 @@ test('compiled SCO manifest rejects an in-root alias before native private ESM l
     'import {deriveProof} from "./private/engine.mjs";',
     'export async function protectedDigest(v){return deriveProof(v);}',
     'export function local(v){return String(v);}'
-  ].join('\\n');
+  ].join('\n');
   const engine='import {hidden} from "./leaf.mjs"; '+
     'export function deriveProof(v){return hidden+v;}';
   const leaf='export const hidden=41;';
@@ -98,7 +98,7 @@ test('compiled SCO manifest rejects an in-root alias before native private ESM l
     assert.equal(await executed.protectedDigest(1),1000,
       'Node executes an uncommitted private child despite matched entry and engine bytes');
     await assert.rejects(()=>verifyScoPrivateSourceDigests(issued,root),
-      /private source path contains symlink: private\\/engine\\.mjs/u);
+      /private source path contains symlink: private\/engine\.mjs/u);
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
