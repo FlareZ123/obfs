@@ -117,6 +117,32 @@ test('SCO child admission retains primitive-only initializer expression grammar'
   assert.doesNotThrow(()=>compile(safe));
 });
 
+test('SCO child audit refuses top-level control statements hiding hoisted var state',()=>{
+  const controls=[
+    'if(true){var counter=0;}',
+    'for(var counter=0;counter<1;counter++){}',
+    'try{var counter=0;}catch{}',
+    '{var counter=0;}',
+    'switch(1){case 1:var counter=0;break;}'
+  ];
+  for(const prefix of controls){
+    const source=prefix+'export function next(){return ++counter;}';
+    assert.throws(()=>compile(source),/unproved module top-level effects/u,prefix);
+  }
+});
+
+test('SCO child refuses otherwise unproved class constructor identity',()=>{
+  assert.throws(()=>compile(
+    'export class next{constructor(){this.value=41;}}'
+  ),/unproved shared class identity/u);
+});
+
+test('SCO child accepts inert module string directives and stateless functions',()=>{
+  assert.doesNotThrow(()=>compile(
+    '"use strict";export function next(){return 42;}'
+  ));
+});
+
 test('SCO standalone child retains constant primitive top-level data',()=>{
   assert.doesNotThrow(()=>compile(
     'const offset=41;export function next(){return offset+1;}'
