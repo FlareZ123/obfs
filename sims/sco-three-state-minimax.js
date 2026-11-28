@@ -123,7 +123,7 @@ function refineBehaviorClasses(corpus){
 function computeThreeStateMinimax(){
   const corpus=enumerateThreeStateModels();
   const quotient=refineBehaviorClasses(corpus);
-  const {count,classOutput,classNext,root:rootIds}=quotient;
+  const {count,output:classOutput,next:classNext,root:rootIds}=quotient;
   const marks=new Uint32Array(count);
   let stamp=0;
 
