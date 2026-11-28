@@ -73,3 +73,24 @@ test('direct output-only console and primitive snapshot remain positive',()=>{
     }
   }
 });
+
+test('primitive leaf import aliases cannot impersonate admitted ambient JSON or console',()=>{
+  /** @type {Array<[string,string]>} */
+  const shadows=[
+    ['JSON shadow',
+      'import {watched as JSON} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(JSON.stringify({value:unrelated()}));'],
+    ['console shadow',
+      'import {watched as console} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(unrelated());']
+  ];
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+    for(const [name,code] of shadows){
+      const files=[...leaves,{path:'entry.mjs',sourceType:'module',code}];
+      assert.throws(()=>obfuscateFiles(files,options(mode)),
+        /Source observer island/i,mode+': '+name);
+    }
+  }
+});
