@@ -9,7 +9,7 @@ Experimental V2 PR #398 at commit `c1f69867bf2967b16fd60593acce0876f4f1b717` fai
 - **Windows**: `node sims/compact-node-test-runner.js` failed `Error: spawn ENAMETOOLONG` at line 20 before any Node test executed. Subsequent Windows JSDoc/benchmarks passing cannot be interpreted as a full compatibility pass.
 - **Ubuntu**: Node test runner actually executed **5,934 tests, 30 failed**; results include missing positive local-field transformation yield, WeakMap/CFG-carrier proof exceptions, SRI fixture transformation controls, and an unrelated native browser integration child test. The runner remedy must not hide any of these failures.
 
-The exact PR tree has **785** root `test/*.test.js` paths (recursive Git tree API at `c1f69867...`). Their raw relative names total **32,156 characters**; even before the Node executable, flags or Windows quoting, one space separator per filename requires at least **32,941 characters** for file arguments alone. Adding the executable and options exceeds Windows CreateProcess's roughly 32,767 UTF-16-code-unit command-line limit. This is a deterministic structural failure, not transient CI runner flakiness.
+The exact PR tree has **785** root `test/*.test.js` paths (recursive Git tree API at `c1f69867...`). Their raw relative names total **32,156 characters**; even before the Node executable, flags or Windows quoting, one space separator per filename requires at least **32,940 characters** for file arguments alone. Adding the executable and options exceeds Windows CreateProcess's roughly 32,767 UTF-16-code-unit command-line limit. This is a deterministic structural failure, not transient CI runner flakiness.
 
 ## Remediation and isolation
 
