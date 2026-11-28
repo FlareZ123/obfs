@@ -7,9 +7,19 @@ const {obfuscateFiles}=require('../src/core');
 const {createScoHandler}=require('../src/sco');
 
 const source='document.getElementById("out").textContent=location.hostname+"|42";';
+const safeSource='document.body.firstElementChild.textContent=location.hostname+"|42";';
 const input={path:'client.js',sourceType:/** @type {'script'} */('script'),code:source};
+const safeInput={...input,code:safeSource};
 
-test('IPv6 host-lock compiler emits parseable JS for 128 deterministic SCO seeds',{
+test('source-observable IPv6 fixture is explicitly refused by host-lock proof',()=>{
+  for(const seed of ['0'.repeat(48),'1'.repeat(48)]) {
+    assert.throws(()=>obfuscateFiles([input],{
+      mode:'sco',seed,allowedHosts:['[::1]'],properties:true,identifiers:true
+    }),/Host locking cannot preserve observable source bytes/);
+  }
+});
+
+test('source-safe IPv6 host-lock compiler emits parseable JS for 128 deterministic SCO seeds',{
   timeout:60000
 },()=>{
   /** @type {{seed:string,error:string}[]} */
@@ -17,7 +27,7 @@ test('IPv6 host-lock compiler emits parseable JS for 128 deterministic SCO seeds
   for(let i=0;i<128;i++){
     const seed=i.toString(16).padStart(48,'0');
     try{
-      const result=obfuscateFiles([input],{
+      const result=obfuscateFiles([safeInput],{
         mode:'sco',seed,allowedHosts:['[::1]'],properties:true,identifiers:true
       });
       assert.equal(result.files.length,1);
@@ -34,10 +44,10 @@ test('IPv6 host-lock compiler emits parseable JS for 128 deterministic SCO seeds
     'Compiler errors from browser fixture, without HTTP or Chromium');
 });
 
-test('IPv6 Node HTTP SCO static script delivery succeeds for 64 independent requests',{
+test('source-safe IPv6 Node HTTP SCO static script delivery succeeds for 64 independent requests',{
   timeout:60000
 },async()=>{
-  const handler=createScoHandler([input],{
+  const handler=createScoHandler([safeInput],{
     allowedHosts:['[::1]'],publicPaths:['client.js']
   });
   const server=http.createServer(handler);
@@ -64,4 +74,19 @@ test('IPv6 Node HTTP SCO static script delivery succeeds for 64 independent requ
   }
   assert.deepEqual(failures,[],
     'Node HTTP delivery against the same IPv6 fixture without Chromium');
+});
+
+test('SCO HTTP rejects original source-observable IPv6 script without publishing code',async()=>{
+  const handler=createScoHandler([input],{allowedHosts:['[::1]'],publicPaths:['client.js']});
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'::1',resolve));
+  const addr=server.address();
+  assert.ok(addr&&typeof addr!=='string');
+  try{
+    const response=await fetch('http://[::1]:'+addr.port+'/obfs/client.js');
+    assert.equal(response.status,500);
+    assert.equal(await response.text(),'Obfuscation failed');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
+  }
 });
