@@ -4025,10 +4025,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       // Element.insertAdjacentHTML accepts parsed HTML as its second input.
       // The receiver may be a Document-derived host object tracked by aliases
       // not modeled in this source-observation preflight.
-      const possibleInsertion=method==='insertAdjacentHTML' ||
-        method===null && node.callee.computed &&
-        (mayBeDomElement(receiver) ||
-          explicitIntegrityMarkup(node.arguments[1]));
+      // A computed one-argument Document writer cannot invoke the
+      // two-argument Element.insertAdjacentHTML HTML parser. Without this
+      // arity proof, ordinary benign document[method]('<p>...') calls
+      // incorrectly veto unrelated private property rewrites.
+      const possibleInsertion=node.arguments.length>=2 &&
+        (method==='insertAdjacentHTML' ||
+         method===null && node.callee.computed &&
+         (mayBeDomElement(receiver) ||
+           explicitIntegrityMarkup(node.arguments[1])));
       if(possibleInsertion &&
          mayParseIntegrityMarkup(node.arguments[1]))observed=true;
       // The Function object may be a detached Element method, a bound
