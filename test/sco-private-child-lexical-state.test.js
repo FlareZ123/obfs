@@ -77,6 +77,20 @@ test('SCO standalone child retains local per-call lexical counter',()=>{
   ));
 });
 
+test('SCO child audit preserves exact generated client bytes for stateless sources',()=>{
+  const safeSource='const offset=41;export function next(){return offset+1;}';
+  const audited=compile(safeSource);
+  const unaudited=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:rootCode
+  },{
+    seed:'sco-private-module-lexical-20261128',
+    privateNames:['secret'],
+    privateModuleImports:['./private/next.mjs']
+  });
+  assert.equal(audited.clientFile.code,unaudited.clientFile.code);
+  assert.deepEqual(audited.clientFile.privateModulePaths,unaudited.clientFile.privateModulePaths);
+});
+
 test('native independent ESM trees isolate lexical, record, array and RegExp state',
   {timeout:20000},async()=>{
     /** @type {[string,string,(number|boolean)[]][]} */
