@@ -275,7 +275,10 @@ test('direct SCO partition rejects proven private function-text RPC results but 
     'export async function leak(){return String(leak);}',
     'export async function leak(){const alias=leak;return alias.toString();}',
     'export async function leak(){return Function.prototype.toString.call(leak);}',
-    'export async function leak(){return [leak].join();}'
+    'export async function leak(){return [leak].join();}',
+    'export async function leak(i){return String.prototype.charCodeAt.call(leak,i);}',
+    'export async function leak(){return encodeURIComponent(leak);}',
+    'export async function leak(){return new String(leak);}'
   ]){
     assert.throws(()=>partitionScoAsyncModule({
       path:'private.mjs',sourceType:'module',code
