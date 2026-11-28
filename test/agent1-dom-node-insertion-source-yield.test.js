@@ -233,3 +233,32 @@ test('customElement constructors and unknown tags refuse a native Node source ex
   for(const source of safe)
     assert.equal(exposed(source),false,'Statically native non-custom DOM Node stays noncoercing: '+source);
 });
+
+
+test('bulk and prototype DOM insertion method injection vetoes native Node source exemption',()=>{
+  const client='globalThis.bulkAppendSource="prototype or own append can be a host source observer";';
+  const loader='const element=document.createElement("script");'+
+    'element.onclick=function inspect(){const ownedSource=13;return ownedSource;};'+
+    'document.head.append(element);';
+  const patches=[
+    'Object.assign(Element.prototype,{append:globalThis.hostSink});',
+    'Object.assign(document.head,{append:globalThis.hostSink});',
+    'const host=document.head;Object.assign(host,{append:globalThis.hostSink});',
+    'const p=Element.prototype;Object.defineProperties(p,{append:{value:globalThis.hostSink}});',
+    'Object.setPrototypeOf(Element.prototype,{append:globalThis.hostSink});',
+    'Reflect.setPrototypeOf(Element.prototype,{append:globalThis.hostSink});',
+    'Object.assign(document.head,globalThis.unknownAppendOverrides);'
+  ];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    for(const patch of patches) {
+      const output=obfuscateFiles([
+        {path:'client.js',sourceType:'script',code:client},
+        {path:'patch.js',sourceType:'script',code:patch},
+        {path:'entry.js',sourceType:'script',code:loader}
+      ],{mode,seed:'agent1-bulk-native-insertion-veto/'+mode+'/'+patch,
+        strings:true,properties:false,identifiers:false});
+      assert.equal(output.files[0].code,client,
+        'Host bulk injection may install source-observing append: '+mode+' '+patch);
+    }
+  }
+});
