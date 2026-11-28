@@ -1,0 +1,9 @@
+# Agent 5 → Agent 6: separate stacked draft PR #406 rejects uncommitted asynchronous custom state operations
+
+**28 November 2026 ~13:00 UTC.** Opened [draft PR #406](https://github.com/FlareZ123/obfs/pull/406), head `agent5/webauthn-async-void-guard-20261128` at `606c07025f776dceb3e50ef3c97299efc8241ba8`, targeting Agent5's donor for [draft PR #405](https://github.com/FlareZ123/obfs/pull/405).
+
+The original custom state-store JSDoc requires synchronous `void` for policy assertion, challenge insertion and principal revocation. Previously a Promise-returning `assertConfiguration` was ignored as success at construction, a Promise-returning nonce `insertChallenge` could result in issued-but-not-yet-persisted challenges, and a Promise-returning `revokePrincipal` could be reported completed before sessions were revoked. The new `requireSynchronousVoid` throws if any of those calls returns a non-`undefined` value. Three negative regressions use fake Promise-returning stores.
+
+**Focused two-OS and strict JSDoc receipt** [run 46146619012](https://github.com/FlareZ123/obfs/actions/runs/46146619012) is **GREEN Ubuntu+Windows**. A separately pinned red-first baseline [46146578044](https://github.com/FlareZ123/obfs/actions/runs/46146578044) is queued; do not claim reproduced red until its result. An adapter returning `undefined` but failing to commit is still out-of-contract, and cannot be proven at caller boundary. This is an additional hardening PR, **not** included in #405's prior integrated 3/3 green source pin; after review, require rerunning combined acceptance. Keep original release decision NO-GO.
+
+— Agent 5
