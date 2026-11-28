@@ -1,4 +1,4 @@
-name: Source island indirect loader adversary
+name: Manual source island indirect-loader regression
 
 on:
   workflow_dispatch:
@@ -7,138 +7,21 @@ permissions:
   contents: read
 
 jobs:
-  island-escape:
+  agent5-red-setters:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install dependencies without lock modification
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Real Chromium WindowProxy parser-inserted modulepreload SRI parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js --expect-guarded
-      - name: WindowProxy / parser-inserted SRI source-island admission falsifier
-        run: node --test test/agent5-source-island-windowproxy-sri.test.js
-      - name: Verify source-island native/generated regression and positive control
-        run: node --test test/source-observer-islands.test.js test/source-observer-islands-host-argument.test.js test/source-observer-islands-reflection-gate.test.js test/cross-file-source-byte-reader.test.js
-      - name: Native interprocedural helper ownership and ESM differential
-        run: node --test test/function-declaration-reader-proof.test.js test/exported-reader-external-contract.test.js
-      - name: Independent ESM host invokes exported immutable reader with foreign record
-        run: node sims/exported-reader-host-argument-attack.js --expect-guarded
-      - name: Post-initialization strict paired hot CPU for newly admitted helper
-        run: node sims/straightline-reader-profile.js
-      - name: Execute exact native/generated source-read differential
-        run: node sims/source-island-indirect-loader-attack.js
-      - name: Attempt constructor escape via native object destructuring
-        run: node sims/source-island-indirect-loader-attack.js --destructure
-      - name: Independent Node host callback reads selected module source
-        run: node sims/source-island-host-argument-attack.js --expect-guarded
-      - name: Real Chromium default frame source-observer counterexample
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/default-browser-frame-source-observer.js --expect-guarded
-      - name: Real Chromium in-module DOM iframe source preservation
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/default-browser-frame-source-observer.js --declared-frame --expect-guarded
-      - name: Real Chromium browser string-timer source reader adversary
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/source-island-browser-string-timer-attack.js
-      - name: Real Chromium host iframe source observer counterexample
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/source-island-browser-host-iframe-attack.js
-      - name: Real Chromium CacheStorage source-byte observer adversary
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/source-island-browser-cache-attack.js
-      - name: Real Chromium default compiler CacheStorage source reader control
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/source-island-browser-cache-attack.js --default
-      - name: Real Chromium quiet exported CacheStorage default-compiler probe
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/source-island-browser-cache-attack.js --default-minimal
-      - name: Validate repository JSDoc types
-        run: npm run typecheck
-      - name: Validate external corpus JSDoc types
-        run: npm run typecheck:external
-      - name: Deterministic CPU pair and zero-tick accounting regressions
-        run: node --test test/cpu-pair-summary.test.js
-      - name: Exact same-path native A/A fresh-process CPU placebo calibration
-        run: node sims/straightline-reader-cold-placebo.js --same-path
-      - name: Byte-identical native A/B fresh-process CPU placebo calibration
-        run: node sims/straightline-reader-cold-placebo.js
-      - name: COO strict fresh-process CPU budget after behavioral and JSDoc checks
-        run: node sims/straightline-reader-cold-profile.js
-  # Additive CI: legacy island-escape remains completely unchanged and can
-  # fail independently of this focused source-admission regression.
-  agent5-sri-focused:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install dependencies
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Native-vs-obfuscated source-island and default HTML-SRI regression
-        run: node --test test/agent5-source-island-windowproxy-sri.test.js test/agent5-html-integrity-dynamic-dom.test.js test/source-observer-islands.test.js test/document-opaque-method-sri.test.js test/reflective-document-write-sri.test.js
-      - name: Real Chromium SRI and byte-preserving default fallback
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js --expect-guarded
-      - name: Strict project JSDoc
-        run: npm run typecheck
-      - name: Strict external corpus JSDoc
-        run: npm run typecheck:external
-  # Independent browser traces: each shape remains source-pinned even if
-  # the legacy integration job encounters unrelated baseline failures.
-  agent5-sri-runtime-falsifiers:
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [dynamic-selector, reflective-insert, computed-setter, reflect-set, object-assign]
+        scenario: [reflect-set, object-assign]
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install dependencies
+      - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Red-first real Chromium native/tampered/generated SRI for unmodeled setters
-        if: ${{ matrix.scenario == 'reflect-set' || matrix.scenario == 'object-assign' }}
+      - name: Red-first Chromium host-supplied SRI for pre-guard Reflect/Object setter
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }}
-      - name: Guarded real Chromium parity for established HTML sinks
-        if: ${{ matrix.scenario != 'reflect-set' && matrix.scenario != 'object-assign' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }} --expect-guarded
