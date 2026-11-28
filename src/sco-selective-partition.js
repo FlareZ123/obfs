@@ -1013,6 +1013,17 @@ function realmStateObservation(body,checkHostConfiguration=false){
   });
   /** @type {Set<string>} */
   const primitiveAliases=new Set();
+  /** @param {import('./ast').AstNode} member @returns {string|null} */
+  function primitivePropertyKey(member){
+    const key=keyName(member);
+    if(key!==null)return key;
+    if(member.type==='MemberExpression'&&member.computed&&
+       member.property.type==='Literal'&&
+       (typeof member.property.value==='number'||typeof member.property.value==='bigint')){
+      return String(member.property.value);
+    }
+    return null;
+  }
   /** @param {import('./ast').AstNode} receiver @param {string|null} property @returns {boolean} */
   function isOwnStringIndex(receiver,property){
     if(property===null||!/^(?:0|[1-9]\d*)$/u.test(property))return false;
@@ -1054,7 +1065,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
         }
         if(isImmutableNumericMember(expression))return 'number';
         const receiver=primitiveKind(expression.object,depth+1);
-        const property=keyName(expression);
+        const property=primitivePropertyKey(expression);
         if(receiver==='string'&&property==='length')return 'number';
         if(receiver==='string'&&isOwnStringIndex(expression.object,property))return 'string';
         return null;
@@ -1364,8 +1375,15 @@ function realmStateObservation(body,checkHostConfiguration=false){
       const key=keyName(node);
       const primitiveReceiver=primitiveKind(node.object);
       const ownStringLength=primitiveReceiver==='string'&&key==='length';
-      const ownStringIndex=primitiveReceiver==='string'&&isOwnStringIndex(node.object,key);
-      if(primitiveReceiver&&!ownStringLength&&!ownStringIndex)prototypeTouched=true;
+      const ownStringIndex=primitiveReceiver==='string'&&
+        isOwnStringIndex(node.object,primitivePropertyKey(node));
+      // Locale-sensitive primitive methods already have a stronger host-data
+      // classification below; preserve that diagnostic instead of masking it
+      // with the generic prototype category.
+      const localePrototypeRead=localePrototypeMethods.has(key??'');
+      if(primitiveReceiver&&!ownStringLength&&!ownStringIndex&&!localePrototypeRead){
+        prototypeTouched=true;
+      }
       if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)prototypeTouched=true;
       if(isIntrinsic(node.object)&&reflectorMethods.has(key??''))prototypeTouched=true;
       if(node.object.type==='Identifier'&&regexpNames.has(node.object.name)&&
