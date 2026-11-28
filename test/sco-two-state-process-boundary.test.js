@@ -81,6 +81,7 @@ test('authenticated real SCO and equal-trust ordinary RPC clients are cloned fro
   assert.equal(result.rank,9);
   assert.equal(result.beliefs,4429);
   assert.ok(result.queries>=0&&result.queries<=9);
+  assert.ok(Number.isInteger(result.modelId)&&result.modelId>=0&&result.modelId<260);
   assert.equal(result.traceLength,result.queries+16);
   assert.equal(result.unauthorizedSco,403);
   assert.equal(result.unauthorizedOrdinary,403);
