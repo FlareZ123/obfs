@@ -3,7 +3,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {maximumPairedIndependentSet,invertBoundedResidual,
-  generateLowRankPermutation,runTrials}=require('./low-rank-affine-matroid-target-inversion');
+  generateLowRankPermutation,runTrials}=require('../sims/low-rank-affine-matroid-target-inversion');
 
 /** @param {number[]} values @returns {number} */
 function rank(values){
