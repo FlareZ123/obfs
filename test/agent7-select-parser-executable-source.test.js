@@ -32,6 +32,21 @@ const executable=[
     html:'<select><math><mtext><svg><script>window._inlineWitness=64</script></svg></mtext></math></select>',
     issue:/inline script source/,expected:64}
 ];
+/** @type {{id:string,html:string,issue:RegExp}[]} */
+const nonScriptDisclosures=[
+  {id:'css-source-map',html:'<select><style>body{color:red}/*# sourceMappingURL=data:application/json;base64,e30= */</style></select>',
+    issue:/inline CSS source-map directive/},
+  {id:'css-data-import',html:'<select><style>@import url("data:text/css,body%7Bcolor%3Ared%7D");</style></select>',
+    issue:/embedded stylesheet data import/},
+  {id:'css-data-link',html:'<select><link rel="stylesheet" href="data:text/css,body%7B--_probe%3A99%7D"></select>',
+    issue:/embedded stylesheet data URL/},
+  {id:'entitized-css-data-link',html:'<select><link rel="stylesheet" href="data&colon;text/css,body%7B--_probe%3A99%7D"></select>',
+    issue:/embedded stylesheet data URL/},
+  {id:'select-base',html:'<select><base href="https://example.org/unexpected/"></select>',
+    issue:/URL base in select context/},
+  {id:'select-meta-refresh',html:'<select><meta http-equiv="refresh" content="0;url=javascript:window._inlineWitness=80"></select>',
+    issue:/embedded executable refresh URL/}
+];
 const encodedSmil='<select><svg><a id="encodedHref" href="#safe">'+
   '<set attributeName="href" to="jav&#x61;script:window._inlineWitness=72" '+
   'begin="0s" dur="indefinite"/></a></svg></select>';
@@ -56,9 +71,18 @@ test('SELECT insertion mode cannot conceal executable SVG script, handler, srcdo
   assert.throws(()=>audit(encodedSmil),/SVG animation embeds executable URL/);
 });
 
+test('SELECT parser-dropped stylesheets, source maps, BASE and refresh require source preflight',()=>{
+  for(const fixture of nonScriptDisclosures){
+    assert.match(findInlineHtmlSource(doc(fixture.html)),fixture.issue,fixture.id);
+    assert.throws(()=>audit(fixture.html),fixture.issue,
+      fixture.id+' production source-map/publishing refusal');
+  }
+});
+
 test('inert parser controls remain admissible',()=>{
   const safe=[
     '<select><option value="alpha">Alpha</option><option>Beta</option></select>',
+    '<select><style>body{--_probe:99}</style></select>',
     '<!--<select><svg><script>not executable</script></svg></select>-->',
     '<div data-note="select">No scripts</div>',
     '<textarea><select><svg><script>not executable</script></svg></select></textarea>',
@@ -77,6 +101,10 @@ test('real HTTP Chrome executes source-bearing markup that parse5 7.3 erased',{
 },async()=>{
   const docs=new Map(executable.map(item=>[item.id,doc(item.html)]));
   docs.set('smil',doc(encodedSmil));
+  docs.set('select-style',doc('<select><style>body{--_probe:99}</style></select>'));
+  docs.set('select-link',doc('<select><link rel="stylesheet" href="data:text/css,body%7B--_probe%3A98%7D"></select>'));
+  docs.set('select-base',doc('<select><base href="https://example.org/unexpected/"></select>'));
+
   const server=http.createServer((req,res)=>{
     const id=(req.url??'/').slice(1);
     if(!docs.has(id)){res.writeHead(404);res.end('missing');return;}
@@ -120,6 +148,26 @@ test('real HTTP Chrome executes source-bearing markup that parse5 7.3 erased',{
       assert.equal(state,'javascript:window._inlineWitness=72',
         'HTML entity-decoded script scheme in native SMIL animation');
     }finally{await page.close();}
+    for(const control of [
+      {id:'select-style',expected:'99'},
+      {id:'select-link',expected:'98'}
+    ]){
+      const sheetPage=await browser.newPage();
+      try{
+        await sheetPage.goto('http://127.0.0.1:'+addr.port+'/'+control.id,
+          {waitUntil:'load'});
+        assert.equal(await sheetPage.evaluate(()=>
+          getComputedStyle(document.body).getPropertyValue('--_probe')),
+          control.expected,control.id+' CSS actually applied in Chrome');
+      }finally{await sheetPage.close();}
+    }
+    const basePage=await browser.newPage();
+    try{
+      await basePage.goto('http://127.0.0.1:'+addr.port+'/select-base',
+        {waitUntil:'load'});
+      assert.equal(await basePage.evaluate(()=>document.baseURI),
+        'https://example.org/unexpected/','Chrome uses base hidden in select');
+    }finally{await basePage.close();}
   }finally{
     if(browser)await browser.close();
     server.close();
