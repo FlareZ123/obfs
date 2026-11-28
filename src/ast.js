@@ -671,13 +671,21 @@ function hasWeakMapPrototypeExposure(ast) {
         parent?.type==='VariableDeclarator'||
         parent?.type==='FunctionDeclaration'||
         parent?.type==='FunctionExpression');
+      // A noncomputed key spells a property name, not a value reference to
+      // the callable. Shorthand object properties also visit their value
+      // identifier independently and correctly count that escape.
+      const isPropertySpelling=key==='property'&&
+        parent?.type==='MemberExpression'&&!parent.computed||
+        key==='key'&&['Property','MethodDefinition','PropertyDefinition'].includes(
+          parent?.type??'')&&!parent?.computed;
       const grandparent=ancestors.at(-2);
       const isPrivateProtocolUse=parent?.type==='MemberExpression'&&
         key==='object'&&grandparent?.type==='CallExpression'&&
         grandparent.callee===parent&&
         ['call','apply','bind'].includes(memberKey(parent)??'');
       const isPrivateDirectCall=parent?.type==='CallExpression'&&key==='callee';
-      if(!isDeclaration&&!isPrivateProtocolUse&&!isPrivateDirectCall)
+      if(!isDeclaration&&!isPropertySpelling&&!isPrivateProtocolUse&&
+         !isPrivateDirectCall)
         callableEscapedBeyondPrivateCalls.add(node.name);
     }
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
