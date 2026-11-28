@@ -47,9 +47,9 @@ async function observe(files) {
     for(const file of files)await fs.writeFile(path.join(root,file.path),file.code);
     const runner=[
       "const {pathToFileURL}=require('node:url');",
-      "const {snapshotDataGraph}=require(process.argv[2]);",
+      "const {snapshotDataGraph,serializeDataSnapshot}=require(process.argv[2]);",
       "(async()=>{const {result}=await import(pathToFileURL(process.argv[1]).href);",
-      "process.stdout.write(JSON.stringify(snapshotDataGraph(result)));",
+      "process.stdout.write(serializeDataSnapshot(snapshotDataGraph(result)));",
       "})().catch(error=>{console.error(error);process.exitCode=1;});"
     ].join('\n');
     const child=spawnSync(process.execPath,[
