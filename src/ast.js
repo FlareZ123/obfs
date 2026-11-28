@@ -4698,6 +4698,68 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedDom);
 
+  // A browser Node supplied to Element.append/prepend/replaceChildren/before/
+  // after/replaceWith takes the Web IDL Node arm, which does not stringify it.
+  // A monotone "was once a DOM element" alias fact is insufficient: a let
+  // binding can later contain a function, or a shadowing parameter can do so.
+  // This small proof admits only a uniquely bound, immutable const initialized
+  // directly by an unshadowed native document factory with primitive inputs.
+  /** @type {Set<string>} */
+  const fixedDomNodeBindings=new Set();
+  const domNodeFactoryMethods=new Set(['createElement','createElementNS',
+    'createTextNode','createComment','createDocumentFragment']);
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function directNativeNodeFactory(value) {
+    return Boolean(value?.type==='CallExpression' &&
+      value.callee.type==='MemberExpression' && !value.callee.computed &&
+      value.callee.object.type==='Identifier' &&
+      value.callee.object.name==='document' &&
+      domNodeFactoryMethods.has(memberName(value.callee)??'') &&
+      value.arguments.every((/** @type {AstNode} */ arg)=>isDefinitelyPrimitive(arg)));
+  }
+  let factoryMayBeReplaced=false;
+  walk(ast,(node,parent)=>{
+    if(node.type==='AssignmentExpression') {
+      if(node.left.type==='Identifier'&&node.left.name==='document')
+        factoryMayBeReplaced=true;
+      if(node.left.type==='MemberExpression'&&
+         (domNodeFactoryMethods.has(memberName(node.left)??'') ||
+           memberName(node.left)==='document'&&isGlobal(node.left.object)))
+        factoryMayBeReplaced=true;
+    }
+    if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'&&
+       domNodeFactoryMethods.has(memberName(node.argument)??''))
+      factoryMayBeReplaced=true;
+    if(node.type==='UnaryExpression'&&node.operator==='delete'&&
+       node.argument.type==='MemberExpression'&&
+       domNodeFactoryMethods.has(memberName(node.argument)??''))
+      factoryMayBeReplaced=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       ['defineProperty','defineProperties','assign','setPrototypeOf','set'].includes(
+         memberName(node.callee)??'') &&
+       (isNativeDocument(node.arguments[0]) ||
+         node.arguments[0]?.type==='MemberExpression' &&
+         memberName(node.arguments[0])==='prototype' &&
+         node.arguments[0].object.type==='Identifier' &&
+         node.arguments[0].object.name==='Document'))
+      factoryMayBeReplaced=true;
+    if(node.type==='VariableDeclarator'&&
+       parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
+       node.id.type==='Identifier'&&
+       bindingCounts.get(node.id.name)===1&&
+       directNativeNodeFactory(node.init))
+      fixedDomNodeBindings.add(node.id.name);
+  });
+  if(dynamicScope||bindingCounts.has('document')||factoryMayBeReplaced)
+    fixedDomNodeBindings.clear();
+  /** @param {AstNode} argument @returns {boolean} */
+  function provenNativeNodeArgument(argument) {
+    return !dynamicScope&&!bindingCounts.has('document')&&
+      !factoryMayBeReplaced&&
+      (argument.type==='Identifier'&&fixedDomNodeBindings.has(argument.name) ||
+       directNativeNodeFactory(argument));
+  }
+
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -5942,7 +6004,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            'before','after','replaceWith'].includes(method??'') ||
            node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
-           !isDefinitelyPrimitive(argument))) observed=true;
+           !isDefinitelyPrimitive(argument) &&
+           !(['append','prepend','replaceChildren','before','after','replaceWith'].
+             includes(method??'') && provenNativeNodeArgument(argument))))
+        observed=true;
       if(isNativeDomStyle(owner) &&
          (['setProperty','getPropertyValue','removeProperty'].includes(method??'') ||
           node.callee.computed&&method===null) &&
