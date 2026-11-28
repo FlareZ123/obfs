@@ -197,6 +197,15 @@ test('shared in-memory WebAuthn state refuses weaker RP origin and UV authority'
   }
 });
 
+test('custom WebAuthn stores without atomic policy fingerprint refuse at construction',()=>{
+  const memory=createScoWebAuthnMemoryStore();
+  const {assertConfiguration:discarded,...withoutPolicyFence}=memory;
+  assert.equal(typeof discarded,'function');
+  assert.throws(()=>harness({stateStore:/** @type {any} */(withoutPolicyFence)}),
+    /Invalid SCO WebAuthn admission state store/u,
+    'A shared custom adapter must not silently omit cross-replica policy fencing');
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
