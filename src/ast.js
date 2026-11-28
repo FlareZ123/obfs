@@ -2527,19 +2527,42 @@ function hasNativeDocumentFactoryMutation(ast) {
       node.type==='MemberExpression'&&
         isGlobal(node.object)&&key(node)==='document'));
   }
-  /** @param {AstNode|null|undefined} node @returns {boolean} */
-  function isDocPrototype(node) {
-    return Boolean(node &&
-      (node.type==='Identifier'&&docPrototypes.has(node.name) ||
-       node.type==='MemberExpression' && (
-         key(node)==='prototype'&&node.object.type==='Identifier'&&
-           docConstructors.has(node.object.name) ||
-         key(node)==='__proto__'&&isDocument(node.object)
-       ) ||
-       node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-       node.callee.object.type==='Identifier'&&
-       node.callee.object.name==='Object'&&
-       key(node.callee)==='getPrototypeOf'&&isDocument(node.arguments[0])));
+  /**
+   * The native constructor can be reached as Document, window.Document,
+   * through a global alias, or through document.constructor. Every such
+   * spelling names a possible prototype mutation surface; treating only
+   * Identifier constructors as native misses ordinary global member writes.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isDocConstructor(node) {
+    return Boolean(node && (
+      node.type==='Identifier'&&docConstructors.has(node.name) ||
+      node.type==='MemberExpression' && (
+        isGlobal(node.object)&&docConstructors.has(key(node)??'') ||
+        key(node)==='constructor'&&isDocument(node.object))));
+  }
+  /**
+   * HTMLDocument/Document prototype chains may be traversed through
+   * __proto__ and Object.getPrototypeOf. A bounded recursive provenance
+   * check recognizes those aliases without inferring arbitrary expressions.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isDocPrototype(node,depth=0) {
+    if(!node||depth>6)return false;
+    return Boolean(
+      node.type==='Identifier'&&docPrototypes.has(node.name) ||
+      node.type==='MemberExpression' && (
+        key(node)==='prototype'&&isDocConstructor(node.object) ||
+        key(node)==='__proto__'&&
+          (isDocument(node.object)||isDocPrototype(node.object,depth+1))) ||
+      node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+        node.callee.object.type==='Identifier'&&
+        node.callee.object.name==='Object'&&
+        key(node.callee)==='getPrototypeOf'&&
+        (isDocument(node.arguments[0])||isDocPrototype(node.arguments[0],depth+1)));
   }
   let changed;
   do {
@@ -2567,8 +2590,9 @@ function hasNativeDocumentFactoryMutation(ast) {
       }
       if(!name||!value)return;
       if(isGlobal(value)&&!globals.has(name)){globals.add(name);changed=true;}
-      if(value.type==='Identifier'&&docConstructors.has(value.name)&&
-         !docConstructors.has(name)){docConstructors.add(name);changed=true;}
+      if(isDocConstructor(value)&&!docConstructors.has(name)){
+        docConstructors.add(name);changed=true;
+      }
       if(isDocument(value)&&!docs.has(name)){docs.add(name);changed=true;}
       if(isDocPrototype(value)&&!docPrototypes.has(name)){
         docPrototypes.add(name);changed=true;
