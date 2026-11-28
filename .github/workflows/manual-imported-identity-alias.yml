@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Agent 6 multi-owner record native differential and strict refusal
-        run: node --test test/agent6-multi-slot-private-record-proof.test.js test/private-record-proof.test.js
+        run: node --test test/agent6-multi-slot-private-record-proof.test.js test/agent6-multi-slot-record-fuzz.test.js test/private-record-proof.test.js
       - name: Agent 6 additional external JSDoc gate
         run: npm run typecheck:external
       - name: Strict core and cross-file alias JSDoc
