@@ -108,3 +108,10 @@ This is not merely a static concern. The existing [manual four-way control run 4
 - `releaseVerdict: "RELEASE-BLOCKED"`
 
 The step `node sims/four-way-cross-runtime-verdict.js` exited zero and the job completed successfully. The current acceptance parent consumes this reusable workflow's **job result**, not the JSON verdict, so this exact class of known-rejected candidate can satisfy the parent job-status predicate. This is a reproduced false-green path, not a hypothetical edge case.
+
+
+## Current-main validation baseline
+
+The unfiltered `manual-validation.yml` run [46181044016](https://github.com/FlareZ123/obfs/actions/runs/46181044016) on current main `773e6234...` has completed failure on both Ubuntu and Windows with 14 behavioral-suite failures. Typecheck, specialized TS projects, benchmark command, and browser integration steps completed without errors. The detailed baseline and exact failed-test comparison are recorded in `im-results/agent10-primitive-realm-full-suite-review-2026-11-28.md`.
+
+This makes the acceptance disposition unambiguous: current main is not a passing candidate baseline, independently of the acceptance-spine branch's fail-open status predicate. Do not dispatch or describe the new spine as a successful acceptance run until the baseline behavioral failures are resolved and the final gate reads actual evidence verdicts.
