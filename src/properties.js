@@ -563,11 +563,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
     }
   }
-  // A private record with one owner-valued field can forward that owner
-  // through static property reads. Inert companion fields cannot observe the
-  // owner during record creation. The record and its selected member must
-  // remain private; any escape, mutation or reflection suspends the proof.
-  /** @type {Map<string,string>} */
+  // A private record may carry repeated references to the same owner through
+  // multiple immutable, statically named fields. Every carrier read must be
+  // a known owner slot assigned to a unique local alias. Other fields are
+  // inert primitives; mutation, reflection and carrier escape veto all slots.
+  /** @type {Map<string,Set<string>>} */
   const privateOwnerRecords=new Map();
   /** @type {Set<AstNode>} */
   const privateRecordLiteralValues=new Set();
@@ -581,10 +581,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        decl.init.properties.length<1||decl.init.properties.length>8)continue;
     const fields=/** @type {AstNode[]} */ (decl.init.properties);
     const names=new Set();
-    /** @type {AstNode|null} */
-    let ownedValue=null;
-    /** @type {string|null} */
-    let ownedKey=null;
+    /** @type {AstNode[]} */
+    const ownedValues=[];
+    const ownedKeys=new Set();
     let safe=true;
     for(const field of fields){
       if(field.type!=='Property'||field.kind!=='init'||field.computed||
@@ -600,9 +599,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       names.add(name);
       if(field.value.type==='Identifier'&&field.value.name===rootName){
-        if(ownedValue!==null){safe=false;break;}
-        ownedValue=field.value;
-        ownedKey=name;
+        ownedValues.push(field.value);
+        ownedKeys.add(name);
       }else if(field.value.type!=='Literal'||
           !(field.value.value===null||
             ['string','number','boolean','bigint'].includes(typeof field.value.value))){
@@ -610,7 +608,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
     }
-    if(!safe||!ownedValue||ownedKey===null)continue;
+    if(!safe||!ownedValues.length)continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
@@ -621,8 +619,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
          (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
            key==='key'&&!parent.computed)continue;
-      const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
-        (parent.computed?staticString(parent.property):staticName(parent.property))===ownedKey;
+      const memberName=parent?.type==='MemberExpression'&&
+        (parent.computed?staticString(parent.property):staticName(parent.property));
+      const read=parent?.type==='MemberExpression'&&key==='object'&&
+        !parent.optional&&typeof memberName==='string'&&ownedKeys.has(memberName);
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -633,8 +633,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(safe){
-      privateOwnerRecords.set(holder,ownedKey);
-      privateRecordLiteralValues.add(ownedValue);
+      privateOwnerRecords.set(holder,ownedKeys);
+      for(const value of ownedValues)privateRecordLiteralValues.add(value);
     }
   }
   /** @type {Set<string>} */
@@ -746,9 +746,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        expression.property.type==='Literal'&&
        expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return null;
     if(expression.type==='MemberExpression'&&!expression.optional&&
-       expression.object.type==='Identifier'&&
-       (expression.computed?staticString(expression.property):staticName(expression.property))===
-         privateOwnerRecords.get(expression.object.name))return null;
+       expression.object.type==='Identifier'){
+      const knownKeys=privateOwnerRecords.get(expression.object.name);
+      const name=expression.computed?staticString(expression.property):staticName(expression.property);
+      if(knownKeys&&name!==null&&knownKeys.has(name))return null;
+    }
     if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'){
       const fn=functions.get(expression.callee.name);
       if(!fn)return false;
