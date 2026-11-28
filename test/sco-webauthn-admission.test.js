@@ -318,3 +318,20 @@ test('any malformed attempt burns its known challenge ID, blocking retry with co
   assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,false);
   assert.equal(h.updates,0);
 });
+
+test('mutating config callbacks cannot replace snapshotted credential policy after startup',async()=>{
+  const fixture=harness();
+  const origins=['https://secure.example.com'];
+  const config={
+    rpId:'example.com',allowedOrigins:origins,
+    lookupCredential:async()=>null,
+    updateSignCount:async()=>false
+  };
+  const gate=createScoWebAuthnAdmission(config);
+  // Post-construction mutation is not an authenticated credential enrollment.
+  config.lookupCredential=async()=>fixture.records.get(fixture.credentialId)??null;
+  config.updateSignCount=async()=>true;
+  origins[0]='https://attacker.example.com';
+  const issued=gate.issueChallenge('accountA','loginA');
+  assert.equal((await gate.verifyAssertion(assertion(fixture,issued))).ok,false);
+});
