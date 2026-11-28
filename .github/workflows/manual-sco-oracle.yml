@@ -145,5 +145,7 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Solve exact three-state no-reset minimax value
         run: node --max-old-space-size=4096 --test test/sco-three-state-minimax.test.js
+      - name: Replay exact 24-call policy against process-separated generated SCO and matched ordinary RPC
+        run: node --test test/sco-three-state-live-policy.test.js
       - name: Strict JSDoc type safety
         run: npx tsc -p jsconfig.sco-oracles.json
