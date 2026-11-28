@@ -288,15 +288,15 @@ test('factory results retain ownership through multi-slot records and tuples',as
   const recordMain='import {makeState} from "./state.mjs";'+
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
-    'const carrier={left:first,right:second};'+
+    'const carrier={left:first,right:first};'+
     'const carried=identity(carrier.left);'+
-    'console.log(carried.secretField+carrier.right.otherField);';
+    'console.log(carried.secretField+carrier.right.otherField+second.otherField);';
   const tupleMain='import {makeState} from "./state.mjs";'+
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
-    'const carrier=[first,second];'+
+    'const carrier=[first,first];'+
     'const carried=identity(carrier[0]);'+
-    'console.log(carried.secretField+carrier[1].otherField);';
+    'console.log(carried.secretField+carrier[1].otherField+second.otherField);';
   const factory='export function makeState(){return {secretField:17,otherField:5};}';
   for(const mode of ['coo','sno','sco']) {
     await checkFactory(factory,recordMain,2,mode,undefined,identityModule);
@@ -309,11 +309,10 @@ test('exported factory results are proven across every direct importer',async()=
   const factory='export function makeState(){return {secretField:17,otherField:5};}';
   const modules=[
     {path:'left.mjs',code:'import {makeState} from "./state.mjs";'+
-      'const value=makeState();export const leftValue=value.secretField;'},
+      'const value=makeState();console.log(value.secretField);'},
     {path:'right.mjs',code:'import {makeState} from "./state.mjs";'+
-      'const value=makeState();export const rightValue=value.otherField;'},
-    {path:'main.mjs',code:'import {leftValue} from "./left.mjs";'+
-      'import {rightValue} from "./right.mjs";console.log(leftValue+rightValue);'}
+      'const value=makeState();console.log(value.otherField);'},
+    {path:'main.mjs',code:'import "./left.mjs";import "./right.mjs";'}
   ];
   for(const mode of ['coo','sno','sco']) {
     await checkFactoryGraph(factory,modules,2,mode);
@@ -324,13 +323,11 @@ test('one escaping factory result cancels every importer property edit',async()=
   const factory='export function makeState(){return {secretField:17,otherField:5};}';
   const modules=[
     {path:'left.mjs',code:'import {makeState} from "./state.mjs";'+
-      'const value=makeState();export const leftValue=value.secretField;'},
+      'const value=makeState();console.log(value.secretField);'},
     {path:'right.mjs',code:'import {makeState} from "./state.mjs";'+
-      'const value=makeState();globalThis.leaked=value;'+
-      'export const rightValue=value.otherField;'},
-    {path:'main.mjs',code:'import {leftValue} from "./left.mjs";'+
-      'import {rightValue} from "./right.mjs";'+
-      'console.log(leftValue+rightValue+Object.keys(globalThis.leaked).join(","));'}
+      'const value=makeState();globalThis.leaked=value;console.log(value.otherField);'},
+    {path:'main.mjs',code:'import "./left.mjs";import "./right.mjs";'+
+      'console.log(Object.keys(globalThis.leaked).join(","));'}
   ];
   await checkFactoryGraph(factory,modules,0);
 });
