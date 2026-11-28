@@ -110,6 +110,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-sync-diversified-browser.js
+      - name: Recover process-separated SCO two-state model in real Chromium versus matched ordinary RPC
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-two-state-browser-live.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
