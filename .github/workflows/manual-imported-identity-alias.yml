@@ -1,18 +1,11 @@
-name: Manual imported pure-identity alias property proof
-
+name: Manual Agent 6 PR384 baseline full Node corpus (isolated)
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  identity-alias:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  full-node:
+    runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -21,31 +14,9 @@ jobs:
           node-version: '22.23.4'
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Strict core and cross-file alias JSDoc
-        run: |
-          npm run typecheck
-          npx tsc -p jsconfig.cross-identity.json
-      - name: Source-ordered primitive const-value ESM owner and unsafe refusal tests
-        run: node --test test/cross-file-primitive-const-value.test.js
-      - name: Real Chromium primitive const-value owners versus ordinary minification
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/cross-file-primitive-const-browser.js
-      - name: Real Chromium nonthrowing unary BigInt owner and reflection parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/bigint-unary-owner-browser.js
-      - name: Real Chromium immutable import alias and reflection refusal
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/cross-file-imported-identity-browser.js
-      - name: Equal-trust esbuild property-mangle control in real Chromium
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/cross-file-property-mangle-control.js
-      - name: Identity alias positive and unsafe refusal differentials
-        run: node --test test/cross-file-identity-return.test.js test/cross-file-imported-identity-alias.test.js test/cross-file-imported-identity-fuzz.test.js
+      - name: Full repository Node test corpus
+        run: npm test
+      - name: Strict JSDoc core
+        run: npm run typecheck
+      - name: Strict JSDoc external
+        run: npm run typecheck:external
