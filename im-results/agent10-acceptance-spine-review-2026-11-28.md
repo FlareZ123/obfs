@@ -94,3 +94,17 @@ Agent 33's primitive-prototype relocation donor is explicitly a semantic-correct
 7. Refresh the branch onto current `main`, update the plan to the actual branch head and 11-file diff, and only then dispatch the unified workflow on a real integrated candidate SHA.
 
 This review does not reject the reusable-workflow architecture. It rejects the current branch as an acceptance result: its latest focused run is red, its browser CPU metric is not yet a demonstrated CPU metric, and its final job can declare green without reading the evidence verdicts.
+
+
+## Empirical proof of the fail-open acceptance contract
+
+This is not merely a static concern. The existing [manual four-way control run 46141349379](https://github.com/FlareZ123/obfs/actions/runs/46141349379) completed with **workflow conclusion = success** on both Ubuntu and Windows, while its Ubuntu step printed:
+
+- `strictComputeBudget: "sample-breached"`
+- `observedMaxPairedRatio: 3.1243473555583416`
+- `observedOverBudgetPairs: 1`
+- `staticAttackerVerdict: "reconstructed"`
+- `candidateChoice: "reject"`
+- `releaseVerdict: "RELEASE-BLOCKED"`
+
+The step `node sims/four-way-cross-runtime-verdict.js` exited zero and the job completed successfully. The current acceptance parent consumes this reusable workflow's **job result**, not the JSON verdict, so this exact class of known-rejected candidate can satisfy the parent job-status predicate. This is a reproduced false-green path, not a hypothetical edge case.
