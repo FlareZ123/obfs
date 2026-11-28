@@ -77,23 +77,32 @@ test('SCO standalone child retains local per-call lexical counter',()=>{
   ));
 });
 
-test('native independent ESM module trees demonstrate mutable lexical state split',
-  {timeout:15000},async()=>{
-    const source='let counter=0;export function next(){return ++counter;}';
-    const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-child-lexical-'));
-    try{
-      for(const name of ['client-a','client-b','server']){
-        await atomicWrite(path.join(temp,name,'mixed.mjs'),rootCode);
-        await atomicWrite(path.join(temp,name,'private/next.mjs'),source);
+test('native independent ESM trees isolate lexical, record, array and RegExp state',
+  {timeout:20000},async()=>{
+    const variants=[
+      ['lexical','let counter=0;export function next(){return ++counter;}',[1,1,1,2]],
+      ['record','const state={count:0};export function next(){return ++state.count;}',[1,1,1,2]],
+      ['array','const history=[];export function next(){return history.push(1);}',[1,1,1,2]],
+      ['regexp','const matcher=/a/g;export function next(){return matcher.test("a");}',[true,true,true,false]],
+      ['primitive','const offset=41;export function next(){return offset+1;}',[42,42,42,42]]
+    ];
+    for(const [label,source,expected] of variants){
+      const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-child-'+label+'-'));
+      try{
+        for(const name of ['client-a','client-b','server']){
+          await atomicWrite(path.join(temp,name,'mixed.mjs'),rootCode);
+          await atomicWrite(path.join(temp,name,'private/next.mjs'),
+            /** @type {string} */ (source));
+        }
+        const modules=await Promise.all(['client-a','client-b','server'].map(name=>
+          import(pathToFileURL(path.join(temp,name,'mixed.mjs')).href)));
+        const readings=[
+          await modules[0].secret(),await modules[1].secret(),
+          await modules[2].secret(),await modules[2].secret()
+        ];
+        assert.deepEqual(readings,expected,label);
+      }finally{
+        await fs.rm(temp,{recursive:true,force:true});
       }
-      const modules=await Promise.all(['client-a','client-b','server'].map(name=>
-        import(pathToFileURL(path.join(temp,name,'mixed.mjs')).href)));
-      const readings=[
-        await modules[0].secret(),await modules[1].secret(),
-        await modules[2].secret(),await modules[2].secret()
-      ];
-      assert.deepEqual(readings,[1,1,1,2]);
-    }finally{
-      await fs.rm(temp,{recursive:true,force:true});
     }
   });
