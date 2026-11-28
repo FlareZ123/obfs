@@ -1,6 +1,6 @@
 # Solver-free, public-trace-only bounded Mealy future-uniqueness certificates (28 November 2026)
 
-**Status:** constructive finite-state finding with independent local replay and bounded exhaustive checks. Exact-head CI for the current implementation is underway. This is **not** a universal JavaScript-program reconstruction theorem, source-recovery result, environment-locking result, or evidence of satisfying the protected application's 2.5× runtime ceiling.
+**Status:** constructive finite-state finding independently replicated by source-pinned GitHub Actions on the exact historical archive, with local adversarial exhaustive checks. Current live/full unit validation of the patched test harness is tracked separately. This is **not** a universal JavaScript-program reconstruction theorem, source-recovery result, environment-locking result, or evidence of satisfying the protected application's 2.5× runtime ceiling.
 
 ## Research question and data provenance
 
@@ -63,6 +63,21 @@ To reproduce, download artifact 15118288275 from run 45815986225 into a director
     python sims/test_agent49_hw_passive_reconstruction.py
 
 The optional --check-fixture flag does **not** contribute to public inference. It verifies the completed result against the evaluator-only original table afterward. Each successful result includes the public input/output fingerprint witness, the full forced state table, and replayable matching initial/post-state evidence.
+
+## External pinned replication and archived proof output
+
+**GitHub Actions [run 46089241390](https://github.com/FlareZ123/obfs/actions/runs/46089241390) concluded SUCCESS** on exact source commit ed509d9d9b5ea5ebae49501e78b4f24939088af6. It fetched the original historical run 45815986225, did not rerun or augment the learner, and executed the standalone public certificate reconstruction with 12-symbol fingerprints and independent held-out evaluator checks. The exact archive input SHA-256 was 8601afdfd58c58655170304e6f3503cb2c658f3adaf7a4cb942fdf23330cd83b, byte-identical to the local input.
+
+Preserved [workflow artifact 15240378831](https://github.com/FlareZ123/obfs/actions/runs/46089241390/artifacts/15240378831), ZIP SHA-256 **357e4f536fda8f28a56d6642292d3c7731dfde3162786114d84a2d864bca5e7b**, contains four independently inspectable JSON files:
+
+- hw-audit-manifest.json — audited historical run, exact source commit, solver/word-length choices.
+- hw-passive-reconstruction.json — public fingerprint witnesses, 23 complete forced tables, per-case independently checked fixture results; summary **23 complete, 23 evaluator-crosschecked, 36 cases**.
+- hw-trace-state-certificate.json — the separate public-output-diversity lower bound and its proof indices.
+- hw-version-space-audit.json — experimental trace-anchored ranked-product Z3; **four selected target-sized searches remain UNKNOWN**, with independent 31.097-second wall time and 5,000ms per candidate-size solver timeouts.
+
+This archive explicitly keeps **constructive UNSAT certificates from the trace proof** separate from the **UNKNOWN Z3 decisions** on the very same target-size cases. The successful external reproduction confirms the 23 certificate calculations and table comparison under the precise finite-state assumptions; it does not turn an inconclusive solver answer into solver-proven UNSAT.
+
+**Historical Z3 baseline crosschecks:** [run 46087993485](https://github.com/FlareZ123/obfs/actions/runs/46087993485) (predecessor labeling plus analytical lower bound) and [run 46087996847](https://github.com/FlareZ123/obfs/actions/runs/46087996847) (BFS labeling plus analytical lower bound) both succeeded on the exact same historical JSON. Both analytically eliminated all state sizes below each selected target and correctly preserved UNKNOWN for all four remaining target-sized solver cases. No general performance superiority between those two encodings was demonstrated.
 
 ## Interpretive limitations and open work
 
