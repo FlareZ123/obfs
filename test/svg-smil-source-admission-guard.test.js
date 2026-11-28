@@ -58,6 +58,8 @@ test('SVG source scanner and production asset preflight reject three animation s
 test('HTML-inline SVG scanner rejects SMIL event target without rejecting benign fill',()=>{
   assert.match(findInlineHtmlSource(html),/animation targets executable attribute/);
   assert.throws(()=>audit('page.html',html),/HTML asset contains SVG animation targets executable attribute/);
+  const camelCase=html.replace('<set ','<animateColor ');
+  assert.match(findInlineHtmlSource(camelCase),/animation targets executable attribute/);
   const safe=html.replace('attributeName="onmouseover"','attributeName="fill"')
     .replace('to="window.sourceObserver=23"','to="green"');
   assert.equal(findInlineHtmlSource(safe),null);
