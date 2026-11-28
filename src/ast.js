@@ -4475,6 +4475,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const domStyleNames=new Set();
   const domDatasetNames=new Set();
   const domRangeNames=new Set();
+  const domTokenListNames=new Set();
   const domElementFactories=new Set();
   const domStyleFactories=new Set();
   const domDatasetFactories=new Set();
@@ -4536,6 +4537,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
       isNativeDocument(node.callee.object)&&
       memberName(node.callee)==='createRange'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomTokenList(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      domTokenListNames.has(node.name) ||
+      node.type==='MemberExpression'&&
+        ['classList','part'].includes(memberName(node)??'')&&
+        isNativeDomElement(node.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNativeDomDataset(node) {
@@ -4642,6 +4651,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isNativeDomRange(value)&&!domRangeNames.has(name)) {
         domRangeNames.add(name);changedDom=true;
+      }
+      if(isNativeDomTokenList(value)&&!domTokenListNames.has(name)) {
+        domTokenListNames.add(name);changedDom=true;
       }
     });
   }while(changedDom);
@@ -5864,6 +5876,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         !isDefinitelyPrimitive(node.left.property);
       if(unsafeValue && (
         isNativeDomDataset(owner) ||
+        isNativeDomTokenList(owner) && (attribute==='value'||attribute===null) ||
         isNativeDomStyle(owner) && (attribute==='cssText'||attribute===null) ||
         isNativeDomElement(owner) && (
           attribute===null ||
@@ -5895,6 +5908,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDomTokenList(owner)&&
+         ['add','remove','toggle','replace','contains','supports'].includes(method??'')&&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument)))observed=true;
       if(isNativeDomRange(owner)&&method==='createContextualFragment'&&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument)))observed=true;
