@@ -519,6 +519,25 @@ function hasWeakMapPrototypeExposure(ast) {
   // identifier occurrences have been collected.
   /** @type {Map<string,Map<string,AstNode>>} */
   const localObjectMethods=new Map();
+  /**
+   * Direct construction of an unreassigned, uniquely named local class
+   * invokes its lexical constructor parameter initializers. Keep that
+   * callable distinct from ordinary object methods and class inheritance.
+   * @type {Map<string,AstNode>}
+   */
+  const localClassConstructors=new Map();
+  for(const statement of ast.body??[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='ClassDeclaration'||
+       declaration.id?.type!=='Identifier'||declaration.superClass)continue;
+    const constructor=(declaration.body.body??[]).find(
+      (/** @type {AstNode} */ element)=>element.type==='MethodDefinition'&&
+        element.kind==='constructor'&&
+        element.value?.body?.type==='BlockStatement');
+    if(constructor)localClassConstructors.set(declaration.id.name,constructor.value);
+  }
   for(const statement of ast.body??[]) {
     const declaration=statement.type==='ExportNamedDeclaration'?
       statement.declaration:statement;
@@ -1909,6 +1928,18 @@ function hasWeakMapPrototypeExposure(ast) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
+      }
+      if(node.callee.type==='Identifier') {
+        const className=node.callee.name;
+        const localConstructor=localClassConstructors.get(className);
+        if(localConstructor&&localBindingCounts.get(className)===1&&
+           !reassignedLocalFunctions.has(className)&&!hasDirectEval) {
+          // A stable direct new expression synchronously binds constructor
+          // parameters before executing the constructor body. The captured
+          // outer-carrier effects must join back into this call site.
+          replayCarrierFunctionNode(localConstructor,environment,carrierOther,
+            true,node.arguments??[],true);
+        }
       }
       return;
     }
