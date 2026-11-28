@@ -97,3 +97,67 @@ Node/Chromium/HTTP/performance gate. An existing full-suite red baseline
 is not superseded by focused green. The [23 November root-alias and child
 witness](sco-import-expression-identity-2026-11-23.md) remains the historical
 prepatch evidence.
+
+
+## 28 November follow-up: state owners, readonly tables and actual CI triage
+
+The same cross-client counter witness generalizes beyond function-own properties:
+`let counter=0`, `const state={count:0}`, `const history=[]` and
+`const matcher=/a/g` all allocate independent mutable cells/objects in
+distinct browser module maps, but one owner after server relocation. An
+actual local Node **v22.16.0** three-tree experiment on 28 November produced
+`[1,1,1,2]` for function-own, lexical, mutable-record, array and
+transitive-import counters; a primitive `const salt=40` control returned
+`[42,42,42,42]`. The repository's
+`test/sco-private-child-lexical-state.test.js` executes native ECMAScript
+modules for lexical, record, array, RegExp and constant-control variants
+(the regex repeated-server readings should be `[true,true,true,false]`).
+These are **original-runtime behavior observations**, not generated SCO
+transport parity tests.
+
+The shared child scanner now refuses direct module-level `let`/`var`
+declarations and obvious object/array/RegExp state owners, including
+conditionals, sequences, logical carriers and selected constructors.
+Unknown constructors and opaque factory outputs are *not* proved pure.
+For statically owned primitive record or array literals, the narrow
+`src/sco-private-child-readonly-literal.js` proof can retain positive
+coverage: it requires literal primitive own-property values, no getters,
+computed keys, `__proto__` setter or spread, and every lexical owner
+reference must be a static scalar own-key read with no mutation, nested
+member access, calls, alias, reflection or first-class escape. Only such
+nonescaping scalar reads are admitted, and neither compiler emitted byte
+generation nor RPC was changed. The positive/negative 20+ case matrix
+is `test/sco-private-child-readonly-literal.test.js` with an accepted-facade
+byte-equivalence control. The unproved dynamic and reflective forms
+are deliberately still declined or outside this proof, not silently assumed
+equivalent.
+
+**Source-pinned initial CI is RED**, not green:
+[run 46157991330](https://github.com/FlareZ123/obfs/actions/runs/46157991330)
+at exact `427ff9841896a545396576082fbb81c247810b05`
+completed on Ubuntu and Windows with **104/105 passing, one failing on each**.
+The sole failure was the existing
+`static constructor key aliases must not hide runtime imports` diagnostic
+in `test/sco-private-transitive-manifest.test.js`. The new child
+function-identity refusal intercepted
+`const fn=()=>0;const load=fn[key](...)` before the established
+constructor-loader refusal. The unsafe module **was still rejected**;
+the failure was an incorrect refusal classification against an
+unchanged, useful assertion. At
+`bb3ecb8f9a304596e6974ebc947af081392d15ed`, new child-state
+checks were moved *after* the existing realm/host/dynamic-loader guards
+to preserve their more specific diagnoses. No assertion was weakened.
+
+[Follow-up run 46159150715](https://github.com/FlareZ123/obfs/actions/runs/46159150715)
+pins exactly `bb3ecb8f9a304596e6974ebc947af081392d15ed`
+and includes the newer readonly positive-yield and lexical-state matrix,
+the prior state/alias/fuzz integration controls, and dedicated strict
+JSDoc configuration. At dispatch it was **queued**; await its actual
+job result before making any green or global-release assertion.
+
+Security-performance status remains limited: these guards affect
+source-audited compiler admission and compiler analysis, not the
+hot path of accepted generated code. Their safe-refusal rate, available
+positive applications and full integration impact have not been
+comprehensively measured. SCO authorized-relay threats and
+the complete 2.5x/application/Chromium acceptance gate remain unresolved.
