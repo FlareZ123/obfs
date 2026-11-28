@@ -33,6 +33,77 @@ const {canonicalAllowedHosts}=require('./hosts');
  */
 
 /**
+ * A dynamically injected script whose bytes are not in the compilation graph
+ * may replace document.createElement before the next native-Node insertion.
+ * Unlike an ordinary image src this is an executable dependency, and cannot
+ * justify a DOMString source-observer exception.
+ *
+ * Ambiguous URL/HTML-base resolution fails closed; the small proof does not
+ * claim to validate arbitrary deployment redirects or host-supplied pages.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnlistedBrowserExecutableLoad(ast,filename,files,knownJavaScript) {
+  /** @type {Map<string,string>} */
+  const createdTags=new Map();
+  const bindings=collectBindings(ast);
+  /** @param {import('./ast').AstNode|null|undefined} member @returns {string|null} */
+  function field(member) {
+    if(member?.type!=='MemberExpression')return null;
+    return member.computed?staticString(member.property):
+      member.property.type==='Identifier'?member.property.name:null;
+  }
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       bindings.get(node.id.name)!==1)return;
+    const init=node.init;
+    if(init?.type!=='CallExpression'||init.callee.type!=='MemberExpression'||
+       field(init.callee)!=='createElement'||init.arguments.length!==1)return;
+    const tag=staticString(init.arguments[0]);
+    if(typeof tag==='string')createdTags.set(node.id.name,tag.toLowerCase());
+  });
+  const documentBases=files.filter(file=>file.sourceType==='asset'&&
+    /\.html?$/iu.test(file.path)).map(file=>path.posix.dirname(file.path));
+  if(!documentBases.length)documentBases.push(path.posix.dirname(filename));
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function provenContainedScriptUrl(value) {
+    const url=value?staticString(value):null;
+    if(typeof url!=='string'||!url||/[?#%\\]/u.test(url) ||
+       url.includes('//')||url.startsWith('/')||
+       /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(url))return false;
+    return documentBases.every(base=>{
+      const name=path.posix.normalize(path.posix.join(base,url));
+      return name!=='..'&&!name.startsWith('../')&&knownJavaScript.has(name);
+    });
+  }
+  /** @param {import('./ast').AstNode} receiver @returns {boolean} */
+  function benignNonScript(receiver) {
+    return receiver.type==='Identifier'&&
+      ['img','picture','audio','video','source','track'].includes(
+        createdTags.get(receiver.name)??'');
+  }
+  let unlisted=false;
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&
+       node.left.type==='MemberExpression'&&
+       field(node.left)==='src'&&!benignNonScript(node.left.object)&&
+       !provenContainedScriptUrl(node.right))unlisted=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       field(node.callee)==='setAttribute'&&node.arguments.length>=2 &&
+       !benignNonScript(node.callee.object)) {
+      const name=staticString(node.arguments[0]);
+      if((name===null||name.toLowerCase()==='src')&&
+         !provenContainedScriptUrl(node.arguments[1]))unlisted=true;
+    }
+  });
+  return unlisted;
+}
+
+/**
  * A body-level ESM host guard can precede every executable module statement
  * only if every statically imported dependency is present in the same guarded
  * output group. A dependency outside that group would run before its importer
@@ -3039,6 +3110,7 @@ function obfuscateFiles(files, options = {}) {
   const sharedDocumentFactoryMutation=hasUnreviewedHtmlExecutableScripts(prepared)||
     sourceObserverFiles.some(({file,ast})=>
       hasNativeDocumentFactoryMutation(ast) ||
+      hasUnlistedBrowserExecutableLoad(ast,file.path,prepared,knownJavaScript) ||
       hasUnprovedModuleImport(ast,file.path,knownJavaScript) ||
       file.sourceType==='commonjs'&&
         hasUnprovedCommonJsRequire(ast,file.path,knownJavaScript));
