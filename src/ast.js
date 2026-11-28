@@ -1774,6 +1774,49 @@ function hasWeakMapPrototypeExposure(ast) {
         if(property.type==='Property'&&property.value?.type==='ClassExpression')
           unobservedClassExpressions.add(property.value);
   });
+  /**
+   * Certify that evaluating a computed property name returns a primitive
+   * without performing any user-observable operation. ToPropertyKey of an
+   * object (including a RegExp literal) may call an arbitrarily patched
+   * Symbol.toPrimitive/valueOf/toString hook, which can mutate a carrier
+   * before a later WeakMap.prototype source observer is installed.
+   *
+   * This is an intentionally small sufficient proof, not a value inference
+   * from name spelling: unknown identifiers and member reads fail closed.
+   * @param {AstNode|null|undefined} key
+   * @param {number} [depth=0]
+   * @returns {boolean}
+   */
+  function primitiveComputedKeyWithoutEffects(key,depth=0) {
+    if(!key||depth>16)return false;
+    if(key.type==='Literal')
+      return key.regex===undefined&&
+        (key.value===null||['string','number','boolean','bigint'].includes(typeof key.value));
+    if(key.type==='TemplateLiteral')
+      return (key.expressions??[]).every(
+        (/** @type {AstNode} */ expression)=>
+          primitiveComputedKeyWithoutEffects(expression,depth+1));
+    if(key.type==='UnaryExpression')
+      return ['+','-','!','~','void','typeof'].includes(key.operator)&&
+        primitiveComputedKeyWithoutEffects(key.argument,depth+1);
+    if(key.type==='BinaryExpression')
+      return ['+','-','*','/','%','**','<<','>>','>>>','|','&','^',
+        '<','<=','>','>=','==','!=','===','!=='].includes(key.operator)&&
+        primitiveComputedKeyWithoutEffects(key.left,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.right,depth+1);
+    if(key.type==='LogicalExpression')
+      return primitiveComputedKeyWithoutEffects(key.left,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.right,depth+1);
+    if(key.type==='ConditionalExpression')
+      return primitiveComputedKeyWithoutEffects(key.test,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.consequent,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.alternate,depth+1);
+    if(key.type==='SequenceExpression')
+      return (/** @type {AstNode[]} */(key.expressions??[])).length>0&&
+        (/** @type {AstNode[]} */(key.expressions??[])).every(part=>
+          primitiveComputedKeyWithoutEffects(part,depth+1));
+    return false;
+  }
   /** @type {Set<string>} */
   const activeInstanceFieldConstructors=new Set();
   /** @type {Set<AstNode>} */
@@ -1883,7 +1926,10 @@ function hasWeakMapPrototypeExposure(ast) {
       /** @type {AstNode[]} */
       const deferred=[];
       for(const element of node.body?.body??[]) {
-        if(element.computed)visitCarrierExpression(element.key,environment,thisValue);
+        if(element.computed) {
+          visitCarrierExpression(element.key,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(element.key))exposed=true;
+        }
         if(element.type==='PropertyDefinition') {
           if(element.static)visitCarrierExpression(element.value,environment,staticValue);
           else if(element.value)deferred.push(element.value);
@@ -2097,8 +2143,10 @@ function hasWeakMapPrototypeExposure(ast) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
         else if(property.type==='Property') {
           // Computed object keys are executed before property values.
-          if(property.computed)
+          if(property.computed) {
             visitCarrierExpression(property.key,environment,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(property.key))exposed=true;
+          }
           visitCarrierExpression(property.value,environment,thisValue);
           // A source-visible getter can be invoked by any later property
           // read or reflection. Union its captured outer-binding effects with
@@ -2415,8 +2463,10 @@ function hasWeakMapPrototypeExposure(ast) {
         environment.set(statement.id.name,staticValue);
       for(const element of statement.body.body??[]) {
         // Both static and instance computed names execute at definition.
-        if(element.computed)
+        if(element.computed) {
           visitCarrierExpression(element.key,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(element.key))exposed=true;
+        }
         if(element.type==='PropertyDefinition') {
           const thisValue=element.static?staticValue:carrierOther;
           if(element.static)visitCarrierExpression(element.value,environment,thisValue);
