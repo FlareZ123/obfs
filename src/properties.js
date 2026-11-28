@@ -614,8 +614,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return constantKeys.get(name)??null;
   }
-  // An unescaped, fixed-size private tuple may carry the same uniquely
-  // bound owner through multiple known numeric slots. All other elements
+  // An unescaped, fixed-size private tuple may carry one or more proven
+  // shape-equivalent owner roots through multiple known numeric slots. Other elements
   // remain inert primitive literals. Every holder use must read a static
   // known-owner index into a private immutable alias; unknown indexes,
   // mutation, reflection, or escape veto this entire carrier.
@@ -634,7 +634,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        decl.init.elements.length>8)continue;
     const elements=/** @type {(AstNode|null)[]} */(decl.init.elements);
     const indices=new Set(elements.flatMap((element,index)=>
-      element?.type==='Identifier'&&element.name===rootName?[index]:[]));
+      element?.type==='Identifier'&&rootNames.has(element.name)?[index]:[]));
     if(!indices.size||elements.some((element,slot)=>indices.has(slot)?false:
       !element||element.type!=='Literal'||
       !(element.value===null||['string','number','boolean','bigint'].includes(typeof element.value))))continue;
@@ -668,8 +668,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
     }
   }
-  // A private record may carry repeated references to the same owner through
-  // multiple immutable, statically named fields. Every carrier read must be
+  // A private record may carry one or more proven shape-equivalent owner roots
+  // through immutable, statically named fields. Every carrier read must be
   // a known owner slot assigned to a unique local alias. Other fields are
   // inert primitives; mutation, reflection and carrier escape veto all slots.
   /** @type {Map<string,Set<string>>} */
@@ -703,7 +703,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         break;
       }
       names.add(name);
-      if(field.value.type==='Identifier'&&field.value.name===rootName){
+      if(field.value.type==='Identifier'&&rootNames.has(field.value.name)){
         ownedValues.push(field.value);
         ownedKeys.add(name);
       }else if(field.value.type!=='Literal'||
