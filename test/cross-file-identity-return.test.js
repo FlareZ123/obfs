@@ -481,3 +481,16 @@ test('factory proof refuses nonliteral simple and logical compound writes',async
       await checkFactory(factory,main,0,mode);
   }
 });
+
+
+test('factory proof refuses namespace import and factory re-export paths',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const namespaceMain='import * as state from "./state.mjs";'+
+    'const first=state.makeState();console.log(first.secretField);';
+  const reexportMain='import {makeState} from "./state.mjs";'+
+    'export {makeState};'+
+    'const first=makeState();console.log(first.secretField);';
+  for(const main of [namespaceMain,reexportMain])
+    for(const mode of ['coo','sno','sco'])
+      await checkFactory(factory,main,0,mode);
+});
