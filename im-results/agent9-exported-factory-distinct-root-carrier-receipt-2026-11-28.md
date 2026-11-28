@@ -87,3 +87,10 @@ The expanded suite includes:
 - URL/POSIX C0 path-identity refusal and the supporting ESM/portable path suites.
 
 Strict project/external/paired-budget JSDoc checks also passed in the three-platform workflow. This remains a research-branch regression receipt, not current-main acceptance.
+
+
+## Open-world gate and final 66-test matrix
+
+A final regression was added to prove that exported-factory property renaming requires an explicit closed-world assertion. With `closedWorld:false`, the proof must make zero cross-file property edits and preserve native/emitted behavior in COO, SNO and SCO.
+
+[Run 46185550853](https://github.com/FlareZ123/obfs/actions/runs/46185550853), exact branch SHA `ff9f86b49e3dd4ad9b0b80c3c1d6db6b3fbe8d6c`, passed **66/66 tests, 0 failures on each of Ubuntu, Windows and macOS**. I inspected all three job logs; each reports `tests 66 / pass 66 / fail 0`. This final suite includes the namespace/re-export, multiple-alias, property-enumeration, source-observation, mutation-boundary, URL/POSIX path-identity and open-world refusal cases.
