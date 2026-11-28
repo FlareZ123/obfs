@@ -105,6 +105,22 @@ test('side-effecting comma call actual must not be considered private',()=>{
   }
 });
 
+test('potentially throwing BigInt arithmetic is not an inert comma prefix',()=>{
+  const source='const owner={privateKey:17};'+
+    'const alias=(1n/0n,owner);module.exports=alias.privateKey;';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const compiled=obfuscateFiles([{path:'throwing-sequence.cjs',
+      sourceType:'commonjs',code:source}],{
+      mode,seed:'throwing-bigint-sequence/'+mode,
+      strings:false,identifiers:false,properties:true
+    }).files[0];
+    assert.equal(compiled.metrics.properties,0,mode+' must not erase throw path');
+    assert.equal(compiled.code,source,
+      mode+' must preserve source-spelled throwing BigInt prefix');
+    assert.throws(()=>executeCjs(String(compiled.code)),/Division by zero/u);
+  }
+});
+
 test('side-effectful or escaping comma expressions remain unchanged',()=>{
   const unsafe=[
     'const owner={privateKey:17};const alias=(globalThis.leaked=owner,owner);'+
