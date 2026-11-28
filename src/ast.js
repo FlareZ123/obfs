@@ -1197,7 +1197,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,getters:Map<string,AstNode>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,getters:Map<string,AstNode>,setters:Map<string,AstNode>,unknown:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
@@ -1211,7 +1211,7 @@ function hasWeakMapPrototypeExposure(ast) {
   const activeCarrierGetterReads=new WeakSet();
   /** @returns {CarrierContainer} */
   function carrierContainer() {
-    return {kind:'container',properties:new Map(),getters:new Map(),unknown:false};
+    return {kind:'container',properties:new Map(),getters:new Map(),setters:new Map(),unknown:false};
   }
   /**
    * @param {AstNode} property
@@ -1301,6 +1301,13 @@ function hasWeakMapPrototypeExposure(ast) {
         else if(leftGetter||rightGetter)
           merged.properties.set(key,carrierMaybe);
       }
+      for(const key of new Set([...left.setters.keys(),...right.setters.keys()])) {
+        const leftSetter=left.setters.get(key);
+        const rightSetter=right.setters.get(key);
+        if(leftSetter&&rightSetter&&leftSetter===rightSetter)
+          merged.setters.set(key,leftSetter);
+        else if(leftSetter||rightSetter)merged.unknown=true;
+      }
       return merged;
     }
     if(left.kind==='weakmap'&&right.kind==='weakmap')return carrierWeakMap;
@@ -1326,6 +1333,8 @@ function hasWeakMapPrototypeExposure(ast) {
       copy.properties.set(key,cloneCarrierValue(nested,memo));
     for(const [key,getter] of value.getters)
       copy.getters.set(key,getter);
+    for(const [key,setter] of value.setters)
+      copy.setters.set(key,setter);
     return copy;
   }
   /**
