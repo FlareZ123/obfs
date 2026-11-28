@@ -95,3 +95,48 @@ test('invalid contracts and explicit caps throw, never authorize a rename',()=>{
   assert.throws(()=>g.solve({maxSteps:1}),RangeError);
   assert.equal(g.solve({maxSteps:2}).facts,3);
 });
+
+
+test('unsolved and mutated graph queries fail closed, rather than returning false negatives',()=>{
+  const g=new CapabilityFlowGraph();
+  assert.throws(()=>g.has('unseen','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('unseen','host-callable'),/solve\(\) did not complete/);
+  g.seed('origin','host-callable');
+  g.solve();
+  assert.equal(g.has('sink','host-callable'),false);
+  g.addEdge('origin','sink','assignment');
+  assert.throws(()=>g.has('sink','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('sink','host-callable'),/solve\(\) did not complete/);
+  g.solve();
+  assert.equal(g.has('sink','host-callable'),true);
+  g.seed('origin','owner-reflection');
+  assert.throws(()=>g.has('sink','owner-reflection'),/solve\(\) did not complete/);
+  g.solve();
+  assert.equal(g.has('sink','owner-reflection'),true);
+});
+
+test('bounded solve failures never authorize stale or partial negative reachability',()=>{
+  const g=new CapabilityFlowGraph();
+  g.seed('a','host-callable');
+  g.addEdge('a','b','return');
+  g.addEdge('b','c','assignment');
+  assert.equal(g.solve().facts,3);
+  assert.equal(g.has('c','host-callable'),true);
+  assert.throws(()=>g.solve({maxSteps:1}),/step limit exceeded/);
+  assert.throws(()=>g.has('c','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('c','host-callable'),/solve\(\) did not complete/);
+  assert.equal(g.solve({maxSteps:2}).facts,3);
+  assert.equal(g.has('c','host-callable'),true);
+});
+
+test('new isolated graph node invalidates solution, repeated solve is deterministic',()=>{
+  const g=new CapabilityFlowGraph();
+  g.seed('root','opaque-host');
+  const before=g.solve();
+  g.addNode('isolated');
+  assert.throws(()=>g.has('isolated','opaque-host'),/solve\(\) did not complete/);
+  const after=g.solve();
+  assert.equal(after.nodes,before.nodes+1);
+  assert.equal(g.has('isolated','opaque-host'),false);
+  assert.deepEqual(g.solve(),after);
+});
