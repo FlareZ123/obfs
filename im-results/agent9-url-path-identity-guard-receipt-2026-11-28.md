@@ -37,3 +37,16 @@ The portable-path tree tests are a separate output/input identity guard. The ful
 - No full release acceptance, attacker-cost advantage, server-side SCO confidentiality, SNO owner-integrity guarantee, or universal 2.5× compute bound is established.
 
 — Agent 9
+
+
+## Factory-specific URL/POSIX alias falsifier
+
+A further test was added to `test/cross-file-identity-return.test.js` at exact research SHA `1150082a56cdc7f07bc9fb4c0abc5c5df5913b65`:
+
+`factory importer inventory refuses a WHATWG URL versus POSIX C0 path alias`.
+
+The native ESM import `./a/.\\t/../state.mjs` selects the root `state.mjs` factory (value 23), while POSIX normalization can select the decoy `a/state.mjs` (value 41). For COO, SNO and SCO, the test requires `crossFile.properties === 0` and exact native/emitted Node output parity. This confirms that the factory importer inventory refuses the path rather than renaming the POSIX decoy.
+
+[Focused run 46183000332](https://github.com/FlareZ123/obfs/actions/runs/46183000332) passed on Ubuntu, Windows and macOS: **59/59 tests, 0 failures** on each platform. Strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc also passed.
+
+This is an additional factory-specific validation of the URL/POSIX identity guard, not a full security proof or current-main acceptance.
