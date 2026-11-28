@@ -12,15 +12,15 @@ const immutable='export const build=()=>document.createElement("script");';
 const imported='import {build as makeNode} from "./factory.mjs";';
 const normalBootstrap=imported+
   'const script=makeNode();script.src="./client.js";document.head.append(script);'+
-  'globalThis._seen=String(document.head.lastChild.textContent);globalThis._ready=true;';
+  'globalThis._seen=document.head.lastChild.textContent;globalThis._ready=true;';
 const functionDonor='export let build=()=>document.createElement("script");'+
   'build=()=>function inspected(){const secret="browser observable callable source";return secret;};';
 const functionBootstrap=imported+
   'const node=makeNode();document.head.append(node);'+
-  'globalThis._seen=String(document.head.lastChild.textContent);globalThis._ready=true;';
+  'globalThis._seen=document.head.lastChild.textContent;globalThis._ready=true;';
 const mutableConsumer=imported+
   'let node=makeNode();node=function inspected(){const secret="mutable Node alias source";return secret;};'+
-  'document.head.append(node);globalThis._seen=String(document.head.lastChild.textContent);globalThis._ready=true;';
+  'document.head.append(node);globalThis._seen=document.head.lastChild.textContent;globalThis._ready=true;';
 const prototypeMutator='globalThis.Document.prototype.createElement='+ 
   'function replaced(){return function inspected(){const secret="prototype factory source";return secret;};};';
 
@@ -37,7 +37,7 @@ const cases=[
   // call and invalidate the native-Node assumption.
   {name:'opaque-host-poison',factory:immutable,positive:false,
     bootstrap:imported+'globalThis.poisonDocument();const node=makeNode();'+
-      'document.head.append(node);globalThis._seen=String(document.head.lastChild.textContent);'+
+      'document.head.append(node);globalThis._seen=document.head.lastChild.textContent;'+
       'globalThis._ready=true;',
     externalHost:'globalThis.poisonDocument=function(){'+
       'document.createElement=function(){return function inspected(){'+
