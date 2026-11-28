@@ -56,3 +56,24 @@ test('real no-SRI dynamic script mount retains client string-obfuscation yield i
       'An ordinary unpinned native Node insertion must not globally disable protection in '+mode);
   }
 });
+
+
+test('separately distributed classic script may replace native Node factory before insertion',()=>{
+  const original='globalThis.sharedFactoryObservation="the original source must stay intact";';
+  const poison='document.createElement=function make() {'+
+    'return function inspect(){const privateLocal=37;return privateLocal;};};';
+  const loader='const script=document.createElement("script");'+
+    'document.head.append(script);';
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const out=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:original},
+      {path:'poison.js',sourceType:'script',code:poison},
+      {path:'bootstrap.js',sourceType:'script',code:loader},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(
+        '<script src="./poison.js"></script><script src="./bootstrap.js"></script>')}
+    ],{mode,strings:true,properties:false,identifiers:false,
+      seed:'agent1-crossfile-node-factory-poison/'+mode});
+    assert.equal(out.files[0].code,original,
+      'Syntactically native factory call can be shadowed by a preceding sibling '+mode);
+  }
+});
