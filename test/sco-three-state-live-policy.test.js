@@ -126,6 +126,8 @@ async function startSco(secret,index,directory){
   assert.ok(!publicSource.includes(canary),'private canary absent from public client');
   assert.ok(!publicSource.includes(JSON.stringify(secret)),
     'private transition table absent from public client');
+  assert.ok(publicSource.includes(method),'remote method identifier is public');
+  assert.ok(publicSource.includes('/obfs/rpc'),'RPC endpoint is public');
   return {server,origin,method,getState:()=>state,publicSource,canary};
 }
 
