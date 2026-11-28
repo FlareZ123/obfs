@@ -54,6 +54,8 @@ function graph(seed,shape) {
   }else if(shape==='descriptor'){
     statements.push("const property=Object.getOwnPropertyDescriptor(record,'secretField');");
     statements.push('const outcome=[property.value,property.enumerable,record.auxiliaryField];');
+  }else if(shape==='external-observer'){
+    statements.push('const outcome=[globalThis.EXTERNAL_OBSERVER(record),record.secretField];');
   }else if(shape==='proxy-reflection'){
     statements.push("const wrapped=new Proxy(record,{get:(owner,key)=>Reflect.get(owner,key)});");
     statements.push('const outcome=[Reflect.ownKeys(wrapped),wrapped.secretField];');
@@ -67,9 +69,10 @@ function graph(seed,shape) {
  * Execute each graph in a fresh real Node ESM loader, not by evaluating
  * transformed snippets inside the obfuscator process.
  * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
+ * @param {boolean} [withHost]
  * @returns {Promise<string>}
  */
-async function execute(files) {
+async function execute(files,withHost=false) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent20-prop-flow-'));
   try {
     for(const file of files){
@@ -77,7 +80,12 @@ async function execute(files) {
       await fs.mkdir(path.dirname(target),{recursive:true});
       await fs.writeFile(target,file.code);
     }
-    const run=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{
+    const preloader=path.join(dir,'host.cjs');
+    if(withHost)await fs.writeFile(preloader,
+      'globalThis.EXTERNAL_OBSERVER=(value)=>Object.keys(value).sort();');
+    const args=withHost?['--require',preloader,path.join(dir,'entry.mjs')]:
+      [path.join(dir,'entry.mjs')];
+    const run=spawnSync(process.execPath,args,{
       encoding:'utf8',timeout:10000
     });
     assert.equal(run.status,0,'Real Node ESM loader failed: '+run.stderr);
@@ -93,7 +101,8 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
   const modes=['coo','sno','sco'];
   const shapes=[
     'direct','repeated-alias','identity-import','returned-owner',
-    'computed-key','own-keys','descriptor','proxy-reflection'
+    'computed-key','own-keys','descriptor','proxy-reflection',
+    'external-observer'
   ];
   const seeds=[0,1,7,65537];
   /** @type {Record<string,number>} */
@@ -102,7 +111,8 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
   for(const shape of shapes){
     for(const seed of seeds){
       const files=graph(seed,shape);
-      const native=await execute(files);
+      const withHost=shape==='external-observer';
+      const native=await execute(files,withHost);
       assert.notEqual(native,'');
       for(const mode of modes){
         const compiled=obfuscateFiles(files,{
@@ -110,10 +120,12 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
           closedWorld:true,strings:false,identifiers:false,properties:true
         });
         assert.equal(compiled.files.length,files.length);
-        const changed=await execute(compiled.files);
+        const changed=await execute(compiled.files,withHost);
         assert.equal(changed,native,mode+' '+shape+' '+seed+
           ' real ESM output mismatch');
         if(shape==='direct')positive[mode]+=compiled.crossFile.properties;
+        if(shape==='external-observer')assert.equal(compiled.crossFile.properties,0,
+          'Opaque host callback can reflect private owner keys');
         comparisons++;
       }
     }
