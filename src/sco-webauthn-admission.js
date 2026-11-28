@@ -161,8 +161,20 @@ function createScoWebAuthnAdmission(options){
     revokePrincipal:suppliedState.revokePrincipal.bind(suppliedState),
     assertConfiguration:suppliedState.assertConfiguration.bind(suppliedState)
   };
+  /**
+   * Atomic adapter boundaries must commit synchronously. A Promise-returning
+   * custom store can otherwise turn a pending policy check, nonce insert, or
+   * revocation into a falsely acknowledged operation.
+   * @param {unknown} outcome
+   * @param {string} operation
+   * @returns {void}
+   */
+  function requireSynchronousVoid(outcome,operation){
+    if(outcome!==undefined)
+      throw new TypeError('WebAuthn '+operation+' must complete synchronously');
+  }
   // No policy fingerprint is consulted before the complete state adapter exists.
-  state.assertConfiguration(configurationHash);
+  requireSynchronousVoid(state.assertConfiguration(configurationHash),'configuration assertion');
   let lastObservedTime=0;
   /** @returns {number} */
   function clock(){
@@ -192,7 +204,8 @@ function createScoWebAuthnAdmission(options){
     const challenge=randomBytes(32);
     const expiresAt=time+challengeTtlMs;
     if(!Number.isSafeInteger(expiresAt))throw new RangeError('WebAuthn expiry overflow');
-    state.insertChallenge(challengeId,principal,sessionId,challenge,expiresAt,time,maxChallenges);
+    requireSynchronousVoid(state.insertChallenge(challengeId,principal,sessionId,
+      challenge,expiresAt,time,maxChallenges),'challenge insertion');
     return {challengeId,challenge:challenge.toString('base64url'),rpId,expiresAt};
   }
   /**
@@ -277,7 +290,9 @@ function createScoWebAuthnAdmission(options){
   /** @param {string} token @returns {boolean} */
   function revokeSession(token){return state.revokeSession(token)===true;}
   /** @param {string} principal @returns {void} */
-  function revokePrincipal(principal){state.revokePrincipal(principal);}
+  function revokePrincipal(principal){
+    requireSynchronousVoid(state.revokePrincipal(principal),'principal revocation');
+  }
   return {issueChallenge,verifyAssertion,authorizeSession,revokeSession,revokePrincipal};
 }
 
