@@ -1,3 +1,5 @@
+> **Superseded:** the initial ten-query lower-bound certificate below has been strengthened to an exact minimax result of 24 calls for the same at-most-three-state class. See [the exact minimax report](agent14-three-state-exact-minimax-2026-11-28.md). This file preserves the independently checked depth-nine certificate.
+
 # Three-state binary Mealy machines: a ten-query no-reset identification lower bound
 
 **28 November 2026 — exact finite-model lower-bound certificate; not an exact minimax solution or a production-security claim.**
