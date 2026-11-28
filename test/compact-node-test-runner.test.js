@@ -78,3 +78,50 @@ test('compact runner indexes every failure beyond its detailed log cap',()=>{
   assert.equal(index[29].expected,null);
   assert.match(result.stdout,/Omitted 5 additional failing test blocks/u);
 });
+
+
+test('command-line partitions keep all Windows file paths below the limit',()=>{
+  const {partitionTestFiles}=require('../sims/compact-node-test-runner.js');
+  const names=Array.from({length:160},(_,i)=>
+    'test/'+String(i).padStart(4,'0')+'-'+('x'.repeat(i%23))+'.test.js');
+  const maxChars=200;
+  const batches=partitionTestFiles(names,maxChars,'node');
+  assert.ok(batches.length>4);
+  assert.deepEqual(batches.flat(),names);
+  for(const batch of batches) {
+    const estimated='node'.length+1+'--test'.length+1+'--test-reporter=tap'.length+1+
+      batch.reduce((sum,name)=>sum+2+name.length*2,0);
+    assert.ok(estimated<=maxChars);
+  }
+  assert.throws(()=>partitionTestFiles(['x'.repeat(200)],200,'node'),RangeError);
+});
+
+test('split batches preserve aggregate TAP counts and fail closed on a red batch',async()=>{
+  const {partitionTestFiles,runTests}=require('../sims/compact-node-test-runner.js');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-compact-batches-'));
+  try {
+    fs.mkdirSync(path.join(root,'test'));
+    const files=[];
+    for(let i=0;i<3;i++) {
+      const file='test/fixture-'+i+'.test.js';
+      files.push(file);
+      fs.writeFileSync(path.join(root,file),
+        "const test=require('node:test');const assert=require('node:assert/strict');\n"+
+        "test('fixture "+i+"',()=>assert.equal("+i+","+(i===1?999:i)+"));\n");
+    }
+    const maxChars=process.execPath.length+82;
+    assert.equal(partitionTestFiles(files,maxChars,process.execPath).length,3);
+    const result=await runTests(files,{cwd:root,maxChars});
+    assert.equal(result.fileCount,3);
+    assert.equal(result.batchCount,3);
+    assert.equal(result.status,1);
+    assert.equal(result.failedBatches,1);
+    assert.equal(result.missingSummaryBatches,0);
+    assert.equal(result.totals.tests,3);
+    assert.equal(result.totals.pass,2);
+    assert.equal(result.totals.fail,1);
+    assert.ok(result.failures.some(lines=>lines.join('\n').includes('fixture 1')));
+  } finally {
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+});
