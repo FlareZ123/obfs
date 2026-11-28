@@ -118,6 +118,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/resource-timing-observer-browser.js
+      - name: Verify imported CSS.escape static and literal-dynamic browser source parity
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/css-escape-imported-browser.js
       - name: Verify CSS.escape function-source observer and primitive Wasm yield in Chromium
         env:
           CHROMIUM_BIN: google-chrome
