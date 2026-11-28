@@ -26,6 +26,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/wasm-i32-browser.js
+      - name: Real Chromium exact coerced add/sub native and source-only clone control
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/wasm-i32-additive-browser.js
       - name: Experimental fused four-word ARX semantics, extraction and warm profile
         run: node --test test/fused-arx-batch.test.js
       - name: Fused ARX fresh-instance amortization session curve
