@@ -79,6 +79,29 @@ test('every 3-bit permutation fixing 0 admits a full paired basis',()=>{
   assert.equal(permutations,5040);
 });
 
+test('all 5,040 width-3 permutations invert all 40,320 targets with rank-at-most-three residual',()=>{
+  let permutations=0,targets=0,maxAdaptive=0;
+  permute([1,2,3,4,5,6,7],p=>{
+    const outputs=[0,...p];
+    /** @param {number} input @returns {number} */
+    const f=input=>outputs[input];
+    const samples=Array.from({length:8},(_,input)=>({input,output:outputs[input]}));
+    for(let secret=0;secret<8;secret++){
+      const result=invertBoundedResidual(f,outputs[secret],samples,3,3);
+      assert.equal(result.input,secret);
+      assert.equal(result.output,outputs[secret]);
+      assert.ok(result.adaptiveCalls<=8);
+      maxAdaptive=Math.max(maxAdaptive,result.adaptiveCalls);
+      targets++;
+    }
+    permutations++;
+  });
+  assert.equal(permutations,5040);
+  assert.equal(targets,40320);
+  assert.ok(maxAdaptive>=4&&maxAdaptive<=8);
+  console.log('EXHAUSTIVE_PERMUTATION_TARGETS '+JSON.stringify({permutations,targets,maxAdaptive}));
+});
+
 test('exhaustive width-3 rank-two fiber permutations invert every target',()=>{
   /** @type {number[][]} */
   const topPermutations=[];
