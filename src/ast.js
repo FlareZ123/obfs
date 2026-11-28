@@ -5035,7 +5035,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function hasInertLexicalDocument() {
-    if(dynamicScope||bindingCounts.get('document')!==1)return false;
+    // Classic scripts share top-level lexical state across files, and a
+    // preceding script can read this TDZ before our first statement runs.
+    // This local certificate is restricted to independently evaluated ESM.
+    if(ast.sourceType!=='module'||dynamicScope||
+       bindingCounts.get('document')!==1)return false;
     /** @type {AstNode|null} */
     let binding=null;
     /** @type {AstNode|null} */
