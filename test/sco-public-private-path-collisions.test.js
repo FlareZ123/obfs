@@ -33,6 +33,14 @@ for(const {name,publicPath,privatePath} of [
   });
 }
 
+
+test('SCO publication preserves shared-directory siblings with different leaf files',()=>{
+  assert.equal(typeof createScoHandler([{
+    path:'modules/public.mjs',code:source,sourceType:'module',
+    privateModulePaths:['modules/private.mjs']
+  }]),'function');
+});
+
 test('SCO publication accepts two public files with one repeated private dependency',()=>{
   const privateModulePaths=['private/secret.mjs'];
   const files=['public/a.mjs','public/b.mjs'].map(name=>({
