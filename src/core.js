@@ -2500,7 +2500,11 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // A globally observed graph may still contain independently proved safe
+    // source-observer islands. Preserve their existing positive rewrite lane;
+    // a producer whose callable source reaches a DOM sink always stays frozen.
+    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+        !esmDomSourceProducers.has(filename) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
