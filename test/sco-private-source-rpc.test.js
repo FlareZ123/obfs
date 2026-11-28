@@ -54,9 +54,15 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
     });
     assert.equal(response.status,200);
     assert.deepEqual(await response.json(),{ok:true,value:native});
+    // The attacker does NOT receive the source length, function
+    // namespace, AST, or any private-module source; only a valid account
+    // token, method name and HTTP endpoint. Out-of-range charCodeAt returns
+    // NaN, which JSON serializes as null, providing an observable stop
+    // signal without an external privileged length oracle.
     /** @type {string[]} */
     const units=[];
-    for(let i=0;i<hiddenProbeSource.length;i++){
+    let foundEnd=false;
+    for(let i=0;i<8192;i++){
       const step=await fetch(base+'rpc',{
         method:'POST',
         headers:{'content-type':'application/json','x-test-token':'allowed'},
@@ -65,11 +71,13 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
       assert.equal(step.status,200);
       const payload=await step.json();
       assert.equal(payload.ok,true);
+      if(payload.value===null){foundEnd=true;break;}
       assert.equal(typeof payload.value,'number');
       units.push(String.fromCharCode(payload.value));
     }
+    assert.equal(foundEnd,true,'Unbounded attacker found the source end from JSON alone');
     assert.equal(units.join(''),hiddenProbeSource,
-      'Numeric RPC results reconstruct exact server-function source');
+      'Length-blind numeric RPC reconstructs exact server-function source');
     assert.ok(units.join('').includes(MARKER));
   }finally{
     await new Promise((resolve,reject)=>
