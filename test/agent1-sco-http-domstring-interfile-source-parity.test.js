@@ -11,7 +11,7 @@ const {test}=require('node:test');
 const {createScoHandler}=require('../src/sco');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{name:string,state:string,bridge?:string,entryImport:string}} Fixture */
+/** @typedef {{name:string,state:string,bridge?:string,entryImport:string,receiver?:string}} Fixture */
 
 /** @type {readonly Fixture[]} */
 const fixtures=[
@@ -28,7 +28,29 @@ const fixtures=[
     entryImport:'import {element} from "./bridge.mjs";'},
   {name:'default',state:'const root=document.createElement("main");export default root;',
     bridge:'export {default as element} from "./state.mjs";',
-    entryImport:'import {element} from "./bridge.mjs";'}
+    entryImport:'import {element} from "./bridge.mjs";'},
+  {name:'static-nodelist-import',
+    state:'export const collection=document.querySelectorAll("main.locked");',
+    entryImport:'import {collection} from "./state.mjs";',
+    receiver:'collection[0]'},
+  {name:'htmlcollection-item-barrel',
+    state:'export const collection=document.getElementsByClassName("locked");',
+    bridge:'export {collection} from "./state.mjs";',
+    entryImport:'import {collection} from "./bridge.mjs";',
+    receiver:'collection.item(0)'},
+  {name:'nodelist-factory',
+    state:'export function make(){return document.querySelectorAll("main.locked");}',
+    entryImport:'import {make} from "./state.mjs";',
+    receiver:'make()[0]'},
+  {name:'namespace-collection',
+    state:'export const collection=document.querySelectorAll("main.locked");',
+    bridge:'export * as carrier from "./state.mjs";',
+    entryImport:'import {carrier} from "./bridge.mjs";',
+    receiver:'carrier.collection[0]'},
+  {name:'parameter-index-forwarder',
+    state:'export const collection=document.querySelectorAll("main.locked");',
+    entryImport:'import {collection} from "./state.mjs";function pick(values){return values[0];}',
+    receiver:'pick(collection)'}
 ];
 
 /** @param {Fixture} fixture @returns {SourceFile[]} */
@@ -40,6 +62,7 @@ function graph(fixture) {
     fixture.entryImport,
     'const owner={privateKey:37};',
     'function inspected(){return owner.privateKey;}',
+    fixture.receiver?'const element='+fixture.receiver+';':'',
     'element.setAttribute("data-source",inspected);',
     'export const answer={value:inspected(),source:element.getAttribute("data-source")};'
   ].join('\n')});
@@ -88,11 +111,12 @@ function execute(files){
     for(const file of files)fs.writeFileSync(path.join(root,file.path),
       String(file.code),'utf8');
     fs.writeFileSync(path.join(root,'runner.mjs'),[
-      'globalThis.document={createElement(){',
-      '  const values=new Map();',
-      '  return {setAttribute(k,v){values.set(String(k),String(v));},',
-      '  getAttribute(k){return values.get(String(k))??null;}};',
-      '}};',
+      'const values=new Map();',
+      'const element={setAttribute(k,v){values.set(String(k),String(v));},',
+      'getAttribute(k){return values.get(String(k))??null;}};',
+      'const collection=Object.assign([element],{item(i){return i===0?element:null}});',
+      'globalThis.document={createElement(){return element;},',
+      'querySelectorAll(){return collection;},getElementsByClassName(){return collection;}};',
       'const main=await import("./entry.mjs");',
       'console.log(JSON.stringify(main.answer));'
     ].join('\n'),'utf8');
