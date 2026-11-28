@@ -106,3 +106,22 @@ test('default cryptographic sampler completes 256 independent singular-oracle tr
     assert.equal(inverter.stats().totalCalls,8);
   }
 });
+
+test('sharp permutation-only finite cap failure bound is at most 2^-67 for n<=32',()=>{
+  // F(0) and F(e_i) are n+1 DISTINCT values when F is bijective.
+  // Thus the n columns M(e_i)=F(e_i)^F(0) are distinct nonzero vectors.
+  // A rank-k binary subspace has at most 2^k-1 such vectors, forcing
+  // rank(M)>=ceil(log2(n+1)) and d<=n-ceil(log2(n+1)).
+  const denominator=1n<<67n;
+  for(let bits=1;bits<=32;bits++){
+    const minimumRank=Math.ceil(Math.log2(bits+1));
+    const maxNullity=bits-minimumRank;
+    const fraction=failureFraction(maxNullity,bits+64);
+    assert.ok(fraction.bad*denominator<=fraction.total,
+      'n='+bits+' feasible maximum nullity='+maxNullity);
+    assert.equal(fraction.bad*denominator===fraction.total,bits===3,
+      'Only n=3,d=1 attains the sharp bound');
+  }
+  assert.deepEqual(failureFraction(1,67),
+    {bad:1n,total:1n<<67n});
+});
