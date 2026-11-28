@@ -512,13 +512,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return constantKeys.get(name)??null;
   }
-  // An unescaped, fixed-size private tuple can carry the owner through a
-  // known slot. Other slots must contain inert primitive literals, so
-  // constructing the tuple cannot invoke code that observes the owner.
-  // Every holder use must read that same slot into a local binding. Unknown
-  // indexes, mutation, reflection and all holder escapes retain original keys.
+  // An unescaped, fixed-size private tuple may carry the same uniquely
+  // bound owner through multiple known numeric slots. Every other slot must
+  // contain an inert primitive literal: array creation cannot invoke code
+  // observing the owner. Every holder use must read one of the proven slots
+  // into a unique local binding. Unknown indices, mutation, reflection and
+  // holder escapes all veto property renaming.
   const holderIdentifierUses=identifierUses;
-  /** @type {Map<string,{index:number}>} */
+  /** @type {Map<string,Set<number>>} */
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
@@ -531,9 +532,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        decl.init?.type!=='ArrayExpression'||decl.init.elements.length<1||
        decl.init.elements.length>8)continue;
     const elements=/** @type {(AstNode|null)[]} */(decl.init.elements);
-    const index=elements.findIndex(element=>
-      element?.type==='Identifier'&&element.name===rootName);
-    if(index<0||elements.some((element,slot)=>slot===index?false:
+    const indices=new Set(elements.flatMap((element,index)=>
+      element?.type==='Identifier'&&element.name===rootName?[index]:[]));
+    if(!indices.size||elements.some((element,slot)=>indices.has(slot)?false:
       !element||element.type!=='Literal'||
       !(element.value===null||['string','number','boolean','bigint'].includes(typeof element.value))))continue;
     const holder=decl.id.name;
@@ -548,7 +549,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
            key==='key'&&!parent.computed)continue;
       const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
-        parent.computed&&parent.property.type==='Literal'&&parent.property.value===index;
+        parent.computed&&parent.property.type==='Literal'&&
+        typeof parent.property.value==='number'&&
+        indices.has(parent.property.value);
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -559,8 +562,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(valid){
-      privateOwnerTuples.set(holder,{index});
-      privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
+      privateOwnerTuples.set(holder,indices);
+      for(const index of indices)
+        privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
     }
   }
   // A private record may carry repeated references to the same owner through
@@ -744,7 +748,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
        expression.property.type==='Literal'&&
-       expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return null;
+       typeof expression.property.value==='number'&&
+       privateOwnerTuples.get(expression.object.name)?.has(expression.property.value))return null;
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.object.type==='Identifier'){
       const knownKeys=privateOwnerRecords.get(expression.object.name);
