@@ -46,6 +46,17 @@ jobs:
             webcrack-${{ runner.os }}.json
             webcrack-source-${{ runner.os }}/*.mjs
           if-no-files-found: warn
+      - name: Attribute published-byte changes to Webcrack deobfuscation versus unminification
+        env:
+          OBFS_WEBCRACK_ABLATION_REPORT: webcrack-ablation-${{ runner.os }}.json
+        run: node sims/webcrack-stage-ablation.js
+      - name: Archive exact stage-attribution digests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webcrack-ablation-${{ runner.os }}
+          path: webcrack-ablation-${{ runner.os }}.json
+          if-no-files-found: warn
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Validate falsifiable candidate decision and strict sample veto
