@@ -38,3 +38,17 @@ Four more input witnesses were added: two feasible alias reads and two inverse n
 Superseded queue pins `620f793c...` and `07ffa2b3...` were cancelled while pending. The final focused submission after these changes is [run 46096561693](https://github.com/FlareZ123/obfs/actions/runs/46096561693), exact head `b373ef1f5b6bffda74a0cffcb259fd2427474008`; **queued at report update**, no pass claim. No full-suite or acceptance run has been performed on this candidate. Ancestor source pin `07ffa...` must never be cited as a passing or sound fix.
 
 Remaining unsoundness risks include abstract heap effects through getters, proxies, opaque closures, imported alias identities, arbitrary control transfers, exceptional edges not explicit in source, and compiler-wide interactions. Conservative `possibleAliases` may lose positive rewrite yield on realistic programs; measure before integrating. The current feature is a **source-observer compatibility experiment**, not a new confidentiality or anti-tamper boundary.
+
+## Source-pinned isolated scanner counterfactual (02:13 UTC)
+
+To separate the heap abstraction from full compiler behavior, I loaded **actual `src/ast.js` scanner implementations** at three immutable Git refs into the same V8 isolate, supplying semantically corresponding synthetic ESTree `Program` trees (not invoking Acorn parsing or the full obfuscator). The abstract cases both have native `Object.getPrototypeOf(right.instance)===WeakMap.prototype` on the evaluated path:
+
+| Actual `hasWeakMapPrototypeExposure(ast)` source | Feasible shared alias, then `left.instance=new WeakMap()` | Distinct right-side WeakMap, then `left.instance={}` |
+|---|---|---|
+| Frozen `bf96c212...` | **false — false safe** | true |
+| Physical coalescing `07ffa2b3...` | true | **false — new false safe** |
+| Origin-based uncertainty `946dd593...` | true | true |
+
+A separate ordinary no-WeakMap fixture returned `false` with frozen and origin-based scanner; direct WeakMap input returned `true` in both. Two nested-child alias variants also returned `true` under origin-based scanner. The ASTs included lexical declarations, an `IfStatement`, a later member assignment and `Object.getPrototypeOf` call, with nested source ranges; no monkeypatch of scanner logic was involved. These observations are **actual scanner-only computational witnesses**; they do not establish the full `obfuscateFiles` output, source text parity, branch effect correctness for all JavaScript, or any security claim. The reproducible real-Acorn AST fixture at `test/agent48-weakmap-origin-alias-ast.test.js` was added afterward and itself still needs source-pinned runner execution.
+
+Crucially, the table documents that `07ffa` must not be used as a donor: simply preserving alias equality by force-coalescing all alternatives is unsound. Source-stable allocation-origin may-alias *uncertainty*, not unconditional object coalescence, is necessary to avoid both displayed false-safe families.
