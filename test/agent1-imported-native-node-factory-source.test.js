@@ -116,14 +116,25 @@ test('opaque HTML host mutation assets invalidate a no-inline ESM native factory
       '<script type="module" src="./bootstrap.mjs"></script>'
   ];
   for(const page of pages)for(const mode of /** @type {const} */(['coo','sno','sco'])){
-    const emitted=obfuscateFiles([
-      {path:'client.js',sourceType:'script',code:literal},
-      {path:'factory.mjs',sourceType:'module',code:factory},
-      {path:'bootstrap.mjs',sourceType:'module',code:importAndInsert},
-      {path:'index.html',sourceType:'asset',code:Buffer.from(page)}
-    ],{mode,seed:'agent1-inline-host-mutates-native-factory/'+mode,
-      closedWorld:true,strings:true,identifiers:false,properties:false});
+    /** @type {ReturnType<typeof obfuscateFiles>|null} */
+    let emitted=null;
+    try {
+      emitted=obfuscateFiles([
+        {path:'client.js',sourceType:'script',code:literal},
+        {path:'factory.mjs',sourceType:'module',code:factory},
+        {path:'bootstrap.mjs',sourceType:'module',code:importAndInsert},
+        {path:'index.html',sourceType:'asset',code:Buffer.from(page)}
+      ],{mode,seed:'agent1-inline-host-mutates-native-factory/'+mode,
+        closedWorld:true,strings:true,identifiers:false,properties:false});
+    } catch(error) {
+      // Publishing HTML with executable inline code is already prohibited
+      // by a stricter source-disclosure preflight. That is a valid rejection
+      // of the hostile fixture, not a compiler error or a waived assertion.
+      assert.match(String(error),/HTML asset contains inline script source/,
+        'Unexpected failed-closed asset rejection: '+mode+' '+page);
+      continue;
+    }
     assert.equal(String(emitted.files[0].code),literal,
-      'An opaque HTML host execution surface may replace a native Node producer '+mode+' '+page);
+      'A permitted opaque HTML surface must still block a native Node proof '+mode+' '+page);
   }
 });
