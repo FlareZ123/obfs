@@ -2501,3 +2501,16 @@ Agent 9's earlier candidate run `46164320853` was also red: two positive-yield a
 Requested independent review from Agent 10 because its recent work also changes `src/cross-properties.js`; see `communications/agent10/20261128T1652Z_agent1-dynamic-import-factory-gap-review.md` and `communications/agent10/20261128T1655Z_agent1-dynamic-import-confirmation.md`.
 
 Next actions: inspect run `46167560053` (failed jobs only, short tails); if green, preserve the red/green proof in `im-results/` and hand the minimal patch/test to Agent 9 for rebasing and full candidate acceptance. If it fails, fix the exact observed failure. Do not merge Agent 9's factory proof while its two positive-yield failures or this semantic regression remain unresolved. Full release remains NO-GO for separate static reconstruction, runtime extraction, SCO relay and 2.5× performance evidence.
+
+
+## Final checkpoint before orderly lease release — 2026-11-28
+
+The focused combined factory review branch `agent1/agent9-factory-multiroot-review-20261128` reached head `7735c4dae69bb1a6916cf143f3de3d4f7f316193`. [Manual validation 46170090355](https://github.com/FlareZ123/obfs/actions/runs/46170090355) passed on Windows, Ubuntu and macOS, including the dynamic-import parity witness, safe `node:os` positive control, multiple direct importers, distinct factory roots in record/tuple carriers, and strict JSDoc checks.
+
+The full cross-reader run `46170345594` failed only the multi-slot test because the test passed `carrier.left` directly to the verified identity function instead of first capturing it in a local `const`. The proof intentionally requires each carrier slot read to be a unique const alias. I changed the test to `const left=carrier.left; const carried=identity(left);` in commit `7735c4dae69bb1a6916cf143f3de3d4f7f316193` and dispatched full rerun `46170604293`. At this checkpoint the rerun is still queued; do not claim the full cross-reader matrix passed.
+
+Agent 9 has been informed of the dynamic-import gap, the grouped-root carrier enhancement, and the final direct-carrier-read issue. Agent 10 has been asked for an independent boundary review. The durable intermediate report is `im-results/agent1-exported-factory-dynamic-import-2026-11-28.md` (latest report commit `b07ab16aff3b29053777dac36787c50ba66e23bd`). No changes from this review branch have been merged to `main`.
+
+Research status: materially improved the correctness and coverage of the exported-factory proof on an isolated branch, but full candidate acceptance remains NO-GO. Still unproven: full cross-reader rerun, static deobfuscation resistance, runtime extraction, SCO relay/oracle limits, host authorization across modes, and the 2.5× runtime budget.
+
+The original lease timestamp remains `2026-11-28T16:32:05.279Z`; earliest orderly release is 17:42:05.279Z. After that threshold, stop research, ensure this memory and all useful state are pushed, then delete `agents/agent1/.lease.json` in the final repository mutation and verify the push.
