@@ -578,6 +578,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const urlNodeModules=new Set();
   const urlStaticNames=new Set(['parse','canParse']);
   const urlStaticAliases=new Set(importedUrlStaticMethods);
+  // May-flow of CSSOMString source-observing CSS.escape references.
+  const cssEscapeNamespaces=new Set(['CSS']);
+  const cssEscapeAliases=new Set();
   /** @type {Map<string,Set<string>>} */
   const urlStaticObjectKeys=new Map();
   // A proven ESM namespace import is an immutable record of exported
@@ -1094,6 +1097,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(urlNodeModules,name)||changed;
         if(isUrlStaticMethod(value))
           changed=add(urlStaticAliases,name)||changed;
+        if(isCssEscapeNamespace(value))
+          changed=add(cssEscapeNamespaces,name)||changed;
+        // Reflection alias summaries are initialized in a later pass.
+        if(isCssEscape(value,true))
+          changed=add(cssEscapeAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
@@ -1278,6 +1286,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isCssEscapeNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='escape'||property.computed&&name===null)
+            changed=add(cssEscapeAliases,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -1977,6 +1995,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const list=node.arguments[1];
     return list?.type==='ArrayExpression'?list.elements:[null];
   }
+  // The ordinary alias fixed point runs before Reflect.get summaries exist.
+  // Resolve reflected CSS.escape acquisitions only after all reflective
+  // aliases have been collected. An intervening assignment may over-refuse,
+  // which is safe for native function-source preservation.
+  let cssReflectiveChanged;
+  do {
+    cssReflectiveChanged=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(id?.type!=='Identifier'||!value||!isCssEscape(value)||
+         cssEscapeAliases.has(id.name))return;
+      cssEscapeAliases.add(id.name);
+      cssReflectiveChanged=true;
+    });
+  }while(cssReflectiveChanged);
   /**
    * An indirect native constructor can stringify its first argument, and
    * RegExp can also stringify its optional flags argument. An opaque list
@@ -2020,6 +2056,44 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(args.length && mayCoerceSourceWithinWebRecord(args[0]) ||
       args.slice(1).some(value=>
         value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
+  }
+  /**
+   * CSS.escape accepts a CSSOMString. An unproved argument may convert a
+   * function to its native source text before identifier serialization.
+   * @param {AstNode|null|undefined} candidate
+   * @returns {boolean}
+   */
+  function isCssEscapeNamespace(candidate) {
+    return Boolean(candidate && (candidate.type==='Identifier' &&
+      cssEscapeNamespaces.has(candidate.name) ||
+      candidate.type==='MemberExpression' && isGlobal(candidate.object) &&
+        memberName(candidate)==='CSS'));
+  }
+  /**
+   * @param {AstNode|null|undefined} candidate
+   * @param {boolean} [early] Ignore reflective methods until their may-flow
+   *   summaries have been initialized, avoiding their temporal dead zone.
+   * @returns {boolean}
+   */
+  function isCssEscape(candidate,early=false) {
+    if(!candidate)return false;
+    if(candidate.type==='SequenceExpression')
+      return isCssEscape(candidate.expressions[candidate.expressions.length-1],early);
+    if(candidate.type==='Identifier')return cssEscapeAliases.has(candidate.name);
+    if(candidate.type==='CallExpression'&&candidate.callee.type==='MemberExpression'&&
+       memberName(candidate.callee)==='bind')
+      return isCssEscape(candidate.callee.object,early);
+    if(!early) {
+      const reflected=reflectGetInvocation(candidate);
+      if(reflected&&isCssEscapeNamespace(reflected[0])) {
+        const name=sourceStringKey(reflected[1]);
+        return name==='escape'||name===null;
+      }
+    }
+    if(candidate.type!=='MemberExpression'||!isCssEscapeNamespace(candidate.object))
+      return false;
+    const name=memberName(candidate);
+    return name==='escape'||candidate.computed&&name===null;
   }
   /**
    * Object.groupBy converts each callback result to a property key, and a
@@ -3144,6 +3218,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      // CSS.escape's Web IDL string conversion can expose the exact source
+      // text of a function, including its private field spellings.
+      if(isCssEscape(callee)&&node.arguments[0]&&
+         !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(callee.type==='MemberExpression'&&isCssEscape(callee.object)) {
+        const invocation=memberName(callee);
+        if(['call','bind'].includes(invocation??'')&&node.arguments[1]&&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(invocation==='apply'&&node.arguments[1]&&
+           mayCoerceSourceWithinWebRecord(node.arguments[1]))observed=true;
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isCssEscape(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0]&&!isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied)observed=true;
+      }
       // URL.parse can expose the original Function#toString in its encoded URL.
       if(isUrlStaticMethod(callee) &&
           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
