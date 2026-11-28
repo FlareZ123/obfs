@@ -84,3 +84,78 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])){
     assert.deepEqual(await evaluate(/** @type {File[]} */(emitted.files)),native);
   });
 }
+
+/** @type {Array<{name:string,methods:string,consumerImport:string,callee:string,relay?:string}>} */
+const provenanceCases=[
+  {name:'direct-named',methods:'export const escape=CSS.escape;',
+    consumerImport:'import {escape as cssEscape} from "./methods.mjs";',
+    callee:'cssEscape'},
+  {name:'namespace-method',methods:'export const escape=CSS.escape;',
+    consumerImport:'import * as cssTools from "./methods.mjs";',
+    callee:'cssTools.escape'},
+  {name:'default-method',methods:'export default CSS.escape;',
+    consumerImport:'import cssEscape from "./methods.mjs";',
+    callee:'cssEscape'},
+  {name:'export-rename',methods:'const local=CSS.escape;export {local as safeEsc};',
+    consumerImport:'import {safeEsc as cssEscape} from "./methods.mjs";',
+    callee:'cssEscape'},
+  {name:'ambient-namespace-alias',
+    methods:'const origin=CSS;export const htmlSafe=origin.escape;',
+    consumerImport:'import {htmlSafe as cssEscape} from "./methods.mjs";',
+    callee:'cssEscape'},
+  {name:'explicit-reexport',methods:'export const escape=CSS.escape;',
+    relay:'export {escape as cssSafe} from "./methods.mjs";',
+    consumerImport:'import {cssSafe as cssEscape} from "./relay.mjs";',
+    callee:'cssEscape'},
+  {name:'export-star',methods:'export const escape=CSS.escape;',
+    relay:'export * from "./methods.mjs";',
+    consumerImport:'import {escape as cssEscape} from "./relay.mjs";',
+    callee:'cssEscape'},
+  {name:'reexport-alias-namespace',methods:'export const escape=CSS.escape;',
+    relay:'export {escape as cssSafe} from "./methods.mjs";',
+    consumerImport:'import * as cssTools from "./relay.mjs";',
+    callee:'cssTools.cssSafe'}
+];
+
+for(const variant of provenanceCases){
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    for(const observes of [true,false]){
+      test(mode+' imported CSS provenance '+variant.name+
+        (observes?' source':' primitive'),async()=>{
+        const user=variant.consumerImport+
+          'export function sample(x){return x^17;}'+
+          'export const text='+variant.callee+
+          (observes?'(sample);':'("ordinary");');
+        /** @type {File[]} */
+        const files=[{path:'methods.mjs',sourceType:'module',
+          code:variant.methods}];
+        if(variant.relay!==undefined)
+          files.push({path:'relay.mjs',sourceType:'module',code:variant.relay});
+        files.push({path:'user.mjs',sourceType:'module',code:user});
+        const native=await evaluate(files);
+        if(observes)assert.match(native.text,/x\^17/);
+        /** @type {ReturnType<typeof obfuscateFiles>|null} */
+        let compiled=null;
+        try{
+          compiled=obfuscateFiles(files,{
+            mode,seed:'css-import-matrix/'+variant.name+'/'+mode+'/'+observes,
+            identifiers:false,strings:false,properties:false,
+            experimentalWasmI32:{'user.mjs':['sample']}
+          });
+        }catch(error){
+          if(!observes)throw error;
+          assert.match(String(error),/Wasm|source|declined/i);
+          return;
+        }
+        assert.ok(compiled);
+        if(!observes) {
+          const emitted=compiled.files.find(file=>file.path==='user.mjs');
+          assert.ok(emitted);
+          assert.match(String(emitted.code),/WebAssembly/,
+            'A CSS primitive argument must leave private Wasm selection eligible');
+        }
+        assert.deepEqual(await evaluate(/** @type {File[]} */ (compiled.files)),native);
+      });
+    }
+  }
+}
