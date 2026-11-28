@@ -163,6 +163,81 @@ function resolveKnownImport(origin,specifier,known) {
 }
 
 /**
+ * Get names actually declared at module scope. An identifier declared only
+ * inside a function cannot justify a use elsewhere; the broader binding
+ * count deliberately does not resolve lexical scopes.
+ * @param {AstNode} ast
+ * @returns {Set<string>}
+ */
+function moduleScopeNames(ast) {
+  const names=new Set();
+  for(const item of ast.body) {
+    if(item.type==='ImportDeclaration') {
+      for(const specifier of item.specifiers)
+        if(specifier.local?.type==='Identifier')names.add(specifier.local.name);
+      continue;
+    }
+    const statement=item.type==='ExportNamedDeclaration' ? item.declaration : item;
+    if(statement?.type==='VariableDeclaration') {
+      for(const declarator of statement.declarations)
+        if(declarator.id.type==='Identifier')names.add(declarator.id.name);
+    }else if(['FunctionDeclaration','ClassDeclaration'].includes(statement?.type) &&
+             statement.id?.type==='Identifier')names.add(statement.id.name);
+  }
+  return names;
+}
+
+/**
+ * Ignore only grammar-level identifier spelling, not computed member keys or
+ * shorthand values. Other identifiers must be real bound references or
+ * expressly admitted ambient primitives/output facilities.
+ * @param {AstNode|null} parent
+ * @param {string|null} key
+ * @returns {boolean}
+ */
+function isGrammarIdentifier(parent,key) {
+  if(!parent)return false;
+  if((parent.type==='MemberExpression'||parent.type==='Property'||
+      parent.type==='MethodDefinition'||parent.type==='PropertyDefinition') &&
+      key==='property' && !parent.computed)return true;
+  if((parent.type==='Property'||parent.type==='MethodDefinition'||
+      parent.type==='PropertyDefinition') && key==='key' && !parent.computed)return true;
+  if(parent.type==='ImportSpecifier'&&key==='imported')return true;
+  if(parent.type==='ExportSpecifier'&&key==='exported')return true;
+  if(['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent.type) &&
+      key==='label')return true;
+  return false;
+}
+
+/**
+ * The compiler treats console.log as an outbound-only statement sink and
+ * JSON.stringify as the ordinary ECMAScript serializer. These are explicit
+ * host trust assumptions, not guarantees against a replaced console/JSON
+ * intrinsic or an attacker controlling the runtime.
+ *
+ * A console reference may not escape as a value, be computed, be aliased or
+ * affect application control flow through its return value.
+ *
+ * @param {AstNode} node
+ * @param {AstNode|null} parent
+ * @param {string|null} key
+ * @param {AstNode[]} ancestors
+ * @returns {boolean}
+ */
+function admittedSourceIslandAmbient(node,parent,key,ancestors) {
+  if(['undefined','NaN','Infinity'].includes(node.name))return true;
+  if(parent?.type!=='MemberExpression'||key!=='object'||
+     parent.computed||parent.optional)return false;
+  const called=ancestors[ancestors.length-2];
+  if(called?.type!=='CallExpression'||called.callee!==parent||
+     called.optional)return false;
+  if(node.name==='JSON')return memberName(parent)==='stringify';
+  if(node.name!=='console'||memberName(parent)!=='log')return false;
+  const statement=ancestors[ancestors.length-3];
+  return statement?.type==='ExpressionStatement'&&statement.expression===called;
+}
+
+/**
  * A narrowly reviewed *source-visible compatibility* exception to the
  * group-wide source observer veto. The compiler's default refusal is
  * unchanged. This checker never treats a hostile Node loader, browser
@@ -227,6 +302,7 @@ function proveSourceObserverIslands(files,selections) {
   ]);
   const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
+    const moduleNames=moduleScopeNames(module.ast);
     // An unselected module is retained byte-for-byte, but exporting an
     // arbitrary callable lets an embedding host supply a callback that reads
     // the selected module's on-disk or served source. That callback is outside
@@ -253,7 +329,10 @@ function proveSourceObserverIslands(files,selections) {
       }
     }
     let opaque=false;
-    walk(module.ast,(node,parent,key)=>{
+    walk(module.ast,(node,parent,key,ancestors)=>{
+      if(node.type==='Identifier' && !isGrammarIdentifier(parent,key) &&
+         !(moduleNames.has(node.name) && module.bindings.get(node.name)===1) &&
+         !admittedSourceIslandAmbient(node,parent,key,ancestors))opaque=true;
       if(node.type==='ImportExpression' || node.type==='MetaProperty' ||
          node.type==='WithStatement') opaque=true;
       if(node.type==='Identifier' && forbiddenIdentifiers.has(node.name) &&
