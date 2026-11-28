@@ -27,7 +27,7 @@ const path=require('node:path');
  *  authorizeSession:(token:string,principal:string,now:number)=>boolean,
  *  revokeSession:(token:string)=>boolean,
  *  revokePrincipal:(principal:string)=>void,
- *  assertConfiguration?:(sha256:string)=>void
+ *  assertConfiguration:(sha256:string)=>void
  * }} ScoWebAuthnStateStore
  */
 
