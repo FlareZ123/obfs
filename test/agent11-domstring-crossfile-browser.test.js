@@ -63,7 +63,11 @@ test('real Chromium preserves function source through imported DOMString receive
       });
       assert.ok(positive.files[0].metrics.bindings>0,
         mode+' '+fixture.id+' isolated source-free positive control');
-      for(const [variant,items] of [['native',files],['emitted',compiled.files]]){
+      /**
+       * @param {'native'|'emitted'} variant
+       * @param {ReadonlyArray<{path:string,code:string|Buffer}>} items
+       */
+      function addRoutes(variant,items){
         const base='/'+variant+'/'+fixture.id+'/'+mode;
         routes.set(base+'/index.html',{mime:'text/html',body:
           '<!doctype html><html><body><main id="target"></main>'+
@@ -73,6 +77,8 @@ test('real Chromium preserves function source through imported DOMString receive
             body:String(item.code)});
         }
       }
+      addRoutes('native',files);
+      addRoutes('emitted',compiled.files);
       pairs.push({fixture:fixture.id,mode,
         nativePath:'/native/'+fixture.id+'/'+mode+'/index.html',
         emittedPath:'/emitted/'+fixture.id+'/'+mode+'/index.html',
@@ -112,7 +118,7 @@ test('real Chromium preserves function source through imported DOMString receive
         const response=await page.goto('http://127.0.0.1:'+address.port+route,
           {waitUntil:'load'});
         assert.equal(response?.status(),200,route+' HTML response');
-        const result=await page.evaluate(()=>globalThis.__result);
+        const result=await page.evaluate(()=>/** @type {any} */(globalThis).__result);
         assert.deepEqual(errors,[],route+' page errors');
         assert.ok(result,route+' module completed');
         return /** @type {{result:number,safe:number,source:string}} */(result);
