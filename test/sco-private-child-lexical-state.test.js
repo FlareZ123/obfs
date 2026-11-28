@@ -79,6 +79,7 @@ test('SCO standalone child retains local per-call lexical counter',()=>{
 
 test('native independent ESM trees isolate lexical, record, array and RegExp state',
   {timeout:20000},async()=>{
+    /** @type {[string,string,(number|boolean)[]][]} */
     const variants=[
       ['lexical','let counter=0;export function next(){return ++counter;}',[1,1,1,2]],
       ['record','const state={count:0};export function next(){return ++state.count;}',[1,1,1,2]],
