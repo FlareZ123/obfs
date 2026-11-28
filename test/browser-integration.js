@@ -24,6 +24,9 @@ async function dumpDom(binary,url) {
 
 async function main(){
   const chromium=process.env.CHROMIUM_BIN ?? 'chromium';
+  // Node is the relocated server realm; Chromium below is the client realm.
+  const relocatedServerPrimitiveResult=''.toString().length;
+  assert.equal(relocatedServerPrimitiveResult,0);
   const sources=[
     {path:'state.mjs',code:'export const state={privateValue:41};'},
     {path:'entry.mjs',code:'import {state} from "./state.mjs";document.getElementById("answer").textContent=state.privateValue;'}
@@ -286,6 +289,12 @@ async function main(){
     '<script src="/trace.js"></script>'+ 
     '<script>document.getElementById("answer").textContent='+
     'String(globalThis.__obfsTraceResult)+":"+__capture.join("");</script></body></html>');
+  content.set('/primitive-realm.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>String.prototype.toString=function(){return "tamper!"};'+
+    'const originalClient="".toString().length;'+
+    'const transformedClient="".toString().length;'+
+    'document.getElementById("answer").textContent=['+
+    'originalClient,transformedClient,'+relocatedServerPrimitiveResult+'].join(",");</script></body></html>');
   content.set('/parameter-shorthand.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-shorthand-entry.mjs"></script></body></html>');
   content.set('/parameter-owner.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-owner.mjs"></script></body></html>');
   content.set('/parameter-refusal.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-refusal.mjs"></script></body></html>');
@@ -344,6 +353,7 @@ async function main(){
       ['/container.html','37'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
+      ['/primitive-realm.html','7,7,0'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
     ]){
       const html=await dumpDom(chromium,base+path);
