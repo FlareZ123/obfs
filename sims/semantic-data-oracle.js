@@ -5,6 +5,10 @@ const {types} = require('node:util');
 // A trusted host loads this helper before the subject. Snapshotting uses
 // captured original primordials, not mutable intrinsics the subject may patch.
 const SafeMap=Map;
+const realmObjectPrototype=Object.prototype;
+const realmArrayPrototype=Array.prototype;
+const SafeTypeError=TypeError;
+const SafeRangeError=RangeError;
 const apply=Reflect.apply;
 const isNumberNaN=Number.isNaN;
 const objectIs=Object.is;
@@ -58,7 +62,7 @@ for (const name of Object.getOwnPropertyNames(Symbol)) {
  * @param {DataRealm} [realm]
  * @returns {Snapshot}
  */
-function snapshotDataGraph(root,realm={objectPrototype:Object.prototype,arrayPrototype:Array.prototype}) {
+function snapshotDataGraph(root,realm={objectPrototype:realmObjectPrototype,arrayPrototype:realmArrayPrototype}) {
   /** @type {Map<object,number>} */
   const objects=new SafeMap();
   /** @type {Map<symbol,number>} */
@@ -66,7 +70,7 @@ function snapshotDataGraph(root,realm={objectPrototype:Object.prototype,arrayPro
   let properties=0;
   /** @param {unknown} value @param {number} depth @returns {Snapshot} */
   function encode(value,depth) {
-    if(depth>128) throw new RangeError('data oracle depth limit');
+    if(depth>128) throw new SafeRangeError('data oracle depth limit');
     if(value===null) return {tag:'null'};
     switch(typeof value) {
       case 'undefined': return {tag:'undefined'};
@@ -85,34 +89,34 @@ function snapshotDataGraph(root,realm={objectPrototype:Object.prototype,arrayPro
         if(id===undefined) {id=apply(sizeGetter,localSymbols,[]);apply(mapSet,localSymbols,[value,id]);}
         return {tag:'local-symbol',id,description:apply(descriptionGetter,value,[])??null};
       }
-      case 'function': throw new TypeError('data oracle refuses callable values');
+      case 'function': throw new SafeTypeError('data oracle refuses callable values');
       case 'object': break;
-      default: throw new TypeError('data oracle unsupported type');
+      default: throw new SafeTypeError('data oracle unsupported type');
     }
-    if(apply(isProxy,types,[value])) throw new TypeError('data oracle refuses Proxy');
+    if(apply(isProxy,types,[value])) throw new SafeTypeError('data oracle refuses Proxy');
     for(let i=0;i<exoticChecks.length;i++){
       if(apply(exoticChecks[i],types,[value]))
-        throw new TypeError('data oracle refuses known exotic object');
+        throw new SafeTypeError('data oracle refuses known exotic object');
     }
     const existing=apply(mapGet,objects,[value]);
     if(existing!==undefined) return {tag:'reference',id:existing};
-    if(apply(sizeGetter,objects,[])>=10000) throw new RangeError('data oracle object limit');
+    if(apply(sizeGetter,objects,[])>=10000) throw new SafeRangeError('data oracle object limit');
     const prototype=getPrototypeOf(value);
     const prototypeTag=prototype===null?'null':prototype===realm.objectPrototype?'object':
       prototype===realm.arrayPrototype?'array':null;
-    if(prototypeTag===null) throw new TypeError('data oracle refuses unsupported prototype');
+    if(prototypeTag===null) throw new SafeTypeError('data oracle refuses unsupported prototype');
     const id=apply(sizeGetter,objects,[]);
     apply(mapSet,objects,[value,id]);
     const keys=ownKeys(value);
     properties+=keys.length;
-    if(properties>50000) throw new RangeError('data oracle property limit');
+    if(properties>50000) throw new SafeRangeError('data oracle property limit');
     /** @type {Snapshot[]} */
     const descriptors=[];
     for(let i=0;i<keys.length;i++){
       const key=keys[i];
       const descriptor=ownDescriptor(value,key);
       if(!descriptor||!hasOwn(descriptor,'value'))
-        throw new TypeError('data oracle refuses accessor descriptor');
+        throw new SafeTypeError('data oracle refuses accessor descriptor');
       // Define an own index; patched Array.prototype.map/push or an inherited
       // numeric setter must not corrupt the independent snapshot.
       defineProperty(descriptors,i,{value:{
