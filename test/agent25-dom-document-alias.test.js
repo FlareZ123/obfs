@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const {pathToFileURL}=require('node:url');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 
@@ -38,7 +39,7 @@ async function execute(files) {
     await fs.writeFile(preload,
       'globalThis.document={createElement(){let value="";return {'+
       'set id(input){value=String(input)},get id(){return value}}}};');
-    const job=spawnSync(process.execPath,['--import',preload,path.join(folder,'entry.mjs')],{
+    const job=spawnSync(process.execPath,['--import',pathToFileURL(preload).href,path.join(folder,'entry.mjs')],{
       encoding:'utf8',timeout:10000
     });
     if(job.error)throw job.error;
