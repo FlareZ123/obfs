@@ -67,12 +67,17 @@ includes a real three-tree Node ESM realm-state witness and a safe direct-call
 admission control. The analysis remains syntactic: dynamic higher-order
 identity transfers, other AST sinks, native API effects and other cross-module
 behavior still lack a general proof. The private child's own function-object
-identity admission is now factored into a shared checker used by both the
-graph and standalone selective compiler when audited source bytes are provided;
-the standalone closure also checks relative imported-function identity at each
-transitive child. The graph still additionally refuses unproved mutable
-module-top-level initialization. See the [bounded candidate report and native
-counterexamples](../im-results/sco-private-child-function-identity-2026-11-28.md).
+identity and retained module-state admission is now factored into a
+shared checker used by both the graph and standalone selective compiler when
+audited source bytes are provided. The standalone closure also checks relative
+imported-function identity at **each transitive child**. The shared checker
+declines unproved factory-created constants, direct `new` allocations,
+`let`/`var` cells, class owners and nontrivial top-level initialization,
+but retains stateless direct calls, primitive expressions and a narrowly
+proven, unexported scalar-table read-only exception. The graph still applies
+its stricter historical top-level immutable-declaration scanner. This is
+not a dynamic-state isolation proof: see the [bounded source-gate report
+and native ESM counterexamples](../im-results/sco-private-child-function-identity-2026-11-28.md).
 
 Source-audited static child modules also decline observable console and
 debugger effects and unproved browser-owned host reads. A browser private
