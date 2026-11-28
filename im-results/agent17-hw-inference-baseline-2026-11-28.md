@@ -39,7 +39,7 @@ The random-walk equivalence oracle is heuristic. A run that terminates with a wr
 
 ## Results
 
-<badge>64 fixed-seed runs</badge>
+**64 fixed-seed runs**
 
 All 64 runs completed without exhausting the 20,000-step SUL cap. At the 64-, 128-, and 256-step oracle budgets, all 16 runs per budget were exactly equivalent under the evaluator's product check. At the 32-step budget, 15/16 were exact and one was a false convergence.
 
