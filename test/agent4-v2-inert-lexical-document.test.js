@@ -27,6 +27,12 @@ const variants=[
   {name:'own-title-deletion-exposes-hostile-setter',middle:
     'const document={title:""};delete document.title;document.title=protectedFn;',
     yield:false,observed:true,hostilePrototype:true},
+  {name:'local-document-but-global-receiver-is-host',middle:
+    'const document={title:""};document.title=protectedFn;globalThis.document.title=protectedFn;',
+    yield:false,observed:true},
+  {name:'local-document-but-global-alias-is-host',middle:
+    'const document={title:""};document.title=protectedFn;const nativeDoc=globalThis.document;nativeDoc.title=protectedFn;',
+    yield:false,observed:true},
   {name:'unshadowed-native-document',middle:
     'document.title=protectedFn;',yield:false,observed:true},
   {name:'alias-of-native-document',middle:
