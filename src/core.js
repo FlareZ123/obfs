@@ -254,11 +254,53 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     }
     if(!changed)break;
   }
-  /** @param {string} target @returns {Set<string>} */
-  function allCallableOrigins(target) {
+  /**
+   * @param {string} target
+   * @returns {Set<string>}
+   */
+  function namespaceSourceOrigins(target) {
     const origins=new Set();
-    for(const candidates of resolvedCallableOrigins.get(target)?.values()??[])
-      for(const origin of candidates)origins.add(origin);
+    const pending=[target];
+    while(pending.length) {
+      const filename=pending.pop();
+      if(!filename||origins.has(filename))continue;
+      origins.add(filename);
+      const ast=callableModuleAsts.get(filename);
+      if(!ast)continue;
+      /** @type {Map<string,string>} */
+      const importedBindings=new Map();
+      for(const stmt of ast.body??[]) {
+        if(stmt.type!=='ImportDeclaration')continue;
+        const importedTarget=staticModuleTarget(filename,stmt.source?.value);
+        if(!importedTarget)continue;
+        for(const spec of stmt.specifiers??[]) {
+          if(spec.local?.type==='Identifier')
+            importedBindings.set(spec.local.name,importedTarget);
+        }
+      }
+      for(const stmt of ast.body??[]) {
+        if(stmt.type==='ExportNamedDeclaration') {
+          const targetPath=staticModuleTarget(filename,stmt.source?.value);
+          if(targetPath) {
+            pending.push(targetPath);
+            continue;
+          }
+          if(stmt.source)continue;
+          if(!stmt.declaration) {
+            for(const spec of stmt.specifiers??[]) {
+              if(spec.type!=='ExportSpecifier')continue;
+              const localName=staticExportName(spec.local);
+              const importedTarget=localName!==null?
+                importedBindings.get(localName):undefined;
+              if(importedTarget)pending.push(importedTarget);
+            }
+          }
+        } else if(stmt.type==='ExportAllDeclaration') {
+          const targetPath=staticModuleTarget(filename,stmt.source?.value);
+          if(targetPath)pending.push(targetPath);
+        }
+      }
+    }
     return origins;
   }
   /** @type {Set<string>} */
@@ -411,30 +453,33 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       const origins=callableOriginSets.get(node.name)??new Set([origin]);
       for(const producer of origins)protectedPaths.add(producer);
     });
-    // A namespace member used as a value may expose its Function object.
-    // Dynamic keys conservatively protect every known callable export from
-    // that namespace; direct calls remain local and retain positive yield.
+    // A namespace member chain used as a value can expose functions nested
+    // in exported objects, not only direct callable exports. Protect the
+    // namespace's statically re-exported source closure; direct calls remain
+    // local and retain positive yield.
     walk(ast,(node,parent,key)=>{
-      if(node.type!=='MemberExpression'||node.object.type!=='Identifier')return;
-      const target=importedNamespaces.get(node.object.name);
+      if(node.type!=='MemberExpression')return;
+      if(parent?.type==='MemberExpression'&&key==='object')return;
+      let root=node;
+      while(root?.type==='MemberExpression')root=root.object;
+      if(root?.type!=='Identifier')return;
+      const target=importedNamespaces.get(root.name);
       if(!target)return;
       if(parent?.type==='CallExpression'&&key==='callee'&&
          parent.callee===node&&!parent.optional)return;
-      const name=member(node);
-      const origins=name!==null?
-        resolvedCallableOrigins.get(target)?.get(name):allCallableOrigins(target);
-      for(const producer of origins??[])protectedPaths.add(producer);
+      for(const producer of namespaceSourceOrigins(target))protectedPaths.add(producer);
     });
     // Passing, aliasing, reflecting on, or otherwise publishing the namespace
-    // object can expose any callable export. The static member path above is
-    // the only reference shape treated more narrowly.
+    // object can expose any of its values. Unknown uses freeze its complete
+    // statically linked export-source closure.
     walk(ast,(node,parent,key)=>{
       if(node.type!=='Identifier'||!importedNamespaces.has(node.name))return;
       if(parent?.type==='ImportNamespaceSpecifier')return;
       if(parent?.type==='MemberExpression'&&key==='object'&&parent.object===node)return;
+      if(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed)return;
       const target=importedNamespaces.get(node.name);
       if(!target)return;
-      for(const producer of allCallableOrigins(target))protectedPaths.add(producer);
+      for(const producer of namespaceSourceOrigins(target))protectedPaths.add(producer);
     });
   }
   return protectedPaths;
