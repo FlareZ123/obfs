@@ -582,7 +582,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        returnedSensitiveFunctions.has(node.callee.name))return true;
     if(node.type==='MemberExpression')return (
-      memberName(node)==='__proto__' && isPossiblePrototype(node.object) ||
+      // The legacy __proto__ getter on a runtime-produced primitive string
+      // returns the mutable String.prototype even when the producer is a
+      // function, tagged template, interpolation, or opaque receiver read.
+      // Treat unknown receivers conservatively: a later .charCodeAt or
+      // numeric/iterator write may poison an unrelated file's eager decoder.
+      // Provably non-string primitive literals are the narrow safe exception.
+      memberName(node)==='__proto__' &&
+        !(node.object.type==='Literal'&&node.object.regex===undefined&&
+          node.object.value!==null&&typeof node.object.value!=='string') ||
       (memberName(node)==='prototype'||memberName(node)===null) &&
         (locallyBoundIntrinsics.has('Array')&&isArrayValue(node.object) ||
          locallyBoundIntrinsics.has('Object')&&isObjectIntrinsic(node.object) ||
