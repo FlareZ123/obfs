@@ -239,6 +239,7 @@ def run_one(state_count: int, seed: int, args):
             sco_canary,
             sco_session_token,
             sco_ready["method_name"],
+            archive_public_module=True,
         )
         sco_invalid = invalid_operation_probe(
             sco_ready["origin"], sco_ready["method_name"], sco_session_token
@@ -281,6 +282,7 @@ def run_one(state_count: int, seed: int, args):
             ordinary_canary,
             ordinary_session_token,
             ordinary_ready["method_name"],
+            archive_public_module=True,
         )
         ordinary_invalid = invalid_operation_probe(
             ordinary_ready["origin"], ordinary_ready["method_name"], ordinary_session_token
