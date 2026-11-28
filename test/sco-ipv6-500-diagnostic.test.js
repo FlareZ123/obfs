@@ -7,7 +7,7 @@ const {obfuscateFiles}=require('../src/core');
 const {createScoHandler}=require('../src/sco');
 
 const source='document.getElementById("out").textContent=location.hostname+"|42";';
-const safeSource='document.body.firstElementChild.textContent=location.hostname+"|42";';
+const safeSource='globalThis["__obfsWitness"]=location.hostname;';
 const input={path:'client.js',sourceType:/** @type {'script'} */('script'),code:source};
 const safeInput={...input,code:safeSource};
 
