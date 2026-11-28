@@ -122,10 +122,12 @@ function createScoWebAuthnAdmission(options){
   const now=options.now??Date.now;
   if(typeof now!=='function')throw new TypeError('WebAuthn now must be a function');
   const rpHash=createHash('sha256').update(rpId,'utf8').digest();
-  /** @type {Map<string,{principal:string,sessionId:string,challenge:Buffer,expiresAt:number}>} */
+  /** @type {Map<string,{principal:string,sessionId:string,challenge:Buffer,expiresAt:number,version:number}>} */
   const challenges=new Map();
   /** @type {Map<string,{principal:string,expiresAt:number}>} */
   const sessions=new Map();
+  /** @type {Map<string,number>} */
+  const principalVersions=new Map();
   /** @returns {number} */
   function clock(){
     const t=now();
@@ -159,7 +161,8 @@ function createScoWebAuthnAdmission(options){
     const challenge=randomBytes(32);
     const expiresAt=time+challengeTtlMs;
     if(!Number.isSafeInteger(expiresAt))throw new RangeError('WebAuthn expiry overflow');
-    challenges.set(challengeId,{principal,sessionId,challenge,expiresAt});
+    challenges.set(challengeId,{principal,sessionId,challenge,expiresAt,
+      version:principalVersions.get(principal)??0});
     return {challengeId,challenge:challenge.toString('base64url'),rpId,expiresAt};
   }
   /**
@@ -180,7 +183,8 @@ function createScoWebAuthnAdmission(options){
     if(!pending)return denied;
     challenges.delete(challengeId);
     const time=clock();
-    if(pending.expiresAt<=time || pending.principal!==principal || pending.sessionId!==sessionId)return denied;
+    if(pending.expiresAt<=time || pending.principal!==principal || pending.sessionId!==sessionId ||
+       pending.version!==(principalVersions.get(principal)??0))return denied;
     const credentialBytes=decodeBase64url(credentialId,1024);
     const clientBytes=decodeBase64url(assertion.clientDataJSON,16384);
     const authBytes=decodeBase64url(assertion.authenticatorData,16384);
@@ -217,7 +221,8 @@ function createScoWebAuthnAdmission(options){
       committed=await options.updateSignCount(principal,credentialId,record.signCount,signCount,
         {userPresent,userVerified,backupEligible,backedUp});
     }catch{return denied;}
-    if(committed!==true || clock()>=pending.expiresAt)return denied;
+    if(committed!==true || clock()>=pending.expiresAt ||
+       pending.version!==(principalVersions.get(principal)??0))return denied;
     purge(clock());
     if(sessions.size>=maxSessions)return denied;
     const token=randomBytes(32).toString('base64url');
@@ -241,6 +246,8 @@ function createScoWebAuthnAdmission(options){
   function revokeSession(token){return sessions.delete(token);}
   /** @param {string} principal @returns {void} */
   function revokePrincipal(principal){
+    // A paused lookup/CAS must never mint a session after revocation.
+    principalVersions.set(principal,(principalVersions.get(principal)??0)+1);
     for(const [token,session] of sessions)if(session.principal===principal)sessions.delete(token);
     for(const [id,challenge] of challenges)if(challenge.principal===principal)challenges.delete(id);
   }
