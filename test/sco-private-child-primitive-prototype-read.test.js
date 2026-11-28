@@ -17,7 +17,7 @@ const rootCode=[
   'export async function secret(){return next();}',
   'export function publicValue(){return 1;}'
 ].join('\n');
-const childCode="export function next(){return ''.probe || 'fallback';}";
+const childCode="export function next(){return ''.toString().length;}";
 const options={
   seed:'sco-implicit-primitive-prototype-falsifier-20261128',
   privateNames:['secret'],
@@ -52,7 +52,7 @@ test('three independent native ESM trees can observe different primitive prototy
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-primitive-prototype-'));
   const script=[
     'const [url,mode]=process.argv.slice(1);',
-    "if(mode==='client')Object.defineProperty(String.prototype,'probe',{value:'browser',configurable:true});",
+    "if(mode==='client')Object.defineProperty(String.prototype,'toString',{value(){return 'browser';},configurable:true,writable:true});",
     'const module=await import(url);',
     'console.log(JSON.stringify(await module.secret()));'
   ].join('\n');
@@ -78,7 +78,7 @@ test('three independent native ESM trees can observe different primitive prototy
       run(urls[1],'client'),
       run(urls[2],'server')
     ];
-    assert.deepEqual(readings,['browser','browser','fallback']);
+    assert.deepEqual(readings,[7,7,0]);
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
