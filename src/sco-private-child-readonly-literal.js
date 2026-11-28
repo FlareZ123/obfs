@@ -82,7 +82,12 @@ function isReadOnlyOwnedLiteral(ast,name,init){
       safe=false;
       return;
     }
-    const member=parent.computed?staticString(parent.property):
+    const member=parent.computed?
+      staticString(parent.property)??(
+        parent.property.type==='Literal'&&
+        typeof parent.property.value==='number'&&
+        Number.isInteger(parent.property.value)&&parent.property.value>=0?
+          String(parent.property.value):null):
       parent.property.type==='Identifier'?parent.property.name:null;
     if(member===null||!keys.has(member)){
       safe=false;
