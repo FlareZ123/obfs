@@ -89,6 +89,8 @@ jobs:
         run: node --test test/sco-step-only-live-rpc.test.js
       - name: Test independent two-state minimax and process-separated public SCO versus matched ordinary RPC
         run: node --test test/sco-two-state-process-boundary.test.js
+      - name: Falsify two-state certificate across 46,656 three-state source tables
+        run: node --test test/sco-two-state-out-of-class-census.test.js
       - name: Verify Linux different-UID SCO client with real generated HTTP facade
         if: runner.os == 'Linux'
         env:
