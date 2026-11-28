@@ -47,13 +47,25 @@ function audit(html){
 }
 
 test('SELECT insertion mode cannot conceal executable SVG script, handler, srcdoc or entity-decoded SMIL',()=>{
+  /** @type {string[]} */
+  const misses=[];
   for(const fixture of executable) {
-    assert.match(findInlineHtmlSource(doc(fixture.html)),fixture.issue,fixture.id);
-    assert.throws(()=>audit(fixture.html),fixture.issue,fixture.id+' guarded publication');
+    const observation=findInlineHtmlSource(doc(fixture.html));
+    let refused=false;
+    try{audit(fixture.html);}
+    catch(error){refused=fixture.issue.test(String(error));}
+    console.log(JSON.stringify({case:fixture.id,detected:observation,refused}));
+    if(!observation||!fixture.issue.test(observation)||!refused)
+      misses.push(fixture.id);
   }
-  assert.match(findInlineHtmlSource(doc(encodedSmil)),
-    /SVG animation embeds executable URL/,'entity-decoded javascript scheme');
-  assert.throws(()=>audit(encodedSmil),/SVG animation embeds executable URL/);
+  const smil=findInlineHtmlSource(doc(encodedSmil));
+  let refusedSmil=false;
+  try{audit(encodedSmil);}
+  catch(error){refusedSmil=/SVG animation embeds executable URL/u.test(String(error));}
+  console.log(JSON.stringify({case:'entity-smil',detected:smil,refused:refusedSmil}));
+  if(!smil||!/SVG animation embeds executable URL/u.test(smil)||!refusedSmil)
+    misses.push('entity-smil');
+  assert.deepEqual(misses,[], 'all browser-executed source paths must be rejected');
 });
 
 test('inert parser controls remain admissible',()=>{
