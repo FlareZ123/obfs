@@ -4470,12 +4470,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // native document factories and stable-looking aliases. Alias unions are
   // conservative: a later reassignment may cause refusal but never grant an
   // unproved source-changing rewrite.
+  const domDocumentNames=new Set(['document']);
   const domElementNames=new Set();
   const domStyleNames=new Set();
   const domDatasetNames=new Set();
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNativeDocument(node) {
-    return Boolean(node && (node.type==='Identifier'&&node.name==='document' ||
+    return Boolean(node && (node.type==='Identifier'&&domDocumentNames.has(node.name) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
       memberName(node)==='document'));
   }
@@ -4528,8 +4529,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
-      if(destination?.type!=='Identifier'||!value)return;
+      if(!destination||!value)return;
+      if(destination.type==='ObjectPattern') {
+        for(const property of destination.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const alias=property.value.name;
+          if(field==='document'&&isGlobal(value)&&!domDocumentNames.has(alias)) {
+            domDocumentNames.add(alias);changedDom=true;
+          }
+          if(['body','head','documentElement','activeElement'].includes(field??'') &&
+             isNativeDocument(value)&&!domElementNames.has(alias)) {
+            domElementNames.add(alias);changedDom=true;
+          }
+        }
+        return;
+      }
+      if(destination.type!=='Identifier')return;
       const name=destination.name;
+      if(isNativeDocument(value)&&!domDocumentNames.has(name)) {
+        domDocumentNames.add(name);changedDom=true;
+      }
       if(isNativeDomElement(value)&&!domElementNames.has(name)) {
         domElementNames.add(name);changedDom=true;
       }
