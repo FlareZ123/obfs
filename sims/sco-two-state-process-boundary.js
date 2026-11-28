@@ -2,7 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {fork}=require('node:child_process');
-const {randomBytes}=require('node:crypto');
+const {randomBytes,randomInt}=require('node:crypto');
 const http=require('node:http');
 const {createPolicy,learnExpected,continuation,equivalent}=
   require('./sco-two-state-optimal-network-policy');
@@ -34,13 +34,19 @@ async function runServer(){
   const tamperOrdinary=process.argv.includes('--tamper-wire');
   const {transform}=require('esbuild');
   const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
-  const material=randomBytes(4);
+  // Uniformly sample the exact prior: four one-state plus 256 two-state
+  // labelled machines, initially at state zero.
+  const modelId=randomInt(260);
+  const states=modelId<4?1:2;
+  let code=modelId<4?modelId:modelId-4;
   /** @type {Machine} */
-  const machine={next:[[0,0],[0,0]],output:[[0,0],[0,0]]};
-  for(let state=0;state<2;state++)for(let input=0;input<2;input++){
-    const choice=material[state*2+input]&3;
-    machine.next[state][input]=choice>>1;
-    machine.output[state][input]=choice&1;
+  const machine={next:Array.from({length:states},()=>[0,0]),
+    output:Array.from({length:states},()=>[0,0])};
+  for(let state=0;state<states;state++)for(let input=0;input<2;input++){
+    const choice=code%(2*states);
+    code=Math.floor(code/(2*states));
+    machine.next[state][input]=Math.floor(choice/2);
+    machine.output[state][input]=choice%2;
   }
   const canary='private-'+randomBytes(24).toString('hex');
   const cookie='session='+randomBytes(24).toString('hex');
@@ -139,7 +145,7 @@ async function runServer(){
     if(!message||typeof message!=='object')return;
     const typed=/** @type {ProcessMessage} */(message);
     if(typed.kind==='snapshot'){
-      process.send?.({kind:'snapshot',machine,canary,scoTrace,ordinaryTrace,
+      process.send?.({kind:'snapshot',modelId,machine,canary,scoTrace,ordinaryTrace,
         publicClient:partition.clientFile.code,ordinaryClient:plainClient});
     }
     if(typed.kind==='stop'){
@@ -298,7 +304,8 @@ function receive(child,expected,timeoutMs=45000){
  *   unauthorizedOrdinary:number,publicServerPrivateCanary:boolean,
  *   scoBytes:number,ordinaryBytes:number,serverPid:number,
  *   attackerPid:number,traceLength:number,serverUid:number,attackerUid:number,
- *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean}>}
+ *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean,
+ *   modelId:number}>}
  */
 async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
   if(typeof tamperOrdinary!=='boolean')throw new TypeError('Expected boolean wire mutation');
@@ -345,6 +352,8 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
     const snapshotReady=receive(server,'snapshot');
     server.send({kind:'snapshot'});
     const snapshot=await snapshotReady;
+    assert.ok(Number.isInteger(snapshot.modelId)&&snapshot.modelId>=0&&snapshot.modelId<260);
+    assert.deepEqual(snapshot.machine,createPolicy().models[snapshot.modelId]);
     /** @type {import('./sco-two-state-optimal-network-policy').Learned} */
     const sco=attack.result.sco;
     const ordinary=attack.result.ordinary;
@@ -373,7 +382,7 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
       attackerUid:attack.result.attackerUid,
       signalPermissionDenied:attack.result.signalPermissionDenied,
       wireCalls:attack.result.wireCalls,wireMatched:attack.result.wireMatched,
-      traceLength:expected.length};
+      modelId:snapshot.modelId,traceLength:expected.length};
   }finally{
     if(attacker)attacker.kill();
     if(server.connected)server.send?.({kind:'stop'});
