@@ -19,5 +19,6 @@ for(const module of [
   './agent4-v2-local-document-keyset-proof.test.js',
   './agent4-v2-side-effect-import-local-document.test.js',
   './agent4-v2-local-document-reflection-negative.test.js',
+  './agent4-v2-local-document-keyset-fuzz.test.js',
   './agent4-v2-inert-lexical-document-browser.test.js'
 ])require(module);
