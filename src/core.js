@@ -303,10 +303,39 @@ function hasImportedDomStringSourceSink(files) {
         aliasChanged=false;
         walk(ast,node=>{
           if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
-             node.init?.type!=='Identifier')return;
-          if(receivedNamespaces.has(node.init.name)&&
-             receiveNamespace(node.id.name,receivedNamespaces.get(node.init.name)??[]))
-            aliasChanged=true;
+             !node.init)return;
+          const local=node.id.name;
+          const origin=node.init;
+          if(origin.type==='Identifier'){
+            if(receivedElements.has(origin.name)&&!receivedElements.has(local)){
+              receivedElements.add(local);aliasChanged=true;
+            }
+            if(receivedFactories.has(origin.name)&&!receivedFactories.has(local)){
+              receivedFactories.add(local);aliasChanged=true;
+            }
+            if(receivedNamespaces.has(origin.name)&&
+               receiveNamespace(local,receivedNamespaces.get(origin.name)??[]))
+              aliasChanged=true;
+          }
+          // A named namespace import is a transparent module carrier:
+          // export const element=namespace.element must be recognized just
+          // like export {element} from the same module.
+          if(origin.type==='MemberExpression' &&
+             origin.object.type==='Identifier'){
+            const name=property(origin);
+            if(name===null) return;
+            for(const target of receivedNamespaces.get(origin.object.name)??[]){
+              const member=exported.get(target);
+              if(member?.receivers.has(name)&&!receivedElements.has(local)){
+                receivedElements.add(local);aliasChanged=true;
+              }
+              if(member?.factories.has(name)&&!receivedFactories.has(local)){
+                receivedFactories.add(local);aliasChanged=true;
+              }
+              if(receiveNamespace(local,member?.namespaces.get(name)??[]))
+                aliasChanged=true;
+            }
+          }
         });
       }while(aliasChanged);
       /** @param {string} external @param {boolean} receiver @param {boolean} factory */
@@ -341,6 +370,21 @@ function hasImportedDomStringSourceSink(files) {
             for(const key of donor.factories)if(key!=='default')add(key,false,true);
             for(const [key,targets] of donor.namespaces)
               if(key!=='default')addNamespace(key,targets);
+          }
+        }
+        if(node.type==='ExportDefaultDeclaration'&&
+           node.declaration?.type==='Identifier') {
+          const local=node.declaration.name;
+          add('default',receivedElements.has(local),receivedFactories.has(local));
+          addNamespace('default',receivedNamespaces.get(local)??[]);
+        }
+        if(node.type==='ExportNamedDeclaration'&&
+           node.declaration?.type==='VariableDeclaration') {
+          for(const item of node.declaration.declarations??[]) {
+            if(item.id?.type!=='Identifier')continue;
+            const local=item.id.name;
+            add(local,receivedElements.has(local),receivedFactories.has(local));
+            addNamespace(local,receivedNamespaces.get(local)??[]);
           }
         }
         if(node.type==='ExportNamedDeclaration'&&node.specifiers?.length) {
