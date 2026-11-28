@@ -163,6 +163,46 @@ authorized online functional relaying, not an offline algorithm clone
 or compromised server. A further repeated-call process-CPU comparison
 is being evaluated separately.
 
+### Cross-platform quantization-safe CPU follow-up
+
+The full application SCO workflow passed on both Ubuntu and Windows at
+**exact source `294bd243344ecbe2445eb44346c8cd731b17f575`**,
+[Actions run 46126186524](https://github.com/FlareZ123/obfs/actions/runs/46126186524).
+The same original five private modules, generated and ordinary RPC clients,
+40/40 held-out copies, actual server and bearer identity were retained.
+To overcome the Windows `process.cpuUsage` tick size without changing the
+RPC protocol, each operation was **repeated independently** and total
+caller+server process CPU divided by the number of operations. This is
+measurement repetition, *not* a batched RPC or any performance optimization:
+the 1-event native function was called **32,768** times per sample and each
+generated/ordinary RPC **1,024** times; heavy 120,000-event work used
+**128** individual invocations for each method per sample. Seven
+alternating-order paired samples were recorded per OS and workload;
+all 28 sets of native/ordinary/generated CPU readings now had nonzero
+timing, including on Windows.
+
+| OS | Work per operation | Generated / native CPU median | Ordinary / native CPU median | Generated / ordinary CPU median | Generated strict 2.5× breaches |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 1 event | **228.87×** | 226.11× | 1.0001× | **7/7** |
+| Windows | 1 event | **271.32×** | 282.26× | 1.1068× | **7/7** |
+| Ubuntu | 120,000 events | **1.2888×** | 1.2665× | 1.0087× | 0/7 |
+| Windows | 120,000 events | **1.2811×** | 1.2730× | 1.0446× | 0/7 |
+
+These medians are computed from seven **per-pair normalized process-CPU
+ratios**; they are not pooled medians or a universal performance
+threshold. Raw totals, repetitions, per-call CPU and wall values are
+preserved in
+[`agent18-equal-trust-sco-batched-raw-20261128.json`](agent18-equal-trust-sco-batched-raw-20261128.json).
+Different repetition counts can introduce JIT, cache and GC effects;
+the comparison is **bounded** to this repeated-input loopback workload,
+not a user-facing browser CPU or a confidence guarantee on future
+programs. The robust finding is a **strict post-initialization
+budget failure for thin independent requests on both OS**, shared with
+the equal-trust ordinary RPC client, whereas sustained computation
+fits the sampled 2.5× budget. Neither client demonstrated a meaningful
+protection edge from its public JS representation once the same
+server-side trust boundary was held fixed.
+
 These observations support a **bounded negative protection-value finding**:
 on the measured six-module app, the generated source-private SCO facade
 does not obstruct a permitted client from copying its own network behavior
