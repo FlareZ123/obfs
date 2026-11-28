@@ -257,7 +257,14 @@ const cases=[
 ['host-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null,23);",'carrier.instance'],
 ['host-apply-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[3]);",'carrier.instance'],
 ['iterator-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const iterable={*[Symbol.iterator](){carrier={instance:new Ordinary()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
-['destructure-proxy-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new Ordinary()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance']
+['destructure-proxy-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new Ordinary()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance'],
+// A function value may own call/apply/bind methods. Assuming built-in
+// Function.prototype argument forwarding without proving own methods is
+// unsound even when an ordinary call with supplied arguments skips defaults.
+['own-call-drops-forwarded-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.call=function(){fill();};fill.call(null,23);",'carrier.instance'],
+['own-apply-drops-forwarded-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply=function(){fill();};fill.apply(null,[23]);",'carrier.instance'],
+['own-bind-drops-prebound-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.bind=function(){return fill;};const bound=fill.bind(null,23);bound();",'carrier.instance'],
+['define-property-call-drops-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Object.defineProperty(fill,'call',{value:function(){fill();}});fill.call(null,23);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
