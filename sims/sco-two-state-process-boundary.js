@@ -40,7 +40,24 @@ async function runServer(){
   const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
   // Uniformly sample the exact prior: four one-state plus 256 two-state
   // labelled machines, initially at state zero.
-  const modelId=randomInt(260);
+  // The evaluator can choose a test-table ID through a one-time *private*
+  // parent/server IPC handshake, not argv, environment or public HTTP.
+  // This enables adversarially selected heldout fixtures without publishing
+  // the ID to the different-UID client or the generated SCO facade.
+  /** @type {number} */
+  const modelId=await new Promise((resolve,reject)=>{
+    process.once('message',raw=>{
+      const item=/** @type {ProcessMessage|null} */(raw);
+      if(item?.kind!=='configure'){
+        reject(new Error('Expected private server configuration IPC'));return;
+      }
+      const id=item.modelId===null?randomInt(260):item.modelId;
+      if(!Number.isSafeInteger(id)||id<0||id>=260){
+        reject(new RangeError('Private model ID must be 0..259'));return;
+      }
+      resolve(id);
+    });
+  });
   const states=modelId<4?1:2;
   let code=modelId<4?modelId:modelId-4;
   /** @type {Machine} */
@@ -221,6 +238,9 @@ function receive(child,expected,timeoutMs=45000){
  * interfaces, not what arbitrary malicious code could obtain under a shared
  * OS account. Server model only enters evaluator IPC after the attacker exits.
  *
+ * @param {boolean} [isolatedUid]
+ * @param {boolean} [tamperOrdinary]
+ * @param {number|null} [modelId] Private evaluator-only source-table index.
  * @returns {Promise<{queries:number,rank:number,beliefs:number,
  *   exact:boolean,matchedControl:boolean,unauthorizedSco:number,
  *   unauthorizedOrdinary:number,publicServerPrivateCanary:boolean,
@@ -229,7 +249,10 @@ function receive(child,expected,timeoutMs=45000){
  *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean,
  *   modelId:number}>}
  */
-async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
+async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId=null){
+  if(modelId!==null&&(!Number.isSafeInteger(modelId)||modelId<0||modelId>=260)){
+    throw new RangeError('Expected private model ID 0..259');
+  }
   if(typeof tamperOrdinary!=='boolean')throw new TypeError('Expected boolean wire mutation');
   if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
   if(isolatedUid&&process.platform!=='linux'){
@@ -242,7 +265,9 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
   /** @type {string|null} */
   let publicRoot=null;
   try{
-    const ready=await receive(server,'ready');
+    const readyPromise=receive(server,'ready');
+    server.send({kind:'configure',modelId});
+    const ready=await readyPromise;
     const [deniedSco,deniedOrdinary,privatePath]=await Promise.all([
       fetch(ready.scoOrigin+'/obfs/rpc',{method:'POST',
         headers:{'content-type':'application/json'},
