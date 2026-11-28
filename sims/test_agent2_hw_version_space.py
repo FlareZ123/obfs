@@ -321,6 +321,43 @@ class VersionSpaceAuditTests(unittest.TestCase):
             result["trace_lower_bound_certificate"]["minimum_states"], 3
         )
 
+    def test_trace_anchored_solver_preserves_three_state_sat_with_nonzero_root(self):
+        # From initial state 1, the zero-input cycle 1->2->0->1 emits
+        # 010010010. Three distinct 00-input response words witness every
+        # state, but the first state (at trace position 0) is *not* the
+        # lexicographically first fingerprint: the solver root must remain
+        # symbolic, not fixed to the anchor named 0.
+        row = {
+            "status": "completed", "state_count": 3, "seed": 63,
+            "fixture_table": {
+                "transitions": [[1, 0], [2, 1], [0, 2]],
+                "outputs": [["0", "0"], ["0", "0"], ["1", "1"]],
+                "initial_state": 1,
+            },
+            "observed_trace": [["0", bit] for bit in "010010010"],
+            "target_post_trace_state": 1,
+        }
+        cert = MODULE.trace_output_diversity_state_lower_bound(
+            row["observed_trace"], 2
+        )
+        self.assertEqual(cert["minimum_states"], 3)
+        self.assertNotEqual(cert["output_witnesses"][0]["start_index"], 0)
+        anchored = MODULE.audit_row(
+            row, timeout_ms=5000, candidate_labeling="trace-anchor",
+            trace_lower_bound_depth=2,
+        )
+        self.assertEqual(anchored["status"], "sat")
+        self.assertEqual(
+            anchored["candidate_size_search"]["analytical_unsat_sizes_before_witness"],
+            [1, 2],
+        )
+        witness = anchored["witness"]
+        self.assertEqual(witness["effective_candidate_labeling"], "trace-anchor")
+        self.assertTrue(witness["candidate_trace_verified"])
+        self.assertTrue(witness["candidate_minimal_verified"])
+        self.assertTrue(witness["candidate_strongly_connected_verified"])
+        self.assertTrue(witness["future_counterexample"])
+
     def test_trace_bound_fails_closed_on_nonbinary_observations(self):
         for row in ([["2","0"]], [["0","X"]], [["0"]]):
             with self.subTest(row=row):
