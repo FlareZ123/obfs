@@ -287,6 +287,28 @@ test('direct SCO partition rejects proven private function-text RPC results but 
       path:'private.mjs',sourceType:'module',code
     },{seed:'direct-source-privacy-control'}),/private function source/u,code);
   }
+  // Direct partition's serverOnlyInitialization opt-in admits private
+  // helper definitions. Check bounded helper-return and parameter-flow sinks
+  // independently of the graph wrapper's cross-file audit.
+  for(const code of [
+    'function get(){return leak;}export async function leak(){return get().toString();}',
+    'const identity=x=>x;export async function leak(){return identity(leak).toString();}',
+    'function hop(){return identity(leak);}function identity(x){return x;}export async function leak(){return hop().toString();}'
+  ]){
+    assert.throws(()=>partitionScoAsyncModule({
+      path:'private.mjs',sourceType:'module',code
+    },{seed:'direct-source-private-helper',serverOnlyInitialization:true}),
+    /private function source/u,code);
+  }
+  for(const code of [
+    'function get(){return 41;}export async function safe(){return get().toString(16);}',
+    'const identity=x=>x;export async function safe(){return identity(41).toString(16);}'
+  ]){
+    assert.equal(partitionScoAsyncModule({
+      path:'private.mjs',sourceType:'module',code
+    },{seed:'direct-source-private-helper',serverOnlyInitialization:true}).clientFile.path,
+    'private.mjs');
+  }
   for(const code of [
     'export async function score(x){return x*11+3;}',
     'export async function render(x){return x.toString(16);}',
