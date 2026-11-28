@@ -2322,6 +2322,38 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
       modules.set(file.path,{file,...parseFile(file)});
     }
   }
+  // A named ESM export can return a for-in property key (always a primitive
+  // String) even when the consuming file does not spell the for-in loop.
+  // Track this bounded, source-visible producer before checking consumers;
+  // an imported invocation may then be boxed for a hostile accessor read.
+  /** @type {Map<string,Set<string>>} */
+  const boxedPrimitiveReturnExports=new Map();
+  for(const [filename,module] of modules) {
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      const fn=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:null;
+      if(fn?.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier')continue;
+      const loopKeys=new Set();
+      walk(fn.body,node=>{
+        if(node.type!=='ForInStatement'||node.left.type!=='VariableDeclaration')return;
+        for(const declaration of node.left.declarations??[]) {
+          if(declaration.id.type==='Identifier')loopKeys.add(declaration.id.name);
+        }
+      });
+      let returnsPrimitive=false;
+      walk(fn.body,node=>{
+        if(node.type!=='ReturnStatement'||!node.argument)return;
+        const value=node.argument;
+        if(value.type==='Identifier'&&loopKeys.has(value.name)||
+           value.type==='Literal'&&value.value!==null&&
+             ['number','string','boolean','bigint'].includes(typeof value.value)||
+           value.type==='TemplateLiteral')returnsPrimitive=true;
+      });
+      if(returnsPrimitive)exported.add(fn.id.name);
+    }
+    boxedPrimitiveReturnExports.set(filename,exported);
+  }
   // A primitive value is boxed before object destructuring, and an array
   // pattern asks for its host-controlled Symbol.iterator. A hostile embedding
   // realm can install accessors/iterators returning Function; that capability
@@ -2436,38 +2468,6 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
          !provablyOwnStringRead(node))exposed=true;
     });
     if(exposed)return {files,objects:0,properties:0};
-  }
-  // A named ESM export can return a for-in property key (always a primitive
-  // String) even when the consuming file does not spell the for-in loop.
-  // Track this bounded, source-visible producer before checking consumers;
-  // an imported invocation may then be boxed for a hostile accessor read.
-  /** @type {Map<string,Set<string>>} */
-  const boxedPrimitiveReturnExports=new Map();
-  for(const [filename,module] of modules) {
-    const exported=new Set();
-    for(const statement of module.ast.body) {
-      const fn=statement.type==='ExportNamedDeclaration'?
-        statement.declaration:null;
-      if(fn?.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier')continue;
-      const loopKeys=new Set();
-      walk(fn.body,node=>{
-        if(node.type!=='ForInStatement'||node.left.type!=='VariableDeclaration')return;
-        for(const declaration of node.left.declarations??[]) {
-          if(declaration.id.type==='Identifier')loopKeys.add(declaration.id.name);
-        }
-      });
-      let returnsPrimitive=false;
-      walk(fn.body,node=>{
-        if(node.type!=='ReturnStatement'||!node.argument)return;
-        const value=node.argument;
-        if(value.type==='Identifier'&&loopKeys.has(value.name)||
-           value.type==='Literal'&&value.value!==null&&
-             ['number','string','boolean','bigint'].includes(typeof value.value)||
-           value.type==='TemplateLiteral')returnsPrimitive=true;
-      });
-      if(returnsPrimitive)exported.add(fn.id.name);
-    }
-    boxedPrimitiveReturnExports.set(filename,exported);
   }
   // String-selector metadata has already been verified across the static ESM
   // graph. Use it during native-pattern admission to avoid refusing known
