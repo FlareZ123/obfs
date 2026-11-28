@@ -12,6 +12,10 @@ const {obfuscateFiles}=require('../src');
 
 const observedState=
   'const state={secretField:71};export function inspect(){return state.secretField;}';
+const primitiveState=
+  'const state={secretField:71};'+
+  'function privateInspect(){return state.secretField;}'+
+  'export function inspect(){return privateInspect();}';
 const mainSource=
   'import {inspect} from "./state.mjs";'+
   'console.log(JSON.stringify({source:CSS.escape(inspect),value:inspect()}));';
@@ -43,9 +47,9 @@ async function execute(files){
   }
 }
 
-/** @param {string} main @returns {ModuleFile[]} */
-function graph(main){
-  return [{path:'state.mjs',sourceType:'module',code:observedState},
+/** @param {string} main @param {string} [state] @returns {ModuleFile[]} */
+function graph(main,state=observedState){
+  return [{path:'state.mjs',sourceType:'module',code:state},
     {path:'main.mjs',sourceType:'module',code:main}];
 }
 
@@ -65,7 +69,7 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])){
   });
 
   test(mode+' keeps local property rewrite yield for primitive CSS.escape',async()=>{
-    const files=graph(primitiveMain);
+    const files=graph(primitiveMain,primitiveState);
     const expected=await execute(files);
     const output=obfuscateFiles(files,{
       mode,closedWorld:true,seed:'css-cross-mode-primitive/'+mode,
