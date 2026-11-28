@@ -3112,16 +3112,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
           callee.object.name==='Object' &&
            memberName(callee)==='getOwnPropertyDescriptor')) observed=true;
+      // DOMParser's first source argument is DOMString-converted. Named ESM
+      // imports of a proven bound parser method have an Identifier callee,
+      // whereas local instances/prototype paths are MemberExpressions.
+      // Check both before restricting the wider Web IDL receiver scan.
+      if(node.type==='CallExpression' && isDomParserMethod(callee) &&
+         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))
+        observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
       if(node.type==='CallExpression'&&callee.type==='MemberExpression') {
         const method=memberName(callee);
-        // DOMParser converts its first argument to a DOMString before
-        // building an inspectable HTML/XML tree. Detached/call/apply/bind
-        // variants can conceal both the receiver and the original input.
-        if(isDomParserMethod(callee) && node.arguments[0] &&
-           !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        // Detached/call/apply/bind DOMParser native variants can hide the
+        // receiver and source operand at a different argument position.
         if(isDomParserMethod(callee.object)) {
           if((method==='call'||method==='bind') && node.arguments[1] &&
              !isDefinitelyPrimitive(node.arguments[1]))observed=true;
