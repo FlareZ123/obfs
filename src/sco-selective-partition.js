@@ -407,7 +407,9 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     // Node's legacy buffer.atob/btoa errors have different native messages
     // from browser Window atob/btoa, even for identical malformed input.
     'atob','btoa',
-    'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
+    // Response.redirect(relativeUrl) relies on the browser's current base;
+    // the same call is not portable to an independent Node server realm.
+    'console','fetch','Request','Response','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
     'setImmediate','clearImmediate','queueMicrotask',
@@ -448,7 +450,8 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
           if(declaration.id.type==='Identifier'&&hostApis.has(declaration.id.name)&&
              bindingCounts.get(declaration.id.name)===1&&
              !mutatedBindings.has(declaration.id.name)&&declaration.init&&
-             ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)){
+             (['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)||
+              declaration.id.name==='Response'&&isProvedTypeofLiteral(declaration.init))){
             ownedFunctions.add(declaration.id.name);
           }
         }
