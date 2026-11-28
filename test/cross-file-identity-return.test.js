@@ -176,3 +176,31 @@ test('imported exported factory returns fresh objects whose fields are renamed a
     2
   );
 });
+
+
+test('imported exported factory proof declines escaping and source-observed callables',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const cases=[
+    ['factory alias',
+      'import {makeState} from "./state.mjs";const factory=makeState;'+
+      'const first=factory();console.log(first.secretField);'],
+    ['function source observation',
+      'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(makeState.toString().length+first.secretField);'],
+    ['escaped result',
+      'import {makeState} from "./state.mjs";const first=makeState();'+
+      'globalThis.leaked=first;console.log(Object.keys(globalThis.leaked)[0]);'],
+    ['namespace import',
+      'import * as state from "./state.mjs";const first=state.makeState();'+
+      'console.log(first.secretField);'],
+    ['optional factory call',
+      'import {makeState} from "./state.mjs";const first=makeState?.();'+
+      'console.log(first.secretField);'],
+    ['factory call with arguments',
+      'import {makeState} from "./state.mjs";const first=makeState(1);'+
+      'console.log(first.secretField);']
+  ];
+  for(const [description,main] of cases) {
+    await checkFactory(factory,main,0);
+  }
+});
