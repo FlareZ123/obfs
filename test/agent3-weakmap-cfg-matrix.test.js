@@ -85,6 +85,17 @@ const cases=[
 ['array-rest','const carrier=[0,new WeakMap()]; const [drop,...rest]=carrier;','rest[0]'],
 ['class-static-outer-binding','let carrier={}; class Holder{static{carrier={instance:new WeakMap()};}}','carrier.instance'],
 ['function-side-effect-outer','let carrier={}; function fill(){carrier={instance:new WeakMap()};} fill();','carrier.instance'],
+// A parameter initializer executes before the function body, even when the
+// body itself has no statements. Its captured-state write must be reflected
+// at the downstream WeakMap.prototype source-observation point.
+['default-parameter-captured-weakmap',
+ 'let carrier={};function fill(_ignored=(carrier={instance:new WeakMap()})){}fill();',
+ 'carrier.instance'],
+// Native-negative paired control: don't globally veto every default parameter
+// if it only constructs an ordinary class instance.
+['default-parameter-ordinary-yield',
+ 'class Ordinary{};let carrier={};function fill(_ignored=(carrier={instance:new Ordinary()})){}fill();',
+ 'carrier.instance'],
 ['catch-predecessor-binding','let carrier={}; try{carrier={instance:new WeakMap()};throw 1;}catch{var result=carrier.instance;}','result'],
 ['catch-predecessor-heap','const carrier={}; try{carrier.instance=new WeakMap();throw 1;}catch{var result=carrier.instance;}','result'],
 ['block-outer-write','let carrier={}; {carrier={instance:new WeakMap()};}','carrier.instance'],
