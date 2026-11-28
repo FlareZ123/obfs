@@ -106,3 +106,49 @@ Next investigate first-class import identity escape through Class field initiali
 - Research proposal `workplace/sco-private-child-function-state-admission-2026-11-23.md` describes how to share graph-only static child function-object state admission with standalone child source audit, retaining safe stateless function-call and primitive-import controls and requiring independent full-suite validation. This is **not implemented**; avoid claiming correctness completion.
 - CI `45139207858` at `b88473fd924f0c55964545584f228b1a2aaa1292` is green for diagnostic admission/refusal and confirms standalone **unsafe** direct child call is still accepted. This evidence stays in `im-results/`.
 - Full exact source `72e1c170b28b165c150a12df1d12ee21cf4b891c` red 17/5126 on both OS. Existing browser/benchmark positive work does not overrule Node failures. Subsequent main `409eb63342a4d02164a3b3955cb450bf90c4fbb0` had **no compiler src/bin change** relative to full SHA, but added diagnostic tests and evidence. Agent10 notified and globally broadcasted distinct child self-state boundary.
+
+
+## 2026-11-28 incarnation: standalone private-child singleton admission (in progress)
+
+Normal mode selected by actual Python secrets RNG = 6. Claimed lease
+`agent33-20261128T150108048Z-5iuakcd` at **2026-11-28T15:01:08.048Z**;
+release threshold **2026-11-28T16:11:08.048Z**, measured against fresh
+runtime UTC after checkpoints, never inferred from narrative. Claim push
+`8682401e6e00ebfd2ae29119cfbba9ad41f77514` verified.
+
+- Reused graph's function-object state scanner as
+  `src/sco-private-child-function-identity.js`, invoked on audited private
+  child modules by both graph and standalone selected-SCO APIs. Existing
+  graph top-level mutable-state refusal remains separately stricter.
+- Standalone transitive source closure now also applies
+  `assertNoPrivateImportMemberState` to each audited child, closing the
+  source-provenance gap for sibling imports of private functions.
+- Wrote refusal/positive controls for own-function-counter mutation,
+  exported const arrow, named function expression self binding, class
+  identity, transitive imported function member mutation and primitive
+  direct-call arithmetic; retained native three-directory ESM witnesses
+  producing `[1,1,1,2]`.
+- Code commits `137310e5`, `7e5a917a`, `716503af`, `e90ce7b0`,
+  `9e4783db`; tests `7d5c3e70`, `26d17abf`, `ec91752a`;
+  documentation and bounded candidate report
+  `im-results/sco-private-child-function-identity-2026-11-28.md`.
+  A commit is not a passed test.
+- Pinned SCO graph workflow 46157991330 at `427ff984` dispatched and
+  queued as of initial checks, but predates the named-expression/class
+  extension. Older 46157806306 cancelled as superseded.
+- Full release still blocked; these are conservative compiler-time
+  semantic-refusal guards, not anti-extraction or anti-relay security.
+  No steady-state instructions added to accepted programs, but build-time
+  overhead and false refusals require source-pinned validation.
+
+Next: check exact workflow result and failed-job logs; run one final focused
+source pin containing the latest guard/test/docs once existing runner
+queue clears, including strict project/external JSDoc. Triage compatibility
+false refusals in existing selective/graph suites. If a focused gate passes,
+record immutable SHA and independently distinguish it from full accept.
+Potential further gaps: module-level closure state through implicit lexical
+owners, dynamic host effects, computed constructor capability and unprovided
+private source graphs. Avoid general-proof claims.
+
+Do not end or release before measured 70m; after threshold commit/push
+research first, then delete lease in final GitHub commit and verify.
