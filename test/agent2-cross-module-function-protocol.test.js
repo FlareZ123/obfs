@@ -52,9 +52,10 @@ function run(files) {
  */
 function corpus(hostile) {
   const protocol=hostile?[
+    'globalThis.__obfsCallMarker=Object.freeze({});',
     'const original=Function.prototype.call;',
     'Function.prototype.call=function(receiver,...rest){',
-    '  if(this.name==="fill"){',
+    '  if(receiver===globalThis.__obfsCallMarker){',
     '    Function.prototype.call=original;',
     '    return Reflect.apply(this,receiver,[]);',
     '  }',
@@ -65,7 +66,7 @@ function corpus(hostile) {
     'class Ordinary {}',
     'let carrier={instance:new Ordinary()};',
     'function fill(x=(carrier={instance:new WeakMap()})){}',
-    'fill.call(null,23);',
+    'fill.call(globalThis.__obfsCallMarker,23);',
     'const target=Object.getPrototypeOf(carrier.instance);',
     'const nativeSet=target.set;',
     'target.set=function(key,value){',
