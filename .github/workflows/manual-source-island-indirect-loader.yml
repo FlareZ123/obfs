@@ -122,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [dynamic-selector, reflective-insert, computed-setter]
+        scenario: [dynamic-selector, reflective-insert, computed-setter, reflect-set, object-assign]
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
