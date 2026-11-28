@@ -430,3 +430,16 @@ test('factory importer inventory refuses a WHATWG URL versus POSIX C0 path alias
     }
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
+
+
+test('factory proof refuses in-program observation of exported factory source',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const main='import {makeState} from "./state.mjs";'+
+    'const first=makeState();'+
+    'console.log(makeState.toString().includes("secretField"),'+
+      'Function.prototype.toString.call(makeState).includes("otherField"),'+
+      'Reflect.apply(Function.prototype.toString,makeState,[]).includes("secretField"),'+
+      'first.secretField);';
+  for(const mode of ['coo','sno','sco'])
+    await checkFactory(factory,main,0,mode);
+});
