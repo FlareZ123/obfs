@@ -46,13 +46,15 @@ async function check(utility,main,renamed) {
  * @param {number} renamed
  * @param {'coo'|'sno'|'sco'} [mode]
  * @param {string} [relay]
+ * @param {string} [identityModule]
  * @returns {Promise<void>}
  */
-async function checkFactory(factory,main,renamed,mode='coo',relay) {
+async function checkFactory(factory,main,renamed,mode='coo',relay,identityModule) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
   const files=/** @type {import('../src/core').SourceFile[]} */ ([
     {path:'state.mjs',sourceType:'module',code:factory},
     ...(relay?[{path:'relay.mjs',sourceType:'module',code:relay}]:[]),
+    ...(identityModule?[{path:'identity.mjs',sourceType:'module',code:identityModule}]:[]),
     {path:'main.mjs',sourceType:'module',code:main}
   ]);
   try {
@@ -171,19 +173,22 @@ test('generator function expression is outside synchronous identity proof',async
 });
 
 
-test('imported exported factories return fresh objects across all modes and local identity calls',async()=>{
+test('imported exported factories return fresh objects through cross-file identity calls in all modes',async()=>{
   const main='import {makeState} from "./state.mjs";'+
-    'function identity(value){return value;}'+
+    'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
     'const carried=identity(first);'+
     'console.log(carried.secretField+second.otherField);';
+  const identityModule='export function identity(value){return value;}';
   const factories=[
     'export function makeState(){return {secretField:17,otherField:5};}',
     'export const makeState=()=>({secretField:17,otherField:5});',
     'export const makeState=function(){return {secretField:17,otherField:5};};'
   ];
   for(const mode of ['coo','sno','sco']) {
-    for(const factory of factories) await checkFactory(factory,main,2,mode);
+    for(const factory of factories) {
+      await checkFactory(factory,main,2,mode,undefined,identityModule);
+    }
   }
 });
 
