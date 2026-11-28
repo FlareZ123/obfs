@@ -767,6 +767,19 @@ function hasImportedDomStringSourceSink(files) {
           collectionFactoryNames.add(name);changed=true;
         }
         if(inspectForwarding(name,node.init))changed=true;
+        if(node.init.type==='Identifier'){
+          // Forwarder functions are ordinary values: a const assignment
+          // must carry the same return-argument provenance to its aliases.
+          for(const forwarding of [localForwarders,localCollectionItemForwarders]){
+            const inherited=forwarding.get(node.init.name);
+            if(!inherited)continue;
+            const current=forwarding.get(name)??new Set();
+            for(const index of inherited)if(!current.has(index)){
+              current.add(index);changed=true;
+            }
+            if(current.size)forwarding.set(name,current);
+          }
+        }
         if(isImportedReceiver(node.init)&&!receiverNames.has(name)){
           receiverNames.add(name);changed=true;
         }
