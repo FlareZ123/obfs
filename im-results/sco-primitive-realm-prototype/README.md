@@ -36,6 +36,10 @@ A primitive string's `toString` lookup is inherited from the active realm's `Str
 
 A conservative partitioner should refuse this dependency when it is part of relocated private code or a private static dependency. A client-only public helper that remains in its original browser realm is a different case: its environment has not been relocated, so this particular check should not reject it.
 
+## Browser integration follow-up
+
+A real Chromium/Node witness has also been added to `test/browser-integration.js` on donor branch `agent33/primitive-realm-prototype-guard-20261128`. It serves `/primitive-realm.html`, patches only the browser realm's `String.prototype.toString`, and asserts the same `7,7,0` triple against the Node-side server result. It is pending the full `manual-validation.yml` browser job; do not treat browser integration as verified until that job passes.
+
 ## Scope and limitations
 
 - This isolates the JavaScript realm/prototype mechanism with Node's `vm` contexts. A browser/Node integration witness remains useful.
