@@ -203,6 +203,122 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     if(!importedOrigins.size)continue;
     const provenPrimitive=importedPrimitives.get(filename)??new Set();
     const provenStrings=importedStrings.get(filename)??new Map();
+    // A safe direct call never exposes its callee source. An imported callable
+    // can also stay private through an immutable local call-only alias or a
+    // syntactically proven single-argument invocation relay. Preserve the
+    // corresponding private-field rewrite rather than freezing the producer
+    // just because a Function value appears in a local expression.
+    const localBindings=collectBindings(ast);
+    const modifiedNames=new Set();
+    let opaqueLocalScope=false;
+    walk(ast,node=>{
+      if(node.type==='AssignmentExpression'&&node.left.type==='Identifier')
+        modifiedNames.add(node.left.name);
+      if(node.type==='UpdateExpression'&&node.argument.type==='Identifier')
+        modifiedNames.add(node.argument.name);
+      if(node.type==='Identifier'&&
+         ['eval','Function','AsyncFunction','Proxy'].includes(node.name))
+        opaqueLocalScope=true;
+    });
+    /** @type {Map<string,{param:string,expression:import('./ast').AstNode}>} */
+    const helperCandidates=new Map();
+    if(!opaqueLocalScope)for(const statement of ast.body??[]) {
+      if(statement.type!=='FunctionDeclaration'||!statement.id||
+         statement.params.length!==1||statement.params[0].type!=='Identifier'||
+         statement.body.body.length!==1||statement.body.body[0].type!=='ReturnStatement')continue;
+      const expression=statement.body.body[0].argument;
+      if(!expression||expression.type!=='CallExpression'||expression.optional||
+         expression.callee.type!=='Identifier'||
+         localBindings.get(statement.id.name)!==1||
+         modifiedNames.has(statement.id.name))continue;
+      helperCandidates.set(statement.id.name,{
+        param:statement.params[0].name,expression
+      });
+    }
+    const safeCallHelpers=new Set();
+    for(let pass=0;pass<=helperCandidates.size;pass++) {
+      let changed=false;
+      for(const [name,candidate] of helperCandidates) {
+        if(safeCallHelpers.has(name))continue;
+        const call=candidate.expression;
+        const direct=call.callee.name===candidate.param&&!call.arguments.length;
+        const relay=safeCallHelpers.has(call.callee.name)&&
+          call.arguments.length===1&&call.arguments[0].type==='Identifier'&&
+          call.arguments[0].name===candidate.param;
+        if(direct||relay) {
+          safeCallHelpers.add(name);changed=true;
+        }
+      }
+      if(!changed)break;
+    }
+    /** @type {Map<string,string>} */
+    const localCallAliases=new Map();
+    if(!opaqueLocalScope)for(const statement of ast.body??[]) {
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const entry of statement.declarations??[]) {
+        if(entry.id.type==='Identifier'&&entry.init?.type==='Identifier'&&
+           localBindings.get(entry.id.name)===1&&
+           !modifiedNames.has(entry.id.name))
+          localCallAliases.set(entry.id.name,entry.init.name);
+      }
+    }
+    const safeCallAliases=new Set();
+    /**
+     * Check every identifier occurrence, not just a nearby call. A local alias
+     * is safe only if its entire declared consumer set consists of direct calls
+     * or fully proved call-only helpers (or another already safe alias).
+     * @param {string} name
+     * @returns {boolean}
+     */
+    function allLocalAliasUsesAreCalls(name) {
+      let safe=true;
+      walk(ast,(node,parent,key)=>{
+        if(node.type!=='Identifier'||node.name!==name||!safe)return;
+        if(parent?.type==='VariableDeclarator'&&key==='id'&&parent.id===node)return;
+        if(parent?.type==='ImportSpecifier'||
+           parent?.type==='ImportDefaultSpecifier'||
+           parent?.type==='ImportNamespaceSpecifier')return;
+        if(parent?.type==='CallExpression'&&key==='callee'&&
+           parent.callee===node&&!parent.optional)return;
+        if(parent?.type==='CallExpression'&&key==='arguments'&&
+           parent.arguments.length===1&&parent.arguments[0]===node&&
+           parent.callee.type==='Identifier'&&
+           safeCallHelpers.has(parent.callee.name))return;
+        if(parent?.type==='VariableDeclarator'&&key==='init'&&
+           parent.id.type==='Identifier'&&parent.init===node&&
+           localCallAliases.get(parent.id.name)===name&&
+           safeCallAliases.has(parent.id.name))return;
+        safe=false;
+      });
+      return safe;
+    }
+    for(let pass=0;pass<=localCallAliases.size;pass++) {
+      let changed=false;
+      for(const [name] of localCallAliases) {
+        if(!safeCallAliases.has(name)&&allLocalAliasUsesAreCalls(name)){
+          safeCallAliases.add(name);changed=true;
+        }
+      }
+      if(!changed)break;
+    }
+    /** @param {import('./ast').AstNode} node @param {import('./ast').AstNode|null|undefined} parent @param {string|undefined} key @returns {boolean} */
+    function isSafeLocalCallableUse(node,parent,key) {
+      if(parent?.type==='ImportSpecifier'||
+         parent?.type==='ImportDefaultSpecifier'||
+         parent?.type==='ImportNamespaceSpecifier')return true;
+      if(parent?.type==='CallExpression'&&key==='callee'&&
+         parent.callee===node&&!parent.optional)return true;
+      if(opaqueLocalScope||node.type!=='Identifier')return false;
+      if(parent?.type==='CallExpression'&&key==='arguments'&&
+         parent.arguments.length===1&&parent.arguments[0]===node&&
+         parent.callee.type==='Identifier'&&
+         safeCallHelpers.has(parent.callee.name))return true;
+      if(parent?.type==='VariableDeclarator'&&key==='init'&&
+         parent.id.type==='Identifier'&&parent.init===node&&
+         localCallAliases.get(parent.id.name)===node.name&&
+         safeCallAliases.has(parent.id.name))return true;
+      return false;
+    }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
     function importedOrigin(node) {
       if(node?.type!=='Identifier'||provenPrimitive.has(node.name)||
@@ -282,11 +398,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       if(node.type!=='Identifier'||!directCallableImports.has(node.name))return;
       const origin=importedOrigin(node);
       if(!origin)return;
-      if(parent?.type==='ImportSpecifier'||
-         parent?.type==='ImportDefaultSpecifier'||
-         parent?.type==='ImportNamespaceSpecifier')return;
-      if(parent?.type==='CallExpression'&&key==='callee'&&
-         parent.callee===node&&!parent.optional)return;
+      if(isSafeLocalCallableUse(node,parent,key))return;
       if(parent?.type==='MemberExpression'&&key==='property'&&
          !parent.computed)return;
       if(parent?.type==='Property'&&key==='key'&&
