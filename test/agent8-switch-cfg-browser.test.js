@@ -39,7 +39,17 @@ const scenarios=[
   {name:'object-accessor-setter-cache',nativeShared:true,
     setup:'const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new WeakMap();'},
   {name:'object-accessor-setter-ordinary-yield',nativeShared:false,
-    setup:'class Ordinary{} const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new Ordinary();'}
+    setup:'class Ordinary{} const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new Ordinary();'},
+  {name:'descriptor-named-getter-cache',nativeShared:true,
+    setup:'const carrier={};function read(){return this.cache;}Object.defineProperty(carrier,"instance",{get:read});carrier.cache=new WeakMap();'},
+  {name:'descriptor-arrow-getter-cache',nativeShared:true,
+    setup:'const carrier={};Object.defineProperty(carrier,"instance",{get:()=>carrier.cache});carrier.cache=new WeakMap();'},
+  {name:'descriptor-named-setter-cache',nativeShared:true,
+    setup:'const carrier={cache:{}};function save(v){this.cache=v;}Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:save});carrier.instance=new WeakMap();'},
+  {name:'descriptor-arrow-setter-cache',nativeShared:true,
+    setup:'const carrier={cache:{}};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:v=>carrier.cache=v});carrier.instance=new WeakMap();'},
+  {name:'descriptor-arrow-setter-ordinary-yield',nativeShared:false,
+    setup:'class Ordinary{} const carrier={cache:{}};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:v=>carrier.cache=v});carrier.instance=new Ordinary();'}
 ];
 
 /**
