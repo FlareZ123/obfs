@@ -82,7 +82,16 @@ const cases=[
   {name:'namespace-export-all-as-reexport',logic:namedLogic,
     barrel:'export * as api from "./logic.mjs";',
     importCode:'import * as ns from "./barrel.mjs";',
-    fn:'ns.api.inspect',value:'ns.api.inspect()'}
+    fn:'ns.api.inspect',value:'ns.api.inspect()'},
+  {name:'named-namespace-export-import',logic:namedLogic,
+    barrel:'export * as api from "./logic.mjs";',
+    importCode:'import {api} from "./barrel.mjs";',
+    fn:'api.inspect',value:'api.inspect()'},
+  {name:'two-hop-named-namespace-export-import',logic:namedLogic,
+    barrel:'export * as ns from "./logic.mjs";',
+    barrel2:'export {ns as api} from "./barrel.mjs";',
+    importCode:'import {api} from "./barrel2.mjs";',
+    fn:'api.inspect',value:'api.inspect()'}
 ];
 
 /** @param {Case} spec @returns {SourceFile[]} */
