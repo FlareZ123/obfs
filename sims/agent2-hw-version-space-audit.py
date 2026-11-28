@@ -19,6 +19,11 @@ from pathlib import Path
 import z3
 from z3 import And, Array, If, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
 
+from agent49_hw_trace_lower_bound import (
+    trace_output_diversity_state_lower_bound,
+    verify_trace_diversity_certificate,
+)
+
 
 def is_strongly_connected(transitions: list[list[int]]) -> bool:
     n = len(transitions)
@@ -170,66 +175,6 @@ def trace_state_separation_pairs(trace, max_depth: int = 4, max_pairs: int = 100
                             if len(pairs) >= max_pairs:
                                 return sorted(pairs)
     return sorted(pairs)
-
-
-def trace_output_diversity_state_lower_bound(trace, max_depth: int = 12):
-    """Certified lower bound from fixed input words with distinct outputs.
-
-    In a deterministic Mealy machine, a given input word has precisely one
-    output word from each start state. Hence if the *same* input word occurs
-    in the public no-reset trace with m distinct output words, any machine
-    reproducing that trace must have at least m states. This never uses the
-    held-out target table or an inferred state assignment.
-
-    The certificate contains one trace index for each distinct output word;
-    reviewers can validate it directly from the public input/output trace.
-    Depth is bounded for predictable O(depth * trace_length) work and memory.
-    """
-    if max_depth < 1:
-        raise ValueError("max_depth must be positive")
-    if not trace:
-        return {
-            "minimum_states": 1, "depth": 0, "input_word": "",
-            "output_witnesses": [],
-        }
-    bits = []
-    for i, pair in enumerate(trace):
-        if len(pair) != 2 or str(pair[0]) not in ("0", "1") or str(pair[1]) not in ("0", "1"):
-            raise ValueError(f"nonbinary public Mealy trace at index {i}")
-        bits.append((int(pair[0]), int(pair[1])))
-    best_count = 1
-    best_depth = 1
-    best_input_word = 0
-    best_witnesses = {bits[0][1]: 0}
-    for depth in range(1, min(max_depth, len(bits)) + 1):
-        mask = (1 << depth) - 1
-        input_word = 0
-        output_word = 0
-        # input-pattern -> (output-pattern -> first trace index)
-        groups = {}
-        for index, (input_bit, output_bit) in enumerate(bits):
-            input_word = ((input_word << 1) | input_bit) & mask
-            output_word = ((output_word << 1) | output_bit) & mask
-            if index + 1 < depth:
-                continue
-            outputs = groups.setdefault(input_word, {})
-            if output_word not in outputs:
-                outputs[output_word] = index - depth + 1
-                if len(outputs) > best_count:
-                    best_count = len(outputs)
-                    best_depth = depth
-                    best_input_word = input_word
-                    best_witnesses = outputs.copy()
-    return {
-        "minimum_states": best_count,
-        "depth": best_depth,
-        "input_word": format(best_input_word, f"0{best_depth}b"),
-        "output_witnesses": [
-            {"output_word": format(output_word, f"0{best_depth}b"),
-             "start_index": start_index}
-            for output_word, start_index in sorted(best_witnesses.items())
-        ],
-    }
 
 
 def target_alternate_start_witness(
@@ -590,20 +535,7 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor",
         minimum_size = lower_bound["minimum_states"]
         if minimum_size > target_n:
             raise AssertionError("public trace lower bound exceeds hidden target states")
-        # Check every claimed witness against its exact public trace window.
-        word = lower_bound["input_word"]
-        seen_outputs = set()
-        for witness in lower_bound["output_witnesses"]:
-            start = witness["start_index"]
-            segment = row["observed_trace"][start:start + len(word)]
-            if "".join(str(pair[0]) for pair in segment) != word:
-                raise AssertionError("state lower-bound certificate input mismatch")
-            output_word = "".join(str(pair[1]) for pair in segment)
-            if output_word != witness["output_word"] or output_word in seen_outputs:
-                raise AssertionError("state lower-bound certificate output mismatch")
-            seen_outputs.add(output_word)
-        if len(seen_outputs) != minimum_size:
-            raise AssertionError("state lower-bound certificate is incomplete")
+        verify_trace_diversity_certificate(row["observed_trace"], lower_bound)
     # These sizes have *analytical* UNSAT certificates; never conflate them
     # with solver-proved UNSAT candidate sizes or solver-timeout UNKNOWN.
     analytical_unsat_sizes = list(range(1, minimum_size))
