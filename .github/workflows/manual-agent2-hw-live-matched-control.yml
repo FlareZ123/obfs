@@ -98,6 +98,7 @@ jobs:
             sims/agent49-process-isolation-probe.py \
             sims/agent49-hw-single-arm-network-probe.py \
             sims/test_agent49-hw-single-arm-network-probe.py \
+            sims/test_agent49_hw_public_module_archive.py \
             sims/agent2-hw-no-reset-benchmark.py \
             sims/agent2-hw-version-space-audit.py \
             sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
@@ -110,6 +111,7 @@ jobs:
       - name: Test exact evaluator semantics
         run: |
           python sims/test_agent2_hw_no_reset_evaluator.py
+          python sims/test_agent49_hw_public_module_archive.py
           python sims/test_agent2_hw_version_space.py
           python sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Run paired live HTTP hW benchmark
