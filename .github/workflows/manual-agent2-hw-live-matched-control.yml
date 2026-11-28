@@ -131,6 +131,7 @@ jobs:
             sims/agent2-hw-version-space-audit.py \
             sims/agent49_hw_trace_lower_bound.py \
             sims/agent49_hw_passive_reconstruction.py \
+            sims/agent49_hw_passive_stress.py \
             sims/test_agent49_hw_passive_reconstruction.py \
             sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Verify cross-UID process isolation
@@ -145,6 +146,7 @@ jobs:
           python sims/test_agent49_hw_public_module_archive.py
           python sims/test_agent2_hw_version_space.py
           python sims/test_agent49_hw_passive_reconstruction.py
+          python sims/agent49_hw_passive_stress.py --seed 49 --samples-per-n 12 --min-n 2 --max-n 10 --depth 10 --output hw-passive-stress.json
           python sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Run paired live HTTP hW benchmark
         env:
@@ -366,6 +368,7 @@ jobs:
             hw-version-space-audit.json
             hw-trace-state-certificate.json
             hw-passive-reconstruction.json
+            hw-passive-stress.json
 
   historical-audit:
     if: ${{ inputs.historical_audit_run_id > 0 }}
