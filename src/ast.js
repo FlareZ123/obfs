@@ -2509,6 +2509,7 @@ function hasNativeDocumentFactoryMutation(ast) {
     'createComment','createDocumentFragment']);
   const globals=new Set(['globalThis','window','self','global']);
   const docs=new Set(['document']);
+  const docConstructors=new Set(['Document','HTMLDocument','XMLDocument']);
   const docPrototypes=new Set();
   /** @param {AstNode|null|undefined} node @returns {string|null} */
   function key(node) {
@@ -2532,7 +2533,7 @@ function hasNativeDocumentFactoryMutation(ast) {
       (node.type==='Identifier'&&docPrototypes.has(node.name) ||
        node.type==='MemberExpression' && (
          key(node)==='prototype'&&node.object.type==='Identifier'&&
-           ['Document','HTMLDocument','XMLDocument'].includes(node.object.name) ||
+           docConstructors.has(node.object.name) ||
          key(node)==='__proto__'&&isDocument(node.object)
        ) ||
        node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
@@ -2549,7 +2550,25 @@ function hasNativeDocumentFactoryMutation(ast) {
         node.left.type==='Identifier'?node.left.name:null;
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
+      if(node.type==='VariableDeclarator'&&
+         node.id?.type==='ObjectPattern'&&isGlobal(node.init)) {
+        for(const property of node.id.properties??[]) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(field==='document'&&!docs.has(property.value.name)) {
+            docs.add(property.value.name);changed=true;
+          }
+          if(docConstructors.has(field??'')&&
+             !docConstructors.has(property.value.name)) {
+            docConstructors.add(property.value.name);changed=true;
+          }
+        }
+      }
       if(!name||!value)return;
+      if(isGlobal(value)&&!globals.has(name)){globals.add(name);changed=true;}
+      if(value.type==='Identifier'&&docConstructors.has(value.name)&&
+         !docConstructors.has(name)){docConstructors.add(name);changed=true;}
       if(isDocument(value)&&!docs.has(name)){docs.add(name);changed=true;}
       if(isDocPrototype(value)&&!docPrototypes.has(name)){
         docPrototypes.add(name);changed=true;
