@@ -130,6 +130,30 @@ test('seeded hidden-affine fiber permutations obey multi-coset batch caps',()=>{
     }
     assert.equal(rawCallsA,a.totalCalls,'repeat batch must not requery raw oracle');
     assert.equal(rawCallsB,b.totalCalls,'repeat batch must not requery raw oracle');
+    // Target order is not supplied during setup. Every complete orbit is
+    // indexed once regardless of the order that adaptive consumers request
+    // its outputs; recomputing from the same frozen source and sample plan
+    // must therefore consume the same distinct oracle-input set.
+    const order=Array.from({length:requested.length},(_,i)=>i);
+    const draw=seeded(seed^0xbadc0ffe);
+    for(let i=order.length-1;i>0;i--){
+      const j=draw()%(i+1);
+      [order[i],order[j]]=[order[j],order[i]];
+    }
+    const shuffledA=prepareLowRankBatchInverter(oracle,{bits:8,rankBound:r});
+    let shuffledSample=0;
+    const shuffledB=prepareLowRankBatchInverter(oracle,{
+      bits:8,rankBound:r,completion:'sampled-residual',
+      sample:()=>shuffledSample++&255,maxSamples:256
+    });
+    for(const i of order){
+      assert.equal(shuffledA.invert(requested[i]).preimage,secrets[i]);
+      assert.equal(shuffledB.invert(requested[i]).preimage,secrets[i]);
+    }
+    assert.equal(shuffledA.stats().totalCalls,a.totalCalls,
+      'full-cycle cache must not depend on requested target order');
+    assert.equal(shuffledB.stats().totalCalls,b.totalCalls,
+      'sampled full-cycle cache must not depend on target order');
     totals.families++;
     totals.deterministicQueries+=a.totalCalls;
     totals.sampledQueries+=b.totalCalls;
