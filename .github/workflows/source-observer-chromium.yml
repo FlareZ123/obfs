@@ -42,6 +42,11 @@ jobs:
       - name: Install declared dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Execute native Reflect.apply bound WeakMap parity in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent3-weakmap-reflect-apply-browser.js
+
       - name: Execute the source-observer fixture in real Chromium
         env:
           CHROMIUM_BIN: google-chrome
