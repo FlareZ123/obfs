@@ -1339,13 +1339,6 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     discovered.add(filename);
     const ast=parse(code,'module');
-    // A direct root call cannot prove its imported function is free of
-    // persistent own-property state in a shared Node module singleton.
-    assertNoSharedChildFunctionIdentity(filename,ast);
-    // Every transitive private importer has the same per-client identity
-    // boundary as the selected root. A direct root call does not prevent a
-    // child from mutating a function object imported from its sibling.
-    assertNoPrivateImportMemberState(filename,code);
     // The source snapshot lets us apply the same bounded intrinsic-state
     // refusal used for directly partitioned functions to imported modules.
     const realmEffect=realmStateObservation(ast,true);
@@ -1652,6 +1645,13 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
+    // Retain the legacy loader/host diagnostics above when a private child
+    // already violates those safety gates. On otherwise-admissible modules,
+    // conservatively refuse shared function own-properties, mutable module
+    // cells and transitive imported object identities. A direct root call is
+    // not proof that its imported callee is free of singleton state.
+    assertNoSharedChildFunctionIdentity(filename,ast);
+    assertNoPrivateImportMemberState(filename,code);
     for(const statement of ast.body) {
       const imported=statement.type==='ImportDeclaration' ||
         statement.type==='ExportAllDeclaration' ||
