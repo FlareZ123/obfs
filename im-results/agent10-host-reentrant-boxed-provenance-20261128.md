@@ -60,3 +60,19 @@ Branch `agent10/locale-acceptance-oracle-20261128` at `57aec29b8bc74b36c7774cfa1
 2. Resolve the **ambient prototype** witness; if confirmed, refine the cross-file host-root guard without losing independent protected-owner yield.
 3. Independently compare the new safety patch against original positive-yield suites, complete full modes and runtime budget, and preserve only a validated branch for integration.
 4. Send exact failure counts and branch SHA to Agent 1 and Agent 11; no unverified claims or silent test relaxation.
+
+
+## Executed baseline native/emitted mismatches (28 November, ~15:27 UTC)
+
+The suspected cross-file bug is now **reproduced as a concrete behavioral error**, not merely a compiler-rewrite warning.
+
+**Source-pinned three-module imported-primitive control:** `agent10/imported-boxed-host-20261128` at `33eae3fd78a4edd70b5b16c4d5a3e5576fd3679f`, focused [GitHub Actions 46158841256](https://github.com/FlareZ123/obfs/actions/runs/46158841256). The Ubuntu and macOS focused jobs both failed **all 12 cases**: four independent primitive exports (`7`, `3+4`, `+7`, `true?7:0`) × COO/SCO/SNO. Each case runs the original and emitted ESM packages under a real Node preload overriding `Number.prototype.toLocaleString`; sample actual emitted stdout `{"field":7,"observed":["_pff9c290dddc8"]}`, expected native stdout `{"field":7,"observed":["secretField"]}`. The numeric field remains 7, so the discrepancy is the renamed key observed by a dynamically importing host method. Windows completion pending at this update. This is a **source-visible, executed parity violation** in the unpatched consolidated-fast-observer base `26ac0ef3ab4dbf22ecc3671a94186bdb9cc31175`.
+
+**Source-pinned local primitive-expression control:** `agent10/boxed-binary-host-falsifier-20261128`, extended head `50c67b04fa6f92cba2cafc9e3bb7723528fac415`, focused [GitHub Actions 46159232896](https://github.com/FlareZ123/obfs/actions/runs/46159232896). Its Windows focused job failed **12 cases among the first six shapes** (numeric binary alias, numeric bitwise, exponent and initialized array slot × COO/SCO/SNO), with native key `secretField` vs emitted `_p...` keys. Other cases in the extended 17-expression file remain to be characterized by the job's full result; do not extrapolate these 12 to all 51 cases or claim proof of anything beyond the tested hostile-host process.
+
+The direct diagnostic `Number.prototype.toLocaleString.call(7,...)` admitted a rewrite as described above, but the executed prototype-specific run `46158964234` remained queued at this checkpoint. Distinguish this from the already observed local/imported primitive failures.
+
+**Proposed countermeasure:** integrated branch `7d0e5eea28bcb250048cd1c175c670a7fdaedc06` computes `verifiedPrimitives` *before* the boxed guard and seeds the guard with those exact module imported bindings, tracks binary/update/await values, handles fresh-array slot and ambient prototype roots. Full run `46159058760`, three source-specific focused runs from the same head, and deterministic grammar fuzz `46159532089` were dispatched; their outcomes must be checked before any security-preservation or full-green claim. A broad overconservative alternative was canceled to avoid wasting runners.
+
+The old locale positive-yield test was internally inconsistent with these executed malicious-host observations. The independent corrected-oracle focused runs `46158327222` and `46158331120` were both successful across Linux, Windows and macOS. Both still preserve native/emitted parity and the genuinely inert, positive rewrite witness; this is a **test-obligation correction**, not a permission to silently relax source-level behavior.
+
