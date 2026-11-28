@@ -289,7 +289,7 @@ test('factory results retain ownership through multi-slot records and tuples',as
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
     'const carrier={left:first,right:first};'+
-    'const carried=identity(carrier.left);'+
+    'const left=carrier.left;const carried=identity(left);'+
     'console.log(carried.secretField+carrier.right.otherField+second.otherField);';
   const tupleMain='import {makeState} from "./state.mjs";'+
     'import {identity} from "./identity.mjs";'+
