@@ -2378,6 +2378,23 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         }
       });
     } while(grew);
+    /**
+     * JavaScript String exotic objects always provide nonconfigurable own
+     * length and in-range code-unit index properties. Unlike an arbitrary
+     * prototype method/getter, these reads cannot invoke a host-installed
+     * accessor; retain the independent private-key rewrite in this case.
+     * @param {AstNode} node
+     * @returns {boolean}
+     */
+    function provablyOwnStringRead(node) {
+      if(node.type!=='MemberExpression'||node.optional||
+         node.object.type!=='Literal'||typeof node.object.value!=='string')return false;
+      const key=node.computed?staticString(node.property):staticName(node.property);
+      if(key==='length')return true;
+      if(key===null||!^(?:0|[1-9][0-9]*)$/u.test(key))return false;
+      const index=Number(key);
+      return Number.isSafeInteger(index)&&index<node.object.value.length;
+    }
     let exposed=false;
     walk(module.ast,node=>{
       const pattern=node.type==='VariableDeclarator'?node.id:
@@ -2386,6 +2403,11 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         node.type==='AssignmentExpression'?node.right:null;
       if(pattern&&['ObjectPattern','ArrayPattern'].includes(pattern.type)&&
          mayBeBoxedPrimitive(value))exposed=true;
+      // Direct reads and method dispatch also box primitive receivers. A
+      // hostile getter can return Function even without any destructuring,
+      // then re-enter an apparently closed ESM module graph.
+      if(node.type==='MemberExpression'&&mayBeBoxedPrimitive(node.object)&&
+         !provablyOwnStringRead(node))exposed=true;
     });
     if(exposed)return {files,objects:0,properties:0};
   }
