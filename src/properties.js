@@ -741,6 +741,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   function resolvingDependency(expression) {
     if(!expression)return false;
     if(expression.type==='Identifier')return expression.name;
+    // A proven owner is a non-null object literal. Both ?? and || return
+    // that owner without evaluating the right operand, even if the right is
+    // opaque. This applies only to aliases already grounded in this root;
+    // unresolved left operands must never become private owner facts.
+    if(expression.type==='LogicalExpression' &&
+       (expression.operator==='??'||expression.operator==='||'))
+      return resolvingDependency(expression.left);
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
        expression.property.type==='Literal'&&
@@ -972,6 +979,16 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(parent.type==='Property'&&key==='value'&&privateRecordLiteralValues.has(node))continue;
     if (parent.type === 'VariableDeclarator' && key === 'init' &&
         parent.id.type === 'Identifier' && aliases.has(parent.id.name)) continue;
+    // The root participates in an inert nullish/truthy owner selection.
+    // Permit only a direct const alias whose complete value was proven to be
+    // this private root. In particular, never admit a logical expression used
+    // as a host argument, exported value, or mixed owner with unknown left.
+    if(parent.type==='LogicalExpression' && key==='left' &&
+       (parent.operator==='??'||parent.operator==='||')) {
+      const direct=parents.get(parent);
+      if(direct?.type==='VariableDeclarator'&&direct.init===parent &&
+         direct.id.type==='Identifier'&&aliases.has(direct.id.name))continue;
+    }
     if (parent.type === 'VariableDeclarator' && key === 'init' && parent.id.type === 'ObjectPattern') {
       // A direct, statically-keyed pattern reads own fields without escaping
       // the object. Keep targets as plain identifiers, with optional defaults;
