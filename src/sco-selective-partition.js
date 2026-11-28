@@ -1128,6 +1128,24 @@ function realmStateObservation(body,checkHostConfiguration=false){
         return null;
     }
   }
+  /**
+   * Recognize direct function metadata and its fixed name-length derivation.
+   * These are primitive strings/numbers, but storing or passing them can
+   * erase the local proof before a later prototype lookup.
+   * @param {import('./ast').AstNode} expression
+   * @returns {boolean}
+   */
+  function isFunctionMetadataExpression(expression){
+    if(expression.type!=='MemberExpression')return false;
+    const property=primitivePropertyKey(expression);
+    if(expression.object.type==='Identifier'&&functionNames.has(expression.object.name)){
+      return property==='name'||property==='length';
+    }
+    return expression.object.type==='MemberExpression'&&
+      expression.object.object.type==='Identifier'&&
+      functionNames.has(expression.object.object.name)&&
+      primitivePropertyKey(expression.object)==='name'&&property==='length';
+  }
   // Alias names are intentionally overapproximated across scopes. An
   // ambiguous name blocks property reads rather than assuming it is an object.
   let primitiveAliasesChanged=true;
@@ -1372,14 +1390,16 @@ function realmStateObservation(body,checkHostConfiguration=false){
       intrinsicTouched=true;
     }
     if(parent){
+      const inBindingPattern=ancestors.some(ancestor=>
+        ancestor.type==='ObjectPattern'||ancestor.type==='ArrayPattern');
       const escapesToOpaqueCode=
+        parent.type==='VariableDeclarator'&&key==='init'||
+        (parent.type==='AssignmentExpression'||parent.type==='AssignmentPattern')&&key==='right'||
         ((parent.type==='CallExpression'||parent.type==='NewExpression')&&key==='arguments')||
-        (parent.type==='Property'&&key==='value')||
-        (parent.type==='ArrayExpression'&&key==='elements')||
-        (parent.type==='AssignmentExpression'&&key==='right'&&parent.left.type!=='Identifier');
-      const escapesPrimitiveAlias=node.type==='Identifier'&&primitiveAliases.has(node.name);
-      const escapesFunctionMetadata=node.type==='MemberExpression'&&Boolean(primitiveKind(node));
-      if(escapesToOpaqueCode&&(escapesPrimitiveAlias||escapesFunctionMetadata)){
+        parent.type==='Property'&&key==='value'&&!inBindingPattern||
+        parent.type==='ArrayExpression'&&key==='elements';
+      if(escapesToOpaqueCode&&node.type==='MemberExpression'&&
+         isFunctionMetadataExpression(node)){
         prototypeTouched=true;
       }
     }
