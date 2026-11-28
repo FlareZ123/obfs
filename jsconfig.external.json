@@ -1,6 +1,17 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "sims/semantic-data-oracle.js",
+    "test/semantic-abrupt-yield-probe.test.js",
+    "test/semantic-data-oracle-browser.test.js",
+    "test/semantic-data-oracle-completion.test.js",
+    "test/semantic-data-oracle-crossfile.test.js",
+    "test/semantic-data-oracle-external-trace.test.js",
+    "test/semantic-data-oracle-generated-esm.test.js",
+    "test/semantic-data-oracle-primordials.test.js",
+    "test/semantic-data-oracle-serialization.test.js",
+    "test/semantic-data-oracle-integration.test.js",
+    "test/semantic-data-oracle.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
