@@ -31,15 +31,15 @@ test('measure closed-world property-proof vs local-only vs disabled compiler sta
   for(const size of [32,128,512]) {
     const source=graph(size);
     const times={
-      disabled:[],localOnly:[],closedWorld:[]
+      disabledOpen:[],disabledClosed:[],localOnly:[],closedWorld:[]
     };
     for(let repeat=0;repeat<3;repeat++) {
-      for(const variant of ['disabled','localOnly','closedWorld']) {
+      for(const variant of ['disabledOpen','disabledClosed','localOnly','closedWorld']) {
         const start=performance.now();
         const result=obfuscateFiles(source,{
           mode:'coo',seed:'stage-split-'+size+'-'+variant,
-          properties:variant!=='disabled',
-          closedWorld:variant==='closedWorld',
+          properties:variant==='localOnly'||variant==='closedWorld',
+          closedWorld:variant==='disabledClosed'||variant==='closedWorld',
           identifiers:false,strings:false
         });
         times[variant].push(performance.now()-start);
@@ -48,7 +48,8 @@ test('measure closed-world property-proof vs local-only vs disabled compiler sta
       }
     }
     output.push({size,
-      disabled:median(times.disabled),
+      disabledOpen:median(times.disabledOpen),
+      disabledClosed:median(times.disabledClosed),
       localOnly:median(times.localOnly),
       closedWorld:median(times.closedWorld)});
   }
