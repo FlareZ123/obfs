@@ -1,6 +1,7 @@
 'use strict';
 
 const {walk}=require('./ast');
+const {isReadOnlyOwnedLiteral}=require('./sco-private-child-readonly-literal');
 
 /**
  * Conservative own-function-state admission for each server-private ESM child.
@@ -83,7 +84,9 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
         // RegExp object. These values (and their identity-preserving syntax
         // wrappers) may accumulate state across direct private calls.
         // Unknown dynamic initializers remain outside this bounded proof.
-        if(carriesSharedLiteralObject(item.init)){
+        if(carriesSharedLiteralObject(item.init)&&
+           !(item.id.type==='Identifier'&&
+             isReadOnlyOwnedLiteral(ast,item.id.name,item.init))){
           throw new TypeError(
             'Selected SCO private dependency has unproved shared module object state: '+filename);
         }
