@@ -119,18 +119,34 @@ show the supported syntax and its limits. The check is a compile-time gate.
 It cannot prove general higher-order alias safety or intentional server-shared
 state isolation.
 
-For supplied `privateModuleSources`, the standalone compiler additionally
-reviews every private child for its own persistent function-object identities
-and applies the imported-identity check to each transitive private importer.
-An apparently safe root call `next()` is refused if the child itself mutates
-`next.count`, or a sibling retains and mutates that imported function.
-The graph composer shares this function-identity check and also has a stricter
-module-top-level immutability requirement. Stateless function calls and
-primitive imports remain admitted where other gates allow them. These are
-conservative syntactic refusals, not a general interprocedural proof or a
-runtime shield; omit `privateModuleSources` and this child-source admission
-cannot be performed. See the [28 November child identity candidate and
-three-tree ESM witnesses](../im-results/sco-private-child-function-identity-2026-11-28.md).
+For supplied `privateModuleSources`, the standalone selective compiler
+also runs a **strict private-child module-state admission gate** on every
+snapshotted static dependency. An apparently safe root call `next()` is
+refused if a child mutates its own function fields, retains module-level
+`let`/`var` state, allocates an unproved object through a module-level
+factory/`new`, uses top-level effect statements (including hoisted `var`
+inside loops or conditionals), or mutates a private imported sibling function.
+Unproved class constructor/prototype/static identities are declined. This
+guard runs **after** existing source-loader and host-intrinsic audits so
+specific dynamic-loader refusal diagnostics are preserved.
+
+Positive coverage remains for stateless direct functions, primitive constant
+expression initializers and primitive private imports. A narrow additional
+proof admits **unexported, nonescaping scalar record/array literals** when
+every owner reference is a static own-property primitive read, with no
+writes (including destructuring targets), dynamic keys, aliases, reflection
+or first-class owner exports. An unsafe form is rejected; the compiler does
+not rewrite it into an equivalent isolated clone. The graph composer shares
+the scanner and adds its own stricter top-level immutability rule, so some
+standalone-positive scalar table sources may still be graph-negative.
+
+All these are bounded source-audited *compile-time* refusals, not a general
+interprocedural proof, a server-side runtime shield, or anti-relay protection.
+Unknown factories, unavailable source bytes and foreign host effects cannot
+be certified. Omitting `privateModuleSources` retains the historically
+unaudited manifest route and cannot inherit the child-state safety claim.
+See the [28 November bounded admission report, native multi-tree ESM
+witnesses and explicit negative tests](../im-results/sco-private-child-function-identity-2026-11-28.md).
 
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original
