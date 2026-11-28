@@ -176,7 +176,27 @@ const cases=[
 ['object-method-side-effect','let carrier={};const helper={fill(){carrier={instance:new WeakMap()};}};helper.fill();','carrier.instance'],
 ['object-method-negative','class Ordinary{};let carrier={instance:new Ordinary()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
 ['inline-callback-side-effect','let carrier={};[0].forEach(()=>{carrier={instance:new WeakMap()};});','carrier.instance'],
-['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance']
+['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance'],
+// A single fork for an entire destructuring pattern misses combinations
+// where one default executes but a later default is skipped. Native
+// three-module metamorphic tests confirm these exact source observations.
+['nested-partial-default-weakmap-then-ordinary-skipped',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({b:7});',
+ 'carrier.instance'],
+['nested-partial-default-ordinary-skipped-then-weakmap',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new Ordinary()}),b=(carrier={instance:new WeakMap()})}){}fill({a:7});',
+ 'carrier.instance'],
+['array-partial-default-weakmap-then-ordinary-skipped',
+ 'class Ordinary{};let carrier={};function fill([a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})]){}fill([undefined,7]);',
+ 'carrier.instance'],
+// Paired negative controls must not lose all private source-independent
+// identifier rewrite yield when both defaults are known to run or skip.
+['nested-both-default-run-ordinary-final',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({});',
+ 'carrier.instance'],
+['nested-provided-literals-skip-both',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({a:1,b:2});',
+ 'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
