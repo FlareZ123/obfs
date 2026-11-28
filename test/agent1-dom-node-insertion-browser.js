@@ -48,7 +48,7 @@ function graph(variant) {
  * obfuscator. Inline scripts are otherwise rejected by the HTML asset
  * preflight, and must not be smuggled through the output inventory.
  *
- * @param {'native'|'replaced'|'integrity'} variant
+ * @param {'native'|'replaced'|'integrity'|'patched-append'} variant
  * @returns {string}
  */
 function page(variant) {
