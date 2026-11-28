@@ -89,6 +89,46 @@ function insideAssignmentTarget(ancestors){
 }
 
 /**
+ * Resolve only uniquely bound module-level string constants to property
+ * keys. Every occurrence of the candidate name must be either its one
+ * declaration site or a computed member key. A shadowing parameter, local
+ * binding, assignment or opaque escape invalidates the candidate; this is
+ * deliberately more conservative than lexical scope reconstruction.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @returns {Map<string,string>}
+ */
+function staticModuleKeyAliases(ast){
+  /** @type {Map<string,string>} */
+  const aliases=new Map();
+  for(const statement of ast.body){
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const'){
+      continue;
+    }
+    for(const item of declaration.declarations){
+      if(item.id.type!=='Identifier'||item.init?.type!=='Literal'||
+         typeof item.init.value!=='string')continue;
+      const name=item.id.name;
+      let valid=true;
+      walk(ast,(node,parent,key)=>{
+        if(!valid||node.type!=='Identifier'||node.name!==name)return;
+        if(parent===item&&key==='id')return;
+        if(parent?.type==='MemberExpression'&&parent.computed&&key==='property')return;
+        if(parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
+           parent?.type==='Property'&&key==='key'&&!parent.computed&&!parent.shorthand){
+          return;
+        }
+        valid=false;
+      });
+      if(valid)aliases.set(name,item.init.value);
+    }
+  }
+  return aliases;
+}
+
+/**
  * Prove a single module-unique const table has no escapes, writes or dynamic
  * property reads. Import/reexport of this binding in another child is
  * examined separately by the conservative private-import identity scanner.
@@ -101,6 +141,7 @@ function insideAssignmentTarget(ancestors){
 function isReadOnlyOwnedLiteral(ast,name,init){
   const keys=literalScalarKeys(init);
   if(!keys)return false;
+  const staticAliases=staticModuleKeyAliases(ast);
   let safe=true;
   walk(ast,(node,parent,key,ancestors)=>{
     if(!safe||node.type!=='Identifier'||node.name!==name)return;
@@ -116,6 +157,8 @@ function isReadOnlyOwnedLiteral(ast,name,init){
     }
     const member=parent.computed?
       staticString(parent.property)??(
+        parent.property.type==='Identifier'?
+          staticAliases.get(parent.property.name)??null:
         parent.property.type==='Literal'&&
         typeof parent.property.value==='number'&&
         Number.isInteger(parent.property.value)&&parent.property.value>=0?
