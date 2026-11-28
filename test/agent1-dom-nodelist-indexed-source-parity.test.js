@@ -24,9 +24,13 @@ function execute(code) {
     /** @param {string} key */
     getAttribute(key){return attributes.get(key)??null;}
   };
+  /** @returns {(typeof element)[] & {item:(index:number)=>typeof element|null}} */
+  function elements(){
+    return Object.assign([element],{item(index){return index===0?element:null;}});
+  }
   const document={
-    querySelectorAll(){return [element];},
-    getElementsByName(){return [element];}
+    querySelectorAll:elements,getElementsByName:elements,
+    getElementsByClassName:elements,getElementsByTagName:elements
   };
   const context={document,module:{exports:null}};
   vm.runInNewContext(code,context,{timeout:2000});
@@ -68,7 +72,10 @@ test('non-source-observing private reader still gives a real native rewrite cont
 
 for(const [name,receiver] of /** @type {const} */ ([
   ['querySelectorAll indexed item','document.querySelectorAll("input[name=locked]")[0]'],
-  ['getElementsByName indexed item','document.getElementsByName("locked")[0]']
+  ['getElementsByName indexed item','document.getElementsByName("locked")[0]'],
+  ['querySelectorAll item method','document.querySelectorAll("input").item(0)'],
+  ['getElementsByClassName indexed item','document.getElementsByClassName("locked")[0]'],
+  ['getElementsByTagName item method','document.getElementsByTagName("input").item(0)']
 ])) {
   for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     test(mode+' indexed DOMString setter preserves native function-source text: '+name,()=>{
@@ -84,6 +91,14 @@ for(const [name,receiver] of /** @type {const} */ ([
     });
   }
 }
+
+test('userland indexed Array is not a native DOMString source observer',()=>{
+  const source='function reader(){return 17;}'+
+    'const box=[{setAttribute(){return 17;}}];'+
+    'box[0].setAttribute("data-src",reader);';
+  assert.equal(observesFunctionSource(parse(source,'script')),false,
+    'The source guard should not infer native DOM element identity from any Array');
+});
 
 // The AST classifier is used upstream to authorize source-changing renames.
 // An indexed HTMLCollection/NodeList is a genuine native DOM target, so an
