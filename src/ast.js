@@ -198,7 +198,7 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='MemberExpression')
       return isGlobalRoot(node.object)&&memberKey(node)==='WeakMap';
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
-      if(memberKey(node.callee)==='bind'&&node.arguments.length>=1&&
+      if(memberKey(node.callee)==='bind'&&
          isWeakMapConstructor(node.callee.object))return true;
       if(memberKey(node.callee)==='get'&&
          isNamespace(node.callee.object,reflectNamespaces)&&
