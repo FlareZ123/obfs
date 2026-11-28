@@ -79,6 +79,62 @@ test('every 3-bit permutation fixing 0 admits a full paired basis',()=>{
   assert.equal(permutations,5040);
 });
 
+test('exhaustive width-3 rank-two fiber permutations invert every target',()=>{
+  /** @type {number[][]} */
+  const topPermutations=[];
+  permute([0,1,2,3],permutation=>{topPermutations.push([...permutation]);});
+  let functions=0,targets=0,maxAdaptive=0;
+  for(const lower0 of topPermutations){
+    for(const lower1 of topPermutations){
+      /** @param {number} input @returns {number} */
+      const f=input=>{
+        const low=input&1,high=input>>>1;
+        return ((low?lower1:lower0)[high]<<1)|low;
+      };
+      const base=f(0);
+      const samples=Array.from({length:8},(_,x)=>({input:x,output:f(x)^base}));
+      for(let secret=0;secret<8;secret++){
+        const candidate=invertBoundedResidual(f,f(secret),samples,3,2);
+        assert.equal(candidate.input,secret);
+        assert.ok(candidate.adaptiveCalls<=4);
+        maxAdaptive=Math.max(maxAdaptive,candidate.adaptiveCalls);
+        targets++;
+      }
+      functions++;
+    }
+  }
+  assert.equal(functions,576);
+  assert.equal(targets,4608);
+  assert.ok(maxAdaptive<=4);
+  console.log('EXHAUSTIVE_RANK_TWO_WIDTH3 '+JSON.stringify({functions,targets,maxAdaptive}));
+});
+
+test('sparse 32-bit hidden rank-2 and rank-3 branches attain the exact query bound',()=>{
+  for(const [r,permutation,secretHigh] of /** @type {[number,number[],number][]} */([
+    [2,[1,2,3,0],0],
+    [3,[0,1,2,4,5,6,7,3],7]
+  ])){
+    const lowCount=32-r,lowMask=2**lowCount-1;
+    const trigger=0x127ab45&lowMask;
+    /** @param {number} input @returns {number} */
+    function f(input){
+      const low=input&lowMask,high=(input>>>lowCount)&((1<<r)-1);
+      return (low===trigger?(((permutation[high]<<lowCount)>>>0)|low):input)>>>0;
+    }
+    // The source is identity on *every* basis query; all the nonlinearity
+    // is hidden in one of 2^(32-r) rare low-bit cosets.
+    const samples=Array.from({length:32},(_,i)=>{
+      const input=(2**i)>>>0;
+      assert.equal(f(input),input);
+      return {input,output:input};
+    });
+    const secret=(((secretHigh<<lowCount)>>>0)|trigger)>>>0;
+    const result=invertBoundedResidual(f,f(secret),samples,32,r);
+    assert.equal(result.input,secret);
+    assert.equal(result.adaptiveCalls,2**r,'The 2^r bound is achieved');
+  }
+});
+
 test('rank-r unknown-affine-perturbation inversion on 32-bit dense/sparse permutations',()=>{
   const configs=/** @type {Parameters<typeof runTrials>[0][]} */([
     {width:5,rank:2,seeds:12,sampleCount:48,shape:'dense',targetsPerCase:32},
