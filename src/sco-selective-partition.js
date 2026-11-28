@@ -105,20 +105,17 @@ function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
          parent&&['FunctionDeclaration','FunctionExpression',
            'ArrowFunctionExpression','ClassExpression'].includes(parent.type)&&
            (key==='id'||key==='params'))return;
-      // An unevaluated function body cannot read host state. Only a function
-      // directly invoked as the callee or tag can execute inside this typeof
-      // operand. Calls unrelated to its own function node do not prove execution.
-      const enclosingFunction=inside.some((scope,index)=>{
-        if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
-            .includes(scope.type))return false;
-        const containing=inside[index-1];
-        return !(containing&&(
-          (containing.type==='CallExpression'||containing.type==='NewExpression')&&
-            containing.callee===scope ||
-          containing.type==='TaggedTemplateExpression'&&containing.tag===scope
-        ));
-      });
-      if(enclosingFunction)return;
+      // Only a function literal that is itself the full typeof operand is
+      // provably inert here. Nested callbacks and accessors can execute while
+      // evaluating a surrounding operand, even without a syntactically direct
+      // invocation: typeof [0].map(()=>hostValue)[0], or
+      // typeof ({get x(){return hostValue}}).x. The older nested-function
+      // exemption silently admitted those cross-realm reads. Keep uncertain
+      // nested function bodies in this host-source admission proof; this may
+      // conservatively decline inert callbacks stored in containers.
+      const inertFunctionOperand=['FunctionExpression','ArrowFunctionExpression']
+        .includes(node.argument.type);
+      if(inertFunctionOperand)return;
       const name=read.name;
       const bindingCount=bindings.get(name)??0;
       if(bindingCount===0&&(name==='globalThis'||standardRealmGlobals.has(name)))return;
