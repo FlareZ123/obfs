@@ -114,6 +114,7 @@ jobs:
             sims/test_agent49_hw_public_module_archive.py \
             sims/agent2-hw-no-reset-benchmark.py \
             sims/agent2-hw-version-space-audit.py \
+            sims/agent49_hw_trace_lower_bound.py \
             sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
@@ -293,6 +294,12 @@ jobs:
                   summary_file.write(json.dumps(summary, indent=2, sort_keys=True))
                   summary_file.write("\n~~~\n")
           PY
+      - name: Independently certify lower state counts from the public traces
+        run: |
+          python sims/agent49_hw_trace_lower_bound.py \
+            --input live-hw-matched-results.json \
+            --output hw-trace-state-certificate.json \
+            --max-depth 12 --check-fixture
       - name: Audit bounded full Mealy version space from evaluator-only live traces
         env:
           CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
@@ -331,3 +338,4 @@ jobs:
             live-hw-matched-results.json
             agent49-cross-arm-probe-result.json
             hw-version-space-audit.json
+            hw-trace-state-certificate.json
