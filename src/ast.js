@@ -1631,23 +1631,113 @@ function hasWeakMapPrototypeExposure(ast) {
    * @returns {boolean}
    */
   function classStaticMayActivateInstanceFields(elements) {
+    /**
+     * Deliberately narrow no-user-code certificate for a static initializer.
+     * An Identifier is inert only when bound by a prior local static-block
+     * declaration; ambient globals may be accessor-backed host capabilities.
+     * An arrow/function literal is inert only when kept in a block-local
+     * declarator, never when published as a persistent static class field.
+     * @param {AstNode|null|undefined} node
+     * @param {Set<string>} locals
+     * @param {boolean} localCallable
+     * @returns {boolean}
+     */
+    function inertExpression(node,locals,localCallable=false) {
+      if(!node)return true;
+      if(node.type==='Literal')return true;
+      if(node.type==='Identifier')return locals.has(node.name);
+      if(node.type==='ArrowFunctionExpression'||node.type==='FunctionExpression')
+        return localCallable;
+      if(node.type==='TemplateLiteral')return (node.expressions?.length??0)===0;
+      if(node.type==='UnaryExpression')
+        return ['!','void','typeof'].includes(node.operator)&&
+          inertExpression(node.argument,locals);
+      if(node.type==='BinaryExpression') {
+        if(!inertExpression(node.left,locals)||!inertExpression(node.right,locals))
+          return false;
+        // Strict equality performs no coercion on objects. Arithmetic must
+        // use literals, never an object with user-defined ToPrimitive hooks.
+        if(['===','!=='].includes(node.operator))return true;
+        const primitives=[node.left,node.right].every(part=>
+          part?.type==='Literal'&&
+          ['number','string','boolean','bigint'].includes(typeof part.value));
+        return primitives&&
+          ['+','-','*','/','%','**','<<','>>','>>>','|','&','^',
+            '<','<=','>','>=','==','!='].includes(node.operator);
+      }
+      if(node.type==='LogicalExpression')
+        return inertExpression(node.left,locals)&&
+          inertExpression(node.right,locals);
+      if(node.type==='ConditionalExpression')
+        return inertExpression(node.test,locals)&&
+          inertExpression(node.consequent,locals)&&
+          inertExpression(node.alternate,locals);
+      if(node.type==='SequenceExpression')
+        return (node.expressions??[]).every(
+          (part)=>inertExpression(part,locals));
+      if(node.type==='ArrayExpression')
+        return (node.elements??[]).every(
+          (part)=>part?.type!=='SpreadElement'&&inertExpression(part,locals));
+      if(node.type==='ObjectExpression')
+        return (node.properties??[]).every(property=>{
+          if(property.type!=='Property'||property.computed)return false;
+          // Defining a method/getter is inert; executing one is not. The
+          // enclosing record must stay local and every later operation in
+          // this block must independently pass this same certificate.
+          return ['init','get','set'].includes(property.kind)&&
+            inertExpression(property.value,locals,true);
+        });
+      return false;
+    }
+    /**
+     * @param {AstNode[]} statements
+     * @param {Set<string>} [outer=new Set()]
+     * @returns {boolean}
+     */
+    function inertStatements(statements,outer=new Set()) {
+      const locals=new Set(outer);
+      for(const statement of statements) {
+        if(statement.type==='EmptyStatement')continue;
+        if(statement.type==='FunctionDeclaration') {
+          if(statement.id?.type!=='Identifier')return false;
+          locals.add(statement.id.name);
+          continue;
+        }
+        if(statement.type==='VariableDeclaration') {
+          for(const declaration of statement.declarations??[]) {
+            if(declaration.id?.type!=='Identifier'||
+               !inertExpression(declaration.init,locals,true))return false;
+            locals.add(declaration.id.name);
+          }
+          continue;
+        }
+        if(statement.type==='ExpressionStatement') {
+          if(!inertExpression(statement.expression,locals))return false;
+          continue;
+        }
+        if(statement.type==='BlockStatement') {
+          if(!inertStatements(statement.body??[],locals))return false;
+          continue;
+        }
+        if(statement.type==='IfStatement') {
+          if(!inertExpression(statement.test,locals)||
+             !inertStatements([statement.consequent],locals)||
+             statement.alternate&&
+               !inertStatements([statement.alternate],locals))return false;
+          continue;
+        }
+        return false;
+      }
+      return true;
+    }
     for(const element of elements) {
-      if(element.type!=='StaticBlock'&&
-         !(element.type==='PropertyDefinition'&&element.static))continue;
-      let canActivate=false;
-      walk(element,(child,_parent,_key,ancestors)=>{
-        // Merely creating a local function does not run its body. A later
-        // invocation or escape of that function is handled by the surrounding
-        // static expression instead of being speculatively replayed here.
-        if(ancestors.some(ancestor=>functionTypes.has(ancestor.type)))return;
-        if(['ThisExpression','Super','CallExpression','NewExpression',
-            'TaggedTemplateExpression','MemberExpression',
-            'AssignmentExpression','UpdateExpression','ForOfStatement',
-            'ForInStatement','SpreadElement','ObjectPattern',
-            'ArrayPattern'].includes(child.type))
-          canActivate=true;
-      });
-      if(canActivate)return true;
+      if(element.type==='StaticBlock') {
+        if(!inertStatements(element.body??[]))return true;
+      } else if(element.type==='PropertyDefinition'&&element.static) {
+        // A nonliteral computed class key itself may invoke ToPropertyKey.
+        if(element.computed&&element.key?.type!=='Literal')return true;
+        if(!inertExpression(element.value,new Set()))return true;
+      }
     }
     return false;
   }
