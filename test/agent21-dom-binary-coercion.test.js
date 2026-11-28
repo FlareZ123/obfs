@@ -139,7 +139,14 @@ test('shadowed primitive name and opaque callback routes retain exact imported f
     {label:'for-each-callback',code:'const value=0;function publish(value){target.id=value;}[inspect].forEach(publish);'},
     {label:'destructured-param',code:'const value=0;function publish({value}){target.id=value;}publish({value:inspect});'},
     {label:'class-member-call',code:'const value=0;class P{publish(value){target.id=value;}}new P().publish(inspect);'},
-    {label:'arrow-alias-call',code:'const value=0;const publish=(value)=>{target.id=value;};const call=publish;call(inspect);'}
+    {label:'arrow-alias-call',code:'const value=0;const publish=(value)=>{target.id=value;};const call=publish;call(inspect);'},
+    {label:'concat-shadowed-formal',code:'const value=0;function publish(value){target.id="prefix:"+value;}publish.call(undefined,inspect);'},
+    {label:'concat-shadowed-class',code:'const value=0;class P{publish(value){target.id=value+":suffix";}}new P().publish(inspect);'},
+    {label:'logical-shadowed',code:'const value=0;function publish(value){target.id=value&&value;}publish.call(undefined,inspect);'},
+    {label:'conditional-shadowed',code:'const value=0;function publish(value){target.id=value?value:"none";}publish.call(undefined,inspect);'},
+    {label:'sequence-shadowed',code:'const value=0;function publish(value){target.id=(0,value);}publish.call(undefined,inspect);'},
+    {label:'array-wrapped',code:'const value=0;function publish(value){target.id=[value];}publish.call(undefined,inspect);'},
+    {label:'concat-returned',code:'const value=0;function publish(value){return "source:"+value;}target.id=publish.call(undefined,inspect);'}
   ];
   /** @type {Array<{mode:string,flow:string,sourceParity:boolean,producerRewrites:number,independentRewrites:number}>} */
   const classifications=[];
