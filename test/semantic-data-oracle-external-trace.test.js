@@ -17,15 +17,15 @@ const modes=['coo','sno','sco'];
 /** @param {Scenario} scenario @returns {ModuleFile[]} */
 function graph(scenario) {
   const state={path:'state.mjs',sourceType:/** @type {'module'} */('module'),
-    code:'const shared={publicValue:-0};export const state={privateAlpha:shared,privateBeta:0/0};'};
-  let use="import {state} from './state.mjs';\n";
+    code:'export const shared={publicValue:-0};export const state={privateAlpha:23,privateBeta:7};'};
+  let use="import {state,shared} from './state.mjs';\n";
   if(scenario==='payload')use+=
-    "globalThis.externalObserver('before',state.privateAlpha,state.privateBeta);\n"+
+    "globalThis.externalObserver('before',shared,state.privateAlpha,state.privateBeta);\n"+
     "state.privateBeta=1/0;\n"+
-    "globalThis.externalObserver('after',state.privateAlpha,state.privateBeta);\n";
+    "globalThis.externalObserver('after',shared,state.privateAlpha,state.privateBeta);\n";
   if(scenario==='escape'||scenario==='escape-mutate')
     use+="globalThis.externalObserver(state);\n";
-  use+="export const result=[state.privateAlpha,state.privateAlpha,state.privateBeta];\n";
+  use+="export const result=[state.privateAlpha,state.privateAlpha,state.privateBeta,shared,shared];\n";
   return [state,{path:'entry.mjs',sourceType:'module',code:use}];
 }
 
@@ -48,7 +48,7 @@ async function observe(files,scenario) {
       "globalThis.externalObserver=(...args)=>{",
       "  if(process.argv[3]==='escape'||process.argv[3]==='escape-mutate'){",
       "    const owner=args[0];events.push([Object.keys(owner),owner.privateAlpha,owner.privateBeta]);",
-      "    if(process.argv[3]==='escape-mutate'){owner.privateAlpha={publicValue:11};owner.privateBeta=-0;}",
+      "    if(process.argv[3]==='escape-mutate'){owner.privateAlpha=11;owner.privateBeta=-0;}",
       "  }else{events.push(args);}",
       "};",
       "(async()=>{const {result}=await import(pathToFileURL(process.argv[1]).href);",
@@ -72,13 +72,13 @@ function independentExpected(scenario) {
   /** @type {unknown[]} */
   const events=[];
   if(scenario==='payload')events.push(
-    ['before',shared,NaN],['after',shared,Infinity]);
+    ['before',shared,23,7],['after',shared,23,Infinity]);
   if(scenario==='escape'||scenario==='escape-mutate')events.push([
-    ['privateAlpha','privateBeta'],shared,NaN
+    ['privateAlpha','privateBeta'],23,7
   ]);
-  const current=scenario==='escape-mutate'?{publicValue:11}:shared;
+  const current=scenario==='escape-mutate'?11:23;
   return snapshotDataGraph({events,result:[
-    current,current,scenario==='payload'?Infinity:scenario==='escape-mutate'?-0:NaN
+    current,current,scenario==='payload'?Infinity:scenario==='escape-mutate'?-0:7,shared,shared
   ]});
 }
 
