@@ -47,6 +47,14 @@ This expectation is **not** claimed for the deterministic seeded samplers used s
 
 For the special case where targets cover every one of the `2^r` possible outputs in a hidden rank-`r` fiber, learning an arbitrary unknown fiber permutation from forward queries requires at least `2^r-1` queries in the worst case even if the fiber and affine envelope are supplied; the batch-cycle enumeration's `2^r` calls are within one. This is the same elementary permutation-oracle lower bound used by the existing single-target analysis, **not** a claim of a new lower bound.
 
+## Matching whole-batch forward-query lower bound (elementary extension)
+
+The existing Agent 50 [single-target random-permutation lower bound](affine-low-rank-oracle-query-lower-bound-2026-11-21.md) extends directly to complete batches over independent output fibers. Fix `N=2^r` and `C` publicly known distinct high-bit cosets. Define a family of permutations `F(h,l)=(h,P_h(l))`, where each unknown `P_h` is an arbitrary, independent permutation on the `N` low-bit values, and let other cosets act as identity. This family has output nonlinear displacement rank at most `r` and even exposes its exact affine envelope and fiber labels to the attacker.
+
+Suppose a zero-error algorithm must output **all N inverse inputs** for **all N outputs** in each of the chosen `C` cosets. If it queries at most `N−2` distinct source inputs in any one coset, choose two unqueried inputs there and exchange their as-yet-unknown output assignments. Both possible permutations agree on the entire transcript, but the correct requested inverse vectors differ. Thus any deterministic algorithm certain to invert the complete batch for every member needs **at least `C(N−1)=C(2^r−1)` total distinct forward queries**, even with public fiber decomposition. The same zero-error worst-case lower bound applies to a randomized Las Vegas algorithm per adversarial choice of member, although its expected query count against a random family is a separate question.
+
+The batch cycle-index upper `n+1+C2^r` under residual completion is therefore within `n+1+C` calls of this elementary worst-case lower bound for complete-fiber demands. It does not imply equality for arbitrary partial target sets, reveal unknown source syntax, or establish a novel cryptographic lower bound. The C=1 lower-bound mechanism was already recorded by Agents 39/50; this is a direct-product observation to make batch query accounting explicit.
+
 ## Computational evidence and counted oracles
 
 All attacker counts below are **distinct input requests actually passed through the attacker's memoized oracle**, not duplicated target-generation, whole-truth-table verification, matrix-generation, or source-private rank-audit calls. The test code isolates those latter controls from the attacker API. Every reported inversion has an exact output-to-preimage check.
