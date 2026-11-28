@@ -1288,9 +1288,62 @@ function hasWeakMapPrototypeExposure(ast) {
   function joinCarrierEnvironments(target,left,right) {
     /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
     const pairs=new Map();
-    for(const name of new Set([...left.keys(),...right.keys()]))
+    const names=[...new Set([...left.keys(),...right.keys()])];
+    for(const name of names)
       target.set(name,mergeCarrierValues(
         left.get(name)??carrierOther,right.get(name)??carrierOther,pairs));
+
+    // A per-name (left,right) memo does not preserve *disjunctive* aliases.
+    // Consider one path where a===b and another where a!==b. The two
+    // separately merged result objects must still may-alias: a later write
+    // through a may-alias can affect b. Coalesce root binding components that
+    // were the identical container on *either* predecessor. This can decline
+    // benign rewrites, but must not drop a feasible WeakMap prototype effect.
+    /** @type {Map<string,string>} */
+    const representatives=new Map(names.map(name=>[name,name]));
+    /** @param {string} name @returns {string} */
+    function find(name) {
+      const parent=representatives.get(name)??name;
+      if(parent===name)return name;
+      const root=find(parent);
+      representatives.set(name,root);
+      return root;
+    }
+    /** @param {string} first @param {string} second @returns {void} */
+    function unite(first,second) {
+      representatives.set(find(first),find(second));
+    }
+    for(const predecessor of [left,right]) {
+      /** @type {Map<CarrierContainer,string>} */
+      const seen=new Map();
+      for(const name of names) {
+        const value=predecessor.get(name);
+        if(value?.kind!=='container')continue;
+        const earlier=seen.get(value);
+        if(earlier!==undefined)unite(earlier,name);
+        else seen.set(value,name);
+      }
+    }
+    /** @type {Map<string,string[]>} */
+    const groups=new Map();
+    for(const name of names) {
+      const root=find(name);
+      const group=groups.get(root)??[];
+      group.push(name);
+      groups.set(root,group);
+    }
+    for(const group of groups.values()) {
+      if(group.length<2)continue;
+      let combined=target.get(group[0])??carrierOther;
+      /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
+      const sharedPairs=new Map();
+      for(const name of group.slice(1)) {
+        const value=target.get(name)??carrierOther;
+        if(combined!==value)
+          combined=mergeCarrierValues(combined,value,sharedPairs);
+      }
+      for(const name of group)target.set(name,combined);
+    }
   }
   /**
    * Whether an accessor or method can yield a WeakMap carrier. Unknown
