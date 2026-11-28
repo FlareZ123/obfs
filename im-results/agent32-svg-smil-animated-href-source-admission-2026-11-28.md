@@ -1,6 +1,6 @@
 # Browser-observed SVG SMIL generated `javascript:` URLs in otherwise admitted HTML assets
 
-**Researcher:** Agent 32 · **Date:** 28 November 2026 · **Status:** project-specific HTML source-admission bypass reproduced with local Chromium 144 and source-pinned Ubuntu Chrome 158; defensive patch separately pending. This is an intermediate security engineering observation, **not** novel mathematical obfuscation research or release acceptance.
+**Researcher:** Agent 32 · **Date:** 28 November 2026 · **Status:** project-specific executable HTML source-admission bypass established under actual HTTP text/html UTF-8 + nosniff in source-pinned Ubuntu Chrome 158; separate proposed defensive fix passed 7/7 tests on both OS, still draft. This is an intermediate security engineering observation, **not** novel mathematical obfuscation research or release acceptance.
 
 ## Primary project-specific discrepancy
 
@@ -49,7 +49,7 @@ Standalone SVG `<set attributeName="onmouseover" to="window._witness=23" begin="
 }
 ```
 
-This **passes because the original HTML scanner is bypassed**, not because the proposed fix has passed. The same Ubuntu log confirms standalone SVG `onmouseover` direct control executed, benign `fill` animation applied, but `<set attributeName=onmouseover>` did **not** execute; keep that as a possible risk requiring separate host/browser confirmation, not a proven runnable exploit. Chrome 158 now independently corroborates the local Chrome 144 **HTML animated-href executable-URL path**. The Puppeteer browser witness uses `page.setContent` for its HTML scenario, not a fetched `text/html` HTTP response, while a separate direct SVG part of the same run is served over HTTP `image/svg+xml; charset=utf-8` with `nosniff`. Do not claim the *HTML* scenario has an HTTP `nosniff` receipt until a new test makes it.
+This **passes because the original HTML scanner is bypassed**, not because the proposed fix has passed. The same Ubuntu log confirms standalone SVG `onmouseover` direct control executed, benign `fill` animation applied, but `<set attributeName=onmouseover>` did **not** execute; keep that as a possible risk requiring separate host/browser confirmation, not a proven runnable exploit. Chrome 158 now independently corroborates the local Chrome 144 **HTML animated-href executable-URL path**. The earlier Puppeteer proof used `page.setContent` for HTML, while the newer exact-head HTTP follow-up **46114988303** now independently establishes execution for a fetched `text/html; charset=utf-8` **`nosniff`** document, as recorded above.
 
 ## Implementation and source-pinned evidence
 
@@ -57,6 +57,26 @@ This **passes because the original HTML scanner is bypassed**, not because the p
 - Unfixed adversarial browser witness branch `agent32/svg-smil-animated-handler-witness-20261128` head `036bf7741e2300df85acf4745f60a312ccad8ad3`. `sims/svg-smil-event-source-witness.js` and `test/svg-smil-event-source.test.js` separate a static false-safe from actual browser `href` execution; focused [46114019732](https://github.com/FlareZ123/obfs/actions/runs/46114019732) **both platforms green, Ubuntu Chrome 158 browser and Windows static evidence confirmed**. **A green adversarial witness is evidence of an old-parser vulnerability, not fix success**.
 - Related opt-in MIME staging verification [draft PR #261](https://github.com/FlareZ123/obfs/pull/261) remains independent. It cannot attest unobserved hostile-host responses or global runtime environment locking.
 - No runtime obfuscation compute overhead is introduced by these input scanners. Strong static/dynamic source reconstruction resistance, anti-tamper success, authorization/environment locking, 2.5× global overhead, and complete 1:1 behavior remain **not established**; project release **NO-GO**.
+
+## Actual HTTP response delivery and `nosniff` receipt (stronger than `page.setContent`)
+
+The **exact unpatched scanner branch head `9475909b7e6a29d95aae762b72de3575367d937c`** extends `sims/svg-smil-event-source-witness.js` to serve **three real local HTTP HTML pages** (`/html-direct.html`, `/html-animated.html`, `/html-values.html`) with `Content-Type: text/html; charset=utf-8` and `X-Content-Type-Options: nosniff`. Puppeteer navigates via `page.goto(origin + route)`, inspects actual response headers and `document.contentType`, waits for SMIL animation and physically clicks the SVG anchor. [GitHub Actions focused run 46114988303](https://github.com/FlareZ123/obfs/actions/runs/46114988303) **COMPLETED SUCCESS on Ubuntu + Windows** at that exact SHA, Windows static checks and Ubuntu real **Chrome/158.0.8127.36**.
+
+Ubuntu job log [job 140886679569](https://github.com/FlareZ123/obfs/actions/runs/46114988303/job/140886679569) prints the following exact source-oriented observation, abbreviated to the decisive `htmlPreflight` and `htmlBrowser` fields:
+
+```json
+{
+  "htmlPreflight":{"direct":"embedded executable URL","animated":null,"values":null},
+  "htmlBrowser":{
+    "direct":{"before":{"base":"javascript:window._smilHref=51","animated":"javascript:window._smilHref=51","media":"text/html"},"after":51,"headers":{"contentType":"text/html; charset=utf-8","nosniff":"nosniff"}},
+    "animated":{"before":{"base":"#safe","animated":"javascript:window._smilHref=51","media":"text/html"},"after":51,"headers":{"contentType":"text/html; charset=utf-8","nosniff":"nosniff"}},
+    "values":{"before":{"base":"#safe","animated":"javascript:window._smilHref=51","media":"text/html"},"after":51,"headers":{"contentType":"text/html; charset=utf-8","nosniff":"nosniff"}}
+  },
+  "chrome":"Chrome/158.0.8127.36"
+}
+```
+
+This removes the previous `page.setContent` versus real HTTP delivery limitation for the tested local server and browser. It still does not prove **every** production CDN, CSP, or hostile deployment's behavior; the threat model and claimed result are exactly the observed local HTTP Chromium response. The separately tested synthetic `onmouseover` animation still **did not execute** in Chrome 158, and should not be conflated with the proven href vector.
 
 ## Independent primary-objective dimensions
 
