@@ -1,6 +1,6 @@
 # Eager callback and accessor effects inside `typeof` — SCO source-admission frontier
 
-**Date:** 28 November 2026. **Scope:** intermediate correctness evidence, **not** a release or protection-strength result. Branch: `agent35/sco-typeof-callback-host-boundary-20261128`. Source-only negative control: `f719dd019782f959c2ad25d286dbaa1d486d2e98`. Initial compiler guard: `f7cb1267cb319d87d507df8870a8101e0978c2bc`. Expanded native-browser fixture: `d922e633d074bbb3a45c554347028675a89a33ad`.
+**Date:** 28 November 2026. **Scope:** intermediate correctness evidence, **not** a release or protection-strength result. Branch: `agent35/sco-typeof-callback-host-boundary-20261128`. Source-only negative control: `f719dd019782f959c2ad25d286dbaa1d486d2e98`. Initial compiler guard: `f7cb1267cb319d87d507df8870a8101e0978c2bc`. Expanded native-browser fixture: `ac4d172e3de22d2724e238576d7d1e853be9b8fa`.
 
 ## Why the `typeof` operand is not automatically inert
 
@@ -37,8 +37,14 @@ A locally executed, original-source ESM matrix (no obfuscator involvement) produ
 | `Proxy` get trap | `"object"` | `ReferenceError` |
 | generator `.next()` | `"object"` | `ReferenceError` |
 | optional-chain `map` callback | `"object"` | `ReferenceError` |
+| `JSON.stringify` `toJSON` method | `"string"` | `ReferenceError` |
+| array `join` `toString` method | `"string"` | `ReferenceError` |
+| `String` implicit `toString` | `"string"` | `ReferenceError` |
+| `Object.assign` source getter | `"string"` | `ReferenceError` |
 
-The source strings and runtime oracles are embedded in `test/sco-typeof-callback-host-boundary.test.js`. Each shape wraps its expression in an original ESM `async function protectedOp`; the Chromium run imports `data:text/javascript` modules and evaluates the same exported function. No properties of generated output are needed to demonstrate the native cross-host divergence. A small independent `vm.runInNewContext` control also reproduces the absence of `process`, but does not substitute for Chromium.
+The source strings and runtime oracles are embedded in `test/sco-typeof-callback-host-boundary.test.js`. The explicit callback set and these four implicit-invocation examples were executed locally against original Node and Chromium ESM with the displayed results. As a counterweight, `typeof [()=>process]` and `typeof Object.keys({get x(){return process}})` both produced `"object"` natively in Node and Chromium: they construct/store functions without executing their bodies. The candidate is intentionally conservative for such complex operands and may decline them even though these particular original outcomes match. By contrast, the direct operand `typeof (()=>process)` is inert and yielded `"function"` in both runtimes; it retains a positive compile-admission control. These observations separate *native runtime divergence* from the separate *compiler refusal policy*.
+
+Each shape wraps its expression in an original ESM `async function protectedOp`; the Chromium run imports `data:text/javascript` modules and evaluates the same exported function. No properties of generated output are needed to demonstrate the native cross-host divergence. A small independent `vm.runInNewContext` control also reproduces the absence of `process`, but does not substitute for Chromium.
 
 ## Proposed conservative admission boundary
 
