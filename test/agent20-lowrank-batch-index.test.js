@@ -117,6 +117,32 @@ test('singular affine interpolant still permits exact cross-target cache reuse',
   assert.equal(targets.every(y=>attacker.invert(y).newOracleCalls===0),true);
 });
 
+test('sampled residual completion reduces singular batch orbit bound from 32 to 16',()=>{
+  const F=wrapped(second);
+  let draws=0;
+  const attacker=prepareLowRankBatchInverter(F,{
+    bits:8,rankBound:4,completion:'sampled-residual',
+    sample:()=>((draws++*73+19)&255),maxSamples:256
+  });
+  assert.equal(attacker.stats().interpolantNullity,1);
+  assert.equal(attacker.stats().orbitCap,16);
+  assert.equal(attacker.stats().completion,'sampled-residual');
+  assert.equal(attacker.stats().samplingCalls,draws);
+  const secrets=group(10),targets=secrets.map(F);
+  for(let i=0;i<targets.length;i++)
+    assert.equal(attacker.invert(targets[i]).preimage,secrets[i]);
+  const stats=attacker.stats();
+  assert.ok(stats.totalCalls<=9+stats.samplingCalls+16);
+  assert.equal(targets.every(y=>attacker.invert(y).newOracleCalls===0),true);
+  assert.throws(()=>prepareLowRankBatchInverter(F,{
+    bits:8,rankBound:4,completion:'sampled-residual',
+    sample:()=>0,maxSamples:3
+  }),/Uniform residual-completion samples exhausted/u);
+  assert.throws(()=>prepareLowRankBatchInverter(F,{
+    bits:8,rankBound:4,completion:'sampled-residual',sample:()=>-1
+  }),/Sample outside n-bit domain/u);
+});
+
 test('promised rank and orbit cap are enforced, not silently declared successes',()=>{
   const F=wrapped(first),y=F(group(10)[3]);
   assert.throws(()=>prepareLowRankBatchInverter(F,{bits:8,rankBound:-1}),RangeError);
@@ -135,13 +161,21 @@ test('all 40,320 width-three permutations admit complete eight-target batch inde
   function enumerate(at) {
     if(at===perm.length) {
       const attacker=prepareLowRankBatchInverter(x=>perm[x],{bits:3,rankBound:3});
+      let next=0;
+      const sampled=prepareLowRankBatchInverter(x=>perm[x],{
+        bits:3,rankBound:3,completion:'sampled-residual',
+        sample:()=>next++&7,maxSamples:8
+      });
       for(let y=0;y<8;y++) {
         const inverse=attacker.invert(y);
+        const sampledInverse=sampled.invert(y);
         assert.equal(perm[inverse.preimage],y);
+        assert.equal(sampledInverse.preimage,inverse.preimage);
         targets++;
       }
       const stats=attacker.stats();
       assert.equal(stats.totalCalls,8,'every oracle input visited exactly once');
+      assert.equal(sampled.stats().totalCalls,8,'sampled completion finds full map');
       maxCalls=Math.max(maxCalls,stats.totalCalls);
       families++;
       return;
