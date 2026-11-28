@@ -125,3 +125,33 @@ test('unlisted executable HTML script can mutate native document factory before 
       'Unreviewed HTML script can replace factory before native Node insertion '+mode);
   }
 });
+
+
+test('unlisted dynamic script load invalidates later native Node factory provenance',()=>{
+  const original='globalThis.dynamicUnlistedSource="a remote script could modify DOM factories before onload";';
+  const unknown='const injected=document.createElement("script");'+
+    'injected.src="./unlisted-script.js";'+
+    'injected.onload=()=>{const node=document.createElement("script");'+
+    'document.head.append(node);};'+
+    'document.head.append(injected);';
+  const known='const injected=document.createElement("script");'+
+    'injected.src="./client.js";document.head.append(injected);';
+  const image='const picture=document.createElement("img");'+
+    'picture.src="./unlisted-picture.png";document.body.append(picture);';
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    for(const [name,source,expectRewrite] of /** @type {const} */([
+      ['remote-script',unknown,false],['known-script',known,true],
+      ['native-image',image,true]
+    ])){
+      const out=obfuscateFiles([
+        {path:'client.js',sourceType:'script',code:original},
+        {path:'bootstrap.js',sourceType:'script',code:source},
+        {path:'index.html',sourceType:'asset',
+          code:Buffer.from('<script src="./bootstrap.js"></script>')}
+      ],{mode,strings:true,properties:false,identifiers:false,
+        seed:'agent1-unlisted-dynamic-browser-load/'+mode+'/'+name});
+      assert.equal(out.files[0].code!==original,expectRewrite,
+        name+' '+mode+' must distinguish executable external source from a native image');
+    }
+  }
+});
