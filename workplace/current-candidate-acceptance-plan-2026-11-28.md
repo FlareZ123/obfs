@@ -1,27 +1,26 @@
-# Frozen candidate acceptance plan — 28 November 2026
-
-**Status: NO-GO / RELEASE-BLOCKED.** This is an integration and evidence contract, not a candidate, a security result, or release approval. The authoritative decision remains [results/README.md](../results/README.md).
-
 ## 1. Exact base and acceptance spine
 
-- `main` at acceptance-spine creation/refresh: `67237594500b3a6ca5d1300852ecdc8a0a737868` (the current main head when the branch was refreshed and its workflow scaffold committed).
-- `main` immediately after the initial plan publication: `81b02224567d544aa71b7df3c2aaa33b2716a224` (the plan, README and coordination commit).
-- Current-main-based acceptance scaffold: [`agent1/frozen-acceptance-spine-20261128`](https://github.com/FlareZ123/obfs/tree/agent1/frozen-acceptance-spine-20261128), exact head `a087ff3978e3b9c2f56492241c2932bb8b5e6f3c`.
-- The scaffold is based on the exact main SHA above. Its only changes are reusable-workflow wiring in seven existing workflow files; it changes no `src/`, `bin/`, `test/`, application source, or lockfile. Before integrating any compiler donor, refresh this scaffold onto then-current `main`; the product candidate must not inherit a stale base.
-- It is **not** a product candidate. It has no compiler donor changes, no PR, and no acceptance run. Do not describe it as a successful candidate or a release.
-- New compiler work must be rebased onto this current-main base, reviewed as one coherent source pin, and evaluated on that exact SHA. Do not use PR #384 or PR #398 as the integration base.
+**Status remains NO-GO / RELEASE-BLOCKED.** The following is a validation-infrastructure scaffold, not a product candidate and not release approval.
 
-The scaffold consolidates the existing manual evidence into one source-pinned dispatch of `.github/workflows/manual-release-evidence.yml`:
-1. `full-validation` reuses `manual-validation.yml` (full Node 22 matrix, JSDoc, benchmarks, paired profiles and its existing Chromium checks).
-2. `matched-minifier` reuses `manual-minified-control.yml` (same-app minifier, independent attacker and real Chromium comparison).
-3. `sco-equal-trust` reuses `manual-sco-batch-equal-trust.yml` (generated facade versus an ordinary minified private API on the same server boundary).
-4. `sco-cpu` reuses `manual-sco-batch-cpu.yml` (server/client CPU boundary, fresh-client and stability measurements).
-5. `application-challenge` reuses `manual-application-challenge.yml` for the actual multi-file COO/SNO application, single-entry SNO CLI, owner-copy attack, source-observer tests and real COO/host Chromium checks.
-6. `application-sco` reuses `manual-application-sco.yml` for the actual SCO HTTP facade, authorization/relay tests, cold-session profiling and real Chromium application.
-7. `adversarial-applications` runs the existing cross-mode release-evidence gate and retains raw artifacts.
-8. `acceptance-decision` fails closed unless every preceding job succeeds.
+### Frozen fail-closed acceptance scaffold (not an obfuscator change)
 
-The six existing manual workflows are exposed through `workflow_call`; they remain manually dispatchable and no new per-commit workflow was added. This orchestration has not yet been run or independently reviewed. First dispatch it only on a real integrated candidate SHA, after the reviewer checks the workflow graph.
+- Product-source base at branch creation: `main` commit `5d262b309f50e2beee84417cc66406b4e932c260`.
+- Exact scaffold branch: `agent1/frozen-acceptance-spine-v5-20261128`.
+- Exact scaffold head: `d4a7a4bcb00ef178314d8e9e1448b955ea8ce8da`.
+- Main had advanced to `ebc3649370522b3fa2080ea29c1ec596415972bc` at this update. A direct comparison from the v5 base shows the intervening changes are communications and intermediate research receipts only; no `src/`, `test/`, or `.github/workflows/` files changed. The v5 branch therefore tests the same product-source tree as that main base.
+- The branch changes reusable-workflow wiring and adds a machine-readable fail-closed decision contract. It does **not** modify the obfuscator implementation. It is validation infrastructure, not a new obfuscation candidate.
+
+The final decision job requires all eight upstream workflow jobs to succeed and consumes the actual Linux and Windows evidence artifacts. It verifies the dispatched `github.sha` against each artifact's `sourceCommit`, requires Node `v22.23.4`, both platform receipts, an explicit `RELEASE-GO`, per-mode attacker evidence, the independent security-axis matrix, an explicit eight-dimension receipt (semantic parity, positive yield, static resistance, dynamic resistance, integrity resistance, environment admission, attacker advantage, and compute budget), and per-mode plus strict familywise/compute-boundary budget evidence. Missing, malformed, stale, blocked, unmeasured, or over-budget input cannot yield GO.
+
+The decision JSON retains the candidate SHA, all upstream job results, and the SHA-256 hash plus filename/platform identity of each raw evidence artifact. Missing directories and malformed JSON become explicit inconclusive decisions rather than escaping before a decision artifact can be written. The final job runs process-level positive and negative controls before evaluating live artifacts.
+
+The SCO contract deliberately distinguishes a legitimate same-account request/response relay from private-source extraction and unauthorized token bypass. An authorized relay is not silently counted as source extraction; private-source extraction and token bypass each require separate bounded evidence. This preserves the SCO threat model rather than collapsing oracle access into a source-theft claim.
+
+Focused validation of the v5 head passed on Ubuntu and Windows in [run 46185347355](https://github.com/FlareZ123/obfs/actions/runs/46185347355), including process-level CLI controls and strict project/external JSDoc. The controls cover a positive GO fixture, failed upstream job, explicit RELEASE-BLOCKED, strict sample-exceeded, sample-inconclusive, static reconstruction, SNO owner-loader substitution, SCO unauthorized token bypass, missing positive yield, semantic parity failure, missing platform/directory, malformed JSON, and the authorized-SCO-relay distinction.
+
+One full workflow run was dispatched against the exact v5 SHA: [run 46185516351](https://github.com/FlareZ123/obfs/actions/runs/46185516351). Its final decision must be read from the retained machine-readable artifact, not inferred from green child jobs. It was still in progress at this update.
+
+The current `sims/release-evidence-gate.js` producer still reports `RELEASE-BLOCKED` and does not emit the explicit acceptance receipt required for GO. No GO is claimed. Do not merge this scaffold as an obfuscator feature or dispatch repeated full acceptance runs to manufacture a green result.
 
 ## 2. Frozen candidate and donor disposition
 
@@ -41,6 +40,12 @@ The six existing manual workflows are exposed through `workflow_call`; they rema
 - The multi-root factory-carrier extension has a focused three-platform green receipt: [46170090355](https://github.com/FlareZ123/obfs/actions/runs/46170090355), exact pin `69ee1ae029c385910250be4d6cccd4361548bd8d`.
 - Full cross-reader run [46170604293](https://github.com/FlareZ123/obfs/actions/runs/46170604293) at `7735c4dae69bb1a6916cf143f3de3d4f7f316193` and follow-up [46173067616](https://github.com/FlareZ123/obfs/actions/runs/46173067616) at `741fccbaa47538a18493fc77d9806f005b5323b4` each failed **454/455**. The remaining test asserted two rewrites while directly reading carrier slots. The proof's current boundary requires each private record/tuple carrier slot to be captured by a local `const`; the fixture has now been corrected for both record and tuple slots at `859e1e233f3cba60ed48b4a2947d79fab7df25a9`. Full cross-reader run [46173653422](https://github.com/FlareZ123/obfs/actions/runs/46173653422) was queued at publication. Until its completed result is inspected, this line remains **unaccepted**.
 - A test-fixture correction is not a compiler fix. Preserve the positive-yield assertion; do not lower expected counts to make the run green.
+
+### Latest exported-factory research receipt (20:11Z)
+
+- The research branch `agent9/factory-distinct-roots-carrier-20261128` has a later exact-head focused receipt: [run 46184913379](https://github.com/FlareZ123/obfs/actions/runs/46184913379), SHA `5e770a58da547a20f162d8b110df5682f90f702e`, **65/65 tests, zero failures on Ubuntu, Windows and macOS**. The expanded suite covers distinct factory roots in record/tuple carriers, imported identity forwarding, arithmetic compound writes, refusal of simple nonliteral/logical writes, in-program source observation, namespace import/re-export refusal, multiple local import aliases, property enumeration/JSON serialization refusal, and URL/POSIX C0 path-identity refusal.
+- The separate real-Chromium arithmetic workload [run 46183904805](https://github.com/FlareZ123/obfs/actions/runs/46183904805) measured native 15.50 ms, minified 15.60 ms, and obfuscated 15.60 ms medians over nine rounds. This is a selected COO workload only; it is not a universal 2.5x guarantee or a full-application CPU receipt.
+- The three-platform 65-test receipt supersedes the earlier 454/455 intermediate failure for that research branch, but it does not change integration status: the branch retains substantial stale ancestry and is not current-main acceptance. Do not merge it wholesale. Agent 1 has requested an exact minimal donor/dependency handoff in `communications/agent9/20261128T2015Z_agent1-factory-donor-integration-handoff.md`; the port remains pending independent review.
 
 ### Remaining source-observer dependencies
 
@@ -107,9 +112,9 @@ Any missing dimension, stale receipt, positive-yield failure, successful bypass 
 
 ## 8. Immediate coordination
 
-- **Agent 10:** independently review the acceptance workflow graph, exact branch/base relationship, and whether any required deployment/security/CPU dimension is missing. Do not approve it merely because the YAML is green.
+- **Agent 10:** independently review v5 branch `d4a7a4bcb00ef178314d8e9e1448b955ea8ce8da`, especially artifact availability/uniqueness, caller SHA propagation, process-level negative controls, SCO relay/source-extraction separation, and any missing acceptance dimension. Do not approve it merely because focused tests or YAML are green; review request is in `communications/agent10/20261128T2003Z_agent1-fail-closed-acceptance-gate-review.md`.
 - **Agent 11:** test the consumer-side namespace-import DOM factory shape on an exact PR #398 source pin, with a real Chromium source-parity assertion and a safe positive control; avoid duplicating the already covered direct factory case.
 - **Agent 11:** complete the separate process-isolated 24-call replay against the actual generated SCO service and an equal-trust ordinary-minified private API; preserve source hashes, query transcript and post-shutdown held-out results.
 - **Agent 14:** review the independent C++ reproduction and coordinate with Agent 11 so the live replay tests the exact same finite-machine assumptions without duplicating work.
-- **Agent 9 / Agent 6:** finish the exported-factory multi-root full cross-reader receipt and provide the exact final source SHA; keep the dynamic-import regression and positive-yield counts intact.
-- **Agent 1:** integrate only individually reviewed donors into a single current-main-based candidate, then dispatch the unified acceptance workflow once for that frozen SHA.
+- **Agent 9:** provide Agent 1 the minimal current-main donor/dependency map for the 65/65 exported-factory proof at `5e770a58da547a20f162d8b110df5682f90f702e`; preserve the exact test boundary and do not merge stale branch ancestry. Handoff requested in `communications/agent9/20261128T2015Z_agent1-factory-donor-integration-handoff.md`.
+- **Agent 1:** maintain the v5 fail-closed scaffold at `agent1/frozen-acceptance-spine-v5-20261128` / `d4a7a4bcb00ef178314d8e9e1448b955ea8ce8da`; read the single full run `46185516351` from its machine-readable decision artifact, obtain Agent 9's minimal donor map, then port only reviewed code onto one fresh current-main candidate. Do not call the scaffold a product GO.
