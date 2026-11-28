@@ -1,6 +1,6 @@
 # Browser-observed SVG SMIL generated `javascript:` URLs in otherwise admitted HTML assets
 
-**Researcher:** Agent 32 · **Date:** 28 November 2026 · **Status:** project-specific source-audit defect with local Chromium proof; separate source-pinned CI in progress. This is an intermediate security engineering observation, **not** novel mathematical obfuscation research or release acceptance.
+**Researcher:** Agent 32 · **Date:** 28 November 2026 · **Status:** project-specific HTML source-admission bypass reproduced with local Chromium 144 and source-pinned Ubuntu Chrome 158; defensive patch separately pending. This is an intermediate security engineering observation, **not** novel mathematical obfuscation research or release acceptance.
 
 ## Primary project-specific discrepancy
 
@@ -33,10 +33,28 @@ These are **observed local browser results**, not generalized across all browser
 
 Standalone SVG `<set attributeName="onmouseover" to="window._witness=23" begin="0s" dur="indefinite"/>` is statically admitted by the old SVG scanner, but **did not execute** the synthetic handler in Chromium 144 either as HTML-inline SVG or standalone SVG Blob. Direct `onmouseover` executed and benign `<set attributeName="fill" to="green">` applied. Published [SiYuan SVG SMIL advisory GHSA-5hc8-qmg8-pw27](https://github.com/siyuan-note/siyuan/security/advisories/GHSA-5hc8-qmg8-pw27) documents a related event-target exploit in another context; do **not** infer this exact Chromium payload executes without an independent positive witness. The proposed source guard rejects such targets conservatively across implementations.
 
+## Independently repeated source-pinned browser proof
+
+[Red-team focused validation run 46114019732](https://github.com/FlareZ123/obfs/actions/runs/46114019732) on exact unpatched witness SHA `036bf7741e2300df85acf4745f60a312ccad8ad3` **completed SUCCESS on Ubuntu and Windows**. The Windows job ran static preflight witness and strict JSDoc; Ubuntu additionally ran the *actual browser* witness under **Chrome/158.0.8127.36**. The Ubuntu job log records:
+
+```json
+{
+  "htmlPreflight": {"direct":"embedded executable URL","animated":null,"values":null},
+  "htmlBrowser": {
+    "direct":{"before":{"base":"javascript:window._smilHref=51","animated":"javascript:window._smilHref=51"},"after":51},
+    "animated":{"before":{"base":"#safe","animated":"javascript:window._smilHref=51"},"after":51},
+    "values":{"before":{"base":"#safe","animated":"javascript:window._smilHref=51"},"after":51}
+  },
+  "chrome":"Chrome/158.0.8127.36"
+}
+```
+
+This **passes because the original HTML scanner is bypassed**, not because the proposed fix has passed. The same Ubuntu log confirms standalone SVG `onmouseover` direct control executed, benign `fill` animation applied, but `<set attributeName=onmouseover>` did **not** execute; keep that as a possible risk requiring separate host/browser confirmation, not a proven runnable exploit. Chrome 158 now independently corroborates the local Chrome 144 **HTML animated-href executable-URL path**. The Puppeteer browser witness uses `page.setContent` for its HTML scenario, not a fetched `text/html` HTTP response, while a separate direct SVG part of the same run is served over HTTP `image/svg+xml; charset=utf-8` with `nosniff`. Do not claim the *HTML* scenario has an HTTP `nosniff` receipt until a new test makes it.
+
 ## Implementation and source-pinned evidence
 
-- Proposed fail-closed guard: **draft [PR #387](https://github.com/FlareZ123/obfs/pull/387)**, head `49cd9cb7b98c6e8824ea8ada7d042ae9c12be009`, changes only `src/html-assets.js`, `src/svg-assets.js`, and `test/svg-smil-source-admission-guard.test.js`. It rejects SMIL event-handler attribute targets and potentially executable URL values in HTML-inline SVG; benign `fill` animations remain accepted. Exact-head two-OS focused run [46113750875](https://github.com/FlareZ123/obfs/actions/runs/46113750875) Windows passed, Ubuntu pending as of this note.
-- Unfixed adversarial browser witness branch `agent32/svg-smil-animated-handler-witness-20261128` head `036bf7741e2300df85acf4745f60a312ccad8ad3`. `sims/svg-smil-event-source-witness.js` and `test/svg-smil-event-source.test.js` separate a static false-safe from actual browser `href` execution; focused [46114019732](https://github.com/FlareZ123/obfs/actions/runs/46114019732) Windows static green, Ubuntu browser pending. **A green adversarial witness is evidence of an old-parser vulnerability, not fix success**.
+- Proposed fail-closed guard: **draft [PR #387](https://github.com/FlareZ123/obfs/pull/387)**, head `49cd9cb7b98c6e8824ea8ada7d042ae9c12be009`, changes only `src/html-assets.js`, `src/svg-assets.js`, and `test/svg-smil-source-admission-guard.test.js`. It rejects SMIL event-handler attribute targets and potentially executable URL values in HTML-inline SVG; benign `fill` animations remain accepted. Exact-head two-OS focused run [46113750875](https://github.com/FlareZ123/obfs/actions/runs/46113750875) Windows passed in an earlier narrower run; latest expanded head had CI pending as of this note and must be checked independently.
+- Unfixed adversarial browser witness branch `agent32/svg-smil-animated-handler-witness-20261128` head `036bf7741e2300df85acf4745f60a312ccad8ad3`. `sims/svg-smil-event-source-witness.js` and `test/svg-smil-event-source.test.js` separate a static false-safe from actual browser `href` execution; focused [46114019732](https://github.com/FlareZ123/obfs/actions/runs/46114019732) **both platforms green, Ubuntu Chrome 158 browser and Windows static evidence confirmed**. **A green adversarial witness is evidence of an old-parser vulnerability, not fix success**.
 - Related opt-in MIME staging verification [draft PR #261](https://github.com/FlareZ123/obfs/pull/261) remains independent. It cannot attest unobserved hostile-host responses or global runtime environment locking.
 - No runtime obfuscation compute overhead is introduced by these input scanners. Strong static/dynamic source reconstruction resistance, anti-tamper success, authorization/environment locking, 2.5× global overhead, and complete 1:1 behavior remain **not established**; project release **NO-GO**.
 
