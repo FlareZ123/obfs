@@ -1798,6 +1798,19 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
+  // The original server-side entry is a file, not a directory or a second
+  // spelling of an imported private module on another target filesystem.
+  // Do this before publishing a facade or committing any source hashes.
+  const privateInventory=createPathInventory();
+  registerFilePath(privateInventory,safePath(file.path),
+    'Selected SCO private source path aliases: ');
+  const visitedPrivate=new Set();
+  for(const filename of privateModulePaths){
+    if(visitedPrivate.has(filename))continue;
+    registerFilePath(privateInventory,safePath(filename),
+      'Selected SCO private source path aliases: ');
+    visitedPrivate.add(filename);
+  }
   // Retain digest commitments on the trusted server partition only. They
   // never enter clientFile or the generated browser source. An integrator can
   // verify these exact UTF-8 input bytes against deployed files before loading
