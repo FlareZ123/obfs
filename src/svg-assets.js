@@ -1,7 +1,7 @@
 'use strict';
 
 const {SaxesParser}=require('saxes');
-const {decodeMarkup,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl}=require('./html-assets');
+const {decodeMarkup,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,smilTargetsExecutableAttribute}=require('./html-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
 const {hasCssDataImport}=require('./css-data-imports');
 
@@ -49,6 +49,10 @@ function findInlineSvgSource(xml) {
     if(element==='style')stylesheet='';
     if(element==='script')issue='script element';
     const attrs=Object.values(tag.attributes);
+    if(smilTargetsExecutableAttribute(element,
+      attrs.find(attr=>attr.local.toLowerCase()==='attributename')?.value)) {
+      issue='SVG animation targets executable attribute';
+    }
     if(element==='meta') {
       const pragma=attrs.find(attr=>attr.local.toLowerCase()==='http-equiv')?.value.trim().toLowerCase();
       const content=attrs.find(attr=>attr.local.toLowerCase()==='content')?.value;
