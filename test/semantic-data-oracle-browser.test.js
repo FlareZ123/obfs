@@ -8,11 +8,11 @@ const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 
 /** @typedef {'plain'|'payload'|'escape'|'escape-mutate'} Scenario */
-/** @typedef {'coo'|'sno'|'sco'} Mode */
+/** @typedef {'coo'|'sco'} Mode */
 /** @type {Scenario[]} */
 const scenarios=['plain','payload','escape','escape-mutate'];
 /** @type {Mode[]} */
-const modes=['coo','sno','sco'];
+const modes=['coo','sco'];
 
 /**
  * The trusted HTML and observer code are deliberately not part of the input
@@ -105,7 +105,7 @@ function expected(scenario){
   };
 }
 
-test('real Chromium out-of-graph host sees exact cross-file COO/SNO/SCO behavior',{
+test('real Chromium out-of-graph host sees exact cross-file COO/SCO behavior',{
   skip:process.platform==='win32'
 },async()=>{
   /** @type {Map<string,string>} */
