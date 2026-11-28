@@ -7,6 +7,11 @@ const {partitionScoAsyncGraph,partitionScoAsyncModule,createScoHandler}=require(
 
 const MARKER='SERVER_PRIVATE_FUNCTION_SOURCE_687291';
 const source='export async function disclose(){const marker='+JSON.stringify(MARKER)+';return disclose.toString();}';
+// No single RPC result from this numeric oracle contains function source.
+// An authorized caller with unrestricted query count can reconstruct it
+// one UTF-16 code unit per request unless partitioning refuses the source.
+const probeSource='export async function probe(i){const marker='+JSON.stringify(MARKER)+
+  ';return String.prototype.charCodeAt.call(probe,i);}';
 
 test('authorized SCO JSON RPC can carry exact private function body; compiler refuses that partition',async()=>{
   // Source withholding is a publication property, not an authorization-side
@@ -17,11 +22,14 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
   const native=await privateModule.disclose();
   assert.ok(native.includes(MARKER));
   assert.ok(native.includes('return disclose.toString()'));
+  const probed=await import('data:text/javascript,'+encodeURIComponent(probeSource));
+  const hiddenProbeSource=probed.probe.toString();
+  assert.ok(hiddenProbeSource.includes(MARKER));
   const server=http.createServer(createScoHandler([{
     path:'public.mjs',sourceType:'module',
     code:'export async function ordinary(){return 7;}'
   }],{
-    remoteMethods:{reveal:privateModule.disclose},
+    remoteMethods:{reveal:privateModule.disclose,probe:probed.probe},
     authorizeRead:()=>true,
     authorizeRpc:req=>req.headers['x-test-token']==='allowed'
   }));
@@ -46,6 +54,23 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
     });
     assert.equal(response.status,200);
     assert.deepEqual(await response.json(),{ok:true,value:native});
+    /** @type {string[]} */
+    const units=[];
+    for(let i=0;i<hiddenProbeSource.length;i++){
+      const step=await fetch(base+'rpc',{
+        method:'POST',
+        headers:{'content-type':'application/json','x-test-token':'allowed'},
+        body:JSON.stringify({method:'probe',args:[i]})
+      });
+      assert.equal(step.status,200);
+      const payload=await step.json();
+      assert.equal(payload.ok,true);
+      assert.equal(typeof payload.value,'number');
+      units.push(String.fromCharCode(payload.value));
+    }
+    assert.equal(units.join(''),hiddenProbeSource,
+      'Numeric RPC results reconstruct exact server-function source');
+    assert.ok(units.join('').includes(MARKER));
   }finally{
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
@@ -57,4 +82,11 @@ test('authorized SCO JSON RPC can carry exact private function body; compiler re
   assert.throws(()=>partitionScoAsyncModule({
     path:'private.mjs',sourceType:'module',code:source
   },{seed:'private-return-source-guard'}),/private function source/u);
+  assert.throws(()=>partitionScoAsyncGraph([{
+    path:'private.mjs',code:probeSource
+  }],{seed:'private-numeric-source-guard',exposedPaths:['private.mjs']}),
+  /private function source/u);
+  assert.throws(()=>partitionScoAsyncModule({
+    path:'private.mjs',sourceType:'module',code:probeSource
+  },{seed:'private-numeric-source-guard'}),/private function source/u);
 });
