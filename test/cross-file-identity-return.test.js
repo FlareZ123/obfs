@@ -517,3 +517,23 @@ test('factory proof refuses property enumeration and serialization observers',as
   for(const mode of ['coo','sno','sco'])
     await checkFactory(factory,main,0,mode);
 });
+
+
+test('factory proof requires explicit closed-world consumer coverage',async()=>{
+  const files=/** @type {import('../src/core').SourceFile[]} */ ([
+    {path:'state.mjs',sourceType:'module',
+      code:'export function makeState(){return {secretField:17,otherField:5};}'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import {makeState} from "./state.mjs";const first=makeState();console.log(first.secretField);'}
+  ]);
+  const native=await execute(files);
+  for(const mode of ['coo','sno','sco']){
+    const output=obfuscateFiles(files,{
+      mode,seed:'agent9-open-world-factory-refusal',closedWorld:false,
+      strings:false,identifiers:false
+    });
+    assert.equal(output.crossFile.properties,0,
+      mode+' must not rename an exported factory with open-world consumers');
+    assert.equal(await execute(output.files),native,mode+' native/emitted parity');
+  }
+});
