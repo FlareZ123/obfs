@@ -185,11 +185,13 @@ test('shared in-memory WebAuthn state refuses weaker RP origin and UV authority'
   harness({stateStore:shared});
   assert.doesNotThrow(()=>harness({stateStore:shared}),
     'An identically configured second worker can reuse trusted memory state');
-  for(const [label,change] of [
+  /** @type {Array<[string,Partial<import('../src/sco-webauthn-admission').ScoWebAuthnAdmissionOptions>]>} */
+  const changes=[
     ['origin',{allowedOrigins:['https://weaker.example.com']}],
     ['UV',{requireUserVerification:false}],
     ['session capacity',{maxSessions:2}]
-  ]){
+  ];
+  for(const [label,change] of changes){
     assert.throws(()=>harness({stateStore:shared,...change}),/replica configuration/u,
       'Shared bearer and challenges cannot mix a different '+label+' policy');
   }
