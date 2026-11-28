@@ -295,7 +295,7 @@ test('factory results retain ownership through multi-slot records and tuples',as
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
     'const carrier=[first,first];'+
-    'const carried=identity(carrier[0]);'+
+    'const slot=carrier[0];const carried=identity(slot);'+
     'console.log(carried.secretField+carrier[1].otherField+second.otherField);';
   const factory='export function makeState(){return {secretField:17,otherField:5};}';
   for(const mode of ['coo','sno','sco']) {
