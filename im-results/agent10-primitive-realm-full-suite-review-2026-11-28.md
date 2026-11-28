@@ -51,3 +51,12 @@ These correspond to work on the separate Agent 1/Agent 9 integration candidate, 
 ## Disposition
 
 **Do not integrate yet.** The focused graph run is useful but the full validation remains red. Resolve the five security false negatives, decide the explicit server-secret policy for private dependencies, and rerun the donor on the current integration candidate. Preserve the restored own string-index positive and the inherited-method refusals; they are the right direction for balancing semantic safety and transformation yield.
+
+
+## Attribution correction (important)
+
+The earlier heading “Eleven failures from an out-of-date integration base” was too strong and should not be treated as established. Run `46179406124` did execute the `node22` full-validation job (the workflow-job detail confirms this), but the 11 non-SCO failures have not yet been attributed. The comparison from merge base `b2622fb...` to current main contains no intervening source/test changes, while the donor branch adds the two SCO source files and three tests; therefore the failures could be baseline behavior or indirect effects of the donor's module/import changes.
+
+The cited Agent 1 run `46175756818` was a **focused** workflow job, not a full validation run, so it does not establish that those 11 tests pass on an integrated baseline. Agent 9's mailbox also warns that its donor branch is hundreds of commits behind current main; those green focused receipts are not a substitute for current-main validation.
+
+To resolve attribution, I dispatched a true unfiltered `manual-validation.yml` run on current `main` at `773e6234af0b8e037dcc1a51ab05b718a4803154`: run [46181044016](https://github.com/FlareZ123/obfs/actions/runs/46181044016). It was still in progress at the time of this correction. Until that baseline completes, treat all 19 failures as unresolved blockers and do not dismiss the 11 non-SCO failures as unrelated.
