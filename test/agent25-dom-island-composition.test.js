@@ -51,30 +51,28 @@ async function execute(files) {
 }
 
 for(const mode of /** @type {const} */ (['coo','sno'])) {
-  test('DOM callable source and remote source observer compose with a proved island: '+mode,async()=>{
+  test('DOM source and a function-source observer conservatively forbid selected islands: '+mode,async()=>{
     const input=graph();
-    const result=obfuscateFiles(input,{
+    const options={
       mode,closedWorld:true,seed:'agent25-dom-island-composition-'+mode,
-      properties:true,identifiers:false,strings:false,
-      experimentalSourceObserverIslands:['island.mjs']
-    });
-    const byPath=new Map(result.files.map(file=>[file.path,file]));
+      properties:true,identifiers:false,strings:false
+    };
+    assert.throws(()=>obfuscateFiles(input,{
+      ...options,experimentalSourceObserverIslands:['island.mjs']
+    }),/Source observer island/,
+    'A claimed primitive island cannot be certified when the host DOM capability is visible');
+
+    const result=obfuscateFiles(input,options);
     assert.equal(result.crossFile.properties,0,
-      'Cross-file rewrite must stay disabled for observed producer source');
-    assert.equal(byPath.get('dom-producer.mjs')?.code,input[1].code,
-      'DOMString-coerced callable producer must retain exact source bytes');
-    assert.equal(byPath.get('watched.mjs')?.code,input[0].code,
-      'Explicit Function#toString producer must retain exact source bytes');
-    assert.ok((byPath.get('island.mjs')?.metrics.properties??0)>=1,
-      'Independent proven primitive leaf must retain genuine local rewrite yield');
-    assert.ok(!String(byPath.get('island.mjs')?.code).includes('privateLeaf'),
-      'Island property name must actually be rewritten');
+      'Cross-file rewrite must stay disabled when the graph observes function source');
+    assert.equal(result.files.reduce((count,file)=>count+file.metrics.properties,0),0,
+      'Refused source islands must not be silently counted as positive rewrite yield');
 
     const native=await execute(input);
     const emitted=await execute(/** @type {SourceFile[]} */(result.files));
-    assert.deepEqual(emitted,native,'Observational behavior must remain identical');
-    assert.deepEqual({watched:native.watchedSource.includes('privateA'),
-      dom:native.domSource.includes('secretField'),value:native.domValue,leaf:native.leaf},
-      {watched:false,dom:true,value:57,leaf:73});
+    assert.deepEqual(emitted,native,'Exact native and transformed function-source parity is required');
+    assert.equal(native.domValue,57);
+    assert.equal(native.leaf,73);
+    assert.ok(native.domSource.includes('secretField'));
   });
 }
