@@ -226,7 +226,9 @@ function createScoWebAuthnAdmission(options){
     if(!client || typeof client!=='object' || Array.isArray(client) ||
        client.type!=='webauthn.get' || !origins.has(client.origin) ||
        client.crossOrigin===true || (client.crossOrigin!==undefined && client.crossOrigin!==false) ||
-       typeof client.challenge!=='string')return denied;
+       // This deliberately has no cross-origin iframe admission policy. Level 3
+       // requires validating topOrigin whenever supplied; reject it entirely.
+       client.topOrigin!==undefined || typeof client.challenge!=='string')return denied;
     const submittedChallenge=decodeBase64url(client.challenge,256);
     if(!submittedChallenge || submittedChallenge.length!==pending.challenge.length ||
        !timingSafeEqual(submittedChallenge,pending.challenge))return denied;
