@@ -725,6 +725,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
+    // A direct bound native CSS.escape/String/etc call remains a coercer
+    // even without an intermediate variable that the alias pass can name.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')return isCoercer(node.callee.object);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
