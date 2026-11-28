@@ -273,6 +273,17 @@ const cases=[
 // Separate primitive computed-key controls retain real binding rewrites.
 ['class-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{["x"](){return 1;}};','carrier.instance'],
 ['object-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const registry={["x"]:1};','carrier.instance'],
+// Computed member references and the binary "in" operator also execute
+// ToPropertyKey on their key *values*. Visiting only the property AST does
+// not replay an object hook that changes the reaching WeakMap carrier.
+['member-key-getter-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec[key];','carrier.instance'],
+['member-key-write-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec[key]=2;','carrier.instance'],
+['member-key-delete-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};delete rec[key];','carrier.instance'],
+['member-key-optional-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};rec?.[key];','carrier.instance'],
+['member-key-in-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};key in rec;','carrier.instance'],
+['member-key-reflect-get-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};Reflect.get(rec,key);','carrier.instance'],
+['member-key-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};rec["x"]=2;','carrier.instance'],
+['member-key-reflect-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};Reflect.get(rec,"x");','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
