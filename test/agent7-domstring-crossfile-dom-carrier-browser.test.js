@@ -23,6 +23,18 @@ const cases=[
       'const target=makeTarget();\n'
   },
   {
+    id:'exported-dom-style-alias',
+    producer:'export const target=document.getElementById("target");',
+    consumerPrefix:'import {target} from "./target.mjs";\n'+
+      'const alias=target;const style=alias.style;\n'
+  },
+  {
+    id:'exported-dom-dataset-alias',
+    producer:'export const target=document.getElementById("target");',
+    consumerPrefix:'import {target} from "./target.mjs";\n'+
+      'const alias=target;const dataset=alias.dataset;\n'
+  },
+  {
     id:'exported-dom-element-aliased',
     producer:'const root=document.body;export const target=root;',
     consumerPrefix:'import {target as receiver} from "./target.mjs";\n'+
@@ -32,8 +44,12 @@ const cases=[
 
 /** @param {typeof cases[number]} fixture @returns {string} */
 const consumer=fixture=>fixture.consumerPrefix+functionSource+
+  (fixture.id==='exported-dom-style-alias'?\n  'style.setProperty("--probe",inspect);\n'+
+  'globalThis._seen=style.getPropertyValue("--probe");\n':
+  fixture.id==='exported-dom-dataset-alias'?
+  'dataset.probe=inspect;\nglobalThis._seen=dataset.probe;\n':
   'target.setAttribute("data-probe",inspect);\n'+
-  'globalThis._seen=target.getAttribute("data-probe");\n'+
+  'globalThis._seen=target.getAttribute("data-probe");\n')+
   'globalThis._answer=inspect();\n';
 
 test('cross-file DOM carrier sinks require separate module-graph context',()=>{
@@ -41,6 +57,31 @@ test('cross-file DOM carrier sinks require separate module-graph context',()=>{
     const code=consumer(fixture);
     assert.equal(observesFunctionSource(parse(code,'module')),false,
       fixture.id+' isolated AST cannot establish imported DOM provenance');
+  }
+});
+
+
+test('unrelated ESM userland receiver and primitive DOM setter preserve private obfuscation yield',()=>{
+  const local=[
+    {id:'userland',producer:'export const target={setAttribute(){return 17}};',
+      consumer:'import {target} from "./target.mjs";\n'+functionSource+
+        'target.setAttribute("data-probe",inspect);globalThis._answer=inspect();'},
+    {id:'primitive',producer:'export const target=document.createElement("main");',
+      consumer:'import {target} from "./target.mjs";\n'+functionSource+
+        'target.setAttribute("data-probe","public");globalThis._answer=inspect();'}
+  ];
+  for(const fixture of local){
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const compiled=obfuscateFiles([
+        {path:'target.mjs',sourceType:'module',code:fixture.producer},
+        {path:'consumer.mjs',sourceType:'module',code:fixture.consumer}
+      ],{mode,seed:'agent7-cross-dom-positive-'+fixture.id,
+         identifiers:true,strings:false,properties:false,closedWorld:true});
+      const consumerFile=compiled.files.find(file=>file.path==='consumer.mjs');
+      assert.ok(consumerFile);
+      assert.ok(consumerFile.metrics.bindings>0,
+        fixture.id+' '+mode+' source-free private local should still transform');
+    }
   }
 });
 
