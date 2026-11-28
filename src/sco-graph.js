@@ -2,7 +2,8 @@
 
 const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
-const {parse,walk,staticString,observesFunctionSource}=require('./ast');
+const {parse,walk,staticString}=require('./ast');
+const {exposesPrivateFunctionText}=require('./sco-private-source-observer');
 const {safePath}=require('./core');
 const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
@@ -187,7 +188,7 @@ function partitionScoAsyncGraph(files,options) {
     // source-observer provenance check to decline these known exposures
     // rather than treating file non-publication as full confidentiality.
     // Dynamic higher-order/string-producing paths remain an explicit limit.
-    if(observesFunctionSource(ast)){
+    if(exposesPrivateFunctionText(ast)){
       throw new TypeError('Private SCO graph exposes private function source');
     }
     walk(ast,(node,parent,key)=>{
