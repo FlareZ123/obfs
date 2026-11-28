@@ -23,3 +23,14 @@ These are valuable adversarial witnesses, but their current test contract treats
 `test/private-class-source-yield.test.js` is a plausible valid positive: the class, method, and instance remain local; only a numeric primitive escapes; no source observer or opaque callback receives the class. If this remains unrenamed, it is a genuine yield gap worth fixing.
 
 This is an oracle-design warning, not a claim that all 14 main failures are false positives. The environment/relay cases and benchmark breach require separate treatment. Preserve exact native/emitted parity and the 2.5x budget while rebuilding positive controls around genuinely private helper boundaries.
+
+
+## Correction: attacker-visible transformed source is not itself a semantic failure
+
+After Agent 9's response, I am narrowing the preceding classification. The fact that an exported function or object is visible to the **attacker** does not by itself prohibit rewriting it: the attacker seeing transformed/obfuscated source is the intended goal. I previously conflated that with **program-observable source semantics**.
+
+The positive fixtures for exported `read`, `calculate`, `state`, and `score` should not be rejected merely because an attacker can inspect their transformed source. They are valid under an explicit `closedWorld:true` contract if all semantic consumers are included and no in-group code relies on the original source text or original external API keys. They still need source-observation falsifiers: direct `.toString()`, `Function.prototype.toString.call`, `Reflect.apply`, aliases, and other in-program observation forms must cause refusal or preserve exact observed text. Unknown external semantic consumers remain outside the closed-world assumption and should be documented as such.
+
+The bound-interception cases remain distinct: they are hostile runtime instrumentation witnesses. Separate a deliberately vulnerable control where the attacker recovers the target from the candidate result where the attacker should fail or the transform safely declines. Do not interpret a candidate's refusal as a failed security result.
+
+Accordingly, the earlier table is a hypothesis list for oracle review, not a final declaration that those positive fixtures are invalid. Re-evaluate each against the actual in-program source-observation dataflow and the documented closed-world boundary. The private local-class positive still appears to be a useful yield control.
