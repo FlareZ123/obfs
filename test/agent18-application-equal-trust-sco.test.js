@@ -41,6 +41,18 @@ async function processCpu(execute){
 }
 
 /**
+ * Rotate a 1,024-value deterministic input corpus between paired trials.
+ * Native's longer repetitions replay this same corpus rather than using a
+ * constant seed whose JIT specialization could bias the comparison.
+ * @param {number} base
+ * @param {number} index
+ * @returns {number}
+ */
+function varyingSeed(base,index){
+  return (base^Math.imul(index%1024,0x9e3779b1))>>>0;
+}
+
+/**
  * Aggregate many independent API calls *without* batching them into a
  * single RPC. This only overcomes coarse Windows CPU timer quantization;
  * every generated/ordinary invocation still incurs its own HTTP request.
@@ -48,18 +60,21 @@ async function processCpu(execute){
  * recorded explicitly because the very thin native operation needs many
  * more repetitions to cross the 15–16 ms Windows CPU clock quantum.
  *
- * @param {()=>Promise<unknown>} execute
+ * @param {(seed:number)=>Promise<unknown>} execute
  * @param {number} repetitions
- * @param {unknown} expected
+ * @param {unknown} expectedFirst
+ * @param {unknown} expectedLast
+ * @param {number} trialSeed
  * @returns {Promise<{cpuMsTotal:number,cpuMsPerCall:number,
  *   wallMsPerCall:number,repetitions:number}>}
  */
-async function repeatedProcessCpu(execute,repetitions,expected){
+async function repeatedProcessCpu(execute,repetitions,expectedFirst,expectedLast,trialSeed){
   const start=process.cpuUsage();
   const wallStart=performance.now();
   for(let i=0;i<repetitions;i++){
-    const value=await execute();
-    if(i===0||i===repetitions-1)assert.deepEqual(wire(value),expected);
+    const value=await execute(varyingSeed(trialSeed,i));
+    if(i===0)assert.deepEqual(wire(value),expectedFirst);
+    if(i===repetitions-1)assert.deepEqual(wire(value),expectedLast);
   }
   const wallMsTotal=performance.now()-wallStart;
   const usage=process.cpuUsage(start);
@@ -254,11 +269,10 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       ['light',1,{native:32768,generated:1024,ordinary:1024}],
       ['heavy',120000,{native:128,generated:128,ordinary:128}]
     ])){
-      const expected=wire(await native(0x12345678,count));
       const methods={
-        native:()=>native(0x12345678,count),
-        generated:()=>emitted.evaluateRemote(0x12345678,count),
-        ordinary:()=>ordinary.evaluateRemote(0x12345678,count)
+        native:(/** @type {number} */ seed)=>native(seed,count),
+        generated:(/** @type {number} */ seed)=>emitted.evaluateRemote(seed,count),
+        ordinary:(/** @type {number} */ seed)=>ordinary.evaluateRemote(seed,count)
       };
       /** @type {{native:number[],generated:number[],ordinary:number[]}} */
       const cpuMsPerCall={native:[],generated:[],ordinary:[]};
@@ -270,9 +284,13 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
         const order=/** @type {('native'|'generated'|'ordinary')[]} */ (
           index%2?['ordinary','generated','native']:
             ['native','generated','ordinary']);
+        const trialSeed=(0x12345678^Math.imul(index+1,0x85ebca6b))>>>0;
         for(const kind of order){
+          const n=repetitions[kind];
+          const expectedFirst=wire(await native(varyingSeed(trialSeed,0),count));
+          const expectedLast=wire(await native(varyingSeed(trialSeed,n-1),count));
           const measurement=await repeatedProcessCpu(
-            methods[kind],repetitions[kind],expected);
+            methods[kind],n,expectedFirst,expectedLast,trialSeed);
           cpuMsPerCall[kind].push(measurement.cpuMsPerCall);
           wallMsPerCall[kind].push(measurement.wallMsPerCall);
           cpuMsTotal[kind].push(measurement.cpuMsTotal);
@@ -310,6 +328,7 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       identicalAuthenticatedWire:firstSco.call,
       initializationMs,paired,batchedCpu,
       cpuCaveat:'Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs',
+      batchedInput:'1024 varying seeded inputs per trial; rotated across seven paired trials',
       scope:'Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs'
     })+'\n');
   }finally{
