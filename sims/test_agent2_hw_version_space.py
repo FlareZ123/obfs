@@ -316,7 +316,10 @@ class VersionSpaceAuditTests(unittest.TestCase):
         self.assertEqual(result["status"], "unsat")
         self.assertEqual(result["candidate_size_search"]["unsat_sizes"], [1,2,3])
         self.assertEqual(result["candidate_size_search"]["analytical_unsat_sizes"], [1,2])
-        solver.assert_called_once_with(row, 3, 50, "predecessor")
+        solver.assert_called_once_with(
+            row, 3, 50, "predecessor",
+            result["trace_lower_bound_certificate"], "word"
+        )
         self.assertEqual(
             result["trace_lower_bound_certificate"]["minimum_states"], 3
         )
