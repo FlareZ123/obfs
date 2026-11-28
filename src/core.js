@@ -258,6 +258,71 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
    * @param {string} target
    * @returns {Set<string>}
    */
+  /**
+   * Resolve a named export that denotes an ESM namespace object. Reexport
+   * chains and local namespace-import reexports are followed with cycle guards.
+   * @param {string} filename
+   * @param {string} exportName
+   * @param {Set<string>} [seen]
+   * @returns {Set<string>}
+   */
+  function resolveNamespaceExportTargets(filename,exportName,seen=new Set()) {
+    const key=filename+'\\u0000'+exportName;
+    if(seen.has(key))return new Set();
+    seen.add(key);
+    const ast=callableModuleAsts.get(filename);
+    if(!ast)return new Set();
+    /** @type {Map<string,{target:string,exportName:string|null}>} */
+    const importedBindings=new Map();
+    for(const stmt of ast.body??[]) {
+      if(stmt.type!=='ImportDeclaration')continue;
+      const target=staticModuleTarget(filename,stmt.source?.value);
+      if(!target)continue;
+      for(const spec of stmt.specifiers??[]) {
+        if(spec.local?.type!=='Identifier')continue;
+        const importedName=spec.type==='ImportNamespaceSpecifier'?null:
+          spec.type==='ImportDefaultSpecifier'?'default':
+          staticExportName(spec.imported);
+        importedBindings.set(spec.local.name,{target,exportName:importedName});
+      }
+    }
+    const targets=new Set();
+    for(const stmt of ast.body??[]) {
+      if(stmt.type==='ExportAllDeclaration') {
+        const target=staticModuleTarget(filename,stmt.source?.value);
+        if(!target)continue;
+        if(stmt.exported) {
+          if(staticExportName(stmt.exported)===exportName)targets.add(target);
+        } else {
+          for(const nested of resolveNamespaceExportTargets(target,exportName,seen))
+            targets.add(nested);
+        }
+      } else if(stmt.type==='ExportNamedDeclaration') {
+        if(stmt.source) {
+          const target=staticModuleTarget(filename,stmt.source.value);
+          if(!target)continue;
+          for(const spec of stmt.specifiers??[]) {
+            if(staticExportName(spec.exported)!==exportName)continue;
+            const localName=staticExportName(spec.local);
+            if(localName===null)continue;
+            for(const nested of resolveNamespaceExportTargets(target,localName,seen))
+              targets.add(nested);
+          }
+        } else if(!stmt.declaration) {
+          for(const spec of stmt.specifiers??[]) {
+            if(staticExportName(spec.exported)!==exportName)continue;
+            const localName=staticExportName(spec.local);
+            const imported=localName!==null?importedBindings.get(localName):undefined;
+            if(!imported)continue;
+            if(imported.exportName===null)targets.add(imported.target);
+            else for(const nested of resolveNamespaceExportTargets(
+              imported.target,imported.exportName,seen))targets.add(nested);
+          }
+        }
+      }
+    }
+    return targets;
+  }
   function namespaceSourceOrigins(target) {
     const origins=new Set();
     const pending=[target];
@@ -333,6 +398,13 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           const exportName=spec.type==='ImportSpecifier'?
             staticExportName(spec.imported):
             spec.type==='ImportDefaultSpecifier'?'default':null;
+          if(spec.type==='ImportSpecifier'&&exportName!==null) {
+            const namespaceTargets=resolveNamespaceExportTargets(target,exportName);
+            if(namespaceTargets.size) {
+              importedNamespaces.set(spec.local.name,namespaceTargets.size===1?
+                [...namespaceTargets][0]:target);
+            }
+          }
           const origins=exportName===null?null:
             resolvedCallableOrigins.get(target)?.get(exportName);
           if(origins?.size) {
