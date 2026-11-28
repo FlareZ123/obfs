@@ -64,7 +64,16 @@ test('consuming a proved factory through a mutable result, opaque key or side ef
     'import {build} from "./factory.mjs";const script=build(globalThis.host());'+
       'document.head.append(script);',
     'import {build} from "./factory.mjs";const script=build();'+
-      'document.head.append(build);'
+      'document.head.append(build);',
+    // This external pre-call effect may change Document.prototype.
+    // A static imported-factory proof must not assume opaque host calls
+    // preserve native intrinsics when they occur before factory invocation.
+    'import {build} from "./factory.mjs";globalThis.poisonDocument();'+
+      'const script=build();document.head.append(script);',
+    // A second factory call after an opaque operation has no native guarantee
+    // even when the first call returns a genuine Node.
+    'import {build} from "./factory.mjs";const first=build();'+
+      'globalThis.poisonDocument();const second=build();document.head.append(second);'
   ];
   for(const consumer of consumers)for(const mode of /** @type {const} */(['coo','sno','sco'])){
     const out=compile(factory,consumer,mode);
