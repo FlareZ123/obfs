@@ -12,7 +12,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   publishedStaticRecovery:{recovered:number,comparisons:number},
  *   matchedStaticDecision:{attackAdvantage:'supported'|'contradicted'|'inconclusive',measurementReady:boolean},
  *   candidateDecision:{attackAdvantage:'supported'|'contradicted'|'inconclusive'},
- *   rows:Array<{events:number,timingMs:VariantTimes}>
+ *   rows:Array<{events:number,timingMs:VariantTimes,cpuMs:VariantTimes}>
  * }} NodeFourWay
  */
 /**
@@ -24,8 +24,10 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   matchedWorkloads:number,
  *   pairedHotWorkEvents:number,
  *   freshGraphHttpModuleRequests:number,
+ *   cpuMeasurement:string,
+ *   cpuSamples:VariantTimes,
  *   samples:VariantTimes,
- *   coldFreshGraphs:Record<string,{computeMs:VariantTimes}>
+ *   coldFreshGraphs:Record<string,{computeMs:VariantTimes,cpuMs:(VariantTimes|null)}>
  * }} BrowserFourWay
  */
 
@@ -70,7 +72,9 @@ function evaluateFourWayCrossRuntime(node,browser){
      browser.verifiedExternalCallbacks!==true||
      browser.matchedWorkloads!==4||
      browser.pairedHotWorkEvents!==10000||
-     browser.freshGraphHttpModuleRequests!==288){
+     browser.freshGraphHttpModuleRequests!==432||
+     browser.cpuMeasurement!==
+       'Chromium Performance.ScriptDuration deltas (V8 JavaScript CPU; network wait excluded)'){
     throw new Error('Incomplete four-way Chromium trace or module-graph witness');
   }
   if(node.rows.length!==4||
@@ -78,19 +82,32 @@ function evaluateFourWayCrossRuntime(node,browser){
     throw new Error('Expected four frozen Node application workloads');
   }
   const cold=browser.coldFreshGraphs['10000'];
-  if(!cold||!cold.computeMs){
-    throw new Error('Missing fresh Chromium 10000-event compute measurements');
+  if(!cold||!cold.cpuMs){
+    throw new Error('Missing fresh Chromium 10000-event JavaScript CPU measurements');
+  }
+  for(const name of variants){
+    if(!Array.isArray(node.rows[0].cpuMs[name])||
+       node.rows.some(row=>!Array.isArray(row.cpuMs[name])||
+         row.cpuMs[name].length!==12||
+         row.cpuMs[name].some(value=>!Number.isFinite(value)||value<=0))||
+       !Array.isArray(browser.cpuSamples[name])||
+       browser.cpuSamples[name].length!==12||
+       browser.cpuSamples[name].some(value=>!Number.isFinite(value)||value<=0)||
+       !Array.isArray(cold.cpuMs[name])||cold.cpuMs[name].length!==12||
+       cold.cpuMs[name].some(value=>!Number.isFinite(value)||value<=0)){
+      throw new Error('Incomplete positive Node/Chromium CPU samples: '+name);
+    }
   }
   const named=[
     ...node.rows.map(row=>({
-      name:'node-fresh-session-'+row.events,
-      native:row.timingMs.native,
-      candidate:row.timingMs.published
+      name:'node-fresh-session-cpu-'+row.events,
+      native:row.cpuMs.native,
+      candidate:row.cpuMs.published
     })),
-    {name:'chromium-warmed-10000-compute',
-      native:browser.samples.native,candidate:browser.samples.published},
-    {name:'chromium-fresh-10000-compute',
-      native:cold.computeMs.native,candidate:cold.computeMs.published}
+    {name:'chromium-warmed-10000-v8-cpu',
+      native:browser.cpuSamples.native,candidate:browser.cpuSamples.published},
+    {name:'chromium-cold-10000-v8-cpu',
+      native:cold.cpuMs.native,candidate:cold.cpuMs.published}
   ];
   const familywise=familywiseBudgetBounds(named.map(row=>({
     native:row.native,candidate:row.candidate
@@ -115,7 +132,7 @@ function evaluateFourWayCrossRuntime(node,browser){
     sourceHashesMatch:true,
     matchedSampleBoundaries:named.map(row=>row.name),familywise,
     strictComputeBudget,staticAttackerVerdict,candidateChoice,releaseVerdict,
-    caveat:'This matched Node/Chromium evidence includes both zero-oracle source-only recovery and three-query functional cloning of the exact delivered graph. It is limited to the fixed ESM graph, selected attacker, observed trials and local Chrome runner. The full browser CPU-only cold work excludes HTTP/import latency, while Node fresh-session cost includes Node import. A median estimate never proves an all-input 2.5x ceiling; a complete runtime adversary can still inspect public JS.'
+    caveat:'This matched Node/Chromium evidence includes both zero-oracle source-only recovery and three-query functional cloning of the exact delivered graph. The Node budget uses process.cpuUsage deltas around fresh ESM import plus application execution. The Chromium budget uses Performance.ScriptDuration deltas (V8 JavaScript execution time) for warmed execution and cold ESM import plus first execution; network wait and wall latency are reported separately. It is limited to the fixed ESM graph, selected attacker, observed trials and local Chrome runner. A median estimate never proves an all-input 2.5x ceiling; a complete runtime adversary can still inspect public JS.'
   };
 }
 
