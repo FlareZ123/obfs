@@ -48,15 +48,32 @@ function originalFiles(){
  */
 async function serve(){
   const original=originalFiles();
+  // This script is deliberately dual-use. On the red-first source, run it
+  // without flags to prove native-vs-generated SRI mismatch. After the
+  // admission repair, --expect-guarded verifies both the island refusal and
+  // byte-preserving default-mode output against real Chromium.
+  const expectGuarded=process.argv.includes('--expect-guarded');
+  if(expectGuarded) {
+    assert.throws(()=>obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'agent5-windowproxy-sri-real-browser',
+      strings:false,identifiers:false,
+      experimentalSourceObserverIslands:['leaf.mjs']
+    }),/source|loader|opaque|island/i,'experimental island must refuse browser source observer');
+  }
   const compiled=obfuscateFiles(original,{
     mode:'coo',closedWorld:true,seed:'agent5-windowproxy-sri-real-browser',
     strings:false,identifiers:false,
-    experimentalSourceObserverIslands:['leaf.mjs']
+    ...(expectGuarded?{}:{experimentalSourceObserverIslands:['leaf.mjs']})
   });
   const leaf=compiled.files.find(file=>file.path==='leaf.mjs');
   assert.ok(leaf && typeof leaf.code==='string');
-  assert.ok(leaf.metrics.properties>=1,'test needs a real property rewrite');
-  assert.notEqual(leaf.code,original[0].code,'test needs different protected bytes');
+  if(expectGuarded) {
+    assert.equal(leaf.metrics.properties,0,'default source observer must suppress rewrite');
+    assert.equal(leaf.code,original[0].code,'byte-pin requires exact emitted JS source');
+  } else {
+    assert.ok(leaf.metrics.properties>=1,'red-first test needs a real property rewrite');
+    assert.notEqual(leaf.code,original[0].code,'test needs different protected bytes');
+  }
 
   /** @type {Map<string,string>} */
   const files=new Map();
