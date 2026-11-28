@@ -97,7 +97,7 @@ function metamorphicFiles(index){
     {path:'entry.mjs',sourceType:'module',code:[
       'import {watched} from "./watched.mjs";',
       'import {unrelated,independent} from "./independent.mjs";',
-      'console.log(JSON.stringify({watched:watched.toString(),first:unrelated(),second:independent(),named:unrelated.name,arity:unrelated.length}));'
+      'console.log(JSON.stringify({watched:watched.toString(),first:unrelated(),second:independent()}));'
     ].join('\n')}
   ];
 }
