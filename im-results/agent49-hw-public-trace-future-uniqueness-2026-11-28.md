@@ -79,6 +79,19 @@ This archive explicitly keeps **constructive UNSAT certificates from the trace p
 
 **Historical Z3 baseline crosschecks:** [run 46087993485](https://github.com/FlareZ123/obfs/actions/runs/46087993485) (predecessor labeling plus analytical lower bound) and [run 46087996847](https://github.com/FlareZ123/obfs/actions/runs/46087996847) (BFS labeling plus analytical lower bound) both succeeded on the exact same historical JSON. Both analytically eliminated all state sizes below each selected target and correctly preserved UNKNOWN for all four remaining target-sized solver cases. No general performance superiority between those two encodings was demonstrated.
 
+## Independent fixture-distribution stress and trace-length sensitivity
+
+The original 36 hW traces are **not** a distribution-free guarantee. To test generalization, a separate deterministic simulator constructs minimal, strongly connected binary Mealy machines with an input-0 Hamiltonian cycle and independent random input-1 transitions and outputs. It **only** supplies public replay traces to the reconstruction algorithm and compares against the private target table strictly afterward. Source and exact seed: sims/agent49_hw_passive_stress.py, RNG seed 49, 12 independently sampled targets for each state size 2–10 (108 targets), input-guess depth 10. Trace prefix lengths are 120 and 500, independently audited.
+
+| Public input/output observations | State lower bound equals true size | Complete bounded future certificates | Independently matched hidden tables |
+| ---: | ---: | ---: | ---: |
+| 120 steps (108 targets) | 54/108 | **40/108** | **40/40** |
+| 500 steps (same 108 targets) | 79/108 | **69/108** | **69/69** |
+
+The [source-pinned external CI run 46090104539](https://github.com/FlareZ123/obfs/actions/runs/46090104539) **passed** on commit 8245df50009f3645a4f9faad49831e7eb5dc8ed0, with independently downloadable [artifact 15240807846](https://github.com/FlareZ123/obfs/actions/runs/46090104539/artifacts/15240807846), ZIP SHA-256 5e0dab25c94153c4f8070ddfebe9e95fa19d20db16da92aab4cab182c3459a75. Its archived hw-passive-stress.json reproduces all counts above exactly; the same run's live paired hW exercise gives 3/3 complete certificates and three independent evaluator matches.
+
+A **separate provisional local** sensitivity run used seed 149, eight targets per size 16–24 (72 targets), public random input prefixes 500 and 4,000, input-depth 12, and the same independent strongly connected minimal generator: at 500 steps **0/72** had an exact public state bound and **0** a complete future certificate; at 4,000 steps **9/72** had exact state bound and **6/72** had complete bounded future certificates, **6/6** matching hidden tables. The current branch exposes optional public trace lengths to reproduce the longer case; its newest external CI is still to be inspected. These contrast sharply with the original targeted hW 23/36 result, confirming that trace information content and query policy materially affect constructive completeness. Neither the empirical success nor the failures justify a general protection claim.
+
 ## Interpretive limitations and open work
 
 This is a bounded **negative result** for the intuition that a source-private SCO service necessarily prevents finite-state *functional-oracle reconstruction*: the attacker has unlimited legitimate authenticated queries and can collect a highly informative trace. It does not imply the original JavaScript source was recovered, universal authorized-domain locking was defeated, the service authentication was bypassed, nor that arbitrary SCO/COO/SNO programs are reconstructable. No comparison between forensic work and protected JavaScript's required 2.5× runtime is established. All current classification claims are conditional on exact deterministic Mealy semantics and candidate state count no greater than the trace-derived k.
