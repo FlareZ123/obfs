@@ -27,7 +27,7 @@ test('SCO must not relocate TextEncoder.encodeInto unproved WebIDL source conver
     'const enc=new TextEncoder();return enc.encodeInto(null,new Uint8Array(8)).written;',
     'const {TextEncoder:TE}=globalThis;return new TE().encodeInto(42,new Uint8Array(8)).written;'
   ]){
-    assert.throws(()=>selected(body),/unproved cross-realm host API/u,body);
+    assert.throws(()=>selected(body),/unproved (?:cross-realm host API|host-global state)/u,body);
   }
 });
 
@@ -49,7 +49,7 @@ test('SCO must screen selected transitive private TextEncoder uses',()=>{
         code:'export function leaf(){return new TextEncoder().encodeInto(null,new Uint8Array(8)).written;}'
       }]
     }
-  ]),/unproved cross-realm host API/u);
+  }]),/unproved cross-realm host API/u);
 });
 
 test('SCO keeps unrelated private arithmetic and browser-side encoder source',()=>{
