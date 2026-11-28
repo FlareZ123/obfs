@@ -224,3 +224,26 @@ test('imported factory proof declines namespace reexports of the producer module
     0,'coo','export * as state from "./state.mjs";'
   );
 });
+
+
+test('imported factory proof declines implicit-coercion and integer-index keys',async()=>{
+  await checkFactory(
+    'export function makeState(){return {"0":17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(Object.keys(first).join(",")+first.otherField);',
+    0
+  );
+  await checkFactory(
+    'export function makeState(){return {toString:17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'let text;try{text=String(first);}catch(error){text=error.name;}'+
+      'console.log(text+first.otherField);',
+    0
+  );
+  await checkFactory(
+    'export function makeState(){return {then:17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(first.then+first.otherField);',
+    0
+  );
+});
