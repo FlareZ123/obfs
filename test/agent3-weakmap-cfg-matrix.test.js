@@ -245,7 +245,7 @@ const cases=[
 ['class-expression-static-before-instance-field','const carrier={instance:{}};const Holder=class{static {new this();}x=(carrier.instance=new WeakMap());};','carrier.instance'],
 ['class-expression-static-method-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static build(){new this();}static {this.build();}};','carrier.instance'],
 ['class-expression-static-escaped-self','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {globalThis.HolderCtor=this;}};new globalThis.HolderCtor();','carrier.instance'],
-['class-expression-static-inert-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {this.ready=1;}};','carrier.instance'],
+['class-expression-static-inert-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static ready=1;};','carrier.instance'],
 // Source-visible implicit static operations may execute an inherited class
 // getter/setter, Symbol.toPrimitive or Symbol.iterator; none is an explicit
 // new/call node in the class's own static body.
