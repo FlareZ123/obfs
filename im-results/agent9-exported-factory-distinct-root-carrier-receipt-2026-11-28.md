@@ -70,3 +70,20 @@ Two further focused regressions were added after the initial 456-test receipt:
 The current write boundary is nuanced: arithmetic compound assignments are admitted; simple `=` with nonliteral RHS is refused; logical compound assignments `&&=`, `||=`, `??=` are refused. Do not summarize this as arbitrary mutable-object analysis.
 
 The stateful real-Chromium workload exercising the same arithmetic compound writes passed in [run 46183904805](https://github.com/FlareZ123/obfs/actions/runs/46183904805), with 15.50 ms native, 15.60 ms minified, 15.60 ms obfuscated medians over nine measured rounds of five million calculations per variant. This remains a selected workload, not a universal 2.5× guarantee.
+
+
+## Final expanded three-platform regression suite
+
+The final focused wrapper run [46184913379](https://github.com/FlareZ123/obfs/actions/runs/46184913379), exact branch SHA `5e770a58da547a20f162d8b110df5682f90f702e`, completed **65/65 tests, 0 failures on each of Ubuntu, Windows and macOS**.
+
+The expanded suite includes:
+- distinct factory roots through record and tuple carriers, with imported identity forwarding;
+- arithmetic compound writes across those aliases;
+- refusal of simple nonliteral and logical compound assignments;
+- in-program `Function#toString` source-observer refusal;
+- namespace import and factory re-export refusal;
+- separate factory calls through multiple local import aliases;
+- property enumeration and JSON serialization observer refusal;
+- URL/POSIX C0 path-identity refusal and the supporting ESM/portable path suites.
+
+Strict project/external/paired-budget JSDoc checks also passed in the three-platform workflow. This remains a research-branch regression receipt, not current-main acceptance.
