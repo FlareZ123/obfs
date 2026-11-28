@@ -238,6 +238,109 @@ function admittedSourceIslandAmbient(node,parent,key,ancestors) {
 }
 
 /**
+ * Review the *effects* of a source-observer output expression. A bare free
+ * identifier check cannot cover inherited methods or implicit coercions:
+ * [0].flat() and +[] both invoke mutable host prototype methods despite
+ * containing no free variable spelling. Admit only primitive literal data,
+ * direct zero-argument calls to proven primitive leaf imports, their
+ * source-visible toString() observation, and ordinary JSON.stringify().
+ *
+ * Standard console/JSON/Function#toString behavior is explicitly assumed;
+ * a host that replaces those primitives remains outside this proof.
+ *
+ * @param {AstNode} node
+ * @param {Set<string>} primitiveImports
+ * @param {number} [depth]
+ * @returns {boolean}
+ */
+function reviewedOutputExpression(node,primitiveImports,depth=0) {
+  if(depth>24)return false;
+  if(node.type==='Literal') {
+    return !node.regex && (node.value===null ||
+      ['string','number','boolean','bigint'].includes(typeof node.value));
+  }
+  if(node.type==='Identifier')
+    return ['undefined','NaN','Infinity'].includes(node.name);
+  if(node.type==='ArrayExpression') {
+    return node.elements.every(element=>element?.type!=='SpreadElement' &&
+      element!==null && reviewedOutputExpression(element,primitiveImports,depth+1));
+  }
+  if(node.type==='ObjectExpression') {
+    return node.properties.every(property=>{
+      if(property.type!=='Property'||property.kind!=='init'||
+         property.method||property.shorthand||property.computed)return false;
+      const name=staticName(property.key);
+      return name!==null && !['__proto__','constructor','prototype'].includes(name) &&
+        reviewedOutputExpression(property.value,primitiveImports,depth+1);
+    });
+  }
+  if(node.type!=='CallExpression'||node.optional)return false;
+  const callee=node.callee;
+  if(callee.type==='Identifier' && primitiveImports.has(callee.name))
+    return node.arguments.length===0;
+  if(callee.type!=='MemberExpression'||callee.computed||callee.optional||
+     callee.object.type!=='Identifier'||callee.property.type!=='Identifier')
+    return false;
+  if(callee.property.name==='toString' &&
+     primitiveImports.has(callee.object.name))
+    return node.arguments.length===0;
+  if(callee.object.name==='JSON' && callee.property.name==='stringify' &&
+     node.arguments.length===1 && node.arguments[0].type!=='SpreadElement')
+    return reviewedOutputExpression(node.arguments[0],primitiveImports,depth+1);
+  return false;
+}
+
+/**
+ * Source-visible unselected entry scripts must be effects-reviewable:
+ * static imports of proven primitive leaves and direct console.log() output
+ * of reviewed primitive expressions only. Other arbitrary ESM statements
+ * can trigger host-modified methods, iterators, coercions or getters without
+ * referencing any ambient global in the provided source files.
+ *
+ * @param {AstNode} ast
+ * @param {string} filename
+ * @param {Map<string,{ast:AstNode,bindings:Map<string,number>}>} modules
+ * @param {Set<string>} known
+ * @returns {boolean}
+ */
+function purePrimitiveOutputProgram(ast,filename,modules,known) {
+  const primitiveImports=new Set();
+  let outputs=0;
+  for(const statement of ast.body) {
+    if(statement.type==='ImportDeclaration') {
+      const origin=typeof statement.source.value==='string' ?
+        resolveKnownImport(filename,statement.source.value,known):null;
+      const imported=origin?modules.get(origin):null;
+      const leafNames=imported?purePrimitiveLeafExports(imported.ast):null;
+      if(!leafNames)return false;
+      for(const specifier of statement.specifiers) {
+        const name=specifier.type==='ImportSpecifier' ?
+          (specifier.imported.name??specifier.imported.value):null;
+        if(typeof name!=='string'||!leafNames.has(name)||
+           specifier.local?.type!=='Identifier' ||
+           modules.get(filename)?.bindings.get(specifier.local.name)!==1)
+          return false;
+        primitiveImports.add(specifier.local.name);
+      }
+      continue;
+    }
+    if(statement.type!=='ExpressionStatement')return false;
+    const expression=statement.expression;
+    if(expression.type!=='CallExpression'||expression.optional||
+       expression.callee.type!=='MemberExpression'||
+       expression.callee.computed||expression.callee.optional||
+       expression.callee.object.type!=='Identifier'||
+       expression.callee.object.name!=='console'||
+       expression.callee.property.type!=='Identifier'||
+       expression.callee.property.name!=='log' ||
+       !expression.arguments.every(argument=>argument.type!=='SpreadElement' &&
+         reviewedOutputExpression(argument,primitiveImports)))return false;
+    outputs++;
+  }
+  return outputs>0;
+}
+
+/**
  * A narrowly reviewed *source-visible compatibility* exception to the
  * group-wide source observer veto. The compiler's default refusal is
  * unchanged. This checker never treats a hostile Node loader, browser
@@ -303,17 +406,15 @@ function proveSourceObserverIslands(files,selections) {
   const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
     const moduleNames=moduleScopeNames(module.ast);
-    // An unselected module is retained byte-for-byte, but exporting an
-    // arbitrary callable lets an embedding host supply a callback that reads
-    // the selected module's on-disk or served source. That callback is outside
-    // this declared ESM graph and cannot be recognized by a source-reader
-    // identifier blacklist. Only the inert primitive-returning envelope
-    // already accepted for selected leaves is admitted for other exports.
+    // The unselected ESM group can execute implicit host callbacks without
+    // any ambient identifier: prototype methods, iterator spread and object
+    // ToPrimitive conversion are all examples. Review the entire admitted
+    // module *shape*, not just its exports and explicit free references.
     if(!selectionSet.has(filename) &&
-       module.ast.body.some((/** @type {AstNode} */ statement)=>statement.type.startsWith('Export')) &&
        !purePrimitiveLeafExports(module.ast) &&
-       !purePrimitiveSnapshotExports(module.ast,filename,modules,known)) {
-      throw new TypeError('Source observer islands refuse unreviewed host-callable exports');
+       !purePrimitiveSnapshotExports(module.ast,filename,modules,known) &&
+       !purePrimitiveOutputProgram(module.ast,filename,modules,known)) {
+      throw new TypeError('Source observer islands refuse unreviewed ambient effects');
     }
     for(const statement of module.ast.body) {
       if(statement.type==='ExportAllDeclaration' ||
