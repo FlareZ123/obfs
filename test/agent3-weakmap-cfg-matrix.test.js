@@ -234,6 +234,12 @@ const cases=[
 ['class-expression-field-subclass-constructed','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());};class Sub extends Holder{}new Sub();','carrier.instance'],
 ['class-expression-field-inline-constructed','const carrier={instance:{}};new (class{x=(carrier.instance=new WeakMap());})();','carrier.instance'],
 ['class-expression-field-alias-unconstructed','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};const Alias=Holder;','carrier.instance'],
+// A class-expression static block can instantiate its own class during
+// definition, before a later constructor binding is assigned. Instance
+// initializer effects are *not* deferred past this nested new.
+['class-expression-static-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {new this();}};','carrier.instance'],
+['class-expression-static-self-alias','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {const Self=this;new Self();}};','carrier.instance'],
+['class-expression-static-registry','const carrier={instance:{}};const registry={Holder:class{x=(carrier.instance=new WeakMap());static {new this();}}};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
