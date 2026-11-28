@@ -175,3 +175,26 @@ for(const variant of provenanceCases){
     }
   }
 }
+
+for(const mode of /** @type {const} */(['coo','sco','sno'])) {
+  test(mode+' source-safe imported ordinary callback retains Wasm yield',async()=>{
+    /** @type {File[]} */
+    const files=[
+      {path:'methods.mjs',sourceType:'module',
+        code:'export const stable=(value)=>"fixed";'},
+      {path:'user.mjs',sourceType:'module',
+        code:'import {stable as cssEscape} from "./methods.mjs";'+
+          'export function sample(x){return x^17;}'+
+          'export const text=cssEscape(sample);'}
+    ];
+    const native=await evaluate(files);
+    assert.equal(native.text,'fixed');
+    const output=obfuscateFiles(files,{
+      mode,seed:'css-import-ordinary-callback/'+mode,
+      identifiers:false,strings:false,properties:false,
+      experimentalWasmI32:{'user.mjs':['sample']}
+    });
+    assert.match(String(output.files[1].code),/WebAssembly/);
+    assert.deepEqual(await evaluate(/** @type {File[]} */ (output.files)),native);
+  });
+}
