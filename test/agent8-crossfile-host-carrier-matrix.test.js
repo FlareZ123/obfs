@@ -201,21 +201,22 @@ test('positive cross-file owner control performs actual field rewrites',async()=
  * Browser version of the *same* source fixture. Browsers expose window as a
  * read-only self-reference, so change only the host attachment and observation
  * destination; the carrier expressions and original field spellings are
- * identical to the native ESM test above.
+ * identical to the native ESM test above, but the callback itself lives outside all compiler inputs.
  * @param {string} expression
  * @returns {ModuleFile[]}
  */
 function browserGraph(expression) {
   return graph(expression).map(file=>{
     if(file.path!=='entry.mjs')return file;
-    let code=file.code.replace(
-      'globalThis.window={host:{capture(value){',
-      'globalThis.window.host={capture(value){'
-    ).replace('return 7;}}};','return 7;}};');
-    code=code.replace('console.log(JSON.stringify({outcome,trace}));',
-      'globalThis.__hostCarrierResult={outcome,trace};');
-    assert.notEqual(code,file.code,'Browser host attachment must be different');
-    return {...file,code};
+    // The host callback is installed by the outer browser harness, never
+    // supplied to the compiler. Its own-key contract is an opaque API.
+    return {...file,code:[
+      'import {state} from "./state.mjs";',
+      'import {identity,forward} from "./relay.mjs";',
+      'const carried=('+expression+');',
+      'const outcome=globalThis.window.host.capture(carried);',
+      'globalThis.__hostCarrierResult=outcome;'
+    ].join('\n')};
   });
 }
 
@@ -286,13 +287,32 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
     const report=await page.evaluate(async count=>{
       let blocked=false;
       try{(0,eval)('1+1');}catch(error){blocked=/EvalError|Content Security Policy|unsafe-eval|Refused to evaluate/u.test(String(error));}
+      const realm=/** @type {any} */ (globalThis);
+      realm.__hostCarrierTrace=[];
+      // This callback is outside every obfuscator input file, exactly like an
+      // application-provided window API. It independently inspects the owner.
+      realm.window.host={capture(value){
+        const keys=Reflect.ownKeys(value).filter(x=>typeof x==='string').sort();
+        realm.__hostCarrierTrace.push({
+          keys,secret:value.secretField,other:value.otherField,
+          own:Object.prototype.hasOwnProperty.call(value,'secretField'),
+          descriptor:Object.getOwnPropertyDescriptor(value,'secretField')?.value??null
+        });
+        return 7;
+      }};
       /** @type {{index:number,native:string,emitted:string}[]} */
       const rows=[];
       for(let i=0;i<count;i++){
+        realm.__hostCarrierTrace=[];
         await import('/native-'+i+'/entry.mjs');
-        const native=JSON.stringify(/** @type {any} */(globalThis).__hostCarrierResult);
+        const native=JSON.stringify({
+          outcome:realm.__hostCarrierResult,trace:realm.__hostCarrierTrace
+        });
+        realm.__hostCarrierTrace=[];
         await import('/emitted-'+i+'/entry.mjs');
-        const emitted=JSON.stringify(/** @type {any} */(globalThis).__hostCarrierResult);
+        const emitted=JSON.stringify({
+          outcome:realm.__hostCarrierResult,trace:realm.__hostCarrierTrace
+        });
         rows.push({index:i,native,emitted});
       }
       const logs=[];
