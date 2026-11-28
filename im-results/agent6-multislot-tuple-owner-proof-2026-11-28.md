@@ -33,3 +33,10 @@ CHROMIUM_BIN=/usr/bin/google-chrome node test/agent6-multi-slot-tuple-browser.js
 ```
 
 Static `sims/offline-normalize` is expected to reconstruct every emitted hashed owner-property name; this is explicitly tested, so the claimed material improvement is **safe transform coverage of shared references**, not hiding those references against a source-only adversary.
+
+
+## Optional Symbol-key backend inherits the multi-owner proof
+
+An additional candidate control `test/agent6-repeated-owner-symbol-keys.test.js` exercises the already-shipped experimental `experimentalSymbolKeys:true` backend against both the new **multi-record** and **multi-tuple** carrier grammars, under SCO/COO/SNO mode flags. It asserts two local owner fields become **unregistered** `Symbol()` keys, not merely hashed string fields, and native signed integer outputs remain identical over 201 inputs per selected case. The existing private ownership proof is still the only authority; unsafe holder or root `Object.keys`/`Reflect.ownKeys` cases remain unchanged (`metrics.symbolKeys=0`). **Source-pinned [CI 46153027119](https://github.com/FlareZ123/obfs/actions/runs/46153027119)** at `6abcbefd79d9ceca0f770b90c4acacc2d99c669b` completed **green Ubuntu Node22 and Windows Node22**, including the new Symbol control, the earlier 128 seeded tuple layouts, historical record/tuple suites, strict JSDoc and genuine Chromium tuple and record tests (Chrome runs on Ubuntu only). The subsequent source change only clarifies tuple proof comments; runtime logic is unchanged.
+
+Symbols erase private **string key labels** for these local owner fields but do not provide virtual-black-box protection. The generated `_sk_...` identifiers and `Symbol()` declarations remain visible in distributed source; an attacker running an instrumented client can track symbol creation or call `Reflect.ownKeys` externally. Per-module `Symbol()` allocation introduces some one-time startup work; this particular optional Symbol mode was **not separately benchmarked against the universal 2.5× limit**. Do not equate a successful normal-name static neutralizer test or one browser workload with full attacker resistance.
