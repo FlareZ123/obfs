@@ -5038,16 +5038,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(dynamicScope||bindingCounts.get('document')!==1)return false;
     /** @type {AstNode|null} */
     let binding=null;
+    /** @type {AstNode|null} */
+    let declarationStatement=null;
+    if((ast.body??[]).some((/** @type {AstNode} */ statement)=>
+      statement.type==='ImportDeclaration'))return false;
     for(const statement of ast.body??[]) {
       if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
       for(const candidate of statement.declarations??[]) {
         if(candidate.id?.type==='Identifier'&&candidate.id.name==='document') {
           if(binding)return false;
           binding=candidate;
+          declarationStatement=statement;
         }
       }
     }
-    if(!binding)return false;
+    if(!binding||!declarationStatement)return false;
+    // Initializing the record must precede any executable top-level work:
+    // a hoisted function can otherwise reach the binding in its TDZ and
+    // expose its original identifier through a caught ReferenceError.
+    const firstExecutable=(ast.body??[]).find((/** @type {AstNode} */ statement)=>
+      statement.type!=='ExpressionStatement'||typeof statement.directive!=='string');
+    if(firstExecutable!==declarationStatement||
+       declarationStatement.declarations.length!==1)return false;
     const init=binding.init;
     if(init?.type!=='ObjectExpression'||init.properties.length!==1)return false;
     const proto=init.properties[0];
