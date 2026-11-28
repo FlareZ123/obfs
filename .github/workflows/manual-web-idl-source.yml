@@ -30,6 +30,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/agent19-user-timing-source-browser.js
+      - name: Selected-Wasm User Timing source counterfactual
+        run: node --test test/agent19-user-timing-wasm-counterfactual.test.js
       - name: Real Chromium native/emitted Web IDL differential
         if: matrix.os == 'ubuntu-latest'
         env:
