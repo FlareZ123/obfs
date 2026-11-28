@@ -26,7 +26,11 @@ const mutationCases=[
   {name:'document-constructor',
     mutation:'document.constructor.prototype.createElement='+replacement+';'},
   {name:'prototype-chain',
-    mutation:'Object.getPrototypeOf(document).__proto__.createElement='+replacement+';'}
+    mutation:'Object.getPrototypeOf(document).__proto__.createElement='+replacement+';'},
+  {name:'reflect-prototype',
+    mutation:'Reflect.getPrototypeOf(document).createElement='+replacement+';'},
+  {name:'reflect-prototype-alias',
+    mutation:'const proto=Reflect.getPrototypeOf(document);proto.createElement='+replacement+';'}
 ];
 
 /** @param {string} code @param {'coo'|'sco'|'sno'} mode */
