@@ -70,6 +70,24 @@ const cases=[
     exposed:true
   },
   {
+    name:'bound WeakMap constructor has a native instance',
+    source:'const carrier={instance:new (WeakMap.bind(null))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'aliased bound native WeakMap constructor is tracked',
+    source:'const W=WeakMap.bind(null);const carrier={instance:new W()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
+    name:'Reflect.get of native WeakMap constructs a native instance',
+    source:'const carrier={instance:new (Reflect.get(globalThis,"WeakMap"))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
