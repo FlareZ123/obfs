@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {partitionScoSelectedAsyncExports}=require('../src');
+const {partitionScoSelectedAsyncExports,partitionScoSelectedGraph}=require('../src');
 
 const entry=[
   'import {compute} from "./private/engine.mjs";',
@@ -40,6 +40,42 @@ function partitionGraph(leafBody,transitive=false){
   );
 }
 
+/** @param {string} leafBody @param {boolean} [transitive] */
+function partitionSelectedGraph(leafBody,transitive=false){
+  /** @type {ModuleSource[]} */
+  const graph=[{
+    path:'private/engine.mjs',
+    code:transitive?
+      'import {leaf} from "./deep/leaf.mjs";export function compute(){return leaf();}':
+      'export function compute(){'+leafBody+'}'
+  }];
+  if(transitive)graph.push({
+    path:'private/deep/leaf.mjs',
+    code:'export function leaf(){'+leafBody+'}'
+  });
+  return partitionScoSelectedGraph([{
+    file:{path:'mixed.mjs',code:entry,sourceType:'module'},
+    options:{
+      seed:'sco-private-host-effects-transitive-20261116',
+      privateNames:['protectedOp'],
+      privateModuleImports:['./private/engine.mjs'],
+      privateModuleSources:graph
+    }
+  }]);
+}
+
+/** @param {string} body */
+function partitionDirect(body){
+  return partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',
+    code:'export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}'
+  },{
+    seed:'sco-private-primitive-realm-direct-20261128',
+    privateNames:['protectedOp']
+  });
+}
+
 test('Private source audit refuses locale, timezone, entropy and clock effects across static ESM dependencies',()=>{
   const sensitive=[
     'return new Date(2020,0,1).toISOString();',
@@ -69,7 +105,7 @@ test('Private static graph admits explicitly UTC and deterministic computation c
     'return new Date(0).getUTCFullYear();',
     "return new Date('2020-01-01T00:00:00.000Z').toISOString();",
     'return Math.imul(7,9);',
-    'return (1234.5).toString();',
+    'return "abc".length+"abc"[0].length;',
     'return 41+1;'
   ];
   for(const body of safe){
@@ -79,6 +115,53 @@ test('Private static graph admits explicitly UTC and deterministic computation c
       assert.deepEqual(emitted.clientFile.privateModulePaths,
         transitive?['private/engine.mjs','private/deep/leaf.mjs']:['private/engine.mjs']);
       assert.doesNotMatch(emitted.clientFile.code,/import \{compute\}|export function compute|export function leaf/u);
+    }
+  }
+});
+
+test('Private SCO refuses implicit primitive-prototype reads and simple aliases',()=>{
+  const sensitive=[
+    'return "".toString().length;',
+    'return (1234.5).toString();',
+    'return true.valueOf();',
+    'return 1n.toString();',
+    'return "abc"[0].toString();',
+    'return "abc"[3];',
+    'return (1+2).toString();',
+    'return (true?1:2).toString();',
+    'return String("x").toString();',
+    'return new String("x").toString();',
+    'const s="x";return s.toString();',
+    'const s="x";const alias=s;return alias.toString();'
+  ];
+  for(const body of sensitive){
+    assert.throws(()=>partitionDirect(body),/realm-local prototype/u,body+' / direct');
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),/realm-local prototype/u,
+        body+' / standalone / transitive='+transitive);
+      assert.throws(()=>partitionSelectedGraph(body,transitive),/realm-local prototype/u,
+        body+' / selected graph / transitive='+transitive);
+    }
+  }
+});
+
+test('Private SCO preserves proven own string length and in-range index reads',()=>{
+  const safe=[
+    'return "".length;',
+    'return "abc".length;',
+    'return "abc"[0];',
+    'return "abc"[0].length;',
+    'return (1234.5+0);',
+    'const fn=()=>1;return fn.name.length;',
+    'const fn=()=>1;return fn.length+1;'
+  ];
+  for(const body of safe){
+    assert.doesNotThrow(()=>partitionDirect(body),body+' / direct');
+    for(const transitive of [false,true]){
+      assert.doesNotThrow(()=>partitionGraph(body,transitive),
+        body+' / standalone / transitive='+transitive);
+      assert.doesNotThrow(()=>partitionSelectedGraph(body,transitive),
+        body+' / selected graph / transitive='+transitive);
     }
   }
 });
