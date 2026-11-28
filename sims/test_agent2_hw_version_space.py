@@ -273,6 +273,79 @@ class VersionSpaceAuditTests(unittest.TestCase):
                     self.assertTrue(canonical["witness"]["candidate_strongly_connected_verified"])
                     self.assertTrue(canonical["witness"]["future_counterexample"])
 
+    def test_public_trace_output_diversity_certifies_three_states(self):
+        # This is an authentic no-reset deterministic 3-state cycle:
+        # input 000... yields output 001001..., and the same input word
+        # 00 appears with three different two-bit output responses.
+        trace = [["0", letter] for letter in "001001001"]
+        one = MODULE.trace_output_diversity_state_lower_bound(trace, 1)
+        two = MODULE.trace_output_diversity_state_lower_bound(trace, 2)
+        self.assertEqual(one["minimum_states"], 2)
+        self.assertEqual(two["minimum_states"], 3)
+        self.assertEqual(two["input_word"], "00")
+        self.assertEqual(
+            {w["output_word"] for w in two["output_witnesses"]},
+            {"00", "01", "10"},
+        )
+        self.assertEqual(
+            len({w["start_index"] for w in two["output_witnesses"]}), 3
+        )
+        for witness in two["output_witnesses"]:
+            start = witness["start_index"]
+            segment = trace[start:start+two["depth"]]
+            self.assertEqual("".join(p[0] for p in segment), "00")
+            self.assertEqual("".join(p[1] for p in segment), witness["output_word"])
+
+    def test_lower_bound_skips_analytically_impossible_candidate_sizes(self):
+        from unittest import mock
+        trace = [["0", letter] for letter in "001001001"]
+        row = {
+            "status": "completed", "state_count": 3, "seed": 0,
+            "fixture_table": {
+                "transitions": [[1, 0], [2, 1], [0, 2]],
+                "outputs": [["0", "0"], ["0", "0"], ["1", "1"]],
+                "initial_state": 0,
+            },
+            "observed_trace": trace, "target_post_trace_state": 0,
+        }
+        with mock.patch.object(MODULE, "solve_for_size",
+                               return_value=("unsat", {})) as solver:
+            result = MODULE.audit_row(
+                row, timeout_ms=50, trace_lower_bound_depth=2
+            )
+        self.assertEqual(result["status"], "unsat")
+        self.assertEqual(result["candidate_size_search"]["unsat_sizes"], [1,2,3])
+        self.assertEqual(result["candidate_size_search"]["analytical_unsat_sizes"], [1,2])
+        solver.assert_called_once_with(row, 3, 50, "predecessor")
+        self.assertEqual(
+            result["trace_lower_bound_certificate"]["minimum_states"], 3
+        )
+
+    def test_trace_bound_fails_closed_on_nonbinary_observations(self):
+        for row in ([["2","0"]], [["0","X"]], [["0"]]):
+            with self.subTest(row=row):
+                with self.assertRaises(ValueError):
+                    MODULE.trace_output_diversity_state_lower_bound(row, 3)
+
+    def test_trace_diversity_bound_never_exceeds_exhaustively_sampled_machine(self):
+        # Enumerate every deterministic two-state binary transition/output
+        # machine (16*16) and input word of length 6 (64 sequences each).
+        # Replay all 16,384 traces against the public-data-only certificate.
+        for d in itertools.product((0,1), repeat=4):
+            transitions = [list(d[:2]), list(d[2:])]
+            for o in itertools.product((0,1), repeat=4):
+                outputs = [list(o[:2]), list(o[2:])]
+                for inputs in itertools.product((0,1), repeat=6):
+                    state = 0
+                    trace = []
+                    for letter in inputs:
+                        trace.append([str(letter), str(outputs[state][letter])])
+                        state = transitions[state][letter]
+                    cert = MODULE.trace_output_diversity_state_lower_bound(
+                        trace, 5
+                    )
+                    self.assertLessEqual(cert["minimum_states"], 2)
+
     def test_skips_rows_without_raw_evaluator_evidence(self):
         result = MODULE.audit_row({"status": "completed"}, timeout_ms=100)
         self.assertEqual(result["status"], "skipped")
