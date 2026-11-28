@@ -294,3 +294,27 @@ test('principal revocation cancels assertion paused in durable counter CAS',asyn
   assert.equal((await h.admission.verifyAssertion(assertion(h,after,{counter:2}))).ok,true,
     'New independent challenge after revocation may authorize fresh ceremony');
 });
+
+test('independent fresh challenges still require an atomic cross-ceremony credential counter CAS',async()=>{
+  const h=harness();
+  const one=h.admission.issueChallenge('accountA','loginOne');
+  const two=h.admission.issueChallenge('accountA','loginTwo');
+  const first=assertion(h,one,{sessionId:'loginOne'});
+  const second=assertion(h,two,{sessionId:'loginTwo'});
+  const outcomes=await Promise.all([
+    h.admission.verifyAssertion(first),h.admission.verifyAssertion(second)
+  ]);
+  assert.equal(outcomes.filter(x=>x.ok).length,1,
+    'A valid distinct challenge is insufficient when a credential counter already advanced');
+  assert.equal(h.updates,2);
+  assert.equal(h.records.get(h.credentialId)?.signCount,1);
+});
+
+test('any malformed attempt burns its known challenge ID, blocking retry with corrected bytes',async()=>{
+  const h=harness();
+  const challenge=h.admission.issueChallenge('accountA','loginA');
+  const malicious=assertion(h,challenge,{origin:'https://attacker.example.com'});
+  assert.equal((await h.admission.verifyAssertion(malicious)).ok,false);
+  assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,false);
+  assert.equal(h.updates,0);
+});
