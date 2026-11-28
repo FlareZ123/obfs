@@ -125,8 +125,11 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
       typeof statement.expression.value==='string';
     const allowedDefaultPrimitive=statement.type==='ExportDefaultDeclaration'&&
       provenPrimitiveInitializer(statement.declaration);
+    const allowedDefaultFunction=statement.type==='ExportDefaultDeclaration'&&
+      ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.type);
     if(!(allowedDeclaration||allowedImportExport||allowedDirective||
-         allowedDefaultPrimitive||statement.type==='EmptyStatement')){
+         allowedDefaultPrimitive||allowedDefaultFunction||
+         statement.type==='EmptyStatement')){
       throw new TypeError(
         'Selected SCO private dependency has unproved module top-level effects: '+filename);
     }
