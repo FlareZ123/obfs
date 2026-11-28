@@ -93,6 +93,33 @@ function provenPrimitiveInitializer(value,depth=0){
 }
 
 /**
+ * Collect unexported top-level function-expression bindings whose own
+ * name/length properties may be admitted as primitive metadata reads.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @returns {Set<string>}
+ */
+function collectPrivateReadonlyFunctionMetadataNames(ast){
+  /** @type {Set<string>} */
+  const names=new Set();
+  for(const statement of ast.body){
+    const declaration=statement.type==='ExportNamedDeclaration'&&
+      statement.declaration&&!statement.source?statement.declaration:
+      statement.type==='ExportDefaultDeclaration'&&
+      statement.declaration?statement.declaration:statement;
+    if(declaration.type!=='VariableDeclaration'||
+       statement.type==='ExportNamedDeclaration')continue;
+    for(const item of declaration.declarations){
+      if(item.id.type==='Identifier'&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(item.init?.type)){
+        names.add(item.id.name);
+      }
+    }
+  }
+  return names;
+}
+
+/**
  * Conservative per-client module-state admission for each server-private
  * ESM child, used by both standalone selective SCO and selected graph builds.
  *
@@ -118,8 +145,7 @@ function provenPrimitiveInitializer(value,depth=0){
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
-  /** @type {Set<string>} */
-  const privateReadonlyFunctionMetadata=new Set();
+  const privateReadonlyFunctionMetadata=collectPrivateReadonlyFunctionMetadataNames(ast);
   let unprovedClass=false;
   for(const statement of ast.body){
     const declaration=statement.type==='ExportNamedDeclaration'&&
@@ -264,4 +290,4 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
   }
 }
 
-module.exports={assertNoSharedChildFunctionIdentity};
+module.exports={assertNoSharedChildFunctionIdentity,collectPrivateReadonlyFunctionMetadataNames};
