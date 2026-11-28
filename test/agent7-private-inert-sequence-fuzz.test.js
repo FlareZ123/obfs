@@ -39,7 +39,8 @@ function positive(id){
   const second=fields[(id+3)%fields.length];
   const a=1+(random()%10000);
   const b=1+(random()%10000);
-  const chosen=id%3===0?'(0,owner)':id%3===1?'(true,null,owner)':'("x",0n,owner)';
+  const prefixes=['0','true,null','"x",0n','1+2','true?1:2','void 0'];
+  const chosen='('+prefixes[id%prefixes.length]+',owner)';
   const reads=id%2===0 ?
     'alias.'+first+'+next.'+second :
     'alias['+JSON.stringify(first)+']+next['+JSON.stringify(second)+']';
