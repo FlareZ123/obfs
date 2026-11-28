@@ -92,6 +92,24 @@ test('ordinary userland collection is not presumed a native DOMString source',()
     'A user-owned ordinary Array of setter objects is not an actual DOM collection');
 });
 
+test('owned userland indexed array keeps genuine positive own-property rewrite yield',()=>{
+  const modules=[
+    {path:'state.mjs',sourceType:/** @type {const} */('module'),
+      code:'export const elements=[{setAttribute(){return 17;}}];'},
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),
+      code:'import {elements} from "./state.mjs";'+
+        'const owner={privateField:73};function inspect(){return owner.privateField;}'+
+        'elements[0].setAttribute("data-source",inspect);export const value=inspect();'}
+  ];
+  assert.equal(hasImportedDomStringSourceSink(modules),false);
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const output=obfuscateFiles(modules,{mode,closedWorld:true,seed:'userland-collection-'+mode,
+      identifiers:true,properties:true,strings:false});
+    assert.ok(output.files.reduce((sum,file)=>sum+file.metrics.properties,0)>0,
+      mode+': userland array should retain private-property rewrite yield');
+  }
+});
+
 for(const fixture of cases){
   for(const mode of /** @type {const} */(['coo','sco','sno'])){
     test(mode+': imported DOM collection native Function source: '+fixture.name,()=>{
