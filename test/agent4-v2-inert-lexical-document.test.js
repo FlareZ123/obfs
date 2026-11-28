@@ -10,11 +10,23 @@ const {parse,observesFunctionSource}=require('../src/ast');
 
 const head='function protectedFn(secretArg){return secretArg+1;}';
 const tail='export function sample(){return protectedFn(7);}';
+/** @type {{name:string,middle:string,yield:boolean,observed:boolean,hostilePrototype?:boolean}[]} */
 const variants=[
   {name:'null-proto-literal-inert',middle:
     'const document={__proto__:null};document.title=protectedFn;',yield:true,observed:false},
   {name:'null-proto-literal-two-inert-writes',middle:
     'const document={__proto__:null};document.title=protectedFn;document.title=protectedFn;',yield:true,observed:false},
+  {name:'own-title-data-inert',middle:
+    'const document={title:""};document.title=protectedFn;',yield:true,observed:false},
+  {name:'own-title-data-hostile-inherited-setter',middle:
+    'const document={title:""};document.title=protectedFn;',
+    yield:true,observed:false,hostilePrototype:true},
+  {name:'own-title-getter-is-not-data',middle:
+    'const document={set title(value){globalThis.observed=String(value);}};document.title=protectedFn;',
+    yield:false,observed:true},
+  {name:'own-title-deletion-exposes-hostile-setter',middle:
+    'const document={title:""};delete document.title;document.title=protectedFn;',
+    yield:false,observed:true,hostilePrototype:true},
   {name:'unshadowed-native-document',middle:
     'document.title=protectedFn;',yield:false,observed:true},
   {name:'alias-of-native-document',middle:
@@ -60,13 +72,18 @@ const runner=[
 ].join('\n');
 /**
  * @param {string} code
+ * @param {boolean} [hostilePrototype]
  * @returns {{result:number,title:string,observed:string}}
  */
-function run(code) {
+function run(code,hostilePrototype=false) {
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-agent4-document-'));
   try {
     fs.writeFileSync(path.join(dir,'app.mjs'),code);
-    fs.writeFileSync(path.join(dir,'runner.mjs'),runner);
+    const setup=hostilePrototype?
+      'Object.defineProperty(Object.prototype,"title",{configurable:true,set(value){globalThis.observed="host-"+String(value);}});':
+      '';
+    fs.writeFileSync(path.join(dir,'runner.mjs'),runner.replace('let title="";',
+      setup+'\\nlet title="";'));
     const outcome=spawnSync(process.execPath,[path.join(dir,'runner.mjs')],{
       encoding:'utf8',cwd:dir,timeout:15000
     });
@@ -80,7 +97,7 @@ for(const variant of variants) {
   test('proven lexical non-host Document: '+variant.name,()=>{
     const source=variant.middle+'\n'+head+'\n'+tail;
     const observed=observesFunctionSource(parse(source,'module'));
-    const native=run(source);
+    const native=run(source,variant.hostilePrototype);
     assert.equal(native.title.length>0||native.observed.length>0,variant.observed,
       'Native test must itself prove its declared observation boundary');
     const evidence=[];
@@ -90,7 +107,7 @@ for(const variant of variants) {
         strings:false,properties:false,identifiers:true,closedWorld:true
       });
       const file=compiled.files[0];
-      const out=run(String(file.code));
+      const out=run(String(file.code),variant.hostilePrototype);
       assert.deepEqual(out,native,
         'Native/emitted parity must hold for '+variant.name+' in '+mode);
       if(variant.yield)assert.ok(file.metrics.bindings>0,
