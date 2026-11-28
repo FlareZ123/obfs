@@ -137,6 +137,7 @@ async function runEvidence(){
           deobfuscate:true,unminify:true,unpack:false,jsx:false,
           sandbox:async ()=>{
             vmSandboxCallCount++;
+            result.vmSandboxCallCount=vmSandboxCallCount;
             throw new Error('No-VM-source-input control disallows runtime decoder evaluation');
           }
         });
@@ -213,7 +214,8 @@ if(require.main===module){
     // failed ordinary-minification control, however, invalidates the method.
     const baseline=result.variants.minified;
     if(baseline.error||!baseline.executionParity||
-       !baseline.fullAppOutputParity||!baseline.fullAppHostTraceParity)
+       !baseline.fullAppOutputParity||!baseline.fullAppHostTraceParity||
+       TARGETS.some(variant=>result.variants[variant].vmSandboxCallCount!==0))
       process.exitCode=2;
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
