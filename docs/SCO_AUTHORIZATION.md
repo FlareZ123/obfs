@@ -519,7 +519,47 @@ The hook is optional. With the hook unset, existing early coarse
 authorization and request behavior remain unchanged. When the hook is
 provided, the body is validated and size-bounded before coarse
 authorization, so a caller might receive a syntax/size response before
-a forbidden response. Unauthorized callers can still send up to
+a forbidden response.
+
+An optional **deny-only pre-admission filter**, `admitRpcEarly(request)`,
+may be configured alongside `runRpcIsolated`. It must be a synchronous
+function returning literal `true` to let the request proceed to bounded
+body parsing and the isolation queue. Any other return value is denied
+with HTTP 403 and a generic `Forbidden` response; a thrown exception
+is collapsed to generic HTTP 500. Refused requests do not enter the
+principal resolver, occupy `maxPendingTotal` capacity or invoke the
+protected operation. The callback is captured once during handler
+construction. It deliberately runs before the body is parsed: an
+unauthorized malformed JSON request may receive HTTP 403 instead of
+HTTP 400. The filter is only available when `runRpcIsolated` is set;
+it is opt-in and changes no default policy.
+
+**This filter never grants authorization.** Every request it admits must
+still pass the normal `authorizeRpc` check *inside* the isolation scope,
+and any configured per-operation authorization remains mandatory.
+A stale positive pre-admission decision is therefore insufficient
+to bypass a subsequent revocation. Use a cheap, non-mutating,
+independently verified authenticator or a trusted admission signal in
+`admitRpcEarly`; never use a mere claimed account, unauthenticated
+header, caller-supplied principal ID or an in-memory permission snapshot
+as proof of identity. Only a trusted server-side component should
+supply such a signal. A public key/MAC verification on a bounded token
+can be an example, but token freshness, revocation and replay controls
+remain application responsibilities. No built-in authentication,
+rate-limiting, cross-process capacity or network-level DDoS guarantee
+is provided. If a prefilter admits a malicious caller (for example by
+trusting a spoofed header), that caller can still consume global
+capacity before final authorization, and a malicious *authorized*
+caller may saturate the configured queue.
+
+The finite real-HTTP control in
+[`test/sco-pre-admission-denial.test.js`](../test/sco-pre-admission-denial.test.js)
+shows a stalled unauthorized identity lookup occupying a one-slot
+global queue without this filter, and the same denied caller consuming
+zero reservations when the filter is enabled. It also tests revocation
+within the authoritative scope and the filter's strict-boolean
+contract. This is a bounded availability improvement, not enhanced
+obfuscation secrecy or evidence of universal 2.5× compute compliance. Unauthorized callers can still send up to
 `maxRpcBytes` of body data. Deploy front-door request limits and
 timeouts as appropriate. A mutex can serialize calls across request
 boundaries, but it is not a general rollback mechanism and does not
