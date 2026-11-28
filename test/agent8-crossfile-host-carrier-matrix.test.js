@@ -6,6 +6,8 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
+const http=require('node:http');
+const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
@@ -192,4 +194,114 @@ test('positive cross-file owner control performs actual field rewrites',async()=
   assert.equal(output.crossFile.properties,2,
     'The control must rewrite both owned fields, not just run unmodified code');
   assert.deepEqual(await execute(output.files),native);
+});
+
+
+/**
+ * Browser version of the *same* source fixture. Browsers expose window as a
+ * read-only self-reference, so change only the host attachment and observation
+ * destination; the carrier expressions and original field spellings are
+ * identical to the native ESM test above.
+ * @param {string} expression
+ * @returns {ModuleFile[]}
+ */
+function browserGraph(expression) {
+  return graph(expression).map(file=>{
+    if(file.path!=='entry.mjs')return file;
+    let code=file.code.replace(
+      'globalThis.window={host:{capture(value){',
+      'globalThis.window.host={capture(value){'
+    ).replace('return 7;}}};','return 7;}};');
+    code=code.replace('console.log(JSON.stringify({outcome,trace}));',
+      'globalThis.__hostCarrierResult={outcome,trace};');
+    assert.notEqual(code,file.code,'Browser host attachment must be different');
+    return {...file,code};
+  });
+}
+
+test('real Chromium ESM preserves external own-key trace under strict CSP',{
+  skip:process.platform!=='linux'
+},async()=>{
+  const selected=[0,1,3,6,9,11,14,18,23,27,30,33,35,39];
+  /** @type {Map<string,string|Buffer>} */
+  const assets=new Map([['/index.html','<!doctype html><title>carrier parity</title>']]);
+  for(let i=0;i<selected.length;i++){
+    const [name,expression]=CARRIERS[selected[i]];
+    const original=browserGraph(expression);
+    const transformed=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
+      seed:'agent8-host-carrier-chrome-'+name+'-'+i
+    });
+    for(const file of original)assets.set('/native-'+i+'/'+file.path,file.code);
+    for(const file of transformed.files)
+      assets.set('/emitted-'+i+'/'+file.path,file.code);
+  }
+  const strictCsp="default-src 'none'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'";
+  let requests=0;
+  const server=http.createServer((req,res)=>{
+    const file=assets.get(req.url??'');
+    if(req.method!=='GET'||file===undefined){res.writeHead(404).end();return;}
+    if(req.url?.endsWith('.mjs'))requests++;
+    res.writeHead(200,{
+      'Content-Type':req.url?.endsWith('.mjs')?'text/javascript; charset=utf-8':'text/html; charset=utf-8',
+      'Cache-Control':'no-store',
+      'Content-Security-Policy':strictCsp,
+      'X-Content-Type-Options':'nosniff'
+    });
+    res.end(file);
+  });
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browser;
+  try {
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(true));
+    });
+    const addr=server.address();
+    assert.ok(addr&&typeof addr!=='string');
+    browser=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const page=await browser.newPage();
+    await page.goto('http://127.0.0.1:'+addr.port+'/index.html',{
+      waitUntil:'domcontentloaded',timeout:60000
+    });
+    const report=await page.evaluate(async count=>{
+      let blocked=false;
+      try{(0,eval)('1+1');}catch(error){blocked=/EvalError|Content Security Policy|unsafe-eval|Refused to evaluate/u.test(String(error));}
+      /** @type {{index:number,native:string,emitted:string}[]} */
+      const rows=[];
+      for(let i=0;i<count;i++){
+        await import('/native-'+i+'/entry.mjs');
+        const native=JSON.stringify(/** @type {any} */(globalThis).__hostCarrierResult);
+        await import('/emitted-'+i+'/entry.mjs');
+        const emitted=JSON.stringify(/** @type {any} */(globalThis).__hostCarrierResult);
+        rows.push({index:i,native,emitted});
+      }
+      return {blocked,rows};
+    },selected.length);
+    assert.equal(report.blocked,true,
+      'The browser probe must establish strict CSP without unsafe-eval');
+    assert.equal(report.rows.length,selected.length);
+    for(const row of report.rows){
+      assert.equal(row.emitted,row.native,
+        'Browser original vs emitted host observation diverged at '+CARRIERS[selected[row.index]][0]);
+      assert.deepEqual(JSON.parse(row.native),{
+        outcome:7,
+        trace:[{keys:['otherField','secretField'],secret:41,other:13,own:true,descriptor:41}]
+      },'The browser host-callback probe must be nonvacuous');
+    }
+    assert.equal(requests,selected.length*2*3,
+      'Every original and emitted module must load over real HTTP');
+    process.stdout.write('HOST_CARRIER_BROWSER '+
+      JSON.stringify({cases:selected.length,servedModules:requests,strictCsp,evalBlocked:true,
+        chrome:await browser.version()})+'\n');
+  } finally {
+    try{if(browser)await browser.close();}
+    finally{
+      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(true)));
+    }
+  }
 });
