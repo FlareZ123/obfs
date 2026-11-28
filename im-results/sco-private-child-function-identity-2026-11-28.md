@@ -161,3 +161,83 @@ hot path of accepted generated code. Their safe-refusal rate, available
 positive applications and full integration impact have not been
 comprehensively measured. SCO authorized-relay threats and
 the complete 2.5x/application/Chromium acceptance gate remain unresolved.
+
+
+## 28 November 15:45 UTC: source-audited state proof, negative controls and pending final source pin
+
+The second pinned workflow
+[46159150715](https://github.com/FlareZ123/obfs/actions/runs/46159150715)
+at `bb3ecb8f9a304596e6974ebc947af081392d15ed` is **RED** on
+both Ubuntu and Windows, each **150 passed / 4 failed / 154 total**. It
+supersedes no global acceptance evidence. The four concrete failures were:
+
+1. Two added rejection assertions demanded only the new module-object
+   message, but the existing realm/host scanner refused a RegExp
+   or `Reflect.get` first. Existing refusal is valid; tests now accept
+   those earlier explicit host refusals without marking any allowed case safe.
+2. The existing constructor-alias suite's *positive* scalar
+   `const key="answer";const record={answer:41};record[key]` was declined:
+   our previous scalar-literal proof did not resolve even unique immutable
+   string-key aliases. We added a deliberately narrow proof in
+   `src/sco-private-child-readonly-literal.js`: a module-level literal
+   string const is a usable key only if **every occurrence** of its lexical
+   name is its unique declaration or a computed member key; shadowing,
+   assignment, extra uses and first-class escapes invalidate the proof.
+   Positive/negative alias tests were added. The suite also preserves
+   `fn["name"].length` for an **unexported immutable function binding**
+   by a separate member-read proof; writes, exports, opaque first-class
+   references, method calls and prototype follow-on reads are refused.
+3. The existing publication-sealing fixture had *top-level* `const
+   k=["con","structor"].join(...)`, `const obj={}` and an opaque
+   loader, which the new strict audit correctly declines as unproved
+   shared module state. Rather than relax that admission or delete the
+   HTTP disclosure test, the same deliberate indirect loader fixture
+   was placed **inside the per-call private function**, preserving its
+   bounded static-loader blind spot while removing module-level singleton
+   owners. The test still checks the difference between an explicit
+   source-leaking handler and the compiler-owned sealed handler, with
+   authorized RPC parity.
+
+Additional adversarial discoveries and corresponding guarded changes:
+
+- A parenthesized named `export default (function inner(){inner.count++})`
+  is a `FunctionExpression`, not a `FunctionDeclaration`, and escaped
+  the first scanner's identity-name registration. The native three-realm
+  ESM witness through `export {default as run} from "./b.mjs"` yields
+  **[1,1,1,2]**, matching the same unsafe shared-function shape.
+  `src/sco-private-child-function-identity.js` now tracks the internal
+  name of a default function expression and refuses own-state mutation;
+  a stateless default function/arrow is a positive transitive control.
+- The prior `provenPrimitiveInitializer` grammar accepted module-level
+  expressions that *definitely throw* at native ESM import/evaluation:
+  `1 in 2`, `1 instanceof 2`, `+1n`, `1n+1`,
+  `1n/0n`, `1n**-1n`. Native Node 22.16.0 ESM imports produced
+  TypeError (first four) and RangeError (last two); the prior static
+  scanner admitted all six. The guard now excludes `in`/`instanceof`,
+  BigInt and non-finite literal inputs from its **positive** primitive
+  initializer grammar; safe Number arithmetic and conditional/static
+  string initializers remain positive. This is an explicit decline of
+  unproved initializer behavior, not an attempt to relocate browser
+  load-time failures to a server.
+
+A locally mirrored Node 22.16.0 scalar-owner grammar stress test ran
+100,000 generated ASTs at seed `0x5c0e2026`: 20,000 expected
+positive readonly observations and 80,000 expected negative
+mutations/escapes, all classified as generated in approximately
+2.06 seconds. A separate 120-mutation / 40-positive static AST matrix
+and five native readonly-table ESM three-tree witnesses also passed.
+These are local, grammar-limited **development observations**, not CI
+or a security quantification; the repository reproduction
+`sims/sco-private-child-ownership-fuzz.js` runs a fixed subset of
+8,000 cases.
+
+The latest cross-platform workflow
+[46161488263](https://github.com/FlareZ123/obfs/actions/runs/46161488263)
+pins exactly `0dfb345c02b55191a5e246448066ce4c267db239`
+and was **queued** at 15:45 UTC. That pinned SHA includes the new
+default-function and throwing-initializer refusals, source positive-key
+alias and metadata proof, native witnesses, 352 end-to-end seeded
+cases, 8,000 AST stress cases and dedicated JSDoc. It is *not*
+considered passing until results are checked. A pinned green focused
+suite would still not establish the complete application/Chromium/equal-
+trust attacker/2.5x release gate: **RELEASE-BLOCKED remains**.
