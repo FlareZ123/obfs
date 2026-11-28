@@ -54,6 +54,2298 @@ function walk(root, visit) {
 }
 
 /**
+ * Detect source-visible exposure of the shared WeakMap prototype.
+ *
+ * A supplied ESM module can mutate WeakMap.prototype before another supplied
+ * module evaluates. This fact must be shared across the compilation group:
+ * checking each file in isolation can incorrectly admit a reference-only
+ * Storage override in a sibling file. Reads of unrelated object prototypes
+ * and data properties named "getPrototypeOf" are not evidence of this hazard.
+ *
+ * This is intentionally a conservative, bounded syntactic exposure check.
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasWeakMapPrototypeExposure(ast) {
+  const globalNames=new Set(['globalThis','window','self','global']);
+  /** @type {Map<string,string|null>} */
+  const staticStringAliases=new Map();
+  walk(ast,(node,parent)=>{
+    if(node.type!=='VariableDeclarator'||node.id?.type!=='Identifier'||
+       parent?.type!=='VariableDeclaration'||parent.kind!=='const')return;
+    const value=staticString(node.init);
+    if(value===null)return;
+    if(!staticStringAliases.has(node.id.name))staticStringAliases.set(node.id.name,value);
+    else if(staticStringAliases.get(node.id.name)!==value)staticStringAliases.set(node.id.name,null);
+  });
+  // A top-level class declaration shadows the ambient WeakMap binding
+  // throughout this module. Its instance prototype is not the shared native
+  // WeakMap.prototype, unless the source explicitly uses globalThis.WeakMap.
+  const hasTopLevelWeakMapClass=ast.body.some((/** @type {AstNode} */ statement)=>{
+    const declaration=statement.type==='ExportNamedDeclaration'||
+      statement.type==='ExportDefaultDeclaration'?statement.declaration:statement;
+    return declaration?.type==='ClassDeclaration'&&declaration.id?.name==='WeakMap';
+  });
+  const weakMapConstructors=new Set(hasTopLevelWeakMapClass?[]:['WeakMap']);
+  /** @type {Map<string,number>} */
+  const weakMapDerivedConstructors=new Map();
+  /**
+   * Duplicate class names in nested scopes are ambiguous in this bounded
+   * name-indexed analysis. Retain the shallowest possible depth so a nested
+   * declaration cannot hide an outer path to native WeakMap.prototype.
+   * @param {string} name
+   * @param {number} depth
+   * @returns {boolean}
+   */
+  function recordWeakMapDerivedConstructor(name,depth) {
+    const prior=weakMapDerivedConstructors.get(name);
+    if(prior!==undefined&&prior<=depth)return false;
+    weakMapDerivedConstructors.set(name,depth);
+    return true;
+  }
+  /** @type {Map<string,number>} */
+  const weakMapPrototypeChainDepths=new Map();
+  const weakMapInstances=new Set();
+  const weakMapFactories=new Set();
+  const objectNamespaces=new Set(['Object']);
+  const reflectNamespaces=new Set(['Reflect']);
+  const prototypeGetters=new Set();
+  const reflectGetMethods=new Set();
+  const prototypeAliases=new Set();
+  const exportedLocalNames=new Set();
+  const importedLocalNames=new Set();
+  const weakMapContainerOwners=new Set();
+  const weakMapContainerInstances=new Set();
+  const objectAliases=new Map();
+  const exportedValueNodes=new Map();
+  /** @type {Array<{root:string|null,ownerName:string|null,global:boolean,imported:boolean,exportedFunction:boolean,value:AstNode}>} */
+  const memberWrites=[];
+  const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
+  /** @type {Map<AstNode,{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}>} */
+  const functionInfoByNode=new Map();
+
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function memberKey(node) {
+    if(node?.type!=='MemberExpression')return null;
+    if(node.computed) {
+      const direct=staticString(node.property);
+      if(direct!==null)return direct;
+      return node.property.type==='Identifier'?
+        staticStringAliases.get(node.property.name)??null:null;
+    }
+    return node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @type {Set<string>} */
+  const knownGlobalConstructorNames=new Set([
+    'WeakMap','Map','Set','Object','Reflect','Array','Function','String',
+    'Number','Boolean','Symbol','BigInt','Date','RegExp','Error','Promise',
+    'JSON','Math','Intl','Proxy','WeakRef','FinalizationRegistry','URL',
+    'URLSearchParams','ArrayBuffer','SharedArrayBuffer','DataView',
+    'Uint8Array','Uint8ClampedArray','Int8Array','Uint16Array','Int16Array',
+    'Uint32Array','Int32Array','Float32Array','Float64Array','BigInt64Array',
+    'BigUint64Array','WebAssembly','Atomics'
+  ]);
+  /**
+   * Return the first property below a global root, or "*" when any key is
+   * dynamic. This is used only for prototype-chain/heritage decisions.
+   * @param {AstNode|null|undefined} node
+   * @returns {string|null}
+   */
+  function globalRootProperty(node) {
+    let current=node;
+    let firstKey=null;
+    let hasMember=false;
+    let hasDynamicKey=false;
+    while(current?.type==='MemberExpression') {
+      hasMember=true;
+      const key=memberKey(current);
+      if(key===null)hasDynamicKey=true;
+      else firstKey=key;
+      current=current.object;
+    }
+    if(!hasMember||current?.type!=='Identifier'||!globalNames.has(current.name))
+      return null;
+    return hasDynamicKey?'*':firstKey;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isRequireCall(node) {
+    return Boolean(node?.type==='CallExpression'&&
+      node.callee.type==='Identifier'&&node.callee.name==='require');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobalRoot(node) {
+    return node?.type==='Identifier'&&globalNames.has(node.name);
+  }
+  /** @param {AstNode|null|undefined} node @param {Set<string>} names @returns {boolean} */
+  function isNamespace(node,names) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&names.has(node.name)||
+      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
+        names.has(memberKey(node)??'')
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapConstructor(node) {
+    return Boolean(node&&(
+      node.type==='Identifier'&&weakMapConstructors.has(node.name)||
+      node.type==='MemberExpression'&&isGlobalRoot(node.object)&&
+        memberKey(node)==='WeakMap'
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapInstance(node) {
+    return Boolean(node&&(
+      node.type==='NewExpression'&&isWeakMapConstructor(node.callee)||
+      node.type==='Identifier'&&weakMapInstances.has(node.name)
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobalObjectPath(node) {
+    return Boolean(isGlobalRoot(node)||
+      node?.type==='MemberExpression'&&isGlobalObjectPath(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function rootIdentifier(node) {
+    let current=node;
+    while(current?.type==='MemberExpression')current=current.object;
+    return current?.type==='Identifier'?current.name:null;
+  }
+  /**
+   * Find WeakMap instances in a value expression without treating a nested
+   * function body as an immediate escape. Function return/yield summaries
+   * are handled separately below.
+   * @param {AstNode|null|undefined} root
+   * @returns {boolean}
+   */
+  function containsWeakMapInstanceValue(root) {
+    if(!root)return false;
+    if(isWeakMapInstance(root))return true;
+    if(root.type==='Identifier'&&
+       (weakMapContainerInstances.has(root.name)||weakMapContainerOwners.has(root.name)))
+      return true;
+    if(root.type==='CallExpression'&&root.callee.type==='Identifier'&&
+       weakMapFactories.has(root.callee.name))return true;
+    // Only follow expression positions that contribute to the returned or
+    // exported value. Do not mistake a WeakMap used as the receiver of
+    // WeakMap.prototype.get() for a WeakMap returned by that call.
+    if(functionTypes.has(root.type))return false;
+    if(root.type==='ObjectExpression') {
+      return root.properties.some((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?
+          containsWeakMapInstanceValue(property.argument):
+        property.type==='Property'?
+          containsWeakMapInstanceValue(property.value):false);
+    }
+    if(root.type==='ArrayExpression')
+      return root.elements.some((/** @type {AstNode|null} */ element)=>
+        containsWeakMapInstanceValue(element));
+    if(root.type==='Property'||root.type==='SpreadElement')
+      return containsWeakMapInstanceValue(root.value??root.argument);
+    if(root.type==='ConditionalExpression')
+      return containsWeakMapInstanceValue(root.consequent)||
+        containsWeakMapInstanceValue(root.alternate);
+    if(root.type==='LogicalExpression')
+      return containsWeakMapInstanceValue(root.left)||
+        containsWeakMapInstanceValue(root.right);
+    if(root.type==='SequenceExpression')
+      return containsWeakMapInstanceValue(root.expressions.at(-1));
+    if(root.type==='AssignmentExpression')
+      return containsWeakMapInstanceValue(root.right);
+    if(root.type==='AwaitExpression'||root.type==='YieldExpression')
+      return containsWeakMapInstanceValue(root.argument);
+    if(root.type==='ChainExpression')
+      return containsWeakMapInstanceValue(root.expression);
+    if(root.type==='ClassDeclaration'||root.type==='ClassExpression') {
+      return root.body.body.some((/** @type {AstNode} */ element)=>
+        element.type==='PropertyDefinition'&&
+          containsWeakMapInstanceValue(element.value));
+    }
+    return false;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isObjectPrototypeValue(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      isNamespace(node.object,objectNamespaces)&&memberKey(node)==='prototype');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isLegacyPrototypeParentGetterValue(node) {
+    if(node?.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberKey(node.callee)==='__lookupGetter__'&&
+       isObjectPrototypeValue(node.callee.object)&&
+       staticString(node.arguments[0])==='__proto__')return true;
+    return Boolean(node?.type==='MemberExpression'&&memberKey(node)==='get'&&
+      node.object?.type==='CallExpression'&&
+      node.object.callee.type==='MemberExpression'&&
+      isNamespace(node.object.callee.object,objectNamespaces)&&
+      memberKey(node.object.callee)==='getOwnPropertyDescriptor'&&
+      isObjectPrototypeValue(node.object.arguments[0])&&
+      staticString(node.object.arguments[1])==='__proto__');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isPrototypeGetterMember(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      memberKey(node)==='getPrototypeOf'&&
+      (isNamespace(node.object,objectNamespaces)||
+       isNamespace(node.object,reflectNamespaces)))||
+      isLegacyPrototypeParentGetterValue(node);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isReflectGetCall(node) {
+    return Boolean(node?.type==='CallExpression'&&(
+      node.callee.type==='MemberExpression'&&
+        isNamespace(node.callee.object,reflectNamespaces)&&memberKey(node.callee)==='get'||
+      node.callee.type==='Identifier'&&reflectGetMethods.has(node.callee.name)
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isPrototypeGetterCall(node) {
+    if(node?.type!=='CallExpression')return false;
+    if(node.callee.type==='Identifier'&&prototypeGetters.has(node.callee.name))return true;
+    if(node.callee.type==='MemberExpression'&&
+       ['call','apply'].includes(memberKey(node.callee)??'')) {
+      if(node.callee.object.type==='Identifier'&&
+         prototypeGetters.has(node.callee.object.name))return true;
+      if(isPrototypeGetterMember(node.callee.object))return true;
+    }
+    return isPrototypeGetterMember(node.callee);
+  }
+  /**
+   * Return the prototype-chain distance from a WeakMap-derived constructor's
+   * own prototype to native WeakMap.prototype. Native WeakMap has depth zero.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapDerivedDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      const depth=weakMapDerivedConstructors.get(node.name);
+      if(depth!==undefined)return depth;
+    }
+    // Global properties outside the known intrinsic constructor set are
+    // external/ambiguous. Treat them as possible WeakMap-derived constructors
+    // rather than assuming a cross-file or host-provided value is harmless.
+    const globalProperty=globalRootProperty(node);
+    if(globalProperty==='*'||
+       (globalProperty!==null&&!knownGlobalConstructorNames.has(globalProperty)))return 0;
+    // Explicit global constructors remain identifiable even when the local
+    // class deliberately shadows the bare WeakMap binding.
+    if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+       ['globalThis','window','self','global'].includes(node.object.name)&&
+       memberKey(node)==='WeakMap')return 0;
+    if(isWeakMapConstructor(node))return 0;
+    if(node.type==='ClassExpression'||node.type==='ClassDeclaration') {
+      const parentDepth=weakMapDerivedDepth(node.superClass);
+      return parentDepth===undefined?undefined:parentDepth+1;
+    }
+    if(node.type==='ConditionalExpression'||node.type==='LogicalExpression') {
+      const left=weakMapDerivedDepth(node.type==='ConditionalExpression'?
+        node.consequent:node.left);
+      const right=weakMapDerivedDepth(node.type==='ConditionalExpression'?
+        node.alternate:node.right);
+      if(left===undefined)return right;
+      if(right===undefined)return left;
+      return Math.min(left,right);
+    }
+    if(node.type==='SequenceExpression')
+      return weakMapDerivedDepth(node.expressions.at(-1));
+    if(node.type==='AssignmentExpression')
+      return weakMapDerivedDepth(node.right);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return weakMapDerivedDepth(node.argument);
+    if(node.type==='ChainExpression')
+      return weakMapDerivedDepth(node.expression);
+    return undefined;
+  }
+  /**
+   * Return the remaining prototype-chain distance for a WeakMap instance,
+   * derived-class prototype, or an alias of either. Zero is the shared native
+   * WeakMap.prototype; positive values are intermediate prototypes.
+   * @param {AstNode|null|undefined} node
+   * @returns {number|undefined}
+   */
+  function weakMapPrototypeChainDepth(node) {
+    if(!node)return undefined;
+    if(node.type==='Identifier') {
+      if(prototypeAliases.has(node.name))return 0;
+      const aliasDepth=weakMapPrototypeChainDepths.get(node.name);
+      if(aliasDepth!==undefined)return aliasDepth;
+    }
+    if(node.type==='NewExpression') {
+      const derivedDepth=weakMapDerivedDepth(node.callee);
+      if(derivedDepth!==undefined)return derivedDepth+1;
+    }
+    if(node.type==='CallExpression'&&isReflectGetCall(node)) {
+      const key=staticString(node.arguments[1]) ??
+        (node.arguments[1]?.type==='Identifier'?
+          staticStringAliases.get(node.arguments[1].name)??null:null);
+      if(key==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.arguments[0]);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.arguments[0]))return 0;
+      }
+      if(key==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.arguments[0]))return 0;
+      }
+    }
+    if(node.type==='MemberExpression') {
+      const globalProperty=globalRootProperty(node);
+      if(globalProperty==='*'||
+         (globalProperty!==null&&!knownGlobalConstructorNames.has(globalProperty)))return 0;
+      const key=memberKey(node);
+      if(key==='prototype') {
+        const derivedDepth=weakMapDerivedDepth(node.object);
+        if(derivedDepth!==undefined&&derivedDepth>0)return derivedDepth;
+        if(isWeakMapConstructor(node.object))return 0;
+      }
+      if(key==='__proto__') {
+        const parentDepth=weakMapPrototypeChainDepth(node.object);
+        if(parentDepth===1)return 0;
+        if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+        if(isWeakMapInstance(node.object))return 0;
+      }
+    }
+    if(node.type==='CallExpression'&&isPrototypeGetterCall(node)) {
+      const parentDepth=weakMapPrototypeChainDepth(node.arguments[0]);
+      if(parentDepth===1)return 0;
+      if(parentDepth!==undefined&&parentDepth>1)return parentDepth-1;
+      if(isWeakMapInstance(node.arguments[0]))return 0;
+    }
+    return undefined;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWeakMapPrototypeExpression(node) {
+    return weakMapPrototypeChainDepth(node)===0;
+  }
+  /**
+   * @param {AstNode} pattern
+   * @param {AstNode|null|undefined} init
+   */
+  function collectDestructuredAliases(pattern,init) {
+    if(pattern.type!=='ObjectPattern')return;
+    for(const property of pattern.properties) {
+      if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      if(key==='getPrototypeOf'&&
+         (isNamespace(init,objectNamespaces)||isNamespace(init,reflectNamespaces))) {
+        prototypeGetters.add(property.value.name);
+      }
+      if(isGlobalRoot(init)) {
+        if(key==='WeakMap')weakMapConstructors.add(property.value.name);
+        if(key==='Object')objectNamespaces.add(property.value.name);
+        if(key==='Reflect')reflectNamespaces.add(property.value.name);
+      }
+      if(key==='prototype') {
+        const depth=weakMapDerivedDepth(init);
+        if(depth===0)prototypeAliases.add(property.value.name);
+        else if(depth!==undefined)weakMapPrototypeChainDepths.set(property.value.name,depth);
+      }
+      if(key==='__proto__') {
+        const depth=weakMapPrototypeChainDepth(init);
+        if(depth===1)exposed=true;
+        else if(depth!==undefined&&depth>1)
+          weakMapPrototypeChainDepths.set(property.value.name,depth-1);
+      }
+    }
+  }
+  /**
+   * @param {AstNode[]} ancestors
+   * @returns {{name:string|null,ownerName:string|null,exported:boolean,returnedFactories:Set<string>,returnsWeakMap:boolean,returnValues:AstNode[]}|undefined}
+   */
+  function nearestFunctionInfo(ancestors) {
+    for(let index=ancestors.length-1;index>=0;index--) {
+      const info=functionInfoByNode.get(ancestors[index]);
+      if(info)return info;
+    }
+    return undefined;
+  }
+  /** @param {string} name @returns {boolean} */
+  function resolvesToEscapedContainer(name) {
+    const seen=new Set();
+    let current=name;
+    while(current&&!seen.has(current)) {
+      if(exportedLocalNames.has(current)||importedLocalNames.has(current))return true;
+      seen.add(current);
+      current=objectAliases.get(current);
+    }
+    return false;
+  }
+
+  // A direct call to a unique, private local reader does not publish its
+  // WeakMap argument. Keep this proof deliberately narrow: only functions
+  // with unique, unreassigned bindings and parameters used solely as receivers
+  // of native get/has/delete calls qualify. Returned get() values remain
+  // maybe-carriers if a caller later exposes them.
+  /** @type {Map<string,AstNode>} */
+  const localFunctionNodes=new Map();
+  /** @type {Set<string>} */
+  const exportedFunctionNames=new Set();
+  for(const statement of ast.body??[]) {
+    if(statement.type==='ExportNamedDeclaration') {
+      for(const specifier of statement.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')exportedFunctionNames.add(specifier.local.name);
+      }
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier')
+        exportedFunctionNames.add(declaration.id.name);
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations??[])
+          if(item.id?.type==='Identifier')exportedFunctionNames.add(item.id.name);
+      }
+    } else if(statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration?.type==='Identifier')
+        exportedFunctionNames.add(statement.declaration.name);
+      if(statement.declaration?.type==='FunctionDeclaration'&&statement.declaration.id?.type==='Identifier')
+        exportedFunctionNames.add(statement.declaration.id.name);
+    }
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement.type==='ExportDefaultDeclaration'?
+        statement.declaration:statement;
+    if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier')
+      localFunctionNodes.set(declaration.id.name,declaration);
+    if(declaration?.type==='VariableDeclaration') {
+      for(const item of declaration.declarations??[]) {
+        if(item.id?.type==='Identifier'&&item.init&&functionTypes.has(item.init.type))
+          localFunctionNodes.set(item.id.name,item.init);
+      }
+    }
+  }
+  // Direct calls on a private const object literal can replay a method's
+  // captured carrier effects without treating arbitrary mutable properties as
+  // stable. The final use-count check is applied at the call site after all
+  // identifier occurrences have been collected.
+  /** @type {Map<string,Map<string,AstNode>>} */
+  const localObjectMethods=new Map();
+  for(const statement of ast.body??[]) {
+    const declaration=statement.type==='ExportNamedDeclaration'?
+      statement.declaration:statement;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const item of declaration.declarations??[]) {
+      if(item.id?.type!=='Identifier'||item.init?.type!=='ObjectExpression')continue;
+      const methods=new Map();
+      for(const property of item.init.properties??[]) {
+        if(property.type!=='Property'||!functionTypes.has(property.value?.type))continue;
+        const key=carrierStaticKey(property.key,property.computed);
+        if(key!==null)methods.set(key,property.value);
+      }
+      if(methods.size)localObjectMethods.set(item.id.name,methods);
+    }
+  }
+
+  /**
+   * @param {AstNode|null|undefined} pattern
+   * @param {Map<string,number>} counts
+   */
+  function addPatternBindings(pattern,counts) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier')counts.set(pattern.name,(counts.get(pattern.name)??0)+1);
+    else if(pattern.type==='AssignmentPattern')addPatternBindings(pattern.left,counts);
+    else if(pattern.type==='RestElement')addPatternBindings(pattern.argument,counts);
+    else if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[])addPatternBindings(element,counts);
+    } else if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.type==='RestElement')addPatternBindings(property.argument,counts);
+        else if(property.type==='Property')addPatternBindings(property.value,counts);
+      }
+    }
+  }
+  /** @type {Map<string,number>} */
+  const localBindingCounts=new Map();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator')addPatternBindings(node.id,localBindingCounts);
+    if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression') {
+      if(node.id?.type==='Identifier')
+        localBindingCounts.set(node.id.name,(localBindingCounts.get(node.id.name)??0)+1);
+      for(const parameter of node.params??[])addPatternBindings(parameter,localBindingCounts);
+    }
+    if(node.type==='ArrowFunctionExpression') {
+      for(const parameter of node.params??[])addPatternBindings(parameter,localBindingCounts);
+    }
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+      if(node.id?.type==='Identifier')
+        localBindingCounts.set(node.id.name,(localBindingCounts.get(node.id.name)??0)+1);
+    }
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')
+          localBindingCounts.set(specifier.local.name,(localBindingCounts.get(specifier.local.name)??0)+1);
+      }
+    }
+    if(node.type==='CatchClause')addPatternBindings(node.param,localBindingCounts);
+  });
+  /** @type {Set<string>} */
+  const reassignedLocalFunctions=new Set();
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier')
+      reassignedLocalFunctions.add(node.left.name);
+    if(node.type==='UpdateExpression'&&node.argument?.type==='Identifier')
+      reassignedLocalFunctions.add(node.argument.name);
+  });
+  // A top-level empty class without a mutable binding has a default
+  // constructor that performs no user-code callbacks before returning.
+  /** @type {Set<string>} */
+  const pureEmptyClassNames=new Set();
+  for(const statement of ast.body??[]) {
+    if(statement.type==='ClassDeclaration'&&statement.id?.type==='Identifier'&&
+       !statement.superClass&&statement.body?.body?.length===0&&
+       localBindingCounts.get(statement.id.name)===1&&
+       !reassignedLocalFunctions.has(statement.id.name))
+      pureEmptyClassNames.add(statement.id.name);
+  }
+  // An unexported module-local object literal bound to a never-referenced
+  // identifier cannot have its own getter invoked, absent direct eval.
+  // Keep this precision proof deliberately scoped to module bindings.
+  /** @type {Map<string,number>} */
+  const identifierOccurrences=new Map();
+  let hasDirectEval=false;
+  walk(ast,node=>{
+    if(node.type==='Identifier')
+      identifierOccurrences.set(node.name,(identifierOccurrences.get(node.name)??0)+1);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
+  });
+  /** @type {WeakSet<AstNode>} */
+  const unobservedGetterInitializers=new WeakSet();
+  if(ast.sourceType==='module'&&!hasDirectEval) {
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init?.type==='ObjectExpression'&&
+         identifierOccurrences.get(node.id.name)===1&&
+         !exportedLocalNames.has(node.id.name)&&
+         !reassignedLocalFunctions.has(node.id.name))
+        unobservedGetterInitializers.add(node.init);
+    });
+  }
+  // Immutable aliases of private local helpers preserve their function
+  // object identity. Resolve transitive aliases to a fixed point, but never
+  // treat an ambiguous or reassigned identifier as a stable callable.
+  /** @type {Array<readonly [string,string]>} */
+  const immutableFunctionAliases=[];
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+       parent.kind==='const'&&node.id.type==='Identifier'&&
+       node.init?.type==='Identifier'&&
+       localBindingCounts.get(node.id.name)===1&&
+       !reassignedLocalFunctions.has(node.id.name))
+      immutableFunctionAliases.push([node.id.name,node.init.name]);
+  });
+  for(let step=0;step<immutableFunctionAliases.length;step++) {
+    let changed=false;
+    for(const [alias,target] of immutableFunctionAliases) {
+      if(localFunctionNodes.has(alias)||reassignedLocalFunctions.has(target)||
+         localBindingCounts.get(target)!==1)continue;
+      const original=localFunctionNodes.get(target);
+      if(original){localFunctionNodes.set(alias,original);changed=true;}
+    }
+    if(!changed)break;
+  }
+  /**
+   * @param {AstNode|null|undefined} root
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function containsIdentifier(root,name) {
+    let found=false;
+    if(root)walk(root,node=>{if(node.type==='Identifier'&&node.name===name)found=true;});
+    return found;
+  }
+  /**
+   * @param {AstNode} fn
+   * @param {string} paramName
+   * @returns {{safe:boolean,returnMaybe:boolean,returnsParameter:boolean,returnsPrototype:boolean}}
+   */
+  function localReaderParameter(fn,paramName) {
+    let safe=true;
+    let returnMaybe=false;
+    /**
+     * @param {AstNode|null|undefined} node
+     * @param {AstNode|null|undefined} parent
+     * @param {AstNode|null|undefined} grand
+     */
+    function inspect(node,parent,grand) {
+      if(!node||typeof node!=='object'||typeof node.type!=='string')return;
+      if(functionTypes.has(node.type)) {
+        safe=false;
+        return;
+      }
+      if(node.type==='WithStatement')safe=false;
+      if(node.type==='CallExpression'&&node.callee?.type==='Identifier'&&
+         (node.callee.name==='eval'||node.callee.name==='Function'))safe=false;
+      if(node.type==='VariableDeclarator'&&node.id&&containsIdentifier(node.id,paramName))
+        safe=false;
+      if(node.type==='CatchClause'&&node.param&&containsIdentifier(node.param,paramName))
+        safe=false;
+      if(node.type==='ClassDeclaration'&&node.id?.name===paramName)safe=false;
+      if(node.type==='Identifier'&&node.name===paramName) {
+        const allowed=parent?.type==='MemberExpression'&&parent.object===node&&
+          ['get','has','delete'].includes(memberKey(parent)??'')&&
+          grand?.type==='CallExpression'&&grand.callee===parent&&
+          !parent.optional&&!grand.optional;
+        if(!allowed)safe=false;
+      }
+      if(node.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&
+         node.callee.object?.type==='Identifier'&&node.callee.object.name===paramName&&
+         memberKey(node.callee)==='get'&&
+         !['ReturnStatement','ExpressionStatement'].includes(parent?.type??''))safe=false;
+      if(node.type==='ReturnStatement'&&node.argument&&containsIdentifier(node.argument,paramName))
+        returnMaybe=true;
+      for(const value of Object.values(node)) {
+        if(Array.isArray(value)) {
+          for(const child of value) {
+            if(child&&typeof child==='object'&&typeof child.type==='string')
+              inspect(child,node,parent);
+          }
+        } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+          inspect(value,node,parent);
+        }
+      }
+    }
+    if(fn.async||fn.generator)
+      return {safe:false,returnMaybe:false,returnsParameter:false,returnsPrototype:false};
+    const returnExpression=fn.body?.type==='BlockStatement'&&fn.body.body?.length===1&&
+      fn.body.body[0]?.type==='ReturnStatement'?
+        fn.body.body[0].argument:fn.body?.type==='BlockStatement'?null:fn.body;
+    const directIdentityReturn=returnExpression?.type==='Identifier'&&
+      returnExpression.name===paramName;
+    if(directIdentityReturn)
+      return {safe:true,returnMaybe:false,returnsParameter:true,returnsPrototype:false};
+    const directPrototypeReturn=returnExpression?.type==='MemberExpression'&&
+      memberKey(returnExpression)==='prototype'&&
+      returnExpression.object?.type==='MemberExpression'&&
+      memberKey(returnExpression.object)==='constructor'&&
+      returnExpression.object.object?.type==='Identifier'&&
+      returnExpression.object.object.name===paramName&&
+      !returnExpression.computed&&!returnExpression.object.computed&&
+      !returnExpression.optional&&!returnExpression.object.optional;
+    if(directPrototypeReturn)
+      return {safe:true,returnMaybe:true,returnsParameter:false,returnsPrototype:true};
+    if(fn.body?.type==='BlockStatement')inspect(fn.body,null,null);
+    else {
+      inspect(fn.body,null,null);
+      if(containsIdentifier(fn.body,paramName))returnMaybe=true;
+    }
+    return {safe,returnMaybe:safe&&returnMaybe,returnsParameter:false,returnsPrototype:false};
+  }
+  /** @type {Map<string,{safeParameters:Set<number>,returnMaybeParameters:Set<number>,returnParameterIndices:Set<number>,prototypeReturnParameters:Set<number>}>} */
+  const localFunctionSummaries=new Map();
+  for(const [name,fn] of localFunctionNodes) {
+    if(exportedFunctionNames.has(name)||localBindingCounts.get(name)!==1||
+       reassignedLocalFunctions.has(name))continue;
+    const summary={
+      safeParameters:new Set(),
+      returnMaybeParameters:new Set(),
+      returnParameterIndices:new Set(),
+      prototypeReturnParameters:new Set()
+    };
+    for(let index=0;index<(fn.params??[]).length;index++) {
+      const parameter=fn.params[index];
+      if(parameter?.type!=='Identifier')continue;
+      const result=localReaderParameter(fn,parameter.name);
+      if(result.safe)summary.safeParameters.add(index);
+      if(result.safe&&result.returnMaybe)summary.returnMaybeParameters.add(index);
+      if(result.safe&&result.returnsParameter)summary.returnParameterIndices.add(index);
+      if(result.safe&&result.returnsPrototype)summary.prototypeReturnParameters.add(index);
+    }
+    localFunctionSummaries.set(name,summary);
+  }
+
+  // Resolve constructor aliases and derived classes before the exposure walk.
+  // This fixed point is intentionally conservative: if any feasible branch
+  // reaches WeakMap, the binding remains a possible native constructor.
+  let derivedBindingsChanged=true;
+  while(derivedBindingsChanged) {
+    derivedBindingsChanged=false;
+    walk(ast,(node,parent)=>{
+      if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier') {
+        const depth=weakMapDerivedDepth(node.init);
+        if(depth===0&&!weakMapConstructors.has(node.id.name)) {
+          weakMapConstructors.add(node.id.name);
+          derivedBindingsChanged=true;
+        } else if(depth!==undefined&&depth>0) {
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.id.name,depth)||derivedBindingsChanged;
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier') {
+        const depth=weakMapDerivedDepth(node.right);
+        if(depth===0&&!weakMapConstructors.has(node.left.name)) {
+          weakMapConstructors.add(node.left.name);
+          derivedBindingsChanged=true;
+        } else if(depth!==undefined&&depth>0) {
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.left.name,depth)||derivedBindingsChanged;
+        }
+      }
+      if(node.type==='ClassDeclaration'||node.type==='ClassExpression') {
+        const parentDepth=weakMapDerivedDepth(node.superClass);
+        if(parentDepth===undefined)return;
+        const derivedDepth=parentDepth+1;
+        if(node.id?.type==='Identifier')
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(node.id.name,derivedDepth)||derivedBindingsChanged;
+        if(parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier')
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(parent.id.name,derivedDepth)||derivedBindingsChanged;
+        if(parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier')
+          derivedBindingsChanged=
+            recordWeakMapDerivedConstructor(parent.left.name,derivedDepth)||derivedBindingsChanged;
+      }
+    });
+  }
+  let exposed=false;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='ExportNamedDeclaration') {
+      for(const specifier of node.specifiers??[]) {
+        if(specifier.type==='ExportSpecifier'&&specifier.local?.type==='Identifier')
+          exportedLocalNames.add(specifier.local.name);
+      }
+      const declaration=node.declaration;
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations??[]) {
+          if(item.id?.type==='Identifier')exportedLocalNames.add(item.id.name);
+        }
+      } else if((declaration?.type==='FunctionDeclaration'||
+                 declaration?.type==='ClassDeclaration')&&declaration.id?.type==='Identifier') {
+        exportedLocalNames.add(declaration.id.name);
+      }
+    }
+    if(node.type==='ExportDefaultDeclaration') {
+      if(node.declaration?.type==='Identifier')exportedLocalNames.add(node.declaration.name);
+      else if((node.declaration?.type==='ClassDeclaration'||
+               node.declaration?.type==='ClassExpression')&&
+              weakMapDerivedDepth(node.declaration)!==undefined)exposed=true;
+      else if(containsWeakMapInstanceValue(node.declaration))exposed=true;
+    }
+    if(node.type==='ImportDeclaration') {
+      for(const specifier of node.specifiers??[]) {
+        if(specifier.local?.type==='Identifier')importedLocalNames.add(specifier.local.name);
+      }
+    }
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier')
+      exportedValueNodes.set(node.id.name,node);
+    if(functionTypes.has(node.type)) {
+      const name=node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'?
+        node.id.name:
+        parent?.type==='VariableDeclarator'&&parent.id?.type==='Identifier'?
+          parent.id.name:
+        parent?.type==='AssignmentExpression'&&parent.left?.type==='Identifier'?
+          parent.left.name:null;
+      const classOwner=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='ClassDeclaration'&&ancestor.id?.type==='Identifier');
+      const variableOwner=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='VariableDeclarator'&&ancestor.id?.type==='Identifier');
+      const ownerName=name??classOwner?.id?.name??variableOwner?.id?.name??null;
+      const info={
+        name,
+        ownerName,
+        exported:ancestors.some(ancestor=>
+          ancestor.type==='ExportNamedDeclaration'||ancestor.type==='ExportDefaultDeclaration'),
+        returnedFactories:new Set(),
+        returnsWeakMap:false,
+        returnValues:node.type==='ArrowFunctionExpression'&&node.body.type!=='BlockStatement'?
+          [node.body]:[]
+      };
+      functionInfoByNode.set(node,info);
+    }
+    if(node.type==='ForOfStatement'&&node.left?.type==='VariableDeclaration'&&
+       containsWeakMapInstanceValue(node.right)) {
+      for(const declaration of node.left.declarations??[])
+        if(declaration.id.type==='Identifier')weakMapInstances.add(declaration.id.name);
+    }
+    if(node.type==='VariableDeclarator') {
+      if(node.id.type==='Identifier') {
+        const name=node.id.name,init=node.init;
+        if(init)exportedValueNodes.set(name,init);
+        if(init?.type==='Identifier')objectAliases.set(name,init.name);
+        if(isGlobalRoot(init)||
+           init?.type==='Identifier'&&globalNames.has(init.name))globalNames.add(name);
+        if(isWeakMapConstructor(init))weakMapConstructors.add(name);
+        const derivedDepth=weakMapDerivedDepth(init);
+        if(derivedDepth===0)weakMapConstructors.add(name);
+        else if(derivedDepth!==undefined)
+          recordWeakMapDerivedConstructor(name,derivedDepth);
+        const prototypeDepth=weakMapPrototypeChainDepth(init);
+        if(prototypeDepth===0)exposed=true;
+        else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
+        if(isWeakMapInstance(init))weakMapInstances.add(name);
+        if(init&&containsWeakMapInstanceValue(init))weakMapContainerInstances.add(name);
+        if(isNamespace(init,objectNamespaces))objectNamespaces.add(name);
+        if(isNamespace(init,reflectNamespaces))reflectNamespaces.add(name);
+        if(init?.type==='MemberExpression'&&isNamespace(init.object,reflectNamespaces)&&
+           memberKey(init)==='get')reflectGetMethods.add(name);
+        if(init?.type==='Identifier'&&reflectGetMethods.has(init.name))
+          reflectGetMethods.add(name);
+        if(isPrototypeGetterMember(init)||
+           init?.type==='Identifier'&&prototypeGetters.has(init.name))
+          prototypeGetters.add(name);
+        if(isWeakMapPrototypeExpression(init))prototypeAliases.add(name);
+        if(ancestors.some(ancestor=>ancestor.type==='ExportNamedDeclaration')&&
+           containsWeakMapInstanceValue(init))exposed=true;
+      } else if(node.id.type==='ObjectPattern') {
+        collectDestructuredAliases(node.id,node.init);
+      }
+    }
+    if(node.type==='AssignmentExpression') {
+      if(node.left.type==='Identifier') {
+        const name=node.left.name,value=node.right;
+        if(value.type==='Identifier')objectAliases.set(name,value.name);
+        if(isGlobalRoot(value)||
+           value.type==='Identifier'&&globalNames.has(value.name))globalNames.add(name);
+        if(isWeakMapConstructor(value))weakMapConstructors.add(name);
+        const derivedDepth=weakMapDerivedDepth(value);
+        if(derivedDepth===0)weakMapConstructors.add(name);
+        else if(derivedDepth!==undefined)
+          recordWeakMapDerivedConstructor(name,derivedDepth);
+        const prototypeDepth=weakMapPrototypeChainDepth(value);
+        if(prototypeDepth===0)exposed=true;
+        else if(prototypeDepth!==undefined)weakMapPrototypeChainDepths.set(name,prototypeDepth);
+        if(isWeakMapInstance(value))weakMapInstances.add(name);
+        if(containsWeakMapInstanceValue(value))weakMapContainerInstances.add(name);
+        if(isNamespace(value,objectNamespaces))objectNamespaces.add(name);
+        if(isNamespace(value,reflectNamespaces))reflectNamespaces.add(name);
+        if(isPrototypeGetterMember(value)||
+           value.type==='Identifier'&&prototypeGetters.has(value.name))
+          prototypeGetters.add(name);
+        if(isWeakMapPrototypeExpression(value))prototypeAliases.add(name);
+      } else if(node.left.type==='MemberExpression') {
+        const root=rootIdentifier(node.left.object);
+        const info=nearestFunctionInfo(ancestors);
+        const classOwner=[...ancestors].reverse().find(ancestor=>
+          ancestor.type==='ClassDeclaration'&&ancestor.id?.type==='Identifier');
+        if(root&&containsWeakMapInstanceValue(node.right))
+          weakMapContainerInstances.add(root);
+        memberWrites.push({
+          root,
+          ownerName:info?.ownerName??classOwner?.id?.name??null,
+          global:isGlobalObjectPath(node.left.object),
+          imported:Boolean(root&&importedLocalNames.has(root)),
+          exportedFunction:Boolean(info?.exported),
+          value:node.right
+        });
+      }
+    }
+    if(node.type==='ReturnStatement'||node.type==='YieldExpression') {
+      const info=nearestFunctionInfo(ancestors);
+      if(info&&node.argument)info.returnValues.push(node.argument);
+    }
+    const unknownGlobalSlotAssignment=
+      node.type==='MemberExpression'&&parent?.type==='AssignmentExpression'&&key==='left'&&
+      (()=> {
+        const globalProperty=globalRootProperty(node);
+        return globalProperty!==null&&globalProperty!=='*'&&
+          !knownGlobalConstructorNames.has(globalProperty)&&
+          !['prototype','__proto__'].includes(memberKey(node)??'');
+      })();
+    if(!unknownGlobalSlotAssignment&&isWeakMapPrototypeExpression(node))exposed=true;
+    // Direct arguments to opaque calls escape. A unique private local reader
+    // is exempt only for parameters whose complete body proves a native
+    // get/has/delete receiver-only use.
+    if(node.type==='CallExpression') {
+      const summary=node.callee.type==='Identifier'?
+        localFunctionSummaries.get(node.callee.name):undefined;
+      if(node.arguments.some((/** @type {AstNode} */ argument,/** @type {number} */ index)=>
+        isWeakMapInstance(argument)&&!summary?.safeParameters.has(index)))exposed=true;
+    }
+    // Also cover a WeakMap nested in an array/object/factory expression passed
+    // as a call argument, without treating unrelated prototype reads as escapes.
+    if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee)) {
+      const enclosingCall=[...ancestors].reverse().find(ancestor=>
+        ancestor.type==='CallExpression'&&ancestor.arguments.some((/** @type {AstNode} */ argument)=>
+          argument.start<=node.start&&argument.end>=node.end));
+      if(enclosingCall) {
+        const argumentIndex=enclosingCall.arguments.findIndex((/** @type {AstNode} */ argument)=>
+          argument.start<=node.start&&argument.end>=node.end);
+        const summary=enclosingCall.callee.type==='Identifier'?
+          localFunctionSummaries.get(enclosingCall.callee.name):undefined;
+        const directArgument=enclosingCall.arguments[argumentIndex]===node;
+        if(!(directArgument&&summary?.safeParameters.has(argumentIndex)))exposed=true;
+      }
+    }
+  });
+
+  // Resolve return/yield values after the complete file has contributed its
+  // constructor and instance aliases. This handles helpers declared after
+  // their callers and generators that yield a WeakMap instance.
+  for(const info of functionInfoByNode.values()) {
+    for(const value of info.returnValues) {
+      if(containsWeakMapInstanceValue(value))info.returnsWeakMap=true;
+      else if(value.type==='CallExpression'&&value.callee.type==='Identifier')
+        info.returnedFactories.add(value.callee.name);
+    }
+  }
+  // Exporting a WeakMap instance, constructor, container, or factory that
+  // returns/yields a WeakMap is a group escape: another supplied file (or a
+  // consumer of the entry module) can obtain the instance and inspect the
+  // process-wide prototype. Public member writes and global publication are
+  // also escapes; unrelated local WeakMaps remain eligible.
+  let changed=true;
+  while(changed) {
+    changed=false;
+    for(const info of functionInfoByNode.values()) {
+      if(!info.returnsWeakMap&&
+         info.returnValues.some(containsWeakMapInstanceValue)) {
+        info.returnsWeakMap=true;
+        changed=true;
+      }
+      if(!info.returnsWeakMap&&
+         [...info.returnedFactories].some(name=>weakMapFactories.has(name))) {
+        info.returnsWeakMap=true;
+        changed=true;
+      }
+      if(info.returnsWeakMap) {
+        for(const name of [info.name,info.ownerName]) {
+          if(name&&!weakMapFactories.has(name)) {
+            weakMapFactories.add(name);
+            changed=true;
+          }
+        }
+        if(info.exported)exposed=true;
+      }
+    }
+  }
+  // Resolve writes only after factory summaries reach a fixed point. A
+  // helper declared later in the module can return a WeakMap that is stored
+  // into an exported object, a global slot, or a public instance property.
+  for(const write of memberWrites) {
+    if(!containsWeakMapInstanceValue(write.value))continue;
+    if(write.global||write.imported) {
+      exposed=true;
+      break;
+    }
+    if(write.ownerName) {
+      weakMapContainerOwners.add(write.ownerName);
+      weakMapContainerInstances.add(write.ownerName);
+      continue;
+    }
+    if(write.root) {
+      weakMapContainerOwners.add(write.root);
+      weakMapContainerInstances.add(write.root);
+      continue;
+    }
+    if(write.exportedFunction) {
+      exposed=true;
+      break;
+    }
+    // An unrooted member target cannot be proven private.
+    exposed=true;
+    break;
+  }
+  // Member-write summaries can reveal a local carrier only after factory
+  // return summaries have reached their first fixed point. Propagate those
+  // newly discovered container bindings back into enclosing factory returns.
+  let containerFactoryChanged=true;
+  while(containerFactoryChanged) {
+    containerFactoryChanged=false;
+    for(const info of functionInfoByNode.values()) {
+      if(!info.returnsWeakMap&&
+         info.returnValues.some(containsWeakMapInstanceValue)) {
+        info.returnsWeakMap=true;
+        containerFactoryChanged=true;
+      }
+      if(!info.returnsWeakMap)continue;
+      if(info.name&&!weakMapFactories.has(info.name)) {
+        weakMapFactories.add(info.name);
+        containerFactoryChanged=true;
+      }
+      if(info.ownerName&&!weakMapFactories.has(info.ownerName)) {
+        weakMapFactories.add(info.ownerName);
+        containerFactoryChanged=true;
+      }
+      for(const factory of info.returnedFactories) {
+        if(weakMapFactories.has(factory)&&info.name&&!weakMapFactories.has(info.name)) {
+          weakMapFactories.add(info.name);
+          containerFactoryChanged=true;
+        }
+        if(weakMapFactories.has(factory)&&info.ownerName&&!weakMapFactories.has(info.ownerName)) {
+          weakMapFactories.add(info.ownerName);
+          containerFactoryChanged=true;
+        }
+      }
+    }
+  }
+  /**
+   * Follow local aliases and object values at CommonJS publication points.
+   * @param {string} name
+   * @param {Set<AstNode|string>} seen
+   * @returns {boolean}
+   */
+  function containsExportedWeakMapCapabilityIdentifier(name,seen) {
+    const visitKey='identifier:'+name;
+    if(seen.has(visitKey))return false;
+    seen.add(visitKey);
+    if(weakMapInstances.has(name)||
+       weakMapContainerInstances.has(name)||
+       weakMapContainerOwners.has(name)||
+       weakMapFactories.has(name)||
+       weakMapConstructors.has(name)||
+       weakMapDerivedConstructors.has(name)||
+       prototypeAliases.has(name)||
+       importedLocalNames.has(name))return true;
+    const exportedValue=exportedValueNodes.get(name);
+    if(exportedValue&&containsExportedWeakMapCapability(exportedValue,seen))return true;
+    const alias=objectAliases.get(name);
+    return Boolean(alias&&containsExportedWeakMapCapabilityIdentifier(alias,seen));
+  }
+  /**
+   * CommonJS publication points are reachable by consumers outside the
+   * supplied module graph. Treat exported WeakMap instances, derived
+   * constructors, factories, and unresolved imported capabilities as escapes.
+   * @param {AstNode|null|undefined} node
+   * @param {Set<AstNode|string>} [seen=new Set()]
+   * @returns {boolean}
+   */
+  function containsExportedWeakMapCapability(node,seen=new Set()) {
+    if(!node)return false;
+    if(node.type==='Identifier')
+      return containsExportedWeakMapCapabilityIdentifier(node.name,seen);
+    if(seen.has(node))return false;
+    seen.add(node);
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression')
+      return weakMapDerivedDepth(node)!==undefined||containsWeakMapInstanceValue(node);
+    if(functionTypes.has(node.type)) {
+      const info=functionInfoByNode.get(node);
+      return Boolean(info?.returnsWeakMap||
+        [...(info?.returnedFactories??[])].some(name=>weakMapFactories.has(name)));
+    }
+    if(node.type==='ObjectExpression') {
+      return (node.properties??[]).some((/** @type {AstNode} */ property)=>
+        property.type==='SpreadElement'?
+          containsExportedWeakMapCapability(property.argument,seen):
+        property.type==='Property'?
+          containsExportedWeakMapCapability(property.value,seen):false);
+    }
+    if(node.type==='ArrayExpression')
+      return (node.elements??[]).some((/** @type {AstNode|null} */ element)=>
+        containsExportedWeakMapCapability(element,seen));
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='Identifier'&&
+         (weakMapFactories.has(node.callee.name)||importedLocalNames.has(node.callee.name)))return true;
+      if(isRequireCall(node.callee))return true;
+      if(node.callee.type==='MemberExpression'&&
+         (isRequireCall(node.callee.object)||
+          Boolean(rootIdentifier(node.callee.object)&&
+            importedLocalNames.has(rootIdentifier(node.callee.object)??''))))return true;
+      return containsWeakMapInstanceValue(node);
+    }
+    if(node.type==='AssignmentExpression')
+      return containsExportedWeakMapCapability(node.right,seen);
+    if(node.type==='ConditionalExpression')
+      return containsExportedWeakMapCapability(node.consequent,seen)||
+        containsExportedWeakMapCapability(node.alternate,seen);
+    if(node.type==='LogicalExpression')
+      return containsExportedWeakMapCapability(node.left,seen)||
+        containsExportedWeakMapCapability(node.right,seen);
+    if(node.type==='SequenceExpression')
+      return containsExportedWeakMapCapability(node.expressions.at(-1),seen);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return containsExportedWeakMapCapability(node.argument,seen);
+    if(node.type==='ChainExpression')
+      return containsExportedWeakMapCapability(node.expression,seen);
+    if(node.type==='MemberExpression') {
+      const root=rootIdentifier(node);
+      return Boolean(root&&importedLocalNames.has(root))||
+        isRequireCall(node.object)||containsWeakMapInstanceValue(node);
+    }
+    return containsWeakMapInstanceValue(node);
+  }
+  /**
+   * @param {string} name
+   * @param {Set<string>} seen
+   * @returns {boolean}
+   */
+  function isCommonJsExportObjectIdentifier(name,seen) {
+    if(name==='exports')return true;
+    if(seen.has(name))return false;
+    seen.add(name);
+    const alias=objectAliases.get(name);
+    if(alias&&isCommonJsExportObjectIdentifier(alias,seen))return true;
+    const value=exportedValueNodes.get(name);
+    return Boolean(value&&isCommonJsExportObject(value,seen));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Set<string>} [seen=new Set()]
+   * @returns {boolean}
+   */
+  function isCommonJsExportObject(node,seen=new Set()) {
+    if(!node)return false;
+    if(node.type==='MemberExpression') {
+      return node.object?.type==='Identifier'&&node.object.name==='module'&&
+        memberKey(node)==='exports';
+    }
+    return node.type==='Identifier'&&
+      isCommonJsExportObjectIdentifier(node.name,seen);
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportTarget(node) {
+    if(node?.type!=='MemberExpression')return false;
+    if(node.object?.type==='Identifier'&&node.object.name==='module'&&
+       memberKey(node)==='exports')return true;
+    return isCommonJsExportObject(node.object);
+  }
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&isCommonJsExportTarget(node.left)&&
+       containsExportedWeakMapCapability(node.right))exposed=true;
+  });
+  for(const name of exportedLocalNames) {
+    if(weakMapInstances.has(name)||weakMapFactories.has(name)||
+       weakMapConstructors.has(name)||weakMapDerivedConstructors.has(name)||
+       prototypeAliases.has(name)) {
+      exposed=true;
+      break;
+    }
+    const exportedValue=exportedValueNodes.get(name);
+    if(exportedValue&&containsWeakMapInstanceValue(exportedValue)) {
+      exposed=true;
+      break;
+    }
+  }
+  for(const name of weakMapContainerOwners) {
+    if(resolvesToEscapedContainer(name)) {
+      exposed=true;
+      break;
+    }
+  }
+  // A bounded intra-module points-to pass closes the gap between a WeakMap
+  // constructor and a later prototype-getter call that receives a container
+  // member, destructured alias, spread copy, factory result, or class field.
+  // It intentionally models only statically resolvable object/array keys;
+  // unresolved imported/dynamic values are treated as possibly carrying a
+  // WeakMap when they reach an opaque call.
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
+  /** @type {CarrierValue} */
+  const carrierWeakMap={kind:'weakmap'};
+  /** @type {CarrierValue} */
+  const carrierMaybe={kind:'maybe'};
+  /** @type {CarrierValue} */
+  const carrierOther={kind:'other'};
+  /** @returns {CarrierContainer} */
+  function carrierContainer() {
+    return {kind:'container',properties:new Map(),unknown:false};
+  }
+  /**
+   * @param {AstNode} property
+   * @param {boolean} computed
+   * @returns {string|null}
+   */
+  function carrierStaticKey(property,computed) {
+    if(!computed&&property.type==='Identifier')return property.name;
+    const key=staticString(property);
+    if(key!==null)return key;
+    if(property.type==='Literal'&&
+       (typeof property.value==='number'||typeof property.value==='string'))
+      return String(property.value);
+    return null;
+  }
+  /**
+   * Cyclic local records are legal JavaScript. Revisit each abstract heap
+   * object once per may-flow query instead of treating a self-reference as
+   * infinite recursion or a reason to erase all of its known fields.
+   * @param {CarrierValue} value
+   * @param {Set<CarrierValue>} [seen]
+   * @returns {boolean}
+   */
+  function carrierMayContainWeakMap(value,seen=new Set()) {
+    if(value.kind==='weakmap'||value.kind==='maybe')return true;
+    if(value.kind==='container') {
+      if(value.unknown)return true;
+      if(seen.has(value))return false;
+      seen.add(value);
+      for(const nested of value.properties.values()) {
+        if(carrierMayContainWeakMap(nested,seen))return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Join all statically represented slots for a dynamic key. A missing key is
+   * not safe when another possible slot contains a WeakMap.
+   * @param {CarrierValue} container
+   * @param {string|null} key
+   * @returns {CarrierValue}
+   */
+  function carrierLookupValue(container,key) {
+    if(container.kind!=='container')return carrierOther;
+    if(key!==null) {
+      const known=container.properties.get(key)??carrierOther;
+      if(container.properties.has(key))
+        return container.unknown?mergeCarrierValues(known,carrierMaybe):known;
+      return container.unknown?carrierMaybe:carrierOther;
+    }
+    let value=carrierOther;
+    for(const nested of container.properties.values())
+      value=mergeCarrierValues(value,nested);
+    if(container.unknown)value=mergeCarrierValues(value,carrierMaybe);
+    return value;
+  }
+  /**
+   * Field-wise join with a per-join heap-pair memo. The memo preserves alias
+   * identity across different bindings and terminates recursive records.
+   * @param {CarrierValue} left
+   * @param {CarrierValue} right
+   * @param {Map<CarrierValue,Map<CarrierValue,CarrierContainer>>} [memo]
+   * @returns {CarrierValue}
+   */
+  function mergeCarrierValues(left,right,memo=new Map()) {
+    if(left.kind==='container'&&right.kind==='container') {
+      let byRight=memo.get(left);
+      if(!byRight) {
+        byRight=new Map();
+        memo.set(left,byRight);
+      }
+      const previous=byRight.get(right);
+      if(previous)return previous;
+      const merged=carrierContainer();
+      byRight.set(right,merged);
+      merged.unknown=left.unknown||right.unknown;
+      for(const [key,value] of left.properties)merged.properties.set(key,value);
+      for(const [key,value] of right.properties) {
+        merged.properties.set(key,merged.properties.has(key)?
+          mergeCarrierValues(merged.properties.get(key)??carrierOther,value,memo):value);
+      }
+      return merged;
+    }
+    if(left.kind==='weakmap'&&right.kind==='weakmap')return carrierWeakMap;
+    if(left.kind==='other'&&right.kind==='other')return carrierOther;
+    return carrierMayContainWeakMap(left)||carrierMayContainWeakMap(right)?
+      carrierMaybe:carrierOther;
+  }
+  /**
+   * Branch states must not share mutable heap versions. Clone each record
+   * once so aliases within a branch still observe each other's writes.
+   * @param {CarrierValue} value
+   * @param {Map<CarrierValue,CarrierContainer>} memo
+   * @returns {CarrierValue}
+   */
+  function cloneCarrierValue(value,memo) {
+    if(value.kind!=='container')return value;
+    const previous=memo.get(value);
+    if(previous)return previous;
+    const copy=carrierContainer();
+    memo.set(value,copy);
+    copy.unknown=value.unknown;
+    for(const [key,nested] of value.properties)
+      copy.properties.set(key,cloneCarrierValue(nested,memo));
+    return copy;
+  }
+  /**
+   * @param {Map<string,CarrierValue>} environment
+   * @returns {Map<string,CarrierValue>}
+   */
+  function forkCarrierEnvironment(environment) {
+    /** @type {Map<CarrierValue,CarrierContainer>} */
+    const memo=new Map();
+    /** @type {Map<string,CarrierValue>} */
+    const copy=new Map();
+    for(const [name,value] of environment)
+      copy.set(name,cloneCarrierValue(value,memo));
+    return copy;
+  }
+  /**
+   * Join full abstract states using one heap-pair memo across binding names.
+   * In particular, a write on a nonexecuted path cannot kill a WeakMap that
+   * existed before the branch, and common aliases remain common afterward.
+   * @param {Map<string,CarrierValue>} target
+   * @param {...Map<string,CarrierValue>} states
+   * @returns {void}
+   */
+  function joinCarrierEnvironments(target,...states) {
+    if(states.length===0)return;
+    const names=new Set(states.flatMap(state=>[...state.keys()]));
+    /** @type {Map<CarrierValue,Map<CarrierValue,CarrierContainer>>} */
+    const memo=new Map();
+    for(const name of names) {
+      let value=states[0].get(name)??carrierOther;
+      for(let index=1;index<states.length;index++)
+        value=mergeCarrierValues(value,states[index].get(name)??carrierOther,memo);
+      target.set(name,value);
+    }
+    // A single concrete post-join container cannot encode aliases that exist
+    // on only some predecessors. When two bindings alias in any predecessor
+    // but not all predecessors, retain soundness by marking both joined
+    // containers as having an unknown overlapping slot. Static field reads
+    // then conservatively include MaybeWeakMap via carrierLookupValue.
+    const ordered=[...names];
+    for(let leftIndex=0;leftIndex<ordered.length;leftIndex++) {
+      for(let rightIndex=leftIndex+1;rightIndex<ordered.length;rightIndex++) {
+        const leftName=ordered[leftIndex];
+        const rightName=ordered[rightIndex];
+        let aliasSome=false;
+        let aliasAll=true;
+        for(const state of states) {
+          const left=state.get(leftName)??carrierOther;
+          const right=state.get(rightName)??carrierOther;
+          const aliases=left.kind==='container'&&right.kind==='container'&&left===right;
+          aliasSome=aliasSome||aliases;
+          aliasAll=aliasAll&&aliases;
+        }
+        if(!aliasSome||aliasAll)continue;
+        const joinedLeft=target.get(leftName);
+        const joinedRight=target.get(rightName);
+        if(joinedLeft?.kind==='container')joinedLeft.unknown=true;
+        if(joinedRight?.kind==='container')joinedRight.unknown=true;
+      }
+    }
+  }
+  /**
+   * Whether an accessor or method can yield a WeakMap carrier. Unknown
+   * external getter values remain MaybeWeakMap; proven primitive/local values
+   * retain their existing precision.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function functionMayReturnWeakMap(node) {
+    if(!node)return true;
+    if(node.type==='Identifier')
+      return importedLocalNames.has(node.name)||weakMapFactories.has(node.name);
+    if(!functionTypes.has(node.type))return true;
+    const info=functionInfoByNode.get(node);
+    if(!info)return true;
+    return Boolean(info.returnsWeakMap||
+      [...info.returnedFactories].some(name=>
+        weakMapFactories.has(name)||importedLocalNames.has(name)));
+  }
+  /**
+   * Only a literal Boolean may prune a CFG edge without a guard proof.
+   * Identifiers named true/false are not legal variable references, but
+   * truthiness inferred from arbitrary expressions could run user hooks.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean|null}
+   */
+  function carrierBooleanLiteral(node) {
+    return node?.type==='Literal'&&typeof node.value==='boolean'?node.value:null;
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {CarrierValue}
+   */
+  function evaluateCarrierValue(node,environment,thisValue=carrierOther) {
+    if(!node)return carrierOther;
+    if(node.type==='Identifier') {
+      if(environment.has(node.name))return environment.get(node.name)??carrierOther;
+      if(weakMapInstances.has(node.name))return carrierWeakMap;
+      if(importedLocalNames.has(node.name))return carrierMaybe;
+      return carrierOther;
+    }
+    if(node.type==='ThisExpression')return thisValue;
+    if(node.type==='NewExpression') {
+      if(isWeakMapConstructor(node.callee))return carrierWeakMap;
+      if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
+        return carrierMaybe;
+      if(node.callee.type==='Identifier'&&weakMapContainerOwners.has(node.callee.name)) {
+        const instance=carrierContainer();
+        instance.unknown=true;
+        return instance;
+      }
+      return carrierOther;
+    }
+    if(node.type==='ObjectExpression') {
+      const value=carrierContainer();
+      for(const property of node.properties??[]) {
+        if(property.type==='SpreadElement') {
+          const spread=evaluateCarrierValue(property.argument,environment,thisValue);
+          if(spread.kind==='container') {
+            for(const [key,nested] of spread.properties)value.properties.set(key,nested);
+            value.unknown=value.unknown||spread.unknown;
+          } else if(carrierMayContainWeakMap(spread))value.unknown=true;
+          continue;
+        }
+        if(property.type!=='Property') {
+          value.unknown=true;
+          continue;
+        }
+        const propertyKey=carrierStaticKey(property.key,property.computed);
+        if(propertyKey===null) {
+          value.unknown=true;
+          continue;
+        }
+        const getterMayReturnWeakMap=property.kind==='get'&&
+          functionMayReturnWeakMap(property.value);
+        value.properties.set(propertyKey,getterMayReturnWeakMap?
+          carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
+      }
+      return value;
+    }
+    if(node.type==='ArrayExpression') {
+      const value=carrierContainer();
+      let index=0;
+      for(const element of node.elements??[]) {
+        if(element?.type==='SpreadElement') {
+          const spread=evaluateCarrierValue(element.argument,environment,thisValue);
+          if(spread.kind==='container') {
+            const keys=[...spread.properties.keys()].sort((left,right)=>Number(left)-Number(right));
+            for(const key of keys)value.properties.set(String(index++),spread.properties.get(key)??carrierOther);
+            value.unknown=value.unknown||spread.unknown;
+          } else if(carrierMayContainWeakMap(spread))value.unknown=true;
+          continue;
+        }
+        value.properties.set(String(index++),evaluateCarrierValue(element,environment,thisValue));
+      }
+      return value;
+    }
+    if(node.type==='MemberExpression') {
+      const key=carrierStaticKey(node.property,node.computed);
+      if(node.object.type==='Identifier'&&weakMapContainerOwners.has(node.object.name)&&
+         !environment.has(node.object.name))return carrierMaybe;
+      const base=evaluateCarrierValue(node.object,environment,thisValue);
+      if(base.kind==='container')return carrierLookupValue(base,key);
+      return base.kind==='maybe'?carrierMaybe:carrierOther;
+    }
+    if(node.type==='CallExpression') {
+      // An imported binding or unresolved CommonJS module can return a
+      // WeakMap even when its implementation is outside this compilation.
+      // Preserve that uncertainty through calls and member-call receivers.
+      if(isRequireCall(node))return carrierMaybe;
+      if(node.callee.type==='Identifier') {
+        const calledValue=environment.get(node.callee.name);
+        if(importedLocalNames.has(node.callee.name)||calledValue?.kind==='maybe')
+          return carrierMaybe;
+        const summary=localFunctionSummaries.get(node.callee.name);
+        if(summary) {
+          for(const index of summary.returnParameterIndices)
+            return evaluateCarrierValue(node.arguments[index],environment,thisValue);
+          for(const index of summary.returnMaybeParameters) {
+            const argumentValue=evaluateCarrierValue(node.arguments[index],environment,thisValue);
+            const isPlainContainer=argumentValue.kind==='container'&&!argumentValue.unknown&&
+              !argumentValue.properties.has('constructor');
+            if(summary.prototypeReturnParameters.has(index)&&isPlainContainer)
+              return carrierOther;
+            if(carrierMayContainWeakMap(argumentValue))return carrierMaybe;
+          }
+        }
+      }
+      if(node.callee.type==='Identifier'&&weakMapFactories.has(node.callee.name))
+        return carrierMaybe;
+      if(node.callee.type==='MemberExpression') {
+        const receiver=evaluateCarrierValue(node.callee.object,environment,thisValue);
+        if(carrierMayContainWeakMap(receiver))return carrierMaybe;
+        const methodOwner=node.callee.object.type==='Identifier'?
+          node.callee.object.name:
+          node.callee.object.type==='NewExpression'&&node.callee.object.callee.type==='Identifier'?
+            node.callee.object.callee.name:null;
+        if(methodOwner&&weakMapFactories.has(methodOwner))return carrierMaybe;
+      }
+      return carrierOther;
+    }
+    if(node.type==='ConditionalExpression') {
+      const truth=carrierBooleanLiteral(node.test);
+      if(truth!==null)
+        return evaluateCarrierValue(truth?node.consequent:node.alternate,environment,thisValue);
+      return mergeCarrierValues(
+        evaluateCarrierValue(node.consequent,environment,thisValue),
+        evaluateCarrierValue(node.alternate,environment,thisValue));
+    }
+    if(node.type==='LogicalExpression') {
+      const truth=carrierBooleanLiteral(node.left);
+      if(truth!==null&&(node.operator==='&&'||node.operator==='||')) {
+        const rightRuns=node.operator==='&&'?truth:!truth;
+        return evaluateCarrierValue(rightRuns?node.right:node.left,environment,thisValue);
+      }
+      if(node.operator==='??'&&node.left.type==='Literal')
+        return evaluateCarrierValue(node.left.value===null?node.right:node.left,
+          environment,thisValue);
+      return mergeCarrierValues(
+        evaluateCarrierValue(node.left,environment,thisValue),
+        evaluateCarrierValue(node.right,environment,thisValue));
+    }
+    if(node.type==='SequenceExpression')
+      return evaluateCarrierValue(node.expressions.at(-1),environment,thisValue);
+    if(node.type==='AssignmentExpression')
+      return evaluateCarrierValue(node.right,environment,thisValue);
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression')
+      return evaluateCarrierValue(node.argument,environment,thisValue);
+    if(node.type==='ChainExpression')
+      return evaluateCarrierValue(node.expression,environment,thisValue);
+    if(node.type==='SpreadElement')
+      return evaluateCarrierValue(node.argument,environment,thisValue);
+    return carrierOther;
+  }
+  /**
+   * @param {AstNode} pattern
+   * @param {CarrierValue} value
+   * @param {Map<string,CarrierValue>} environment
+   */
+  function bindCarrierPattern(pattern,value,environment) {
+    if(pattern.type==='Identifier') {
+      environment.set(pattern.name,value);
+      return;
+    }
+    if(pattern.type==='AssignmentPattern') {
+      bindCarrierPattern(pattern.left,value.kind==='other'?
+        evaluateCarrierValue(pattern.right,environment):value,environment);
+      return;
+    }
+    if(pattern.type==='RestElement') {
+      bindCarrierPattern(pattern.argument,carrierMayContainWeakMap(value)?carrierMaybe:carrierOther,environment);
+      return;
+    }
+    if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.type==='RestElement') {
+          if(value.kind==='container') {
+            const rest=carrierContainer();
+            rest.unknown=value.unknown;
+            const omitted=new Set();
+            for(const entry of pattern.properties??[]) {
+              if(entry.type!=='Property')continue;
+              const key=carrierStaticKey(entry.key,entry.computed);
+              if(key===null)rest.unknown=true;
+              else omitted.add(key);
+            }
+            for(const [key,nested] of value.properties) {
+              if(!omitted.has(key))rest.properties.set(key,nested);
+            }
+            bindCarrierPattern(property.argument,rest,environment);
+          } else {
+            bindCarrierPattern(property.argument,
+              carrierMayContainWeakMap(value)?carrierMaybe:carrierOther,environment);
+          }
+          continue;
+        }
+        if(property.type!=='Property')continue;
+        const key=carrierStaticKey(property.key,property.computed);
+        const nested=value.kind==='container'?
+          carrierLookupValue(value,key):
+          value.kind==='maybe'?carrierMaybe:carrierOther;
+        bindCarrierPattern(property.value,nested,environment);
+      }
+      return;
+    }
+    if(pattern.type==='ArrayPattern') {
+      for(let index=0;index<(pattern.elements??[]).length;index++) {
+        const element=pattern.elements[index];
+        if(!element)continue;
+        const nested=value.kind==='container'?
+          value.properties.get(String(index))??(value.unknown?carrierMaybe:carrierOther):
+          value.kind==='maybe'?carrierMaybe:carrierOther;
+        bindCarrierPattern(element,nested,environment);
+      }
+    }
+  }
+  /** @type {Map<AstNode,Map<string,CarrierValue>>} */
+  const functionClosureEnvironments=new Map();
+  /** @type {Set<AstNode>} */
+  const activeLocalCallEffects=new Set();
+  /**
+   * Prove the only statement is an assignment to a known *own data slot*
+   * using a source literal or an unreassigned, empty local class constructor.
+   * This may safely replace the predecessor at a direct local call, unlike
+   * a host callback which may never execute.
+   * @param {AstNode} fn
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @returns {boolean}
+   */
+  function provenDefiniteLocalSlotWrite(fn,environment,thisValue) {
+    if(fn.body?.type!=='BlockStatement'||fn.body.body?.length!==1)return false;
+    const statement=fn.body.body[0];
+    if(statement.type!=='ExpressionStatement'||
+       statement.expression?.type!=='AssignmentExpression'||
+       statement.expression.operator!=='='||
+       statement.expression.left.type!=='MemberExpression')return false;
+    const assignment=statement.expression;
+    const base=evaluateCarrierValue(assignment.left.object,environment,thisValue);
+    const key=carrierStaticKey(assignment.left.property,assignment.left.computed);
+    if(base.kind!=='container'||base.unknown||key===null||
+       !base.properties.has(key))return false;
+    const right=assignment.right;
+    if(right.type==='Literal')return true;
+    return right.type==='NewExpression'&&right.callee.type==='Identifier'&&
+      (right.arguments?.length??0)===0&&pureEmptyClassNames.has(right.callee.name);
+  }
+  /**
+   * Replay a stable local callable against the current carrier state.
+   * Parameters receive the abstract values of direct call arguments; opaque
+   * callback invocations receive Maybe for missing arguments. Parameter names
+   * are function-local and therefore never flow back into same-spelled outer
+   * bindings after the replay.
+   * @param {AstNode} local
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @param {boolean} direct
+   * @param {AstNode[]} callArguments
+   * @param {boolean} allowDefinite
+   * @returns {void}
+   */
+  function replayCarrierFunctionNode(local,environment,thisValue,direct,
+    callArguments,allowDefinite) {
+    if(local.async||local.generator||local.body?.type!=='BlockStatement')return;
+    if(activeLocalCallEffects.has(local)) {
+      // Recursive effects need an explicit fixed-point proof; otherwise the
+      // caller's abstract state cannot justify a source-spelling rewrite.
+      exposed=true;
+      return;
+    }
+    const definite=direct&&allowDefinite&&
+      provenDefiniteLocalSlotWrite(local,environment,thisValue);
+    const before=forkCarrierEnvironment(environment);
+    const invoked=forkCarrierEnvironment(environment);
+    /** @type {Map<string,number>} */
+    const parameterNames=new Map();
+    for(let index=0;index<(local.params??[]).length;index++) {
+      const parameter=local.params[index];
+      addPatternBindings(parameter,parameterNames);
+      const argument=callArguments[index];
+      const value=!argument||argument.type==='SpreadElement'?
+        carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
+      bindCarrierPattern(parameter,value,invoked);
+    }
+    activeLocalCallEffects.add(local);
+    try {
+      visitCarrierStatement(local.body,invoked,thisValue);
+    } finally {
+      activeLocalCallEffects.delete(local);
+    }
+    /** @type {Map<string,CarrierValue>} */
+    const outerEffects=new Map();
+    for(const key of before.keys())
+      outerEffects.set(key,parameterNames.has(key)?
+        before.get(key)??carrierOther:invoked.get(key)??carrierOther);
+    if(definite)joinCarrierEnvironments(environment,outerEffects);
+    else joinCarrierEnvironments(environment,before,outerEffects);
+  }
+  /**
+   * A proven stable local helper may write captured outer bindings even when
+   * its return value is primitive. A callback passed to an opaque call may be
+   * invoked, so join both execution and non-execution without assuming the
+   * host's callback count or event order.
+   * @param {string} name
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @param {boolean} [direct=false]
+   * @param {AstNode[]} [callArguments=[]]
+   * @returns {void}
+   */
+  function replayLocalFunctionEffects(name,environment,thisValue,direct=false,
+    callArguments=[]) {
+    const local=localFunctionNodes.get(name);
+    if(!local||reassignedLocalFunctions.has(name))return;
+    replayCarrierFunctionNode(local,environment,thisValue,direct,callArguments,
+      localBindingCounts.get(name)===1);
+  }
+  /**
+   * @param {CarrierValue} target
+   * @param {string|null} key
+   * @param {AstNode|null|undefined} descriptor
+   * @returns {void}
+   */
+  function applyAccessorDescriptor(target,key,descriptor) {
+    if(target.kind!=='container')return;
+    if(key===null||descriptor?.type!=='ObjectExpression') {
+      target.unknown=true;
+      return;
+    }
+    const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
+    if(!getter)return;
+    target.properties.set(key,functionMayReturnWeakMap(getter.value)?
+      carrierMaybe:carrierOther);
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
+  function visitCarrierExpression(node,environment,thisValue=carrierOther) {
+    if(!node)return;
+    if(functionTypes.has(node.type)) {
+      if(!functionClosureEnvironments.has(node))
+        functionClosureEnvironments.set(node,environment);
+      return;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const operation=memberKey(node.callee);
+      const namespace=node.callee.object;
+      const isObjectDefinition=isNamespace(namespace,objectNamespaces)&&
+        ['defineProperty','defineProperties'].includes(operation??'');
+      const isReflectDefinition=isNamespace(namespace,reflectNamespaces)&&
+        operation==='defineProperty';
+      if(isObjectDefinition||isReflectDefinition) {
+        const target=evaluateCarrierValue(node.arguments[0],environment,thisValue);
+        if(target.kind==='container') {
+          if(operation==='defineProperty') {
+            const key=staticString(node.arguments[1]) ??
+              (node.arguments[1]?.type==='Identifier'?
+                staticStringAliases.get(node.arguments[1].name)??null:null);
+            applyAccessorDescriptor(target,key,node.arguments[2]);
+          } else {
+            const descriptors=node.arguments[1];
+            if(descriptors?.type!=='ObjectExpression')target.unknown=true;
+            else for(const property of descriptors.properties??[]) {
+              if(property.type!=='Property') {
+                target.unknown=true;
+                continue;
+              }
+              applyAccessorDescriptor(
+                target,carrierStaticKey(property.key,property.computed),property.value);
+            }
+          }
+        }
+      }
+    }
+    if(node.type==='CallExpression') {
+      const summary=node.callee.type==='Identifier'?
+        localFunctionSummaries.get(node.callee.name):undefined;
+      for(let index=0;index<(node.arguments??[]).length;index++) {
+        const argument=node.arguments[index];
+        const value=evaluateCarrierValue(argument,environment,thisValue);
+        const isPlainPrototypeReaderInput=summary?.prototypeReturnParameters.has(index)&&
+          value.kind==='container'&&!value.unknown&&!value.properties.has('constructor');
+        const provenPrivateReader=summary?.safeParameters.has(index)&&(
+          value.kind==='weakmap'||summary.returnParameterIndices.has(index)||isPlainPrototypeReaderInput
+        );
+        if(carrierMayContainWeakMap(value)&&!provenPrivateReader)exposed=true;
+        visitCarrierExpression(argument,environment,thisValue);
+        // A local callback passed to any host or collection method may run
+        // synchronously and change the reaching carrier state. Model both
+        // possible paths rather than silently assuming callbacks are inert.
+        if(argument.type==='Identifier')
+          replayLocalFunctionEffects(argument.name,environment,thisValue);
+      }
+      visitCarrierExpression(node.callee,environment,thisValue);
+      if(node.callee.type==='Identifier')
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
+          node.arguments??[]);
+      if(node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const owner=node.callee.object.name;
+        const method=carrierStaticKey(node.callee.property,node.callee.computed);
+        const localMethod=method===null?undefined:localObjectMethods.get(owner)?.get(method);
+        // Exactly two owner references prove the private const object appears
+        // only at its declaration and this direct method call. This excludes
+        // mutation/escape surfaces without assuming arbitrary member stability.
+        if(localMethod&&localBindingCounts.get(owner)===1&&
+           identifierOccurrences.get(owner)===2&&!hasDirectEval) {
+          replayCarrierFunctionNode(localMethod,environment,
+            evaluateCarrierValue(node.callee.object,environment,thisValue),
+            true,node.arguments??[],true);
+        }
+      }
+      return;
+    }
+    if(node.type==='NewExpression') {
+      for(const argument of node.arguments??[]) {
+        if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
+          exposed=true;
+        visitCarrierExpression(argument,environment,thisValue);
+      }
+      return;
+    }
+    if(node.type==='AssignmentExpression') {
+      visitCarrierExpression(node.right,environment,thisValue);
+      const assigned=evaluateCarrierValue(node.right,environment,thisValue);
+      if(node.left.type==='Identifier') {
+        environment.set(node.left.name,assigned);
+      } else if(node.left.type==='MemberExpression') {
+        const base=evaluateCarrierValue(node.left.object,environment,thisValue);
+        const key=carrierStaticKey(node.left.property,node.left.computed);
+        if(base.kind==='container') {
+          if(key===null)base.unknown=true;
+          else base.properties.set(key,assigned);
+        } else if(base.kind==='maybe'&&(
+          carrierMayContainWeakMap(assigned)||['set','get','has','delete'].includes(key??'')
+        )) {
+          exposed=true;
+        } else if(base.kind==='weakmap'&&['set','get','has','delete'].includes(key??'')) {
+          exposed=true;
+        }
+        visitCarrierExpression(node.left.object,environment,thisValue);
+      } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
+        bindCarrierPattern(node.left,assigned,environment);
+      }
+      return;
+    }
+    if(node.type==='ObjectExpression') {
+      for(const property of node.properties??[]) {
+        if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
+        else if(property.type==='Property') {
+          visitCarrierExpression(property.value,environment,thisValue);
+          // A source-visible getter can be invoked by any later property
+          // read or reflection. Union its captured outer-binding effects with
+          // the no-getter path, rather than treating its body as inert merely
+          // because its return value does not contain the WeakMap.
+          if(property.kind==='get'&&
+             property.value?.body?.type==='BlockStatement'&&
+             !unobservedGetterInitializers.has(node)) {
+            const before=forkCarrierEnvironment(environment);
+            const after=forkCarrierEnvironment(environment);
+            visitCarrierStatement(property.value.body,after,thisValue);
+            /** @type {Map<string,CarrierValue>} */
+            const outerEffects=new Map();
+            for(const key of before.keys())
+              outerEffects.set(key,after.get(key)??carrierOther);
+            joinCarrierEnvironments(environment,before,outerEffects);
+          }
+        }
+      }
+      return;
+    }
+    if(node.type==='ArrayExpression') {
+      for(const element of node.elements??[])visitCarrierExpression(element,environment,thisValue);
+      return;
+    }
+    if(node.type==='MemberExpression') {
+      visitCarrierExpression(node.object,environment,thisValue);
+      if(node.computed)visitCarrierExpression(node.property,environment,thisValue);
+      return;
+    }
+    if(node.type==='VariableDeclaration') {
+      for(const declaration of node.declarations??[]) {
+        visitCarrierExpression(declaration.init,environment,thisValue);
+        bindCarrierPattern(declaration.id,
+          evaluateCarrierValue(declaration.init,environment,thisValue),environment);
+      }
+      return;
+    }
+    if(node.type==='ConditionalExpression') {
+      visitCarrierExpression(node.test,environment,thisValue);
+      const truth=carrierBooleanLiteral(node.test);
+      if(truth!==null) {
+        visitCarrierExpression(truth?node.consequent:node.alternate,environment,thisValue);
+        return;
+      }
+      const consequent=forkCarrierEnvironment(environment);
+      const alternate=forkCarrierEnvironment(environment);
+      visitCarrierExpression(node.consequent,consequent,thisValue);
+      visitCarrierExpression(node.alternate,alternate,thisValue);
+      joinCarrierEnvironments(environment,consequent,alternate);
+      return;
+    }
+    if(node.type==='LogicalExpression') {
+      visitCarrierExpression(node.left,environment,thisValue);
+      const truth=carrierBooleanLiteral(node.left);
+      if(truth!==null&&(node.operator==='&&'||node.operator==='||')) {
+        if(node.operator==='&&'?truth:!truth)
+          visitCarrierExpression(node.right,environment,thisValue);
+        return;
+      }
+      if(node.operator==='??'&&node.left.type==='Literal') {
+        if(node.left.value===null)
+          visitCarrierExpression(node.right,environment,thisValue);
+        return;
+      }
+      const bypass=forkCarrierEnvironment(environment);
+      const evaluated=forkCarrierEnvironment(environment);
+      visitCarrierExpression(node.right,evaluated,thisValue);
+      joinCarrierEnvironments(environment,bypass,evaluated);
+      return;
+    }
+    for(const value of Object.values(node)) {
+      if(Array.isArray(value)) {
+        for(const child of value) {
+          if(child&&typeof child==='object'&&typeof child.type==='string')
+            visitCarrierExpression(child,environment,thisValue);
+        }
+      } else if(value&&typeof value==='object'&&typeof value.type==='string') {
+        visitCarrierExpression(value,environment,thisValue);
+      }
+    }
+  }
+  /**
+   * Prove that control cannot fall through to the next sibling statement in
+   * the current block. A break/continue terminates the *current block*, not
+   * necessarily its enclosing loop; do not propagate through loops, switch,
+   * try/finally or labels without a separate proof of those constructs.
+   * @param {AstNode} statement
+   * @returns {boolean}
+   */
+  function carrierDefinitelyAbrupt(statement) {
+    if(['ReturnStatement','ThrowStatement','BreakStatement','ContinueStatement']
+      .includes(statement.type))return true;
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some(carrierDefinitelyAbrupt);
+    if(statement.type==='IfStatement') {
+      const truth=carrierBooleanLiteral(statement.test);
+      if(truth===true)return carrierDefinitelyAbrupt(statement.consequent);
+      if(truth===false)return Boolean(statement.alternate&&
+        carrierDefinitelyAbrupt(statement.alternate));
+      return Boolean(statement.alternate&&
+        carrierDefinitelyAbrupt(statement.consequent)&&
+        carrierDefinitelyAbrupt(statement.alternate));
+    }
+    return false;
+  }
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue]
+   */
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @param {boolean} [includeVarBindings=true]
+   * @param {CarrierValue[]|null} [throwCollector=null]
+   * @returns {void}
+   */
+  function visitScopedCarrierBlock(statement,environment,thisValue=carrierOther,includeVarBindings=true,throwCollector=null) {
+    const scopedEnvironment=new Map(environment);
+    const blockScopedNames=new Set();
+    const varNames=new Set();
+    for(const child of statement.body??[]) {
+      if(child.type==='VariableDeclaration') {
+        const target=includeVarBindings&&child.kind==='var'?varNames:blockScopedNames;
+        for(const declaration of child.declarations??[]) {
+          const names=new Map();
+          addPatternBindings(declaration.id,names);
+          for(const name of names.keys())target.add(name);
+        }
+      } else if((child.type==='ClassDeclaration'||child.type==='FunctionDeclaration')&&
+                child.id?.type==='Identifier') {
+        blockScopedNames.add(child.id.name);
+      }
+    }
+    for(const child of statement.body??[]) {
+      visitCarrierStatement(child,scopedEnvironment,thisValue,throwCollector);
+      // An unconditional abrupt completion makes later statements in this
+      // block unreachable. Do not let dead writes erase a live WeakMap from
+      // the state passed to catch, loop continuation or the caller.
+      if(carrierDefinitelyAbrupt(child))break;
+    }
+    for(const [name,value] of scopedEnvironment) {
+      if(blockScopedNames.has(name))continue;
+      if(environment.has(name)||varNames.has(name))environment.set(name,value);
+    }
+  }
+  /**
+   * @param {AstNode} statement
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @param {CarrierValue[]|null} [throwCollector=null]
+   * @returns {void}
+   */
+  function visitCarrierStatement(statement,environment,thisValue=carrierOther,throwCollector=null) {
+    if(statement.type==='Program') {
+      for(const child of statement.body??[])
+        visitCarrierStatement(child,environment,thisValue,throwCollector);
+      return;
+    }
+    if(statement.type==='BlockStatement') {
+      visitScopedCarrierBlock(statement,environment,thisValue,true,throwCollector);
+      return;
+    }
+    if(statement.type==='StaticBlock') {
+      visitScopedCarrierBlock(statement,environment,thisValue,false,throwCollector);
+      return;
+    }
+    if(statement.type==='ExportNamedDeclaration'||statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration)
+        visitCarrierStatement(statement.declaration,environment,thisValue,throwCollector);
+      return;
+    }
+    if(statement.type==='VariableDeclaration') {
+      visitCarrierExpression(statement,environment,thisValue);
+      return;
+    }
+    if(statement.type==='ExpressionStatement') {
+      visitCarrierExpression(statement.expression,environment,thisValue);
+      return;
+    }
+    if(statement.type==='IfStatement') {
+      visitCarrierExpression(statement.test,environment,thisValue);
+      const truth=carrierBooleanLiteral(statement.test);
+      if(truth!==null) {
+        if(truth)visitCarrierStatement(statement.consequent,environment,thisValue,throwCollector);
+        else if(statement.alternate)
+          visitCarrierStatement(statement.alternate,environment,thisValue,throwCollector);
+        return;
+      }
+      const consequent=forkCarrierEnvironment(environment);
+      const alternate=forkCarrierEnvironment(environment);
+      visitCarrierStatement(statement.consequent,consequent,thisValue,throwCollector);
+      if(statement.alternate)
+        visitCarrierStatement(statement.alternate,alternate,thisValue,throwCollector);
+      joinCarrierEnvironments(environment,consequent,alternate);
+      return;
+    }
+    if(statement.type==='LabeledStatement') {
+      visitCarrierStatement(statement.body,environment,thisValue,throwCollector);
+      return;
+    }
+    if(statement.type==='ClassDeclaration') {
+      const staticValue=carrierContainer();
+      if(statement.id?.type==='Identifier')
+        environment.set(statement.id.name,staticValue);
+      for(const element of statement.body.body??[]) {
+        if(element.type==='PropertyDefinition') {
+          const thisValue=element.static?staticValue:carrierOther;
+          visitCarrierExpression(element.value,environment,thisValue);
+          const fieldValue=evaluateCarrierValue(element.value,environment,thisValue);
+          if(element.static) {
+            const fieldKey=carrierStaticKey(element.key,element.computed);
+            if(fieldKey===null)staticValue.unknown=true;
+            else staticValue.properties.set(fieldKey,fieldValue);
+          } else if(carrierMayContainWeakMap(fieldValue)&&statement.id?.type==='Identifier') {
+            weakMapContainerOwners.add(statement.id.name);
+          }
+        } else if(element.type==='StaticBlock') {
+          // Static blocks execute at class definition time. Their own lexical
+          // declarations are scoped by visitScopedCarrierBlock; their writes
+          // to captured outer bindings must flow back to the current frame.
+          visitCarrierStatement(element,environment,staticValue,throwCollector);
+        } else if(element.type==='MethodDefinition'&&element.value?.body) {
+          // Class methods close over the lexical environment at the class
+          // declaration site. Preserve it for the later interprocedural pass.
+          if(!functionClosureEnvironments.has(element.value))
+            functionClosureEnvironments.set(element.value,new Map(environment));
+        }
+      }
+      if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
+        weakMapContainerOwners.add(statement.id.name);
+      if(statement.id?.type==='Identifier'&&exportedLocalNames.has(statement.id.name)&&
+         carrierMayContainWeakMap(staticValue))exposed=true;
+      return;
+    }
+    if(statement.type==='FunctionDeclaration') {
+      if(!functionClosureEnvironments.has(statement))
+        functionClosureEnvironments.set(statement,environment);
+      return;
+    }
+    if(statement.type==='ReturnStatement') {
+      visitCarrierExpression(statement.argument,environment,thisValue);
+      return;
+    }
+    if(statement.type==='ThrowStatement') {
+      if(throwCollector)
+        throwCollector.push(evaluateCarrierValue(statement.argument,environment,thisValue));
+      visitCarrierExpression(statement.argument,environment,thisValue);
+      return;
+    }
+    if(statement.type==='TryStatement') {
+      const beforeTry=forkCarrierEnvironment(environment);
+      const tryEnvironment=forkCarrierEnvironment(environment);
+      /** @type {CarrierValue[]} */
+      const thrownValues=[];
+      visitCarrierStatement(statement.block,tryEnvironment,thisValue,thrownValues);
+      // A catch handler can observe every state reached at a throw, not only
+      // the state before entering try. Union the conservative pre/post paths
+      // before executing its body; never let a catch overwrite the try path.
+      const catchEnvironment=forkCarrierEnvironment(tryEnvironment);
+      joinCarrierEnvironments(catchEnvironment,beforeTry,tryEnvironment);
+      if(statement.handler) {
+        const caughtValue=thrownValues.length?
+          thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
+          carrierMaybe;
+        if(statement.handler.param)
+          bindCarrierPattern(statement.handler.param,caughtValue,catchEnvironment);
+        visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue,throwCollector);
+      } else if(throwCollector) {
+        throwCollector.push(...thrownValues);
+      }
+      joinCarrierEnvironments(environment,tryEnvironment,
+        statement.handler?catchEnvironment:beforeTry);
+      if(statement.finalizer)
+        visitCarrierStatement(statement.finalizer,environment,thisValue,throwCollector);
+      return;
+    }
+    if(statement.type==='ForStatement'||statement.type==='ForInStatement'||
+       statement.type==='ForOfStatement'||statement.type==='WhileStatement'||
+       statement.type==='DoWhileStatement') {
+      // Loops can mutate an arbitrary number of container slots. Preserve
+      // statically known values but mark any touched container as unknown.
+      const preLoop=forkCarrierEnvironment(environment);
+      const loopEnv=forkCarrierEnvironment(environment);
+      const loopScopedNames=new Map();
+      for(const value of loopEnv.values())if(value.kind==='container')value.unknown=true;
+      if(statement.init) {
+        if(statement.init.type==='VariableDeclaration')
+          visitCarrierStatement(statement.init,loopEnv,thisValue,throwCollector);
+        else visitCarrierExpression(statement.init,loopEnv,thisValue);
+      }
+      if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
+      if(statement.type==='ForOfStatement'||statement.type==='ForInStatement') {
+        let iterationValue=carrierOther;
+        if(statement.type==='ForOfStatement') {
+          const iterableValue=evaluateCarrierValue(statement.right,loopEnv,thisValue);
+          if(iterableValue.kind==='container') {
+            for(const value of iterableValue.properties.values())
+              iterationValue=mergeCarrierValues(iterationValue,value);
+            if(iterableValue.unknown)
+              iterationValue=mergeCarrierValues(iterationValue,carrierMaybe);
+          } else if(iterableValue.kind==='maybe') {
+            iterationValue=carrierMaybe;
+          }
+        }
+        if(statement.left?.type==='VariableDeclaration') {
+          for(const declaration of statement.left.declarations??[]) {
+            bindCarrierPattern(declaration.id,iterationValue,loopEnv);
+            if(statement.left.kind!=='var')addPatternBindings(declaration.id,loopScopedNames);
+          }
+        } else if(statement.left) {
+          bindCarrierPattern(statement.left,iterationValue,loopEnv);
+        }
+      }
+      if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
+      visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
+      if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
+      /** @type {Map<string,CarrierValue>} */
+      const postLoop=new Map();
+      for(const [name,value] of loopEnv)
+        if(!loopScopedNames.has(name))postLoop.set(name,value);
+      joinCarrierEnvironments(environment,preLoop,postLoop);
+      return;
+    }
+    if(statement.type==='SwitchStatement') {
+      visitCarrierExpression(statement.discriminant,environment,thisValue);
+      const branches=[];
+      let fallthroughEnvironment=new Map(environment);
+      for(const branch of statement.cases??[]) {
+        const branchEnv=new Map(environment);
+        for(const [name,value] of fallthroughEnvironment) {
+          const base=environment.get(name)??carrierOther;
+          branchEnv.set(name,mergeCarrierValues(base,value));
+        }
+        for(const child of branch.consequent??[])
+          visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
+        branches.push(branchEnv);
+        fallthroughEnvironment=branchEnv;
+      }
+      for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
+        let value=environment.get(name)??carrierOther;
+        for(const branch of branches)value=mergeCarrierValues(value,branch.get(name)??carrierOther);
+        environment.set(name,value);
+      }
+    }
+  }
+
+  // Class constructor/public-field writes are already summarized as owners.
+  // Treat an instance as a container with an unknown slot set so a later
+  // static member read cannot silently hide the WeakMap value.
+  const carrierEnvironment=new Map();
+  visitCarrierStatement(ast,carrierEnvironment);
+
+  // Analyze function bodies with their local declarations as well. Exported
+  // parameters and class/object receivers are unknown carriers; private
+  // local WeakMaps remain ordinary values unless they reach an opaque call.
+  for(const [functionNode,info] of functionInfoByNode) {
+    if(!functionNode.body)continue;
+    const closureEnvironment=functionClosureEnvironments.get(functionNode)??carrierEnvironment;
+    const localEnvironment=new Map(closureEnvironment);
+    for(const parameter of functionNode.params??[])
+      bindCarrierPattern(parameter,carrierOther,localEnvironment);
+    const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
+      (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
+    if(functionNode.body.type==='BlockStatement')
+      visitCarrierStatement(functionNode.body,localEnvironment,thisValue);
+    else
+      visitCarrierExpression(functionNode.body,localEnvironment,thisValue);
+  }
+  return exposed;
+}
+/**
+ * Admit only a tiny source-visible grammar for native-bound targets:
+ * top-level fn.bind(null) calls, no opaque calls, dynamic evaluation, host
+ * capabilities, prototype access, computed member paths, getters, or member
+ * mutation. This gates only the narrow private-target proof. A hostile host
+ * preloader can still observe the already-rewritten target source.
+ *
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasUnsafeNativeBindMutationSurface(ast) {
+  const globalCapabilities=new Set([
+    'Function','globalThis','window','self','global','process','Object',
+    'Reflect','Proxy','document','navigator','eval','require','Deno','Bun',
+    'frames','parent','top','createRequire','getBuiltinModule'
+  ]);
+  const prototypeEscapes=new Set([
+    'constructor','prototype','__proto__','__lookupGetter__','__lookupSetter__',
+    '__defineGetter__','__defineSetter__','require','createRequire','getBuiltinModule'
+  ]);
+  const functionTypes=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
+  // The bound-target proof only consumes a function object whose binding is
+  // locally established by a declaration or an immutable direct function
+  // initializer. A member merely named "bind" is not evidence of native bind:
+  // namespace exports, host metadata, aliases and inline expressions can
+  // supply unrelated methods or unproved receivers.
+  const localCallableBindings=new Set();
+  walk(ast,(node,parent)=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      localCallableBindings.add(node.id.name);
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
+       parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
+       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type))
+      localCallableBindings.add(node.id.name);
+  });
+  /**
+   * @param {AstNode|null|undefined} call
+   * @returns {boolean}
+   */
+  function isLiteralNullBindCall(call) {
+    return call?.type==='CallExpression'&&!call.optional&&
+      call.callee?.type==='MemberExpression'&&
+      call.callee.object?.type==='Identifier'&&
+      localCallableBindings.has(call.callee.object.name)&&
+      !call.callee.computed&&!call.callee.optional&&
+      call.callee.property.type==='Identifier'&&
+      call.callee.property.name==='bind'&&call.arguments.length===1&&
+      call.arguments[0].type==='Literal'&&call.arguments[0].value===null;
+  }
+  let unsafe=false;
+  walk(ast,(node,parent,key,ancestors)=>{
+    // Constructing an exported bound wrapper forwards the original target as
+    // new.target. Coercing that function (for example in < or +) can invoke
+    // Function#toString without an explicit source-observer call.
+    if(node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target') {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='WithStatement'||node.type==='ThisExpression'||
+       node.type==='ImportExpression'||node.type==='NewExpression'||
+       node.type==='TaggedTemplateExpression'||node.type==='AwaitExpression'||
+       node.type==='YieldExpression'||node.type==='ForOfStatement'||
+       node.type==='ForInStatement'||node.type==='SpreadElement'||
+       node.type==='ObjectPattern'||node.type==='ArrayPattern'||
+       node.type==='ClassDeclaration'||node.type==='ClassExpression'||
+       node.type==='MethodDefinition'||node.type==='PropertyDefinition') {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='CallExpression'&&
+       (!isLiteralNullBindCall(node)||ancestors.some(ancestor=>functionTypes.has(ancestor.type)))) {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='Identifier'&&globalCapabilities.has(node.name)) {
+      unsafe=true;
+      return;
+    }
+    if(node.type==='Property') {
+      const propertyKey=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:null;
+      if(node.kind!=='init'||node.method||propertyKey==='bind'||
+         node.computed&&propertyKey===null)unsafe=true;
+    }
+    if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'||
+       node.type==='UnaryExpression'&&node.operator==='delete'&&
+         node.argument.type==='MemberExpression')unsafe=true;
+    if(node.type==='MemberExpression') {
+      const name=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(node.computed&&name===null)unsafe=true;
+      if(name!==null&&prototypeEscapes.has(name))unsafe=true;
+      if(name==='bind'&&!(parent?.type==='CallExpression'&&parent.callee===node&&
+         isLiteralNullBindCall(parent)&&
+         !ancestors.some(ancestor=>functionTypes.has(ancestor.type))))unsafe=true;
+    }
+    if(node.type==='Literal'&&typeof node.value==='string'&&
+       prototypeEscapes.has(node.value))unsafe=true;
+  });
+  return unsafe;
+}
+
+/**
  * Apply edits in descending offset order, rejecting overlaps and out-of-range edits.
  * @param {string} source
  * @param {Edit[]} edits
@@ -103,12 +2395,12 @@ function sourceSpelledErrorOperand(node) {
 
 /**
  * Resolve only bounded constant string spellings used as computed keys.
- * @param {AstNode} node
+ * @param {AstNode|null|undefined} node
  * @param {number} [depth]
  * @returns {string|null}
  */
 function staticString(node,depth=0){
-  if(depth>16)return null;
+  if(!node||depth>16)return null;
   if(node.type==='Literal' && typeof node.value==='string')return node.value;
   if(node.type==='TemplateLiteral' && !node.expressions.length){
     const cooked=node.quasis[0]?.value.cooked;
@@ -211,14 +2503,20 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
+ * @param {boolean} [sharedWeakMapPrototypeExposure] Group-wide WeakMap prototype exposure.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure) {
+  // A sibling module can expose the shared WeakMap prototype before this
+  // file evaluates, so that group-wide fact also invalidates the cache.
+  const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure===undefined?
+    hasWeakMapPrototypeExposure(ast):sharedWeakMapPrototypeExposure;
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!importedStrings.size&&!importedCloneFunctions.size&&
+  if(!weakMapPrototypeExposed&&!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedStorageMethodAliases.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -230,6 +2528,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // their source text. Track simple aliases and array-element ownership in
   // addition to direct String/RegExp coercers.
   const functions=new Set();
+  const boundFunctionAliases=new Set();
+  const mutatedBoundFunctionAliases=new Set();
   const arraysWithFunctions=new Set();
   // Native Array algorithms can implicitly stringify contained functions.
   // Track methods detached from Array.prototype through simple assignments;
@@ -317,6 +2617,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         !importedStrings.has(node.name) && !importedPrimitives.has(node.name) &&
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
+      // Under construction, new.target is the target function object. Existing
+      // coercion checks below must treat it like any other function value.
+      node.type==='MetaProperty'&&node.meta?.name==='new'&&node.property?.name==='target' ||
+
       node.type==='MemberExpression' &&
         (isOpaqueNamespace(node.object) ||
          node.object.type==='Identifier' && node.object.name==='Function' &&
@@ -332,6 +2636,41 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['Reflect','Object'].includes(memberName(node.callee.object)??'')) &&
         memberName(node.callee)==='getPrototypeOf' &&
         isFunctionValue(node.arguments[0])));
+  }
+  /**
+   * Function.prototype.bind creates an exotic callable whose native
+   * Function#toString result is the fixed native-code placeholder, not the
+   * target function's source. Treat only direct, unmodified bound functions
+   * as safe for Storage DOMString conversion.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isBoundFunctionExpression(node) {
+    return Boolean(node?.type==='CallExpression'&&
+      node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind'&&
+      isFunctionValue(node.callee.object));
+  }
+  /**
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isDefinitelyBoundFunction(node) {
+    if(isBoundFunctionExpression(node))return true;
+    if(node?.type!=='Identifier'||!boundFunctionAliases.has(node.name)||
+       mutatedBoundFunctionAliases.has(node.name))return false;
+    let mutated=false;
+    walk(ast,candidate=>{
+      if(candidate.type==='AssignmentExpression'&&
+         candidate.left.type==='MemberExpression'&&
+         candidate.left.object.type==='Identifier'&&
+         candidate.left.object.name===node.name)mutated=true;
+      if(candidate.type==='CallExpression'&&
+         candidate.callee.type==='MemberExpression'&&
+         ['defineProperty','defineProperties','assign','setPrototypeOf','set'].includes(memberName(candidate.callee)??'')&&
+         candidate.arguments[0]?.type==='Identifier'&&
+         candidate.arguments[0].name===node.name)mutated=true;
+    });
+    return !mutated;
   }
   /**
    * Recognize direct function-returning mapping callbacks. The result may
@@ -617,6 +2956,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Web Storage stringifies both setItem arguments and the key argument of
+  // getItem/removeItem. Track its global roots and simple aliases separately
+  // from Headers/URLSearchParams so unrelated custom setItem methods are not
+  // treated as Web IDL coercion.
+  const storageNames=new Set(['localStorage','sessionStorage']);
+  const storageInstances=new Set(storageNames);
+  const storageMethodAliases=new Set(importedStorageMethodAliases);
+  const storageMethodDescriptorAliases=new Set();
+  const storageReflectGetAliases=new Set();
+  const storageDescriptorReaderAliases=new Set();
   // Native Request/Response headers and URL searchParams are collection
   // objects that expose the same coercion methods as directly created ones.
   const webRecordInstances=new Set();
@@ -915,6 +3264,84 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageCollection(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageInstances.has(node.name);
+    return node.type==='MemberExpression' && isGlobal(node.object) &&
+      storageNames.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStoragePrototype(node) {
+    if(node?.type!=='MemberExpression'||memberName(node)!=='prototype')return false;
+    const root=node.object;
+    return root.type==='Identifier'&&root.name==='Storage' ||
+      root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='Storage';
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageMethodOwner(node) {
+    return isStorageCollection(node)||isStoragePrototype(node);
+  }
+  /** @param {string|null} name @returns {boolean} */
+  function isStorageMethodName(name) {
+    return name===null||['setItem','getItem','removeItem'].includes(name);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageReflectGetMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageReflectGetAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isStorageReflectGetMethod(node.callee.object);
+    return node.type==='MemberExpression'&&memberName(node)==='get'&&
+      isReflectiveReceiver(node.object);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageDescriptorReader(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageDescriptorReaderAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isStorageDescriptorReader(node.callee.object);
+    return node.type==='MemberExpression'&&
+      memberName(node)==='getOwnPropertyDescriptor'&&
+      isReflectiveReceiver(node.object);
+  }
+  /**
+   * Object.getOwnPropertyDescriptor(Storage.prototype, method) recovers the
+   * same Web IDL method as a direct Storage.prototype member reference.
+   * Descriptor aliases are propagated through simple identifier bindings.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isStorageMethodDescriptor(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageMethodDescriptorAliases.has(node.name);
+    if(node.type!=='CallExpression'||
+       !isStorageDescriptorReader(node.callee))return false;
+    return isStoragePrototype(node.arguments[0])&&
+      isStorageMethodName(sourceStringKey(node.arguments[1]));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStorageMethodReference(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return storageMethodAliases.has(node.name);
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='MemberExpression' &&
+         memberName(node.callee)==='bind')
+        return isStorageMethodReference(node.callee.object);
+      // Reflect.get can detach a native Storage method without leaving a
+      // MemberExpression at the eventual invocation site. Aliased readers are
+      // propagated by the same fixed-point pass as the method references.
+      if(isStorageReflectGetMethod(node.callee)&&
+         isStorageMethodOwner(node.arguments[0])&&
+         isStorageMethodName(sourceStringKey(node.arguments[1])))return true;
+      return false;
+    }
+    if(node.type!=='MemberExpression')return false;
+    if(memberName(node)==='value'&&isStorageMethodDescriptor(node.object))return true;
+    return isStorageMethodName(memberName(node))&&isStorageMethodOwner(node.object);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       intlNamespaces.has(node.name) ||
@@ -1139,6 +3566,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
         }
+        if(isBoundFunctionExpression(value))
+          changed=add(boundFunctionAliases,name)||changed;
+        if(node.type==='AssignmentExpression'&&boundFunctionAliases.has(name))
+          changed=add(mutatedBoundFunctionAliases,name)||changed;
+        if(isStorageCollection(value)) {
+          changed=add(storageInstances,name)||changed;
+        }
+        if(isStorageReflectGetMethod(value)) {
+          changed=add(storageReflectGetAliases,name)||changed;
+        }
+        if(isStorageDescriptorReader(value)) {
+          changed=add(storageDescriptorReaderAliases,name)||changed;
+        }
+        if(isStorageMethodDescriptor(value)) {
+          changed=add(storageMethodDescriptorAliases,name)||changed;
+        }
+        if(isStorageMethodReference(value)) {
+          changed=add(storageMethodAliases,name)||changed;
+        }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
            value?.type==='Identifier' && nativeLocaleAliases.has(value.name)) {
@@ -1278,6 +3724,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init || node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='ObjectPattern') {
+        const pattern=node.type==='VariableDeclarator'?node.id:node.left;
+        const target=node.type==='VariableDeclarator'?node.init:node.right;
+        const fromStorage=isStorageMethodOwner(target);
+        const fromDescriptor=isStorageMethodDescriptor(target);
+        if(fromStorage||fromDescriptor)for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?sourceStringKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const binding=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(binding.type!=='Identifier')continue;
+          if(fromStorage&&isStorageMethodName(name) ||
+             fromDescriptor&&name==='value') {
+            changed=add(storageMethodAliases,binding.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -1754,6 +4220,250 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       return mayCoerceSourceWithinWebRecord(node.arguments[0],depth+1);
     }
     return true;
+  }
+  /**
+   * A local own Symbol.toPrimitive/toString hook can prevent Function's
+   * inherited native toString from participating in Web IDL DOMString
+   * conversion. Prove only tiny inline hooks whose statements cannot forward
+   * the function object and whose every explicit return is primitive.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isPrimitiveCoercionResult(node,depth=0) {
+    if(!node)return true;
+    if(depth>16)return false;
+    if(node.type==='ConditionalExpression')
+      return isPrimitiveCoercionResult(node.consequent,depth+1)&&
+        isPrimitiveCoercionResult(node.alternate,depth+1);
+    if(node.type==='LogicalExpression')
+      return isPrimitiveCoercionResult(node.left,depth+1)&&
+        isPrimitiveCoercionResult(node.right,depth+1);
+    return isDefinitelyPrimitive(node);
+  }
+  /**
+   * Whitelist the side-effect shapes used by a local conversion hook. Calls,
+   * member reads/writes, and arbitrary control flow remain unproved.
+   * @param {AstNode} statement
+   * @param {string} functionName
+   * @returns {boolean}
+   */
+  function isSafeCoercionHookStatement(statement,functionName) {
+    if(statement.type==='EmptyStatement')return true;
+    if(statement.type==='ReturnStatement')
+      return isPrimitiveCoercionResult(statement.argument);
+    if(statement.type!=='ExpressionStatement')return false;
+    const expression=statement.expression;
+    if(expression.type==='UpdateExpression')
+      return expression.argument.type==='Identifier';
+    if(expression.type!=='AssignmentExpression'||expression.operator!=='='||
+       expression.left.type!=='Identifier')return false;
+    const value=expression.right;
+    if(value.type==='Literal')return isDefinitelyPrimitive(value);
+    if(value.type==='Identifier')return !functions.has(value.name);
+    if(value.type==='BinaryExpression'&&['===','!=='].includes(value.operator)) {
+      return value.left.type==='ThisExpression'&&
+          value.right.type==='Identifier'&&value.right.name===functionName ||
+        value.right.type==='ThisExpression'&&
+          value.left.type==='Identifier'&&value.left.name===functionName;
+    }
+    return false;
+  }
+  /**
+   * Prove a function-valued Storage key/value is converted by a preceding
+   * local primitive-returning own hook rather than Function.prototype.toString.
+   * The nearest function/Program body is inspected in source order; branches,
+   * aliases and hooks with opaque behavior are intentionally not inferred.
+   * @param {AstNode|null|undefined} value
+   * @param {AstNode} use
+   * @param {AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function hasSafeOwnFunctionStringCoercion(value,use,ancestors) {
+    if(value?.type!=='Identifier'||!isFunctionValue(value))return false;
+    const functionTypes=['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'];
+    const scope=[...ancestors].reverse().find(node=>functionTypes.includes(node.type))??ast;
+    const statements=scope.type==='Program'?scope.body:
+      scope.body?.type==='BlockStatement'?scope.body.body:[];
+    let symbolHook;
+    let stringHook;
+    for(const statement of statements) {
+      if(statement.start>=use.start)break;
+      if(statement.type!=='ExpressionStatement'||
+         statement.expression.type!=='AssignmentExpression')continue;
+      const assignment=statement.expression;
+      const left=assignment.left;
+      if(left.type!=='MemberExpression'||left.object.type!=='Identifier'||
+         left.object.name!==value.name)continue;
+      const isSymbolHook=left.computed&&left.property.type==='MemberExpression'&&
+        left.property.object.type==='Identifier'&&left.property.object.name==='Symbol'&&
+        memberName(left.property)==='toPrimitive';
+      const isStringHook=!left.computed&&left.property.type==='Identifier'&&
+        left.property.name==='toString';
+      if(!isSymbolHook&&!isStringHook)continue;
+      const hook=assignment.right;
+      const safe=Boolean((hook.type==='FunctionExpression'||
+        hook.type==='ArrowFunctionExpression')&&!hook.async&&!hook.generator&&
+        (hook.body.type==='BlockStatement'?
+          hook.body.body.every((/** @type {AstNode} */ statement)=>
+            isSafeCoercionHookStatement(statement,value.name)):
+          isPrimitiveCoercionResult(hook.body)));
+      if(isSymbolHook)symbolHook=safe;
+      else stringHook=safe;
+    }
+    if(symbolHook!==undefined)return symbolHook;
+    return stringHook===true;
+  }
+  /** @param {AstNode|null|undefined} value @param {AstNode} use @param {AstNode[]} ancestors @returns {boolean} */
+  function isUnsafeStorageStringValue(value,use,ancestors) {
+    return Boolean(value&&!isDefinitelyPrimitive(value)&&
+      !isDefinitelyBoundFunction(value)&&
+      !hasSafeOwnFunctionStringCoercion(value,use,ancestors));
+  }
+  /**
+   * Recognize a local WeakMap created without arguments and never rebound.
+   * Its native set operation stores references without DOMString conversion.
+   * @param {string} name
+   * @returns {boolean}
+   */
+  function isStableWeakMapInstance(name) {
+    let declarations=0;
+    let nativeConstruction=false;
+    let reassigned=false;
+    let methodMutated=false;
+    let escaped=false;
+    let weakMapIntrinsicEscaped=weakMapPrototypeExposed;
+    const allowedMapReferences=new WeakSet();
+    walk(ast,node=>{
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&node.callee.object.name===name) {
+        const method=memberName(node.callee);
+        if(method==='set'||method==='get')allowedMapReferences.add(node.callee.object);
+      }
+    });
+    walk(ast,(node,parent)=>{
+      if(node.type==='Identifier'&&node.name==='WeakMap'&&
+         !(parent?.type==='NewExpression'&&parent.callee===node))
+        weakMapIntrinsicEscaped=true;
+      if(node.type==='MemberExpression'&&memberName(node)==='WeakMap'&&
+         isGlobal(node.object))weakMapIntrinsicEscaped=true;
+      if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
+         isGlobal(node.init))weakMapIntrinsicEscaped=true;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         isReflectiveReceiver(node.callee.object)&&isGlobal(node.arguments[0]))
+        weakMapIntrinsicEscaped=true;
+      if(node.type==='Identifier'&&isGlobal(node)&&parent?.type==='CallExpression'&&
+         parent.arguments.includes(node))weakMapIntrinsicEscaped=true;
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.id.name===name) {
+        declarations++;
+        nativeConstruction=node.init?.type==='NewExpression'&&
+          node.init.callee.type==='Identifier'&&node.init.callee.name==='WeakMap'&&
+          node.init.arguments.length===0&&!bindingCounts.has('WeakMap');
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'&&
+         node.left.name===name)reassigned=true;
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         memberName(node.left)==='set'&&node.left.object.type==='Identifier'&&
+         node.left.object.name===name)methodMutated=true;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         memberName(node.callee)==='defineProperty'&&
+         node.arguments[0]?.type==='Identifier'&&node.arguments[0].name===name&&
+         sourceStringKey(node.arguments[1])==='set')methodMutated=true;
+      if(node.type==='ExportNamedDeclaration') {
+        const declaration=node.declaration;
+        if(declaration?.type==='VariableDeclaration') {
+          for(const item of declaration.declarations)
+            if(item.id.type==='Identifier'&&item.id.name===name)escaped=true;
+        }
+        for(const specifier of node.specifiers)
+          if(specifier.local?.type==='Identifier'&&specifier.local.name===name)escaped=true;
+      }
+      if(node.type==='ExportDefaultDeclaration'&&
+         node.declaration?.type==='Identifier'&&node.declaration.name===name)
+        escaped=true;
+      if(node.type==='Identifier'&&node.name===name) {
+        if(parent?.type==='VariableDeclarator'&&parent.id===node)return;
+        if(allowedMapReferences.has(node))return;
+        escaped=true;
+      }
+    });
+    return declarations===1&&nativeConstruction&&!reassigned&&!methodMutated&&
+      !escaped&&!weakMapIntrinsicEscaped;
+  }
+  /**
+   * A Storage.prototype override that only stores its receiver/value pair in
+   * a stable WeakMap does not perform Web IDL DOMString conversion. Keep this
+   * proof deliberately narrow; arbitrary override bodies remain conservative.
+   * @param {AstNode|null|undefined} value
+   * @returns {boolean}
+   */
+  function isReferenceOnlyStorageOverride(value) {
+    if(!value||!['FunctionExpression','ArrowFunctionExpression'].includes(value.type)||
+       value.async||value.generator||value.body.type!=='BlockStatement'||
+       value.body.body.length!==1)return false;
+    const parameter=value.params[1];
+    const statement=value.body.body[0];
+    if(parameter?.type!=='Identifier'||statement.type!=='ExpressionStatement'||
+       statement.expression.type!=='CallExpression')return false;
+    const call=statement.expression;
+    return call.callee.type==='MemberExpression'&&
+      memberName(call.callee)==='set'&&
+      call.callee.object.type==='Identifier'&&
+      isStableWeakMapInstance(call.callee.object.name)&&
+      call.arguments.length===2&&call.arguments[0].type==='ThisExpression'&&
+      call.arguments[1].type==='Identifier'&&call.arguments[1].name===parameter.name;
+  }
+  /**
+   * Find the latest direct Storage.prototype method replacement before a
+   * direct instance call. Only a replacement proven to store references in a
+   * native WeakMap suppresses the native DOMString observer.
+   * @param {string|null} method
+   * @param {AstNode} use
+   * @param {AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function hasReferenceOnlyStorageOverride(method,use,ancestors) {
+    if(!method)return false;
+    const functionTypes=['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'];
+    const scope=[...ancestors].reverse().find(node=>functionTypes.includes(node.type))??ast;
+    const statements=scope.type==='Program'?scope.body:
+      scope.body?.type==='BlockStatement'?scope.body.body:[];
+    /** @type {AstNode|null} */
+    let current=null;
+    for(const statement of statements) {
+      if(statement.start>=use.start)break;
+      if(statement.type!=='ExpressionStatement')continue;
+      const expression=statement.expression;
+      if(expression.type==='AssignmentExpression'&&
+         expression.left.type==='MemberExpression'&&
+         isStoragePrototype(expression.left.object)&&
+         memberName(expression.left)===method) {
+        current=expression.right;
+        continue;
+      }
+      if(expression.type!=='CallExpression'||
+         expression.callee.type!=='MemberExpression'||
+         memberName(expression.callee)!=='defineProperty'||
+         !isReflectiveReceiver(expression.callee.object)||
+         !isStoragePrototype(expression.arguments[0])||
+         sourceStringKey(expression.arguments[1])!==method)continue;
+      const descriptor=expression.arguments[2];
+      if(descriptor?.type!=='ObjectExpression') {
+        current=null;
+        continue;
+      }
+      current=null;
+      for(const property of descriptor.properties) {
+        if(property.type!=='Property')continue;
+        const name=property.computed?sourceStringKey(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(name==='value')current=property.value;
+      }
+    }
+    return isReferenceOnlyStorageOverride(current);
   }
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
@@ -2961,6 +5671,60 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
+    // Web Storage's indexed/named property setter is a separate Web IDL
+    // DOMString coercion sink: Storage.prototype.setItem may be replaced
+    // without affecting localStorage.someKey = callable. A computed key can
+    // independently stringify the callable before the value is assigned.
+    // Preserve the primitive-only case so legitimate private renames remain.
+    if(node.type==='AssignmentExpression' &&
+       node.left.type==='MemberExpression' &&
+       isStorageCollection(node.left.object) &&
+       (isUnsafeStorageStringValue(node.right,node,ancestors) ||
+        node.left.computed &&
+          isUnsafeStorageStringValue(node.left.property,node,ancestors))) {
+      observed=true;
+    }
+    // Reflect/Object can reach Web Storage's named-property setter without a
+    // syntactic assignment or setItem call. Inspect only the value-bearing
+    // positions so adjacent primitive controls retain ordinary rewrite yield.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       isReflectiveReceiver(node.callee.object) &&
+       isStorageCollection(node.arguments[0])) {
+      const storageReflection=memberName(node.callee);
+      if(storageReflection==='set' &&
+         isUnsafeStorageStringValue(node.arguments[2],node,ancestors))observed=true;
+      if(storageReflection==='assign') {
+        for(const source of node.arguments.slice(1)) {
+          if(source.type!=='ObjectExpression') {
+            observed=true;
+            break;
+          }
+          for(const property of source.properties??[]) {
+            if(property.type!=='Property' ||
+               isUnsafeStorageStringValue(property.value,node,ancestors)) {
+              observed=true;
+              break;
+            }
+          }
+          if(observed)break;
+        }
+      }
+      if(storageReflection==='defineProperty') {
+        const descriptor=node.arguments[2];
+        if(descriptor?.type!=='ObjectExpression')observed=true;
+        else for(const property of descriptor.properties??[]) {
+          const descriptorKey=property.type==='Property' ?
+            (property.computed?sourceStringKey(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key)) : null;
+          if(property.type!=='Property' ||
+             descriptorKey==='value' &&
+               isUnsafeStorageStringValue(property.value,node,ancestors)) {
+            observed=true;
+            break;
+          }
+        }
+      }
+    }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
       // MessagePort, Worker and browser postMessage use structured cloning.
@@ -3033,6 +5797,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
           callee.object.name==='Object' &&
            memberName(callee)==='getOwnPropertyDescriptor')) observed=true;
+      if(node.type==='CallExpression' && callee.type==='Identifier' &&
+         storageMethodAliases.has(callee.name) &&
+         node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+           isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
@@ -3055,6 +5823,43 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
+        // Storage methods apply Web IDL DOMString conversion to setItem's
+        // key/value and to getItem/removeItem's key. A function value here
+        // exposes its exact source through localStorage/sessionStorage.
+        if(isStorageCollection(callee.object) &&
+            (['setItem','getItem','removeItem'].includes(method??'') ||
+             callee.computed && method===null) &&
+           !hasReferenceOnlyStorageOverride(method,node,ancestors)) {
+          const positions=method==='setItem' ? node.arguments.slice(0,2) :
+            method==='getItem'||method==='removeItem' ? node.arguments.slice(0,1) :
+              node.arguments.slice(0,2);
+          if(positions.some((/** @type {AstNode} */ value)=>
+            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+        }
+        // Extracted/bound Storage methods and call/apply forms retain the same
+        // DOMString coercion contract. Conservatively inspect the first two
+        // supplied values; extra inert values do not affect Storage semantics.
+        if(callee.type==='MemberExpression' &&
+           ['call','apply','bind'].includes(memberName(callee)??'') &&
+           isStorageMethodReference(callee.object)) {
+          if(memberName(callee)==='apply') {
+            const values=node.arguments[1];
+            if(values?.type==='ArrayExpression') {
+              if(values.elements.some((/** @type {AstNode|null} */ value)=>
+                value!==null && isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+            } else if(isUnsafeStorageStringValue(values,node,ancestors))observed=true;
+          } else if(node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
+            isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+        }
+        if(callee.type==='MemberExpression' && memberName(callee)==='apply' &&
+           isReflectiveReceiver(callee.object) &&
+           isStorageMethodReference(node.arguments[0])) {
+          const values=node.arguments[2];
+          if(values?.type==='ArrayExpression') {
+            if(values.elements.some((/** @type {AstNode|null} */ value)=>
+              value!==null && isUnsafeStorageStringValue(value,node,ancestors)))observed=true;
+          } else if(isUnsafeStorageStringValue(values,node,ancestors))observed=true;
+        }
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
@@ -3966,6 +6771,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
        node.type==='ExportNamedDeclaration' && node.source) {
+      // Import attributes can change the fetched resource's module type and
+      // expose its source bytes (notably browser type=text modules).
+      if(node.attributes?.length || node.assertions?.length)observed=true;
       if(fileModules.has(node.source?.value) ||
          loaderModules.has(node.source?.value))observed=true;
     }
@@ -3985,6 +6793,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          canReachLoader('process',specifier.imported.type==='Identifier' ?
            specifier.imported.name:String(specifier.imported.value))))observed=true;
     if(node.type==='ImportExpression') {
+      if(node.options)observed=true;
       const source=staticString(node.source);
       if(source===null || fileModules.has(source) || loaderModules.has(source) ||
          ['process','node:process'].includes(source))observed=true;
@@ -4080,4 +6889,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface, hasWeakMapPrototypeExposure};

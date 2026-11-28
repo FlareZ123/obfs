@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
@@ -27,7 +28,14 @@ function parseModule(file){
  * @returns {string|null}
  */
 function resolveImport(from,specifier) {
-  if (!specifier.startsWith('./') && !specifier.startsWith('../')) return null;
+  // Browser URL resolution preserves empty path segments, while POSIX
+  // normalization collapses them. A repeated separator can therefore name a
+  // distinct module URL (or resolve around a dot segment to a different input
+  // file). Refuse that spelling instead of merging distinct module identities.
+  // Browser URL query/fragment and percent/backslash spellings are excluded
+  // here too: POSIX normalization cannot prove their WHATWG URL identity.
+  if ((!specifier.startsWith('./') && !specifier.startsWith('../')) ||
+      /[?#%\\]/u.test(specifier) || specifier.includes('//') || hasUrlPathnameNormalizationHazard(specifier) || hasTerminalUrlDotSegment(specifier)) return null;
   const normalized=path.posix.normalize(path.posix.join(path.posix.dirname(from),specifier));
   return normalized.startsWith('../') || normalized==='..' ? null : normalized;
 }
@@ -232,6 +240,280 @@ function collectVerifiedImportedPrimitives(files,parseFile=parseModule) {
   return imported;
 }
 
+
+/**
+ * Find named ESM imports that resolve to exported const arrays which
+ * syntactically contain a function or nested function-valued array.
+ * An imported array is opaque to a consumer's local source-observation
+ * analysis; preserving the producer's function source requires this graph
+ * provenance before a consumer invokes sorting or stringification.
+ *
+ * This is a positive, conservative may-contain proof. Unknown factories,
+ * mutable imported arrays, and indirect reexports need separate handling.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+/**
+ * Track named ESM exports/imports that originate as native Web Storage
+ * string-coercing methods. This provenance is consumed by the source observer
+ * in importing modules; unknown exports and opaque module paths stay unproved.
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectImportedStorageMethodAliases(files,parseFile=parseModule) {
+  /** @type {Map<string,ParsedModule>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string')
+      modules.set(file.path,parseFile(file));
+  }
+  /** @type {Map<string,Set<string>>} */
+  const localAliases=new Map();
+  for(const [filename,module] of modules) {
+    const storageInstances=new Set();
+    for(const name of ['localStorage','sessionStorage'])
+      if(!module.bindings.has(name))storageInstances.add(name);
+    const storageMethods=new Set();
+    const descriptorAliases=new Set();
+    const reflectGetAliases=new Set();
+    const descriptorReaderAliases=new Set();
+    /** @param {AstNode|null|undefined} node @returns {string|null} */
+    function memberName(node) {
+      if(!node||node.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    /** @param {AstNode|null|undefined} node @param {string} name @returns {boolean} */
+    function isBuiltin(node,name) {
+      if(node?.type==='Identifier')
+        return node.name===name&&!module.bindings.has(name);
+      return node?.type==='MemberExpression'&&
+        node.object.type==='Identifier'&&node.object.name==='globalThis'&&
+        !module.bindings.has('globalThis')&&memberName(node)===name;
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isStorageCollection(node) {
+      if(node?.type==='Identifier')return storageInstances.has(node.name);
+      return node?.type==='MemberExpression'&&
+        ['globalThis','window','self','global'].some(name=>
+          node.object.type==='Identifier'&&node.object.name===name&&
+          !module.bindings.has(name))&&
+        ['localStorage','sessionStorage'].includes(memberName(node)??'');
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isStoragePrototype(node) {
+      return node?.type==='MemberExpression'&&memberName(node)==='prototype'&&
+        isBuiltin(node.object,'Storage');
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isStorageOwner(node) {
+      return isStorageCollection(node)||isStoragePrototype(node);
+    }
+    /** @param {string|null} name @returns {boolean} */
+    function isStorageMethodName(name) {
+      return name===null||['setItem','getItem','removeItem'].includes(name);
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isReflectiveReceiver(node) {
+      return isBuiltin(node,'Object')||isBuiltin(node,'Reflect');
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isReflectGetMethod(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return reflectGetAliases.has(node.name);
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         memberName(node.callee)==='bind')
+        return isReflectGetMethod(node.callee.object);
+      return node.type==='MemberExpression'&&memberName(node)==='get'&&
+        isReflectiveReceiver(node.object);
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isDescriptorReader(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return descriptorReaderAliases.has(node.name);
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         memberName(node.callee)==='bind')
+        return isDescriptorReader(node.callee.object);
+      return node.type==='MemberExpression'&&
+        memberName(node)==='getOwnPropertyDescriptor'&&
+        isReflectiveReceiver(node.object);
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isStorageDescriptor(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return descriptorAliases.has(node.name);
+      return node.type==='CallExpression'&&isDescriptorReader(node.callee)&&
+        isStoragePrototype(node.arguments[0])&&
+        isStorageMethodName(staticString(node.arguments[1]));
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isStorageMethodReference(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return storageMethods.has(node.name);
+      if(node.type==='CallExpression') {
+        if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind')
+          return isStorageMethodReference(node.callee.object);
+        return isReflectGetMethod(node.callee)&&
+          isStorageOwner(node.arguments[0])&&
+          isStorageMethodName(staticString(node.arguments[1]));
+      }
+      if(node.type!=='MemberExpression')return false;
+      if(memberName(node)==='value'&&isStorageDescriptor(node.object))return true;
+      return isStorageMethodName(memberName(node))&&isStorageOwner(node.object);
+    }
+    /**
+     * @param {AstNode} pattern
+     * @param {AstNode|null|undefined} target
+     * @returns {void}
+     */
+    function collectDestructuredMethods(pattern,target) {
+      const fromStorage=isStorageOwner(target);
+      const fromDescriptor=isStorageDescriptor(target);
+      if(!fromStorage&&!fromDescriptor)return;
+      for(const property of pattern.properties) {
+        if(property.type!=='Property')continue;
+        const name=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:null;
+        const binding=property.value.type==='AssignmentPattern'?
+          property.value.left:property.value;
+        if(binding.type!=='Identifier')continue;
+        if(fromStorage&&isStorageMethodName(name)||
+           fromDescriptor&&name==='value') {
+          if(!storageMethods.has(binding.name)) {
+            storageMethods.add(binding.name);
+            changed=true;
+          }
+        }
+      }
+    }
+    let changed;
+    do {
+      changed=false;
+      /** @param {Set<string>} set @param {string} name @returns {boolean} */
+      const add=(set,name)=>{
+        if(set.has(name))return false;
+        set.add(name);
+        changed=true;
+        return true;
+      };
+      walk(module.ast,node=>{
+        if(node.type==='VariableDeclarator') {
+          if(node.id.type==='Identifier'&&node.init) {
+            const name=node.id.name;
+            if(isStorageCollection(node.init))add(storageInstances,name);
+            if(isReflectGetMethod(node.init))add(reflectGetAliases,name);
+            if(isDescriptorReader(node.init))add(descriptorReaderAliases,name);
+            if(isStorageDescriptor(node.init))add(descriptorAliases,name);
+            if(isStorageMethodReference(node.init))add(storageMethods,name);
+          } else if(node.id.type==='ObjectPattern'&&node.init) {
+            collectDestructuredMethods(node.id,node.init);
+          }
+        }
+        if(node.type==='AssignmentExpression'&&node.operator==='='&&
+           node.left.type==='ObjectPattern')
+          collectDestructuredMethods(node.left,node.right);
+      });
+    }while(changed);
+    localAliases.set(filename,storageMethods);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exported=new Map();
+  for(const [filename,module] of modules) {
+    const aliases=localAliases.get(filename)??new Set();
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration'&&
+         statement.declaration.type==='Identifier'&&
+         aliases.has(statement.declaration.name))names.add('default');
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const declaration=statement.declaration;
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations) {
+          if(item.id.type==='Identifier'&&aliases.has(item.id.name))
+            names.add(item.id.name);
+          if(item.id.type==='ObjectPattern') {
+            for(const property of item.id.properties) {
+              if(property.type!=='Property')continue;
+              const binding=property.value.type==='AssignmentPattern'?
+                property.value.left:property.value;
+              if(binding.type==='Identifier'&&aliases.has(binding.name))
+                names.add(binding.name);
+            }
+          }
+        }
+      } else if(!declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !aliases.has(spec.local.name))continue;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof publicName==='string')names.add(publicName);
+        }
+      }
+    }
+    exported.set(filename,names);
+  }
+  // Carry method provenance through explicit source-named reexports.
+  let changed;
+  do {
+    changed=false;
+    for(const [filename,module] of modules) {
+      const names=exported.get(filename);
+      if(!names)continue;
+      for(const statement of module.ast.body) {
+        if(statement.type==='ExportNamedDeclaration'&&statement.source?.type==='Literal'&&
+           typeof statement.source.value==='string') {
+          const origin=resolveImport(filename,statement.source.value);
+          const available=origin?exported.get(origin):null;
+          if(!available)continue;
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const sourceName=spec.local.name??spec.local.value;
+            const publicName=spec.exported.name??spec.exported.value;
+            if(typeof sourceName==='string'&&typeof publicName==='string'&&
+               available.has(sourceName)&&!names.has(publicName)) {
+              names.add(publicName);
+              changed=true;
+            }
+          }
+        } else if(statement.type==='ExportAllDeclaration'&&
+                  statement.source.type==='Literal'&&
+                  typeof statement.source.value==='string') {
+          const origin=resolveImport(filename,statement.source.value);
+          const available=origin?exported.get(origin):null;
+          if(!available)continue;
+          for(const name of available)if(name!=='default'&&!names.has(name)) {
+            names.add(name);
+            changed=true;
+          }
+        }
+      }
+    }
+  }while(changed);
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const available=origin?exported.get(origin):null;
+      if(!available)continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type==='ImportSpecifier') {
+          const importedName=spec.imported.name??spec.imported.value;
+          if(typeof importedName==='string'&&available.has(importedName))
+            names.add(spec.local.name);
+        } else if(spec.type==='ImportDefaultSpecifier'&&available.has('default')) {
+          names.add(spec.local.name);
+        }
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
 
 /**
  * Find named ESM imports that resolve to exported const arrays which
@@ -2009,7 +2291,7 @@ function isInertEarlierValue(value,ownerStart,primitives) {
  * @param {string} seed
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
-function renameCrossFileProperties(files,seed) {
+function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
   // Mixed executable formats can hide ESM consumers. The closed-world
   // integrator additionally promises that these explicitly declared inert
   // style/image/font assets are served with non-JavaScript MIME types and
@@ -2205,8 +2487,10 @@ function renameCrossFileProperties(files,seed) {
   const acyclicImports=hasAcyclicStaticImports(modules);
   const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
-  // Absolute file URLs, package aliases and encoded/query/fragment paths can
-  // reach the same ESM source through another spelling without being tracked.
+  // Absolute file URLs, package aliases, repeated separators, and
+  // encoded/query/fragment paths can reach the same ESM source through another
+  // spelling without being tracked. Browser URL paths preserve empty segments,
+  // so POSIX normalization is not a safe module-map identity function.
   // Node builtins cannot resolve to an input module under the default loader.
   // Dynamic source generation can hide additional consumers of an otherwise
   // statically closed ESM module graph. Even a constructor held as an alias
@@ -2403,8 +2687,10 @@ function renameCrossFileProperties(files,seed) {
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
+      if(node.type==='ImportExpression' && node.options){ambiguous=true;return;}
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
+      if(node.attributes?.length || node.assertions?.length){ambiguous=true;return;}
       const specifier=node.source.value;
       // node:module exposes createRequire and loader hooks. A separate
       // require('./target.mjs') would not appear as an ESM import edge.
@@ -2688,7 +2974,7 @@ function renameCrossFileProperties(files,seed) {
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,
           importedIdentities.get(exporterName),new Map(),new Map(),
           verifiedStrings.get(exporterName),verifiedPrimitives.get(exporterName),
-          allowDirectReflection);
+          allowDirectReflection,[],true,allowBoundFunctionTargets);
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
         const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
@@ -2767,26 +3053,28 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
-          // A reader imported without the candidate state, or alongside two
-          // separately proved state bindings, has insufficient call ownership
-          // evidence. Refuse rather than treating the reader as a free alias.
-          if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
+          // A reader imported without any candidate state alias has
+          // insufficient call ownership evidence. Multiple exact aliases of
+          // this same export are grouped and validated as one root set below.
+          if(readerAliases.size && importedAliases.length===0) {failed=true;break;}
           const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
             [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
           /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
           let readerProof=null;
-          for(const alias of importedAliases) {
-            if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            // Source-observation safety can use every independently proven imported
-            // string. Object-field rewriting remains limited to keys that
-            // were initialized before the owner and match its own fields.
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+          if(importedAliases.length){
+            if(importedAliases.some(alias=>importer.bindings.get(alias)!==1)){failed=true;break;}
+            const primary=/** @type {string} */ (importedAliases[0]);
+            const additional=importedAliases.slice(1);
+            // These exact named imports resolve to the same immutable ESM
+            // export binding. Validate their complete alias set as one root
+            // identity so local consumers can safely receive either spelling.
+            const proof=proveLocalObject(importer.ast,primary,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
               verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-              allowDirectReflection);
-            if(!proof) {failed=true;break;}
+              allowDirectReflection,additional,true,allowBoundFunctionTargets);
+            if(!proof){failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
-            if(readerAliases.size)readerProof=proof;
+            readerProof=proof;
           }
           if(failed)break;
           if(readerAliases.size) {
@@ -3010,7 +3298,7 @@ function renameCrossFileProperties(files,seed) {
         const proof=proveLocalObject(importer.ast,alias,importer.bindings,
           importedIdentities.get(importerName),undefined,importedKeys,
           verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
-          allowDirectReflection);
+          allowDirectReflection,[],true,allowBoundFunctionTargets);
         if(!proof) {
           failed=true;
           break;
@@ -3089,4 +3377,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays,collectImportedStorageMethodAliases};

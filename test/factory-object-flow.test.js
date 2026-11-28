@@ -210,3 +210,34 @@ test('private ESM factory preserves two-file native Node execution',async()=>{
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+
+test('in-program source observation blocks an exported closure-owner rewrite',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'const owner={secretField:17};export function read(){return owner.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {read} from "./state.mjs";console.log(Function.prototype.toString.call(read));'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'exported-closure-source-observer',
+    identifiers:false,strings:false
+  });
+  assert.equal(output.crossFile.properties,0);
+  assert.match(output.files.find(file=>file.path==='state.mjs').code,/secretField/);
+});
+
+test('without a closed-world assertion, exported generic readers keep public owner shapes',()=>{
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:17};export function read(owner){return owner.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {state,read} from "./state.mjs";console.log(read(state));'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:false,seed:'exported-generic-reader-open-world',
+    identifiers:false,strings:false
+  });
+  assert.equal(output.crossFile.properties,0);
+  assert.match(output.files.find(file=>file.path==='state.mjs').code,/secretField/);
+});

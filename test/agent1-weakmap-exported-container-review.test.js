@@ -1,0 +1,264 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {test}=require('node:test');
+const {obfuscateFiles}=require('../src');
+
+const storageSource=[
+  'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+  'const captured=new WeakMap();',
+  'function inspect(){const privateLocal=29;return privateLocal;}',
+  'function independent(){const independentLocal=7;return independentLocal;}',
+  'export function sample(){',
+  '  Object.defineProperty(Storage.prototype,"setItem",{',
+  '    ...descriptor,',
+  '    value:function(_key,value){captured.set(this,value);}',
+  '  });',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
+  '  return {value:inspect(),independent:independent()};',
+  '}'
+].join('\n');
+
+const runnerSource=[
+  'class Storage {',
+  '  constructor(){this.data=new Map();}',
+  '  setItem(key,value){this.data.set(String(key),String(value));}',
+  '}',
+  'globalThis.Storage=Storage;',
+  'globalThis.localStorage=new Storage();',
+  'let documentTitle="";',
+  'globalThis.document={};',
+  'Object.defineProperty(globalThis.document,"title",{',
+  '  get(){return documentTitle;},',
+  '  set(value){documentTitle=String(value);}',
+  '});',
+  "const {sample}=await import('./entry.mjs');",
+  'const result=sample();',
+  'process.stdout.write(JSON.stringify({result,capturedSource:document.title,privateWeakMapValue:globalThis.__privateWeakMapValue??null}));'
+].join('\n');
+
+/**
+ * @param {Array<{path:string,code:string}>} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string,privateWeakMapValue:number|null}}
+ */
+function run(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-weakmap-container-review-'));
+  try {
+    for(const file of files)fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    fs.writeFileSync(path.join(directory,'runner.mjs'),runnerSource,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'runner.mjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+const mutation=[
+  'const weakMapPrototype=Object.getPrototypeOf(PROBE);',
+  'const nativeWeakMapSet=weakMapPrototype.set;',
+  'weakMapPrototype.set=function(key,value){',
+  '  document.title=value;',
+  '  return Reflect.apply(nativeWeakMapSet,this,[key,value]);',
+  '};'
+].join('\n');
+
+/** @type {Array<{name:string,factorySource:string,mutatePrefix:string,probe:string,seed:string}>} */
+const fixtures=[
+  {
+    name:'an exported object literal containing a WeakMap must invalidate the group proof',
+    factorySource:'export const holder={map:new WeakMap()};',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-literal-weakmap'
+  },
+  {
+    name:'an exported class method returning a WeakMap through a later export must invalidate the group proof',
+    factorySource:'class Factory { makeMap(){return new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().makeMap();",
+    probe:'probe',
+    seed:'agent1-exported-class-method-weakmap'
+  },
+  {
+    name:'an exported object method returning a WeakMap through a later export must invalidate the group proof',
+    factorySource:'const factory={makeMap(){return new WeakMap();}};\nexport {factory};',
+    mutatePrefix:"import {factory} from './factory.mjs';\nconst probe=factory.makeMap();",
+    probe:'probe',
+    seed:'agent1-exported-object-method-weakmap'
+  },
+  {
+    name:'a WeakMap assigned to an exported object after initialization must invalidate the group proof',
+    factorySource:'const holder={};\nholder.map=new WeakMap();\nexport {holder};',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-property-weakmap'
+  },
+  {
+    name:'a WeakMap published through a global object property must invalidate the group proof',
+    factorySource:'globalThis.__obfsWeakMapProbe=new WeakMap();',
+    mutatePrefix:'const probe=globalThis.__obfsWeakMapProbe;',
+    probe:'probe',
+    seed:'agent1-global-object-property-weakmap'
+  },
+  {
+    name:'an exported generator yielding a WeakMap must invalidate the group proof',
+    factorySource:'export function* makeMap(){yield new WeakMap();}',
+    mutatePrefix:"import {makeMap} from './factory.mjs';\nconst probe=makeMap().next().value;",
+    probe:'probe',
+    seed:'agent1-exported-generator-weakmap'
+  },
+  {
+    name:'an exported class getter returning a WeakMap through a later export must invalidate the group proof',
+    factorySource:'class Factory { get map(){return new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
+    probe:'probe',
+    seed:'agent1-exported-class-getter-weakmap'
+  },
+  {
+    name:'an exported object literal containing the result of a local WeakMap factory must invalidate the group proof',
+    factorySource:'export const holder={map:makeMap()};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-factory-result-weakmap'
+  },
+  {
+    name:'a later assignment of a local WeakMap factory result into an exported object must invalidate the group proof',
+    factorySource:'const holder={};\nholder.map=makeMap();\nexport {holder};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {holder} from './factory.mjs';\nconst probe=holder.map;",
+    probe:'probe',
+    seed:'agent1-exported-object-factory-assignment-weakmap'
+  },
+  {
+    name:'a global property assigned a local WeakMap factory result must invalidate the group proof',
+    factorySource:'globalThis.__obfsWeakMapProbe=makeMap();\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:'const probe=globalThis.__obfsWeakMapProbe;',
+    probe:'probe',
+    seed:'agent1-global-factory-result-weakmap'
+  },
+  {
+    name:'an exported class constructor publishing a WeakMap instance field must invalidate the group proof',
+    factorySource:'class Factory { constructor(){this.map=new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
+    probe:'probe',
+    seed:'agent1-exported-class-constructor-weakmap'
+  },
+  {
+    name:'an exported class static block publishing a WeakMap property must invalidate the group proof',
+    factorySource:'class Factory { static {this.map=new WeakMap();} }\nexport {Factory};',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=Factory.map;",
+    probe:'probe',
+    seed:'agent1-exported-class-static-block-weakmap'
+  },
+  {
+    name:'an exported class constructor publishing a local WeakMap factory result must invalidate the group proof',
+    factorySource:'class Factory { constructor(){this.map=makeMap();} }\nexport {Factory};\nfunction makeMap(){return new WeakMap();}',
+    mutatePrefix:"import {Factory} from './factory.mjs';\nconst probe=new Factory().map;",
+    probe:'probe',
+    seed:'agent1-exported-class-constructor-factory-weakmap'
+  },
+  {
+    name:'an exported factory returning a container whose property is a local WeakMap factory result must invalidate the group proof',
+    factorySource:'function makeMap(){return new WeakMap();}\nexport function makeHolder(){return {map:makeMap()};}',
+    mutatePrefix:"import {makeHolder} from './factory.mjs';\nconst probe=makeHolder().map;",
+    probe:'probe',
+    seed:'agent1-exported-factory-container-weakmap'
+  }
+];
+
+for(const fixture of fixtures) {
+  test(fixture.name,()=>{
+    const entrySource=[
+      "import './factory.mjs';",
+      "import './mutate.mjs';",
+      "export {sample} from './storage.mjs';"
+    ].join('\n');
+    const mutateSource=fixture.mutatePrefix+'\n'+mutation.replace('PROBE',fixture.probe);
+    const files=[
+      {path:'entry.mjs',code:entrySource},
+      {path:'factory.mjs',code:fixture.factorySource},
+      {path:'mutate.mjs',code:mutateSource},
+      {path:'storage.mjs',code:storageSource}
+    ];
+    const compiled=obfuscateFiles(files.map(file=>({...file,sourceType:'module'})),{
+      mode:'coo',seed:fixture.seed,properties:false,identifiers:true,strings:false,closedWorld:true
+    });
+    const storage=compiled.files.find(file=>file.path==='storage.mjs');
+    assert.ok(storage);
+    assert.equal(storage.metrics.bindings,0,
+      JSON.stringify({seed:fixture.seed,storageMetrics:storage.metrics,
+        files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))}));
+    const native=run(files.map(file=>({path:file.path,code:file.code})));
+    const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+    assert.deepEqual(emitted.result,native.result);
+    assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+    assert.equal(emitted.capturedSource,native.capturedSource,
+      JSON.stringify({seed:fixture.seed,native,emitted,storageMetrics:storage.metrics}));
+    process.stdout.write('WEAKMAP_EXPORTED_ESCAPE_REFUSED '+JSON.stringify({
+      seed:fixture.seed,storageMetrics:storage.metrics,native,emitted
+    })+'\\n');
+  });
+}
+
+
+test('private local WeakMap storage and non-exported factories do not disable the Storage proof',()=>{
+  const factorySource=[
+    'const privateStore=new WeakMap();',
+    'const privateHolder={};',
+    'privateHolder.map=new WeakMap();',
+    'const localFactory={makeMap(){return new WeakMap();}};',
+    'const localMap=localFactory.makeMap();',
+    'localMap.set({},1);',
+    'function* localGenerator(){yield new WeakMap();}',
+    'const generatedMap=localGenerator().next().value;',
+    'generatedMap.set({},2);',
+    'function makePrivateCarrier(){const carrier={instance:new WeakMap()};return carrier;}',
+    'const privateCarrier=makePrivateCarrier();',
+    'privateCarrier.instance.set({},3);',
+    'class Cache {',
+    '  set(key,value){privateStore.set(this,new Map([[key,value]]));}',
+    '  get(key){return privateStore.get(this).get(key);}',
+    '}',
+    'export {Cache};',
+    'export function echo(value){return Math.max(value,0);}'
+  ].join('\n');
+  const mutateSource=[
+    "import {Cache} from './factory.mjs';",
+    'const cache=new Cache();',
+    "cache.set('answer',29);",
+    "globalThis.__privateWeakMapValue=cache.get('answer');"
+  ].join('\n');
+  const entrySource=[
+    "import './factory.mjs';",
+    "import './mutate.mjs';",
+    "export {sample} from './storage.mjs';"
+  ].join('\n');
+  const files=[
+    {path:'entry.mjs',code:entrySource},
+    {path:'factory.mjs',code:factorySource},
+    {path:'mutate.mjs',code:mutateSource},
+    {path:'storage.mjs',code:storageSource}
+  ];
+  const compiled=obfuscateFiles(files.map(file=>({...file,sourceType:'module'})),{
+    mode:'coo',seed:'agent1-private-weakmap-positive-control',
+    properties:false,identifiers:true,strings:false,closedWorld:true
+  });
+  const storage=compiled.files.find(file=>file.path==='storage.mjs');
+  assert.ok(storage);
+  assert.ok(storage.metrics.bindings>0,JSON.stringify({
+    storageMetrics:storage.metrics,
+    files:compiled.files.map(file=>({path:file.path,metrics:file.metrics}))
+  }));
+  const native=run(files.map(file=>({path:file.path,code:file.code})));
+  const emitted=run(compiled.files.map(file=>({path:file.path,code:String(file.code)})));
+  assert.deepEqual(emitted.result,native.result);
+  assert.equal(native.privateWeakMapValue,29);
+  assert.equal(emitted.privateWeakMapValue,29);
+  assert.equal(emitted.capturedSource,native.capturedSource);
+  assert.equal(native.capturedSource,'');
+});

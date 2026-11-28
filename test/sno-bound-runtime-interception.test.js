@@ -46,7 +46,7 @@ test('SNO cannot conceal a nonconstructible bound private target from host befor
     'return ((privateFirst+owner.secretField)^owner.otherField)+privateSecond;};'+
     'module.exports.hot=internal.bind(null);';
   const obfuscated=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
-    mode:'sno',seed:'sno-bound-host-instrumentation',
+    mode:'sno',seed:'sno-bound-host-instrumentation',closedWorld:true,
     strings:false,identifiers:true,properties:true
   });
   const file=obfuscated.files[0];

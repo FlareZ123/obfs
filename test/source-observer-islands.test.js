@@ -93,6 +93,19 @@ test('opt-in isolated ESM property rename preserves watched source and two impor
   }
 });
 
+test('source observer islands reject repeated-separator URL module aliases',()=>{
+  const ambiguous=entry(
+    'import {watched} from "./watched.mjs";'+
+    'import {unrelated} from ".//independent.mjs";'+
+    'console.log(watched.toString(),unrelated());'
+  );
+  assert.throws(()=>obfuscateFiles([watched,independent,ambiguous],{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,
+    experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer island/,
+  'A browser URL with an empty path segment is not the canonical input module identity');
+});
+
 test('island proof rejects observing, exporting, reassigning or reflecting the isolated function',()=>{
   const invalidEntries=[
     'console.log(unrelated.toString());',

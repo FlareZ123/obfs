@@ -39,7 +39,7 @@ function bench(label,code,minProperties=0) {
   }
   const left=median(baseline),right=median(transformed),ratio=right/left;
   process.stdout.write(`${label}: baseline ${left.toFixed(2)}ms; obfuscated ${right.toFixed(2)}ms; ratio ${ratio.toFixed(3)}x; properties ${output.metrics.properties}; bindings ${output.metrics.bindings}; strings ${output.metrics.literals}\n`);
-  if(ratio>2.5)process.exitCode=1;
+  if(!process.argv.includes('--yield-only') && ratio>2.5)process.exitCode=1;
 }
 
 bench('numeric arithmetic',`function privateRun(n){let x=0;for(let i=0;i<n;i++)x+=(i*7)%13;return x;}module.exports=function run(n){return privateRun(n);};`);

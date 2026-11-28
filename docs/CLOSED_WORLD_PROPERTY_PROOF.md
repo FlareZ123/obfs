@@ -1,6 +1,6 @@
 # Closed-world property transformation: proof envelope and release lanes
 
-**Research state: through 26 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
+**Research state: through 18 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
 
 ## 1. Scope of the declared program
 
@@ -135,31 +135,39 @@ rewrite. No hostile-runtime security, full-application performance
 or universal property-safety result follows from this finite corpus.
 
 
-## 26 November 2026: experimental native-bound arrow target lane
+## 26 November 2026: top-level native-bound target extension (experimental)
 
-The isolated branch `agent1/exported-closure-owner-proof-20261126` contains a narrow extension of the closed-world property proof. It is not merged into main and is not release clearance.
+The [native-bound private-target report](../im-results/agent1-native-bound-target-proof-2026-11-26.md)
+documents a narrow extension for a non-exported callable binding whose
+complete source-visible use set consists of top-level, noncomputed,
+nonoptional `target.bind(null)` calls. The bound wrapper may be exported;
+the target binding itself may not be exported. Current positive bound-target
+witnesses are same-file; sibling-module fixtures cover negative mutation
+refusal only. Imported-target and cross-file owner admission remain unproven.
 
-The candidate admits a non-exported local `const` arrow function only when every use of that binding is a top-level, noncomputed, nonoptional `target.bind(null)` call and the complete supplied graph passes the existing conservative gate. The exported value is the native bound wrapper; the target binding is not exported. A bounded cross-file ESM fixture also proves one positive owner flow: an entry imports a plain record from a sibling module, a private local arrow reads one field, and only its bound wrapper is exported. The fixture asserts one actual cross-file property rename in COO, SNO, and SCO, plus original/generated result and wrapper metadata parity.
+Admission additionally requires `closedWorld:true`, a fully supplied
+source-visible JavaScript graph, in-graph static imports, no unresolved
+CommonJS requires, no opaque calls other than the literal-null bind sites,
+no dynamic computed member paths, no reflection/prototype/global capability
+surface, no getter/setter/method/class or other runtime-effect constructs
+currently rejected by the lexical gate, and no unresolved ambient references
+except immutable language constants and the CommonJS `module.exports`
+publication write. Parameter-derived host receivers and aliases are refused.
+The CommonJS exception is write-only; reading back `module.exports` is not
+admitted.
 
-The target gate was tightened after an external constructor-extraction counterexample. Ordinary FunctionDeclaration and FunctionExpression targets are now refused: an external consumer can call `new hot()` and recover a constructible target through `Object.getPrototypeOf(instance).constructor`. Any `import.meta` use is also refused because a host-provided getter can mutate `Function.prototype.bind` before the top-level bind operation. A bound arrow is nonconstructible, so this restriction blocks the specific constructor/prototype recovery path; it does not block an out-of-band host preloader from intercepting native `bind` and capturing the **transformed** target source.
+This is a conservative rewrite-eligibility grammar, not a general JavaScript
+effect proof. The top-level-only restriction prevents in-graph calls from
+creating later bound wrappers after an exported target has executed. It may
+reject otherwise benign code; widening it requires a more precise receiver
+and effect analysis plus new hostile negative fixtures.
 
-Exact focused evidence on candidate revision `7558e44c2492478c142ccf979e0ae33e27558dea`:
-
-| Test | Workflow run | Platforms | Outcome |
-|---|---:|---|---|
-| `agent1-native-bind-call-target-shape` | [45839483365](https://github.com/FlareZ123/obfs/actions/runs/45839483365) | Ubuntu, Windows, macOS | Passed |
-| `agent1-bound-constructor-target-extraction` | [45839491149](https://github.com/FlareZ123/obfs/actions/runs/45839491149) | Ubuntu, Windows, macOS | Passed |
-| `agent1-native-bind-import-meta-host-getter` | [45839499605](https://github.com/FlareZ123/obfs/actions/runs/45839499605) | Ubuntu, Windows, macOS | Passed |
-| `agent1-bound-target-crossfile-probe` | [45839778770](https://github.com/FlareZ123/obfs/actions/runs/45839778770) | Ubuntu, Windows, macOS | Passed |
-| `source-stable-bound-export` | [45839787982](https://github.com/FlareZ123/obfs/actions/runs/45839787982) | Ubuntu, Windows, macOS | Passed |
-
-The first three focused runs include the focused runner's project and external JSDoc checks. The cross-file and source-stable positives demonstrate that the arrow-only restriction retains the intended narrow yield. The full `manual-validation.yml` workflow [45840812964](https://github.com/FlareZ123/obfs/actions/runs/45840812964) passed on `7558e44` on Ubuntu and Windows. It runs the complete compact behavioral/adversarial suite, exhaustive low-rank oracle test, blind post-answer audit, project/external JSDoc checks, performance sample and profiles, and its integrated Chromium tests. The broader manual real-browser workflow [45842358680](https://github.com/FlareZ123/obfs/actions/runs/45842358680) also passed its Chromium job on the comment-only successor `a16a46f`. It includes the hostile bound-target interception demonstration; this is compatibility evidence, not a source-secrecy claim. The exact branch remains experimental pending independent review and the separate Storage source-observer integration questions.
-
-The separate Agent 10 Storage source-observer work on PR #382 is not included in these receipts. It addresses Web Storage DOMString coercion and cross-file method provenance, but independent review reproduced a false-safe: an exported WeakMap backing instance is accepted as reference-only, allowing four identifier rewrites; a host wrapper around its exported `.set` then observes changed function source. Focused receipts are `45842633950` (observer miss) and `45843093395` (runtime source divergence). Direct source-visible `WeakMap.prototype.set` mutation was already detected. A candidate fail-closed use-set patch on temporary branch `agent1/storage-weakmap-falsifier-20261126` passed focused cross-platform/JSDoc run `45843922309`; full browser `45844452736` and full Node/manual-validation `45844107774` both passed on candidate `ba75c5d` (Chromium; Ubuntu and Windows). A stricter follow-up at head `53679a5` passed focused run `45844947562` and broader Chromium run `45845695742`. The current head `af0705` adds direct global-object WeakMap property/reflection guards; its focused three-platform/JSDoc run `45846488995` and exact-head Chromium run `45847289567` passed. Exact-head full Node/manual-validation `45847280213` has Ubuntu success; Windows remains in the behavioral/adversarial suite, so the workflow is not yet green. PR #382 must remain draft until the exact final head passes the full Node gate and Agent 2 authorizes integration. Do not combine the two branches' focused results or infer a complete security boundary from either.
-
-This lane establishes only behavior parity and property-rewrite yield for the enumerated fixtures. It does not establish general source secrecy, anti-instrumentation, runtime integrity, domain locking, resistance to a hostile runtime controller, universal compatibility, or a universal 2.5× runtime bound.
-
-
-## New blocker discovered after exact-head full gates
-
-Agent 4 and Agent 1 independently reproduced a second WeakMap prototype-escape false-safe: `Object.getPrototypeOf(new WeakMap())`, `Reflect.getPrototypeOf`, `new WeakMap().__proto__`, and aliased getter forms expose the shared prototype; replacing its `.set` with a wrapper that assigns `document.title = value` captures rewritten function source. Agent 4 run `45847897195` and Agent 1 red reproduction `45849163395` establish the false-safe. Candidate head `6e7888ae` now rejects source-visible `getPrototypeOf` and `__proto__` access while proving the reference-only WeakMap exception; focused run `45849649554` is queued. The prior `af0705` Node/Chromium full gates passed but are superseded by this new counterexample; `6e7888ae` has not yet passed focused/full gates. PR #382 remains draft. The `Document.title` sink is a separate observer-coverage question.
+A hostile pre-import preloader can still intercept `Function.prototype.bind`
+and capture the actual target function object and its **transformed** source.
+The extension improves property-rewrite coverage; it does not provide source
+secrecy, tamper resistance against a runtime controller, or an advantage over
+ordinary property-mangled minification. Full manual-validation run
+`45805807618` passed on Ubuntu and Windows, with the real Chromium gates
+passing on Ubuntu. This remains an experimental intermediate result, not an
+established result or release clearance; see the intermediate report for the
+skipped anti-LLM A/B step and remaining review requirements.
