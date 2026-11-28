@@ -5,11 +5,11 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const http=require('node:http');
+const {fork}=require('node:child_process');
 const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const {transformSync}=require('esbuild');
-const {partitionScoAsyncGraph,createScoGraphHandler}=require('../src');
+const {partitionScoAsyncGraph}=require('../src');
 
 const secretCode='export const seed=0x9e3779b9;';
 const apiCode=[
@@ -67,8 +67,8 @@ function ordinarySource(method,batchMethod){
  */
 test('real Chromium paired browser/server compute and hot wall-time for SCO graph batching',async()=>{
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-graph-browser-cdp-'));
-  /** @type {http.Server|undefined} */
-  let server;
+  /** @type {import('node:child_process').ChildProcess|undefined} */
+  let child;
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
   try{
@@ -85,9 +85,6 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     const partition=graph.partitions['api.mjs'];
     if(!partition.batchMethod)throw Error('Missing batch method');
     const minified=ordinarySource(partition.methodNames.compute,partition.batchMethod);
-    const sourceFiles=new Map([['/native/api.mjs',apiCode],
-      ['/native/secret.mjs',secretCode],
-      ['/ordinary/api.mjs',minified]]);
     /** @type {string[][]} */
     const inputs=Array.from({length:6},(_,trial)=>
       Array.from({length:8},(_,index)=>
@@ -112,42 +109,44 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
         ',expected:'+JSON.stringify(expected)+',impl};',
       'globalThis.__ready=true;'
     ].join('\n');
-    const handler=createScoGraphHandler(graph,{'api.mjs':original},{
-      authorizeRpc:()=>true,authorizeOperation:()=>true
-    });
-    /** @type {number[]} */
-    const rpcCpuMs=[];
-    server=http.createServer((request,response)=>{
-      const url=request.url??'/';
-      if(url.startsWith('/obfs/')){
-        const before=process.cpuUsage();
-        response.once('finish',()=>{
-          const used=process.cpuUsage(before);
-          rpcCpuMs.push((used.user+used.system)/1000);
-        });
-        handler(request,response);
-        return;
+    child=fork(path.join(__dirname,'fixtures','sco-graph-batch-browser-server.cjs'),
+      [],{stdio:['ignore','inherit','inherit','ipc']});
+    const started=await new Promise((resolve,reject)=>{
+      const timeout=setTimeout(()=>{
+        clean();reject(new Error('Timed out starting isolated SCO server'));
+      },30000);
+      /** @param {any} message @returns {void} */
+      const onMessage=message=>{
+        if(message?.type==='ready'){clean();resolve(message);}
+        else if(message?.type==='error'){clean();reject(new Error(message.error));}
+      };
+      /** @param {Error} error @returns {void} */
+      const onError=error=>{clean();reject(error);};
+      /** @param {number|null} code @returns {void} */
+      const onExit=code=>{clean();reject(new Error('Isolated server exited: '+code));};
+      function clean(){
+        clearTimeout(timeout);
+        child?.off('message',onMessage);
+        child?.off('error',onError);
+        child?.off('exit',onExit);
       }
-      response.setHeader('content-security-policy',
-        "default-src 'none'; script-src 'self'; connect-src 'self'; base-uri 'none'");
-      response.setHeader('cache-control','no-store');
-      if(url==='/'){
-        response.writeHead(200,{'content-type':'text/html; charset=utf-8'})
-          .end('<!doctype html><html><body><pre id="answer">ready</pre>'+
-            '<script type="module" src="/app.mjs"></script></body></html>');
-        return;
-      }
-      const code=url==='/app.mjs'?app:sourceFiles.get(url);
-      if(code!==undefined)response.writeHead(200,
-        {'content-type':'text/javascript; charset=utf-8'}).end(code);
-      else response.writeHead(404).end();
+      child.on('message',onMessage);
+      child.on('error',onError);
+      child.on('exit',onExit);
+      child.send({type:'start',root:temp,app,ordinary:minified});
     });
-    await new Promise((resolve,reject)=>{
-      server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
-    });
-    const address=server.address();
-    if(!address||typeof address==='string')throw Error('Missing socket');
+    const ready=/** @type {{port:number,methodId:string,batchMethod:string}} */ (started);
+    assert.equal(ready.methodId,partition.methodNames.compute);
+    assert.equal(ready.batchMethod,partition.batchMethod);
+    const origin='http://127.0.0.1:'+ready.port;
+    /** @returns {Promise<number[]>} */
+    async function getRpcSamples(){
+      const result=await fetch(origin+'/metrics');
+      assert.equal(result.status,200);
+      const body=await result.json();
+      assert.ok(Array.isArray(body.rpcCpuMs));
+      return body.rpcCpuMs;
+    }
     browser=await puppeteer.launch({
       executablePath:chromeBinary(),headless:true,protocolTimeout:90000,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
@@ -155,7 +154,7 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     const page=await browser.newPage();
     const cdp=await page.createCDPSession();
     await cdp.send('Performance.enable');
-    await page.goto('http://127.0.0.1:'+address.port+'/',{waitUntil:'networkidle0'});
+    await page.goto(origin+'/',{waitUntil:'networkidle0'});
     await page.waitForFunction('globalThis.__ready === true',{timeout:30000});
 
     /**
@@ -202,12 +201,12 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
       const order=trial%2===0?arms:[...arms].reverse();
       for(const name of order){
         const beforeTask=taskDuration(await cdp.send('Performance.getMetrics'));
-        const rpcCount=rpcCpuMs.length;
+        const rpcCount=(await getRpcSamples()).length;
         const elapsedWall=await callBrowser(name,trial);
         const afterTask=taskDuration(await cdp.send('Performance.getMetrics'));
         // Complete the handler's already-sent response finish event.
         await new Promise(resolve=>setImmediate(resolve));
-        const rpc=rpcCpuMs.slice(rpcCount);
+        const rpc=(await getRpcSamples()).slice(rpcCount);
         assert.equal(rpc.length,name==='native'?0:1,
           'Expected exactly one RPC for each protected/ordinary batch');
         const rendererCpu=afterTask-beforeTask;
@@ -238,8 +237,8 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
       trialCount:6,batchSize:8,roundsPerCall:250000,
       originalModules:2,privateModules:1,
       clock:'real Chromium performance.now plus renderer CDP TaskDuration; no virtual time',
-      serverCpu:'Node process.cpuUsage during each HTTP RPC, not whole Chrome/Node workload CPU',
-      boundary:'hot calls after ESM and two warmup rounds; loopback, trusted server in same process',
+      serverCpu:'isolated trusted child process CPU during each HTTP RPC; no Puppeteer/CDP process CPU',
+      boundary:'hot calls after ESM and two warmup rounds; loopback, isolated trusted server child process',
       minifierControl:'ordinary esbuild-minified transport, same server/secret/policy/method IDs',
       nativeControl:'browser-native original JS served under /native solely for reference',
       wallMs,rendererTaskMs,serverCpuMs,combinedCpuMs,ratios,
@@ -252,8 +251,11 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     }));
   }finally{
     if(browser)await browser.close();
-    if(server)await new Promise((resolve,reject)=>
-      server.close(error=>error?reject(error):resolve()));
+    if(child && child.exitCode===null){
+      const stopped=new Promise(resolve=>child.once('exit',resolve));
+      child.kill();
+      await stopped;
+    }
     await fs.rm(temp,{recursive:true,force:true});
   }
 });
