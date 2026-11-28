@@ -48,3 +48,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-sco-browser.js
+      - name: Compare generated and minified equal-trust RPC clients in real Chromium
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent18-application-equal-trust-browser.cjs
