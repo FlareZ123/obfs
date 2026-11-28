@@ -119,6 +119,19 @@ show the supported syntax and its limits. The check is a compile-time gate.
 It cannot prove general higher-order alias safety or intentional server-shared
 state isolation.
 
+For supplied `privateModuleSources`, the standalone compiler additionally
+reviews every private child for its own persistent function-object identities
+and applies the imported-identity check to each transitive private importer.
+An apparently safe root call `next()` is refused if the child itself mutates
+`next.count`, or a sibling retains and mutates that imported function.
+The graph composer shares this function-identity check and also has a stricter
+module-top-level immutability requirement. Stateless function calls and
+primitive imports remain admitted where other gates allow them. These are
+conservative syntactic refusals, not a general interprocedural proof or a
+runtime shield; omit `privateModuleSources` and this child-source admission
+cannot be performed. See the [28 November child identity candidate and
+three-tree ESM witnesses](../im-results/sco-private-child-function-identity-2026-11-28.md).
+
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original
 mixed module and each supplied private dependency. These commitments are kept
