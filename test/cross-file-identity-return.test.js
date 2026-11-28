@@ -39,6 +39,80 @@ async function check(utility,main,renamed) {
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 }
 
+/**
+ * Verify narrowly proven imported identity functions against Node's native ESM linker.
+ * @param {string} utility
+ * @param {string} main
+ * @param {number} renamed
+ * @returns {Promise<void>}
+ */
+async function check(utility,main,renamed) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-identity-import-'));
+  /** @type {{path:string,sourceType:'module',code:string}[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:17};'},
+    {path:'util.mjs',sourceType:'module',code:utility},
+    {path:'main.mjs',sourceType:'module',code:main}
+  ];
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const result=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+      return result.stdout;
+    }
+    const baseline=await execute(files);
+    const output=obfuscateFiles(files,{mode:'coo',seed:'cross-identity',closedWorld:true,strings:false,identifiers:false});
+    assert.equal(output.crossFile.properties,renamed);
+    assert.equal(await execute(output.files),baseline);
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+}
+
+/**
+ * Verify a named ESM factory returning a fresh plain object against native ESM.
+ * @param {string} factory
+ * @param {string} main
+ * @param {number} renamed
+ * @param {'coo'|'sno'|'sco'} [mode]
+ * @param {string} [relay]
+ * @param {string} [identityModule]
+ * @returns {Promise<void>}
+ */
+async function checkFactory(factory,main,renamed,mode='coo',relay,identityModule) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
+  const files=/** @type {import('../src/core').SourceFile[]} */ ([
+    {path:'state.mjs',sourceType:'module',code:factory},
+    ...(relay?[{path:'relay.mjs',sourceType:'module',code:relay}]:[]),
+    ...(identityModule?[{path:'identity.mjs',sourceType:'module',code:identityModule}]:[]),
+    {path:'main.mjs',sourceType:'module',code:main}
+  ]);
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const result=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+      return result.stdout;
+    }
+    const baseline=await execute(files);
+    const output=obfuscateFiles(files,{
+      mode,seed:'cross-file-exported-factory-return',
+      closedWorld:true,strings:false,identifiers:false
+    });
+    assert.equal(output.crossFile.properties,renamed);
+    if(renamed>0) {
+      assert.equal(output.crossFile.objects,1);
+      const state=output.files.find(file=>file.path==='state.mjs');
+      const entry=output.files.find(file=>file.path==='main.mjs');
+      assert.ok(state&&entry);
+      assert.doesNotMatch(String(state.code),/secretField|otherField/u);
+      assert.doesNotMatch(String(entry.code),/secretField|otherField/u);
+    }
+    assert.equal(await execute(output.files),baseline);
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+}
+
 const identity='export function identity(x){return x;}';
 
 test('cross-module identity-return preserves an object alias and renames own field',async()=>{
@@ -126,4 +200,84 @@ test('immutable exported block-body arrow identity forwards object alias',async(
 test('generator function expression is outside synchronous identity proof',async()=>{
   await check('export const identity=function*(x){return x;};',
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state).next().value;console.log(v.secretField);',0);
+});
+
+test('imported exported factories return fresh objects through cross-file identity calls in all modes',async()=>{
+  const main='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const carried=identity(first);'+
+    'console.log(carried.secretField+second.otherField);';
+  const identityModule='export function identity(value){return value;}';
+  const factories=[
+    'export function makeState(){return {secretField:17,otherField:5};}',
+    'export const makeState=()=>({secretField:17,otherField:5});',
+    'export const makeState=function(){return {secretField:17,otherField:5};};'
+  ];
+  for(const mode of ['coo','sno','sco']) {
+    for(const factory of factories) {
+      await checkFactory(factory,main,2,mode,undefined,identityModule);
+    }
+  }
+});
+
+
+test('imported exported factory proof declines escaping and source-observed callables',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const cases=[
+    ['factory alias',
+      'import {makeState} from "./state.mjs";const factory=makeState;'+
+      'const first=factory();console.log(first.secretField);'],
+    ['function source observation',
+      'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(makeState.toString().length+first.secretField);'],
+    ['escaped result',
+      'import {makeState} from "./state.mjs";const first=makeState();'+
+      'globalThis.leaked=first;console.log(Object.keys(globalThis.leaked)[0]);'],
+    ['namespace import',
+      'import * as state from "./state.mjs";const first=state.makeState();'+
+      'console.log(first.secretField);'],
+    ['optional factory call',
+      'import {makeState} from "./state.mjs";const first=makeState?.();'+
+      'console.log(first.secretField);'],
+    ['factory call with arguments',
+      'import {makeState} from "./state.mjs";const first=makeState(1);'+
+      'console.log(first.secretField);']
+  ];
+  for(const [description,main] of cases) {
+    await checkFactory(factory,main,0);
+  }
+});
+
+
+test('imported factory proof declines namespace reexports of the producer module',async()=>{
+  await checkFactory(
+    'export function makeState(){return {secretField:17,otherField:5};}',
+    'import {state} from "./relay.mjs";const first=state.makeState();'+
+      'console.log(first.secretField);',
+    0,'coo','export * as state from "./state.mjs";'
+  );
+});
+
+
+test('imported factory proof declines implicit-coercion and integer-index keys',async()=>{
+  await checkFactory(
+    'export function makeState(){return {"0":17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(Object.keys(first).join(",")+first.otherField);',
+    0
+  );
+  await checkFactory(
+    'export function makeState(){return {toString:17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'let text;try{text=String(first);}catch(error){text=error.name;}'+
+      'console.log(text+first.otherField);',
+    0
+  );
+  await checkFactory(
+    'export function makeState(){return {then:17,otherField:5};}',
+    'import {makeState} from "./state.mjs";const first=makeState();'+
+      'console.log(first.then+first.otherField);',
+    0
+  );
 });
