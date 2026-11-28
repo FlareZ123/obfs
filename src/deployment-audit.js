@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {MIMEType,TextDecoder}=require('node:util');
+const {isUtf8}=require('node:buffer');
+const {MIMEType}=require('node:util');
 const {safePath}=require('./core');
 const {createPathInventory,registerFilePath}=require('./portable-paths');
 const {assertNoSourceMapDisclosure}=require('./source-maps');
@@ -22,9 +23,6 @@ const JAVASCRIPT_MIME=new Set([
   'text/javascript1.3','text/javascript1.4','text/javascript1.5',
   'text/jscript','text/livescript','text/x-ecmascript','text/x-javascript'
 ]);
-
-/** Strict scanner for executable UTF-8 response bytes. */
-const UTF8_DECODER=new TextDecoder('utf-8',{fatal:true});
 
 /** Recognized opaque MIME types under a required nosniff response. */
 const OPAQUE_MIME=new Set([
@@ -51,11 +49,8 @@ function auditByDeliveredMime(file) {
   // Never silently replace malformed source bytes before checking the code
   // that the browser or Node will consume. Byte-exact approval alone does not
   // establish the parser's UTF-8 interpretation of those bytes.
-  if(scriptOrText||xml) {
-    try { UTF8_DECODER.decode(file.bytes); }
-    catch {
-      throw new TypeError('Executable response is not valid UTF-8: '+file.path);
-    }
+  if((scriptOrText||xml)&&!isUtf8(file.bytes)) {
+    throw new TypeError('Executable response is not valid UTF-8: '+file.path);
   }
   // Classic-script decoding can fall back to the embedding document's
   // encoding; HTML/CSS have their own sniffing and @charset mechanisms.
