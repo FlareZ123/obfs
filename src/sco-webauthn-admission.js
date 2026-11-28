@@ -82,6 +82,9 @@ function positiveInteger(value,name){
  */
 function publicEs256Key(provided){
   try{
+    // createPublicKey(privatePem) derives a public key. Reject private PEM
+    // inputs explicitly rather than silently accepting a private-key record.
+    if(typeof provided==='string' && /-----BEGIN [A-Z ]*PRIVATE KEY-----/u.test(provided))return null;
     const key=(typeof provided==='string'||Buffer.isBuffer(provided))?
       createPublicKey(typeof provided==='string'?provided:{key:provided,format:'der',type:'spki'}):provided;
     return key?.type==='public' && key.asymmetricKeyType==='ec' &&
