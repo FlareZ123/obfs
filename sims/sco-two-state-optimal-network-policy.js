@@ -109,6 +109,12 @@ function createPolicy(){
   /** @type {number[][][]} */
   const transitions=[];
   for(let at=0;at<beliefs.length;at++){
+    // Terminal beliefs have certified all future behavior; the learner stops
+    // here, so outgoing descendants are outside the reachable query game.
+    if(beliefs[at].every(encoded=>equivalent(models,beliefs[at][0],encoded))){
+      transitions.push([[-1,-1],[-1,-1]]);
+      continue;
+    }
     /** @type {number[][]} */
     const edges=[];
     for(const input of /** @type {const} */([0,1])){
