@@ -64,9 +64,11 @@ function walk(root, visit) {
  *
  * This is intentionally a conservative, bounded syntactic exposure check.
  * @param {AstNode} ast
+ * @param {ReadonlySet<string>} [untrustedCallProtocols] Protocol methods
+ *   mutated in any file of the same shared realm.
  * @returns {boolean}
  */
-function hasWeakMapPrototypeExposure(ast) {
+function hasWeakMapPrototypeExposure(ast,untrustedCallProtocols=new Set()) {
   const globalNames=new Set(['globalThis','window','self','global']);
   /** @type {Map<string,string|null>} */
   const staticStringAliases=new Map();
@@ -2003,6 +2005,13 @@ function hasWeakMapPrototypeExposure(ast) {
         functionClosureEnvironments.set(node,environment);
       return;
     }
+    // A sibling module can mutate inherited Function.prototype.call/apply/
+    // bind. The apparent argument list of a local `fn.call(...)` then does
+    // not constrain which function or default parameter may execute. With
+    // an opaque protocol implementation, a shared WeakMap prototype source
+    // hook is possible even when a supplied argument normally skips it.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       untrustedCallProtocols.has(memberKey(node.callee)??''))exposed=true;
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const operation=memberKey(node.callee);
       const namespace=node.callee.object;
