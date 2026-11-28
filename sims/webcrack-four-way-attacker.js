@@ -125,14 +125,24 @@ async function runEvidence(){
         executionParity:false,fullAppOutputParity:false,fullAppHostTraceParity:false,
         staticOriginalFormulaRecovered:'not measured',
         artifactIsStandaloneFunctionClone:false,
+        vmSandboxCallCount:null,
         error:null
       };
       try{
-        // Deliberately supply no executable sandbox, opaque host callbacks, or
-        // original source to the external tool.
+        // The tool receives only distributed bytes. Unlike the original
+        // audit, explicitly DENY the upstream Node default isolated-vm path.
+        // Count attempted VM evaluations even if upstream catches errors.
+        let vmSandboxCallCount=0;
         const transformed=await webcrack(input,{
-          deobfuscate:true,unminify:true,unpack:false,jsx:false
+          deobfuscate:true,unminify:true,unpack:false,jsx:false,
+          sandbox:async ()=>{
+            vmSandboxCallCount++;
+            throw new Error('No-VM-source-input control disallows runtime decoder evaluation');
+          }
         });
+        result.vmSandboxCallCount=vmSandboxCallCount;
+        assert.equal(vmSandboxCallCount,0,
+          'External deobfuscator attempted isolated-VM evaluation');
         const code=transformed.code;
         assert.equal(typeof code,'string');
         result.outputBytes=Buffer.byteLength(code);
