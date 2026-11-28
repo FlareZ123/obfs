@@ -39,6 +39,7 @@ function graph(variant) {
     'observed:document.head.lastChild?.textContent??""};'+
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
     '});</script></body></html>';
+  /** @type {SourceFile[]} */
   const out=[
     {path:'client.js',sourceType:'script',code:original},
     {path:'bootstrap.js',sourceType:'script',code:source}
