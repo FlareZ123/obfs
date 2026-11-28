@@ -184,11 +184,12 @@ const proofInventoryCache=new WeakMap();
  * }}
  */
 /**
- * Recognize a comma expression whose discarded operands are literal
- * primitives. Such operands cannot execute user code or observe/escape an
- * owner; the expression's value is the final operand's value. This narrowly
- * admits compiler-emitted `(0, owner)` without treating an arbitrary
- * side-effectful SequenceExpression as a transparent owner alias.
+ * Recognize a comma expression whose discarded operands are inert
+ * primitive constants. These can neither invoke user code nor
+ * observe/escape an owner; the expression's value is its last operand.
+ * The existing primitive expression proof excludes potentially throwing
+ * BigInt arithmetic; standalone BigInt literals are separately inert.
+ * No arbitrary side-effectful sequence is transparent to alias analysis.
  *
  * @param {AstNode|null|undefined} node
  * @returns {AstNode|null}
@@ -196,10 +197,8 @@ const proofInventoryCache=new WeakMap();
 function inertSequenceValue(node) {
   if(node?.type!=='SequenceExpression'||node.expressions.length<2)return null;
   for(const discarded of node.expressions.slice(0,-1)) {
-    if(discarded.type!=='Literal'||discarded.regex!==undefined||
-       !(discarded.value===null||
-         ['string','number','boolean','bigint'].includes(typeof discarded.value)))
-      return null;
+    if(discarded.type==='Literal'&&typeof discarded.value==='bigint')continue;
+    if(!isPrimitiveConstantExpression(discarded))return null;
   }
   return node.expressions[node.expressions.length-1];
 }
