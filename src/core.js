@@ -694,7 +694,7 @@ function hasImportedDomStringSourceSink(files) {
            property(node.object.callee)==='next'&&
            node.object.callee.object.type==='CallExpression'&&
            node.object.callee.object.callee.type==='MemberExpression'&&
-           ['values','entries'].includes(property(node.object.callee.object.callee)??'')&&
+           property(node.object.callee.object.callee)==='values'&&
            isImportedCollection(node.object.callee.object.callee.object))return true;
         if(node.computed&&
            (isImportedCollection(node.object)||isMaterializedElementArray(node.object))&&
