@@ -10,6 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {recoverNamedEsmPropertySpellings,recoverLocalFieldSpellings}=
   require('../sims/public-seed-property-dictionary');
+const {neutralizePublishedProperties}=require('../sims/public-property-neutralizer');
 
 const PUBLIC_SEED='public-documented-name-seed-20261128';
 const VOCABULARY=['secretField','otherField','sessionMark',
@@ -134,4 +135,65 @@ test('private entropy isolates local CommonJS property hashes from public seed',
     randomBuildsDiffer:true,nativeOutputIdentical:true,
     bytesAreSameLength:true
   })+'\n');
+});
+
+
+for(const mode of /** @type {('coo'|'sno'|'sco')[]} */ (['coo','sno','sco'])){
+  test('even privately salted ESM field tokens permit seedless public-only neutralization: '+mode,async()=>{
+    const options={mode,closedWorld:true,seed:PUBLIC_SEED,
+      properties:true,identifiers:false,strings:false,
+      experimentalEntropyPropertyNames:true};
+    const emitted=obfuscateFiles(ESM,options);
+    assert.equal(emitted.crossFile.properties,3);
+    const publicGraph=emitted.files.map(file=>({
+      path:file.path,sourceType:file.sourceType,
+      code:/** @type {string} */(file.code)
+    }));
+    const attack=neutralizePublishedProperties(publicGraph);
+    assert.equal(attack.replacedTokens,3,
+      'An offline attack must find all three published field tokens');
+    assert.ok(attack.renamedOccurrences>=6,
+      'Cross-file producer and consumer occurrences both require rewriting');
+    const originals=await run(ESM,'entry.mjs');
+    assert.deepEqual(await run(publicGraph,'entry.mjs'),originals);
+    assert.deepEqual(await run(attack.files,'entry.mjs'),originals,
+      'Seedless neutralization must preserve exact emitted ESM behavior');
+    assert.doesNotMatch(attack.files.map(file=>file.code).join('\n'),
+      /_p[a-f0-9]{12}/u,
+      'The attack must actually eliminate the original emitted field tokens');
+    process.stdout.write('PRIVATE_PROPERTY_ENTROPY_SEEDLESS_CLONE '+JSON.stringify({
+      mode,attackInput:'only distributed ESM text',
+      secretSeedNotKnown:true,sourceOriginalNotKnown:true,
+      attackerNeutralFields:attack.replacedTokens,
+      revisedOccurrences:attack.renamedOccurrences,
+      nativeOutputPreserved:true,
+      limitation:'finite static owner graph, not arbitrary JS source recovery'
+    })+'\n');
+  });
+}
+
+test('seedless private-entropy CJS property neutralization preserves native behavior',async()=>{
+  const compiled=obfuscateFiles([{
+    path:'protected.cjs',sourceType:'commonjs',code:CJS
+  }],{
+    mode:'sno',seed:PUBLIC_SEED,properties:true,
+    strings:false,identifiers:false,experimentalEntropyPropertyNames:true
+  });
+  assert.equal(compiled.files[0].metrics.properties,3);
+  const published=compiled.files.map(file=>({
+    path:file.path,sourceType:file.sourceType,
+    code:/** @type {string} */(file.code)
+  }));
+  const attack=neutralizePublishedProperties(published);
+  assert.equal(attack.replacedTokens,3);
+  assert.ok(attack.renamedOccurrences>=6);
+  const originals=await run([{
+    path:'protected.cjs',code:CJS
+  }],'protected.cjs');
+  assert.deepEqual(await run(published,'protected.cjs'),originals);
+  assert.deepEqual(await run(attack.files,'protected.cjs'),originals);
+  process.stdout.write('PRIVATE_PROPERTY_ENTROPY_LOCAL_SEEDLESS_CLONE '+
+    JSON.stringify({mode:'sno',secretSeedKnown:false,
+      sourceOnly:true,neutralizedFields:attack.replacedTokens,
+      exactNativeBehavior:true})+'\n');
 });
