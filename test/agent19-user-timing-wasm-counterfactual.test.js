@@ -10,7 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 
-const original='function inspect(a){return a^17;}'+
+const original='export function inspect(a){return a^17;}'+
   'export const view={text:performance.mark(inspect).name,value:inspect(31)};';
 /** @param {string} code @returns {Promise<{text:string,value:number}>} */
 async function evaluate(code) {
