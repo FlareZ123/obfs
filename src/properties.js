@@ -408,13 +408,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
       let returnsRoot = false;
-      if (!node.async && !node.generator && node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
-          node.body.body[0].argument?.type === 'Identifier') {
-        /** @type {AstNode[]} */
-        const params = node.params;
-        const returned=node.body.body[0].argument.name;
-        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
-        returnsRoot = !params.length && returned === rootName;
+      if (!node.async && !node.generator && node.body.body.length === 1 &&
+          node.body.body[0].type === 'ReturnStatement') {
+        const returnedExpression=node.body.body[0].argument;
+        // Returning an inert comma expression is reference-equivalent to
+        // returning its final identifier; no prefix can run user code.
+        const value=returnedExpression?.type==='SequenceExpression' ?
+          inertSequenceValue(returnedExpression) : returnedExpression;
+        if(value?.type==='Identifier') {
+          /** @type {AstNode[]} */
+          const params=node.params;
+          const returned=value.name;
+          forwardIndex=params.findIndex(p=>p.type==='Identifier'&&p.name===returned);
+          returnsRoot=!params.length&&returned===rootName;
+        }
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
     }
@@ -455,6 +462,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             body=statements[0].declarations[0].init;
           }
         }
+        // Concise arrows can forward through the same inert comma grammar.
+        if(body?.type==='SequenceExpression')body=inertSequenceValue(body);
         if (body?.type === 'Identifier') {
           const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
           const returnsRoot=!value.params.length && body.name===rootName;
@@ -1005,6 +1014,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
            (fn.external&&(index===fn.forwardIndex||index===fn.consumerIndex)||
              fn.params[index]?.type==='Identifier'&&
              aliases.has(fn.params[index].name)))continue;
+      }
+      // A private, directly invoked identity/getter may return the owner
+      // through an inert comma expression. Every returned call result is
+      // still validated below; escaping a function or an owner is vetoed.
+      if(declaration?.type==='ReturnStatement'&&
+         declaration.argument===parent ||
+         declaration?.type==='ArrowFunctionExpression'&&
+         declaration.body===parent) {
+        const fnNode=[...ancestors].reverse().find(a=>
+          ['FunctionDeclaration','FunctionExpression',
+            'ArrowFunctionExpression'].includes(a.type));
+        if(fnNode && [...functions.values()].some(fn=>
+          fn.node===fnNode&&(fn.forwardIndex>=0||fn.returnsRoot)))continue;
       }
     }
     if (parent.type === 'MemberExpression' && key === 'object') {
