@@ -89,6 +89,7 @@ async function execute(files) {
 }
 
 test('cross-file ESM owner alias/return/reflection matrix preserves real Node semantics',async()=>{
+  /** @type {Array<'coo'|'sno'|'sco'>} */
   const modes=['coo','sno','sco'];
   const shapes=[
     'direct','repeated-alias','identity-import','returned-owner',
