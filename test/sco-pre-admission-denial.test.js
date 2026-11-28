@@ -229,3 +229,50 @@ test('SCO pre-admission refuses asynchronous and thenable results without unhand
     assert.equal(privateEffects,0);
   }finally{await close(server);}
 });
+
+test('SCO early denial preserves 403 while a legitimate principal occupies global capacity',async()=>{
+  const entered=gate(),release=gate();
+  let privateEffects=0,lookups=0,finalChecks=0,earlyChecks=0;
+  const handler=createScoHandler([],{
+    remoteMethods:{
+      check:()=>{privateEffects++;return 'quick';},
+      hold:async()=>{privateEffects++;entered.resolve();await release.promise;return 'held';}
+    },
+    authorizeRpc:request=>{
+      finalChecks++;
+      return request.headers['x-fixture-credential']==='verified';
+    },
+    admitRpcEarly:request=>{
+      earlyChecks++;
+      return request.headers['x-fixture-credential']==='verified';
+    },
+    runRpcIsolated:createScoKeyedIsolation(request=>{
+      lookups++;
+      return request.headers['x-fixture-credential']==='verified'?'V':'U';
+    },{maxPendingTotal:1,maxPendingPerPrincipal:1})
+  });
+  const {server,url}=await start(handler);
+  const first=rpc(url,'verified','{"method":"hold","args":[]}');
+  try {
+    await entered.promise;
+    assert.deepEqual(await rpc(url,'unauthenticated'),{
+      status:403,body:{ok:false,error:'Forbidden'}
+    },'Denied outsider must not see queue-capacity 429');
+    assert.equal(lookups,1,'No identity lookup for rejected outsider');
+    assert.deepEqual(await rpc(url,'verified'),{
+      status:429,body:{ok:false,error:'Too many requests'}
+    },'Other valid requests remain subject to ordinary global limit');
+    assert.equal(lookups,1,'Overflow does not resolve another identity');
+    assert.equal(finalChecks,1,'Overflow cannot reach final authorization');
+    assert.equal(earlyChecks,3);
+    assert.equal(privateEffects,1,'Only admitted held method begins');
+    release.resolve();
+    assert.deepEqual(await first,{
+      status:200,body:{ok:true,value:'held'}
+    });
+  }finally{
+    release.resolve();
+    await Promise.allSettled([first]);
+    await close(server);
+  }
+});
