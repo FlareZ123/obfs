@@ -263,6 +263,9 @@ const cases=[
 ['inline-derived-pure-base-static-block-new','let carrier={};class Base{};new (class extends Base {static {carrier={instance:new WeakMap()};}})();','carrier.instance'],
 ['inline-class-static-ordinary-positive','class Ordinary{};let carrier={instance:new Ordinary()};new (class {static value=3;})();','carrier.instance'],
 ['inline-class-computed-primitive-positive','class Ordinary{};let carrier={instance:new Ordinary()};new (class {["x"](){}})();','carrier.instance'],
+// Instance fields execute on new even without an explicit constructor.
+['inline-class-instance-field-new','let carrier={};new (class {value=(carrier={instance:new WeakMap()});})();','carrier.instance'],
+['inline-class-instance-field-literal-positive','class Ordinary{};let carrier={instance:new Ordinary()};new (class {value=3;})();','carrier.instance'],
 ['host-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null,23);",'carrier.instance'],
 ['host-apply-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[3]);",'carrier.instance'],
 ['iterator-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const iterable={*[Symbol.iterator](){carrier={instance:new Ordinary()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
