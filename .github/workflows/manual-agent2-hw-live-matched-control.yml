@@ -72,6 +72,7 @@ on:
         options:
           - predecessor
           - bfs
+          - trace-anchor
       version_space_trace_lower_bound_depth:
         description: "Optional deterministic public-trace state lower bound depth (0 off, max 20)"
         required: false
