@@ -62,7 +62,7 @@ function corpus(hostile) {
     '  return Reflect.apply(this,receiver,rest);',
     '};'
   ].join('\n'):'export const benign=true;';
-  const mutate=[
+  const mutate=(hostile?[
     'class Ordinary {}',
     'let carrier={instance:new Ordinary()};',
     'function fill(x=(carrier={instance:new WeakMap()})){}',
@@ -74,7 +74,12 @@ function corpus(hostile) {
     '  if(typeof nativeSet==="function")',
     '    return Reflect.apply(nativeSet,this,[key,value]);',
     '};'
-  ].join('\n');
+  ]:[
+    'class Ordinary {}',
+    'let carrier={instance:new Ordinary()};',
+    'function fill(x=23){}',
+    'fill.call(null,23);'
+  ]).join('\n');
   const storage=[
     'const captured=new WeakMap();',
     'function inspect(){const privateLocal=29;return privateLocal;}',
@@ -114,6 +119,8 @@ for(const hostile of [false,true]) {
       })));
       const stored=transformed.files.find(file=>file.path==='storage.mjs');
       assert.ok(stored);
+      if(!hostile)assert.ok(stored.metrics.bindings>0,
+        'A source-inert adjacent module should retain protected renaming yield');
       console.log('AGENT2_CROSS_MODULE_CALL '+JSON.stringify({
         mode,hostile,bindings:stored.metrics.bindings,
         nativeSource:native.capturedSource,emittedSource:result.capturedSource,
