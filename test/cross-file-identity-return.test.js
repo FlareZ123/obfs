@@ -168,14 +168,17 @@ test('generator function expression is outside synchronous identity proof',async
 });
 
 
-test('imported exported factory returns fresh objects whose fields are renamed across all callsites',async()=>{
-  await checkFactory(
+test('imported exported factories return fresh objects tracked through local identity calls',async()=>{
+  const main='import {makeState} from "./state.mjs";'+
+    'function identity(value){return value;}'+
+    'const first=makeState();const second=makeState();'+
+    'const carried=identity(first);'+
+    'console.log(carried.secretField+second.otherField);';
+  for(const factory of [
     'export function makeState(){return {secretField:17,otherField:5};}',
-    'import {makeState} from "./state.mjs";'+
-      'const first=makeState();const second=makeState();'+
-      'console.log(first.secretField+second.otherField);',
-    2
-  );
+    'export const makeState=()=>({secretField:17,otherField:5});',
+    'export const makeState=function(){return {secretField:17,otherField:5};};'
+  ]) await checkFactory(factory,main,2);
 });
 
 
