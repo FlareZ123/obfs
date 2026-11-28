@@ -249,6 +249,28 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
         if(origin)protectedPaths.add(origin);
       }
     });
+    // Source-stability proof for imported callables: a direct, zero-argument
+    // call does not itself expose the imported Function object, but any
+    // other reference can flow through a host callback, coercive Web API,
+    // reflection, another local helper, or a re-export. If its producer is
+    // known and the import has not been proved primitive/string, preserve
+    // that producer source instead of guessing the receiving API's shape.
+    // This conservative may-escape check is deliberately syntax independent:
+    // a `const doc=document` alias or a `Reflect.set` call cannot bypass it.
+    walk(ast,(node,parent,key)=>{
+      const origin=importedOrigin(node);
+      if(!origin)return;
+      if(parent?.type==='ImportSpecifier'||
+         parent?.type==='ImportDefaultSpecifier'||
+         parent?.type==='ImportNamespaceSpecifier')return;
+      if(parent?.type==='CallExpression'&&key==='callee'&&
+         parent.callee===node&&!parent.optional)return;
+      if(parent?.type==='MemberExpression'&&key==='property'&&
+         !parent.computed)return;
+      if(parent?.type==='Property'&&key==='key'&&
+         !parent.computed&&!parent.shorthand)return;
+      protectedPaths.add(origin);
+    });
   }
   return protectedPaths;
 }
