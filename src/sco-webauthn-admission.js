@@ -18,6 +18,7 @@ const {createScoWebAuthnMemoryStore}=require('./sco-webauthn-state');
  * @typedef {{
  *   rpId:string, allowedOrigins:string[], requireUserVerification?:boolean,
  *   credentialAuthorityId?:string,
+ *   credentialAuthorityKey?:Buffer,
  *   allowInsecureLocalhost?:boolean, challengeTtlMs?:number, sessionTtlMs?:number,
  *   maxChallenges?:number, maxSessions?:number,
  *   lookupCredential:(principal:string,credentialId:string)=>RegisteredCredential|null|Promise<RegisteredCredential|null>,
@@ -140,6 +141,19 @@ function createScoWebAuthnAdmission(options){
   if(credentialAuthorityId!==undefined &&
      (typeof credentialAuthorityId!=='string'||!/^[!-~]{1,128}$/u.test(credentialAuthorityId)))
     throw new TypeError('WebAuthn credentialAuthorityId must be 1-128 printable non-space ASCII characters');
+  // A high-entropy application-managed per-authority key supplements the
+  // human-readable label. Its digest is bound to the *shared-store policy*
+  // once at initialization, not to each token/authorization hot path. Do not
+  // reuse this key across independent credential registries. The key stays
+  // inside the trusted server; neither the raw key nor its digest is sent
+  // to a browser by this helper.
+  const credentialAuthorityKey=options.credentialAuthorityKey;
+  if(credentialAuthorityKey!==undefined &&
+     (!Buffer.isBuffer(credentialAuthorityKey)||credentialAuthorityKey.length!==32))
+    throw new TypeError('WebAuthn credentialAuthorityKey must be a 32-byte Buffer');
+  const credentialAuthorityKeyDigest=credentialAuthorityKey===undefined?null:
+    createHash('sha256').update('obfs-sco-webauthn-authority-key-v1:')
+      .update(credentialAuthorityKey).digest('hex');
   // Shared admission state must not silently mix RP IDs, origin lists,
   // user-verification policy or TTL/capacity rules across Node replicas.
   // Caller-provided credential registries and clocks still need identical
@@ -151,7 +165,13 @@ function createScoWebAuthnAdmission(options){
     'obfs-sco-webauthn-admission-v1',rpId,[...origins].sort(),requireUV,
     challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions
   ];
-  if(credentialAuthorityId!==undefined){
+  if(credentialAuthorityKeyDigest!==null){
+    // A distinct v3 tuple leaves legacy v1 and label-only v2 fingerprints
+    // identical. Different keys refuse even when two trusted applications
+    // accidentally choose the same human-readable registry label.
+    policyInputs[0]='obfs-sco-webauthn-admission-v3';
+    policyInputs.push(credentialAuthorityId??'',credentialAuthorityKeyDigest);
+  }else if(credentialAuthorityId!==undefined){
     policyInputs[0]='obfs-sco-webauthn-admission-v2';
     policyInputs.push(credentialAuthorityId);
   }
