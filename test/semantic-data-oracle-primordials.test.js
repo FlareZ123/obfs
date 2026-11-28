@@ -8,6 +8,7 @@ const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
 test('trusted oracle is invariant to subject-side mutable intrinsic replacement',()=>{
   const shared={privateValue:-0};
   const symbol=Symbol('genuine');
+  /** @type {unknown[]} */
   const graph=[NaN,-0,9007199254740993n,symbol,symbol,
     Symbol.for('registry'),shared,shared];
   graph.push(graph);
