@@ -48,11 +48,38 @@ function createScoWebAuthnMemoryStore(){
   const versions=new Map();
   /** @type {string|null} */
   let configuredPolicyHash=null;
-
-  /** @param {number} time */
+  // Map iteration preserves insertion order. With fixed positive TTLs and
+  // a monotone server clock, expiry order is monotone as well, allowing a
+  // prefix-only purge instead of scanning every live session on each mint.
+  // Separate workers may have skewed clocks; an out-of-order expiry disables
+  // this fast path until the affected map empties. Never assume ordering.
+  let challengeExpiriesOrdered=true;
+  let sessionExpiriesOrdered=true;
+  let lastChallengeExpiry=-Infinity;
+  let lastSessionExpiry=-Infinity;
+  /**
+   * @param {number} time
+   * @returns {void}
+   */
   function purge(time){
-    for(const [id,row] of challenges)if(row.expiresAt<=time)challenges.delete(id);
-    for(const [id,row] of sessions)if(row.expiresAt<=time)sessions.delete(id);
+    if(challengeExpiriesOrdered&&Number.isFinite(time)){
+      for(const [id,row] of challenges){
+        if(row.expiresAt>time)break;
+        challenges.delete(id);
+      }
+    }else{
+      for(const [id,row] of challenges)if(row.expiresAt<=time)challenges.delete(id);
+    }
+    if(sessionExpiriesOrdered&&Number.isFinite(time)){
+      for(const [id,row] of sessions){
+        if(row.expiresAt>time)break;
+        sessions.delete(id);
+      }
+    }else{
+      for(const [id,row] of sessions)if(row.expiresAt<=time)sessions.delete(id);
+    }
+    if(challenges.size===0){challengeExpiriesOrdered=true;lastChallengeExpiry=-Infinity;}
+    if(sessions.size===0){sessionExpiriesOrdered=true;lastSessionExpiry=-Infinity;}
   }
   /** @param {string} principal @returns {number} */
   const generation=principal=>versions.get(principal)??0;
@@ -62,6 +89,9 @@ function createScoWebAuthnMemoryStore(){
       purge(now);
       if(challenges.size>=maxChallenges)throw new Error('WebAuthn challenge capacity exhausted');
       if(challenges.has(id))throw new Error('Duplicate WebAuthn challenge nonce');
+      if(!Number.isFinite(expiresAt)||expiresAt<lastChallengeExpiry)
+        challengeExpiriesOrdered=false;
+      lastChallengeExpiry=expiresAt;
       challenges.set(id,{principal,sessionId,challenge:Buffer.from(challenge),
         expiresAt,version:generation(principal)});
     },
@@ -75,6 +105,9 @@ function createScoWebAuthnMemoryStore(){
       purge(now);
       if(generation(principal)!==challengeGeneration||sessions.size>=maxSessions||
          expiresAt<=now ||sessions.has(token))return false;
+      if(!Number.isFinite(expiresAt)||expiresAt<lastSessionExpiry)
+        sessionExpiriesOrdered=false;
+      lastSessionExpiry=expiresAt;
       sessions.set(token,{principal,expiresAt});
       return true;
     },
