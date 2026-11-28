@@ -181,6 +181,8 @@
     "sims/local-parameter-value-profile.js",
     "sims/local-parameter-example-yield.js",
     "sims/release-evidence-gate.js",
+    "sims/acceptance-decision.js",
+    "test/acceptance-decision.test.js",
     "sims/familywise-budget-bound.js",
     "sims/polyvariant-app-oracle-translation.js",
     "test/polyvariant-app-oracle-translation.test.js",
