@@ -105,16 +105,25 @@ async function runServer(){
     '}'
   ].join('');
   const plainClient=(await transform(plainSource,{format:'esm',minify:true})).code;
+  const staticHeaders={'content-type':'text/javascript; charset=utf-8',
+    'cache-control':'no-store','x-content-type-options':'nosniff'};
+  const jsonHeaders={'content-type':'application/json; charset=utf-8',
+    'cache-control':'no-store','x-content-type-options':'nosniff'};
   const ordinaryServer=http.createServer((request,response)=>{
+    /** @param {number} status @param {Record<string,unknown>} payload */
+    const respond=(status,payload)=>{
+      response.writeHead(status,jsonHeaders);
+      response.end(JSON.stringify(payload));
+    };
     if(request.method==='GET'&&request.url==='/obfs/client.mjs'){
-      response.writeHead(200,{'content-type':'text/javascript'});
+      response.writeHead(200,staticHeaders);
       response.end(plainClient);return;
     }
     if(request.method!=='POST'||request.url!=='/obfs/rpc'){
       response.writeHead(404);response.end();return;
     }
     if(request.headers.cookie!==cookie){
-      response.writeHead(403);response.end();return;
+      respond(403,{ok:false,error:'Forbidden'});return;
     }
     /** @type {Buffer[]} */
     const chunks=[];
@@ -124,17 +133,16 @@ async function runServer(){
         const payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));
         if(payload?.method!==targetMethod||!Array.isArray(payload?.args)||
             payload.args.length!==1||(payload.args[0]!==0&&payload.args[0]!==1)){
-          response.writeHead(400);response.end();return;
+          respond(403,{ok:false,error:'Forbidden'});return;
         }
         const symbol=payload.args[0];
         const output=machine.output[ordinaryState][symbol];
         ordinaryState=machine.next[ordinaryState][symbol];
         ordinaryTrace.push({input:symbol,output});
-        response.writeHead(200,{'content-type':'application/json'});
-        response.end(JSON.stringify(tamperOrdinary?{ok:true,value:output,wireMarker:1}:
-          {ok:true,value:output}));
+        respond(200,tamperOrdinary?{ok:true,value:output,wireMarker:1}:
+          {ok:true,value:output});
       }catch{
-        response.writeHead(400);response.end();
+        respond(400,{ok:false,error:'Malformed JSON'});
       }
     });
   });
@@ -179,11 +187,18 @@ async function runAttacker(){
         }
       }
       const nativeFetch=globalThis.fetch;
+      const [scoSourceReply,ordinarySourceReply]=await Promise.all([
+        nativeFetch(scoOrigin+'/obfs/client.mjs'),
+        nativeFetch(ordinaryOrigin+'/obfs/client.mjs')
+      ]);
+      assert.equal(scoSourceReply.status,200);
+      assert.equal(ordinarySourceReply.status,200);
+      for(const header of ['content-type','cache-control','x-content-type-options']){
+        assert.equal(scoSourceReply.headers.get(header),
+          ordinarySourceReply.headers.get(header));
+      }
       const [scoSource,ordinarySource]=await Promise.all([
-        nativeFetch(scoOrigin+'/obfs/client.mjs').then(r=>{
-          assert.equal(r.status,200);return r.text();}),
-        nativeFetch(ordinaryOrigin+'/obfs/client.mjs').then(r=>{
-          assert.equal(r.status,200);return r.text();})
+        scoSourceReply.text(),ordinarySourceReply.text()
       ]);
       assert.equal(scoSource.includes('privateTable'),false);
       assert.equal(ordinarySource.includes('privateTable'),false);
@@ -194,7 +209,8 @@ async function runAttacker(){
       assert.equal('reset' in scoApi,false);
       assert.equal('reset' in ordinaryApi,false);
       /** @typedef {{path:string,method:string,body:string,headers:string,
-       *   credentials:string,cache:string,responseStatus:number,responseBody:string}} WireRecord */
+       *   credentials:string,cache:string,responseStatus:number,responseBody:string,
+       *   responseHeaders:string}} WireRecord */
       /** @type {{sco:WireRecord[],ordinary:WireRecord[]}} */
       const wires={sco:[],ordinary:[]};
       /** @param {string} origin @param {'sco'|'ordinary'} arm */
@@ -204,12 +220,14 @@ async function runAttacker(){
           const record={path:target.pathname,method:String(init?.method),
             body:String(init?.body),headers:JSON.stringify(init?.headers),
             credentials:String(init?.credentials),cache:String(init?.cache),
-            responseStatus:0,responseBody:''};
+            responseStatus:0,responseBody:'',responseHeaders:''};
           wires[arm].push(record);
           return nativeFetch(target,{...init,headers:{...init?.headers,cookie}})
             .then(async response=>{
               record.responseStatus=response.status;
               record.responseBody=await response.clone().text();
+              record.responseHeaders=['content-type','cache-control',
+                'x-content-type-options'].map(header=>response.headers.get(header)).join('|');
               return response;
             });
         });
@@ -330,6 +348,7 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
     ]);
     assert.equal(deniedSco.status,403);
     assert.equal(deniedOrdinary.status,403);
+    assert.equal(await deniedSco.text(),await deniedOrdinary.text());
     assert.notEqual(privatePath.status,200);
     // Deliberately exclude the evaluator/server's environment, including
     // NODE_OPTIONS and any ambient service credentials. The sole authorized
