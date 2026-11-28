@@ -8,6 +8,7 @@ import socket
 import sys
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -134,6 +135,86 @@ class LocalTcpListenerTests(unittest.TestCase):
             listener.close()
             worker.join(timeout=2)
             self.assertFalse(worker.is_alive(), "SSH listener test thread did not stop")
+
+    def test_public_module_limits_unadvertised_body_bytes(self):
+        response = mock.Mock()
+        response.status = 200
+        response.length = None
+        response.getheader.side_effect = lambda key: {
+            "Set-Cookie": "session=local-probe-secret; HttpOnly",
+            "X-SCO-Method": "step",
+        }.get(key)
+        limit = PROBE.MAX_PUBLIC_MODULE_BYTES + 1
+        response.read.return_value = b"x" * limit
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(PROBE.http.client, "HTTPConnection", return_value=connection):
+            metadata = PROBE.public_module("127.0.0.1", 9123)
+
+        self.assertTrue(metadata["module_oversized"])
+        self.assertIsNone(metadata["module_sha256"])
+        self.assertEqual(metadata["module_bytes"], limit)
+        response.read.assert_called_once_with(limit)
+        connection.close.assert_called_once()
+
+    def test_public_module_rejects_oversized_content_length_without_reading(self):
+        response = mock.Mock()
+        response.status = 200
+        response.length = 2 * PROBE.MAX_PUBLIC_MODULE_BYTES
+        response.getheader.side_effect = lambda key: {
+            "Set-Cookie": "session=another-secret",
+            "X-SCO-Method": "step",
+        }.get(key)
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(PROBE.http.client, "HTTPConnection", return_value=connection):
+            metadata = PROBE.public_module("127.0.0.1", 9124)
+
+        self.assertTrue(metadata["module_oversized"])
+        self.assertEqual(metadata["module_bytes"], response.length)
+        response.read.assert_not_called()
+        connection.close.assert_called_once()
+
+    def test_public_module_ignores_unrelated_response_before_body_read(self):
+        response = mock.Mock()
+        response.status = 404
+        response.length = 4 * PROBE.MAX_PUBLIC_MODULE_BYTES
+        response.getheader.return_value = None
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(PROBE.http.client, "HTTPConnection", return_value=connection):
+            self.assertIsNone(PROBE.public_module("127.0.0.1", 9125))
+
+        response.read.assert_not_called()
+        connection.close.assert_called_once()
+
+    def test_public_module_checks_declared_length_and_hashes_small_body(self):
+        response = mock.Mock()
+        response.status = 200
+        response.length = 3
+        response.getheader.side_effect = lambda key: {
+            "Set-Cookie": "session=small-response",
+            "X-SCO-Method": "step",
+        }.get(key)
+        response.read.return_value = b"abc"
+        connection = mock.Mock()
+        connection.getresponse.return_value = response
+
+        with mock.patch.object(PROBE.http.client, "HTTPConnection", return_value=connection):
+            metadata = PROBE.public_module("127.0.0.1", 9126)
+
+        self.assertFalse(metadata.get("module_oversized", False))
+        self.assertEqual(metadata["module_sha256"],
+                         PROBE.hashlib.sha256(b"abc").hexdigest())
+        self.assertEqual(metadata["module_bytes"], 3)
+        response.read.assert_called_once_with(PROBE.MAX_PUBLIC_MODULE_BYTES + 1)
+        response.length = 4
+        with mock.patch.object(PROBE.http.client, "HTTPConnection", return_value=connection):
+            self.assertIsNone(PROBE.public_module("127.0.0.1", 9126))
+        connection.close.assert_called()
 
     def test_discovers_ipv6_loopback_and_wildcard_when_available(self):
         loopback = bind_listener(socket.AF_INET6, "::1")
