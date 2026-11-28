@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedBoundDomParserMethods] Proven native DOMParser method ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedBoundDomParserMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedBoundDomParserMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -655,6 +656,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const formInstances=new Set();
   const domParserInstances=new Set();
   const domParserMethods=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const importedDomParserObjectKeys=new Map();
+  // ESM native method provenance may be named, default, or via an imported
+  // namespace record; dotted tokens are not ordinary object-property names.
+  for(const name of importedBoundDomParserMethods) {
+    const dot=name.indexOf('.');
+    if(dot<0){domParserMethods.add(name);continue;}
+    if(dot===0||dot===name.length-1)continue;
+    const receiver=name.slice(0,dot),method=name.slice(dot+1);
+    let names=importedDomParserObjectKeys.get(receiver);
+    if(!names){names=new Set();importedDomParserObjectKeys.set(receiver,names);}
+    names.add(method);
+  }
   // ECMA-402 calls can stringify functions and expose native source bytes.
   const intlNamespaces=new Set(['Intl']);
   /** @type {{name:string,constructors:Set<string>,instances:Set<string>}[]} */
@@ -910,6 +924,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     const owner=node.object;
+    const imported=owner?.type==='Identifier'?
+      importedDomParserObjectKeys.get(owner.name):undefined;
+    if(imported && (name!==null&&imported.has(name) ||
+       node.computed&&name===null&&imported.size))return true;
     const isPrototype=owner?.type==='MemberExpression' &&
       memberName(owner)==='prototype' &&
       isWebConstructor(owner.object,domParserConstructors,domParserNames);
@@ -1474,14 +1492,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(coercers,property.value.name)||changed;
         }
       }
-      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         isWebInstance(node.init,domParserInstances,domParserConstructors,domParserNames)) {
-        for(const property of node.id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?staticString(property.key):
-            property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name===null || name==='parseFromString')
-            changed=add(domParserMethods,property.value.name)||changed;
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern') {
+        const nativeInstance=isWebInstance(node.init,domParserInstances,
+          domParserConstructors,domParserNames);
+        const imported=node.init?.type==='Identifier'?
+          importedDomParserObjectKeys.get(node.init.name):undefined;
+        if(nativeInstance || imported?.size) {
+          for(const property of node.id.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+            const name=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((nativeInstance && (name===null||name==='parseFromString'))||
+               (imported?.size && (name===null||imported.has(name))))
+              changed=add(domParserMethods,property.value.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -3517,7 +3541,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size)
+     !importedUrlStaticMethods.size&&!importedBoundDomParserMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
