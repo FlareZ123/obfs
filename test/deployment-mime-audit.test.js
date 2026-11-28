@@ -111,6 +111,35 @@ test('opaque JavaScript MIME, active HTML/XML/SVG and CSS disclosures are refuse
   }
 });
 
+test('staging refuses malformed executable UTF-8 and lossy source strings before HTTP',async()=>{
+  const invalid=Buffer.from([0xc0,0xaf]);
+  /** @type {Array<File & {type:string}>} */
+  const cases=[
+    {path:'client.blob',sourceType:'script',
+      code:Buffer.concat([Buffer.from('/*'),invalid,Buffer.from('*/\\nglobalThis.ok=1;')]),
+      type:'text/javascript; charset=utf-8'},
+    {path:'page.blob',sourceType:'asset',
+      code:Buffer.concat([Buffer.from('<html><p>'),invalid,Buffer.from('</p></html>')]),
+      type:'text/html; charset=utf-8'},
+    {path:'style.blob',sourceType:'asset',
+      code:Buffer.concat([Buffer.from('body{/*'),invalid,Buffer.from('*/color:navy}')]),
+      type:'text/css; charset=utf-8'},
+    {path:'xml.blob',sourceType:'asset',
+      code:Buffer.concat([Buffer.from('<root>'),invalid,Buffer.from('</root>')]),
+      type:'application/xml; charset=utf-8'}
+  ];
+  for(const file of cases){
+    await assert.rejects(()=>verifyPublishedDeployment('http://127.0.0.1:1/',
+      [file],approve([file],[file.type])),/not valid UTF-8/,file.type);
+  }
+  /** @type {File} */
+  const surrogate={path:'client.js',sourceType:'script',
+    code:'globalThis.unpaired="'+String.fromCharCode(0xd800)+'";'};
+  await assert.rejects(()=>verifyPublishedDeployment('http://127.0.0.1:1/',
+    [surrogate],approve([surrogate],['text/javascript; charset=utf-8'])),
+  /raw unpaired surrogate/);
+});
+
 test('executable text response charset cannot silently diverge from UTF-8 audit',async()=>{
   const candidates=[
     {sourceType:'script',code:'globalThis.plain=7;',type:'text/javascript',
