@@ -270,7 +270,8 @@ const cases=[
 ['inline-arrow-call-default',"let carrier={};((x=(carrier={instance:new WeakMap()}))=>{}).call(null);",'carrier.instance'],
 ['inline-function-apply-default',"let carrier={};(function(x=(carrier={instance:new WeakMap()})){}).apply(null,[]);",'carrier.instance'],
 ['inline-function-bind-default',"let carrier={};const bound=(function(x=(carrier={instance:new WeakMap()})){}).bind(null);bound();",'carrier.instance'],
-['inline-arrow-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};((x=(carrier={instance:new WeakMap()}))=>{}).call(null,23);",'carrier.instance']
+['inline-arrow-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};((x=(carrier={instance:new WeakMap()}))=>{}).call(null,23);",'carrier.instance'],
+['inline-concise-arrow-call-default',"let carrier={};((x=(carrier={instance:new WeakMap()}))=>x).call(null);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
