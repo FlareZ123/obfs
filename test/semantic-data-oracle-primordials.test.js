@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {types}=require('node:util');
-const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
+const {snapshotDataGraph,serializeDataSnapshot}=require('../sims/semantic-data-oracle');
 
 test('trusted oracle is invariant to subject-side mutable intrinsic replacement',()=>{
   const shared={privateValue:-0};
@@ -13,9 +13,11 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
     Symbol.for('registry'),shared,shared];
   graph.push(graph);
   const baseline=snapshotDataGraph(graph);
+  const expectedWire=serializeDataSnapshot(baseline);
   const nativeMap=new Map();
   const originalObject=globalThis.Object;
   const originalArray=globalThis.Array;
+  const originalString=globalThis.String;
   const originalTypeError=globalThis.TypeError;
   const originalRangeError=globalThis.RangeError;
   let globalsRebound=false;
@@ -36,6 +38,8 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
   }
   /** @type {ReturnType<typeof snapshotDataGraph>|undefined} */
   let observed;
+  /** @type {string|undefined} */
+  let observedWire;
   /** @type {unknown} */
   let proxyError;
   /** @type {unknown} */
@@ -62,11 +66,13 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
     // previously captured ordinary-realm prototypes or refusal constructors.
     Reflect.set(globalThis,'Object',function FakeObject(){});
     Reflect.set(globalThis,'Array',function FakeArray(){});
+    Reflect.set(globalThis,'String',function FakeString(){throw Error('host String may not run');});
     Reflect.set(globalThis,'TypeError',function FakeTypeError(){});
     Reflect.set(globalThis,'RangeError',function FakeRangeError(){});
     globalsRebound=true;
 
     observed=snapshotDataGraph(graph);
+    observedWire=serializeDataSnapshot(observed);
     try{
       snapshotDataGraph(new Proxy({}, {
         ownKeys(){unexpectedGetterCalls++;return [];},
@@ -79,6 +85,7 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
     if(globalsRebound){
       Reflect.set(globalThis,'Object',originalObject);
       Reflect.set(globalThis,'Array',originalArray);
+      Reflect.set(globalThis,'String',originalString);
       Reflect.set(globalThis,'TypeError',originalTypeError);
       Reflect.set(globalThis,'RangeError',originalRangeError);
     }
@@ -89,6 +96,8 @@ test('trusted oracle is invariant to subject-side mutable intrinsic replacement'
   }
   assert.deepEqual(observed,baseline,
     'snapshot must not trust mutably replaced global intrinsics after loading');
+  assert.equal(observedWire,expectedWire,
+    'serialized snapshot must ignore rebound global String and other primordials');
   assert.equal(unexpectedGetterCalls,0,
     'neither user Symbol.description nor Proxy traps may execute');
   assert.match(String(proxyError),/Proxy/);
