@@ -116,7 +116,7 @@ test('staging refuses malformed executable UTF-8 and lossy source strings before
   /** @type {Array<File & {type:string}>} */
   const cases=[
     {path:'client.blob',sourceType:'script',
-      code:Buffer.concat([Buffer.from('/*'),invalid,Buffer.from('*/\\nglobalThis.ok=1;')]),
+      code:Buffer.concat([Buffer.from('/*'),invalid,Buffer.from('*/\nglobalThis.ok=1;')]),
       type:'text/javascript; charset=utf-8'},
     {path:'page.blob',sourceType:'asset',
       code:Buffer.concat([Buffer.from('<html><p>'),invalid,Buffer.from('</p></html>')]),
@@ -138,6 +138,21 @@ test('staging refuses malformed executable UTF-8 and lossy source strings before
   await assert.rejects(()=>verifyPublishedDeployment('http://127.0.0.1:1/',
     [surrogate],approve([surrogate],['text/javascript; charset=utf-8'])),
   /raw unpaired surrogate/);
+  // A valid astral-pair source and truly opaque non-UTF-8 image bytes remain
+  // admissible: do not turn the executable-text check into a blanket ban.
+  /** @type {File[]} */
+  const passing=[
+    {path:'ok.js',sourceType:'script',code:'globalThis.label="🧪";'},
+    {path:'opaque.bin',sourceType:'asset',code:Buffer.from([0xff,0xd8,0xff])}
+  ];
+  const types=['text/javascript; charset=utf-8','image/jpeg'];
+  await withServer(new Map([
+    ['/ok.js',{type:types[0],body:Buffer.from(passing[0].code)}],
+    ['/opaque.bin',{type:types[1],body:Buffer.from(passing[1].code)}]
+  ]),async origin=>{
+    assert.deepEqual(await verifyPublishedDeployment(origin,passing,approve(passing,types)),
+      {verified:2,sourceFiles:1,assets:1});
+  });
 });
 
 test('executable text response charset cannot silently diverge from UTF-8 audit',async()=>{
