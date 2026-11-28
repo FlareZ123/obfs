@@ -225,6 +225,14 @@ const cases=[
 ['descriptor-const-arrow-getter-cache-map','const carrier={};const reader=()=>carrier.cache;Object.defineProperty(carrier,"instance",{get:reader});carrier.cache=new WeakMap();','carrier.instance'],
 ['descriptor-arrow-getter-ordinary-yield','class Ordinary{} const carrier={};Object.defineProperty(carrier,"instance",{get:()=>carrier.cache});carrier.cache=new Ordinary();','carrier.instance'],
 ['descriptor-named-getter-ordinary-yield','class Ordinary{} const carrier={};function getInstance(){return this.cache;}Object.defineProperty(carrier,"instance",{get:getInstance});carrier.cache=new Ordinary();','carrier.instance'],
+// Setter descriptors can use stable named or concise-arrow function values.
+// The write reaches a receiver/captured slot rather than overwriting getter.
+['descriptor-named-setter-ref-map','const carrier={cache:{}};function save(v){this.cache=v;}Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:save});carrier.instance=new WeakMap();','carrier.instance'],
+['descriptor-named-const-setter-ref-map','const carrier={cache:{}};const save=function(v){this.cache=v;};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:save});carrier.instance=new WeakMap();','carrier.instance'],
+['descriptor-inline-arrow-setter-map','const carrier={cache:{}};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:v=>carrier.cache=v});carrier.instance=new WeakMap();','carrier.instance'],
+['descriptor-const-arrow-setter-ref-map','const carrier={cache:{}};const save=v=>carrier.cache=v;Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:save});carrier.instance=new WeakMap();','carrier.instance'],
+['descriptor-named-setter-ordinary-yield','class Ordinary{} const carrier={cache:{}};function save(v){this.cache=v;}Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:save});carrier.instance=new Ordinary();','carrier.instance'],
+['descriptor-arrow-setter-ordinary-yield','class Ordinary{} const carrier={cache:{}};Object.defineProperty(carrier,"instance",{get(){return this.cache;},set:v=>carrier.cache=v});carrier.instance=new Ordinary();','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -351,6 +359,10 @@ for(const [name,setup,access] of cases) {
         'descriptor-named-getter-lexical-cache-map',
         'descriptor-arrow-getter-lexical-cache-map',
         'descriptor-const-arrow-getter-cache-map',
+        'descriptor-named-setter-ref-map',
+        'descriptor-named-const-setter-ref-map',
+        'descriptor-inline-arrow-setter-map',
+        'descriptor-const-arrow-setter-ref-map',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
@@ -372,7 +384,9 @@ for(const [name,setup,access] of cases) {
         'object-accessor-setter-ordinary-yield',
         'class-static-setter-ordinary-yield',
         'descriptor-arrow-getter-ordinary-yield',
-        'descriptor-named-getter-ordinary-yield'].includes(name))
+        'descriptor-named-getter-ordinary-yield',
+        'descriptor-named-setter-ordinary-yield',
+        'descriptor-arrow-setter-ordinary-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
