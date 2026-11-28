@@ -2493,6 +2493,117 @@ function collectDirectCarrierFactories(ast) {
 }
 
 /**
+ * A sibling classic script can replace the ambient document factory before
+ * a later script invokes it. The Node-vs-DOMString source-observer exception
+ * must therefore never rely solely on within-file alias provenance.
+ *
+ * This is a conservative syntactic may-mutation check, not a claim that
+ * arbitrary host preloads or opaque imported code cannot modify the DOM.
+ * Unknown keys on a proven document/prototype are considered writes.
+ *
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function hasNativeDocumentFactoryMutation(ast) {
+  const factories=new Set(['createElement','createElementNS','createTextNode',
+    'createComment','createDocumentFragment']);
+  const globals=new Set(['globalThis','window','self','global']);
+  const docs=new Set(['document']);
+  const docPrototypes=new Set();
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function key(node) {
+    if(!node||node.type!=='MemberExpression')return null;
+    return node.computed ? staticString(node.property) :
+      node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isGlobal(node) {
+    return node?.type==='Identifier'&&globals.has(node.name);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDocument(node) {
+    return Boolean(node && (node.type==='Identifier'&&docs.has(node.name) ||
+      node.type==='MemberExpression'&&
+        isGlobal(node.object)&&key(node)==='document'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDocPrototype(node) {
+    return Boolean(node &&
+      (node.type==='Identifier'&&docPrototypes.has(node.name) ||
+       node.type==='MemberExpression' && (
+         key(node)==='prototype'&&node.object.type==='Identifier'&&
+           ['Document','HTMLDocument','XMLDocument'].includes(node.object.name) ||
+         key(node)==='__proto__'&&isDocument(node.object)
+       ) ||
+       node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       node.callee.object.type==='Identifier'&&
+       node.callee.object.name==='Object'&&
+       key(node.callee)==='getPrototypeOf'&&isDocument(node.arguments[0])));
+  }
+  let changed;
+  do {
+    changed=false;
+    walk(ast,node=>{
+      const name=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+        node.id.name:node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier'?node.left.name:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!name||!value)return;
+      if(isDocument(value)&&!docs.has(name)){docs.add(name);changed=true;}
+      if(isDocPrototype(value)&&!docPrototypes.has(name)){
+        docPrototypes.add(name);changed=true;
+      }
+    });
+  }while(changed);
+  let mutated=false;
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.id.name==='document' ||
+       (node.type==='FunctionDeclaration'||node.type==='ClassDeclaration')&&
+       node.id?.name==='document' ||
+       node.type==='ImportSpecifier'&&node.local?.name==='document')
+      mutated=true;
+    const target=node.type==='AssignmentExpression'?node.left:
+      node.type==='UpdateExpression'?node.argument:
+      node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
+    if(target?.type==='Identifier'&&
+       (target.name==='document'||target.name==='Document'))mutated=true;
+    if(target?.type==='MemberExpression') {
+      const receiver=target.object;
+      const field=key(target);
+      if(isDocument(receiver)||isDocPrototype(receiver)) {
+        if(field===null||factories.has(field)||field==='__proto__')mutated=true;
+      }
+      if(isGlobal(receiver)&&(field===null||field==='document'))mutated=true;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&
+       ['Object','Reflect'].includes(node.callee.object.name)) {
+      const method=key(node.callee);
+      const first=node.arguments[0];
+      const name=node.arguments[1]&&
+        (node.arguments[1].type==='Literal'?node.arguments[1].value:null);
+      if(['assign','defineProperty','defineProperties','set','deleteProperty',
+          'setPrototypeOf','preventExtensions'].includes(method??'') &&
+        ((isDocument(first)||isDocPrototype(first)) &&
+           (method!=='defineProperty'&&method!=='set'&&method!=='deleteProperty'||
+            typeof name!=='string'||factories.has(name)||name==='__proto__') ||
+         isGlobal(first)&&
+           (method!=='defineProperty'&&method!=='set'&&method!=='deleteProperty'||
+            typeof name!=='string'||name==='document')))
+        mutated=true;
+    }
+    // Dynamic script injection, native document function replacement and
+    // opaque eval can make a local factory provenance analysis invalid.
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       ['eval','Function'].includes(node.callee.name))mutated=true;
+    if(node.type==='WithStatement')mutated=true;
+  });
+  return mutated;
+}
+
+/**
  * Detect common source-observing operations before rewriting AST subtrees.
  * Native Function#toString can expose changed source spelling at runtime.
  * This is a conservative opt-out for known direct operations; arbitrary
@@ -2505,16 +2616,17 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
  * @param {Set<string>} [importedStorageMethodAliases] Proven native Storage method ESM imports.
  * @param {boolean} [sharedWeakMapPrototypeExposure] Group-wide WeakMap prototype exposure.
+ * @param {boolean} [sharedDocumentFactoryMutation=false] Sibling script may mutate native Node factories.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedStorageMethodAliases=new Set(),sharedWeakMapPrototypeExposure,sharedDocumentFactoryMutation=false) {
   // A sibling module can expose the shared WeakMap prototype before this
   // file evaluates, so that group-wide fact also invalidates the cache.
   const weakMapPrototypeExposed=sharedWeakMapPrototypeExposure===undefined?
     hasWeakMapPrototypeExposure(ast):sharedWeakMapPrototypeExposure;
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!weakMapPrototypeExposed&&!importedStrings.size&&!importedCloneFunctions.size&&
+  if(!weakMapPrototypeExposed&&!sharedDocumentFactoryMutation&&!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
      !importedUrlStaticMethods.size&&!importedStorageMethodAliases.size) {
     const cached=sourceObservationCache.get(ast);
@@ -4750,8 +4862,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        directNativeNodeFactory(node.init))
       fixedDomNodeBindings.add(node.id.name);
   });
-  if(dynamicScope||bindingCounts.has('document')||factoryMayBeReplaced)
-    fixedDomNodeBindings.clear();
+  if(dynamicScope||bindingCounts.has('document')||factoryMayBeReplaced||
+     sharedDocumentFactoryMutation)fixedDomNodeBindings.clear();
   /** @param {AstNode} argument @returns {boolean} */
   function provenNativeNodeArgument(argument) {
     return !dynamicScope&&!bindingCounts.has('document')&&
@@ -7248,4 +7360,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface, hasWeakMapPrototypeExposure};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand, hasUnsafeNativeBindMutationSurface, hasWeakMapPrototypeExposure,hasNativeDocumentFactoryMutation};
