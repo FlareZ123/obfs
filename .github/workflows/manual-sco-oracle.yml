@@ -91,6 +91,8 @@ jobs:
         run: node --test test/sco-two-state-process-boundary.test.js
       - name: Falsify two-state certificate across 46,656 three-state source tables
         run: node --test test/sco-two-state-out-of-class-census.test.js
+      - name: Prove a ten-query lower bound for the complete three-state Mealy class
+        run: node --test test/sco-three-state-minimax-lower-bound.test.js
       - name: Verify Linux different-UID SCO client with real generated HTTP facade
         if: runner.os == 'Linux'
         env:

@@ -38,7 +38,9 @@
     "sims/sco-two-state-browser-live.js",
     "sims/sco-two-state-public-attacker.js",
     "sims/sco-two-state-out-of-class-census.js",
-    "test/sco-two-state-out-of-class-census.test.js"
+    "test/sco-two-state-out-of-class-census.test.js",
+    "sims/sco-three-state-minimax-lower-bound.js",
+    "test/sco-three-state-minimax-lower-bound.test.js"
   ],
   "exclude": [
     "node_modules"
