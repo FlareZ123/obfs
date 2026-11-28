@@ -21,14 +21,17 @@ async function compareWire(){
   const originalFetch=globalThis.fetch;
   /** @type {{method:string,args:unknown[]}|undefined} */
   let observed;
+  /** @type {unknown} */
+  let serverPayload={ok:true,value:371};
+  let serverStatus=200;
   try{
     globalThis.fetch=/** @type {typeof fetch} */ ((endpoint,init)=>{
       assert.equal(String(endpoint),'/obfs/rpc');
       if(typeof init?.body!=='string')throw TypeError('Missing request body');
       observed=JSON.parse(init.body);
       return Promise.resolve(new Response(
-        JSON.stringify({ok:true,value:371}),
-        {status:200,headers:{'content-type':'application/json'}}));
+        JSON.stringify(serverPayload),
+        {status:serverStatus,headers:{'content-type':'application/json'}}));
     });
     const generated=await import('data:text/javascript;base64,'+
       Buffer.from(generatedSource).toString('base64'));
@@ -54,6 +57,31 @@ async function compareWire(){
       assert.deepEqual(control,sco,
         'Equal-trust comparator must forward exact JavaScript arguments');
       assert.equal(sco.method,method);
+    }
+    /** @param {(...values:unknown[])=>Promise<unknown>} invoke
+     * @returns {Promise<{name:string,message:string}>}
+     */
+    async function errorShape(invoke){
+      try{
+        await invoke(17,400);
+        throw Error('Unexpected successful invocation');
+      }catch(caught){
+        const error=caught instanceof Error?caught:Error(String(caught));
+        return {name:error.name,message:error.message};
+      }
+    }
+    for(const scenario of [
+      {status:200,payload:null},
+      {status:403,payload:{ok:false}},
+      {status:200,payload:{ok:false}}
+    ]){
+      serverStatus=scenario.status;
+      serverPayload=scenario.payload;
+      const scoError=await errorShape(generated.evaluateRemote);
+      const controlError=await errorShape(ordinary.evaluateRemote);
+      assert.deepEqual(controlError,scoError,
+        'Equal-trust comparator must match rejected/null JSON response errors');
+      assert.deepEqual(scoError,{name:'Error',message:'Remote operation failed'});
     }
   }finally{
     globalThis.fetch=originalFetch;
