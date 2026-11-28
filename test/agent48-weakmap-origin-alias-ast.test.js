@@ -76,6 +76,12 @@ const cases=[
     exposed:true
   },
   {
+    name:'zero-argument bound WeakMap constructs the same native brand',
+    source:'const carrier={instance:new (WeakMap.bind())()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:true
+  },
+  {
     name:'aliased bound native WeakMap constructor is tracked',
     source:'const W=WeakMap.bind(null);const carrier={instance:new W()};'+
       'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
