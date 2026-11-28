@@ -130,6 +130,7 @@ def run(seed=49, samples_per_n=12, min_n=2, max_n=10, depth=10,
         "rng_seed": seed, "samples_per_state_count": samples_per_n,
         "min_state_count": min_n, "max_state_count": max_n,
         "public_input_depth": depth,
+        "public_trace_lengths": list(lengths),
         "fixture_construction": "random two-out machines with input-0 Hamiltonian cycle and output partition minimality",
         "summary": summary,
         "complete_case_metadata": all_complete,
@@ -145,14 +146,19 @@ def main():
     parser.add_argument("--min-n", type=int, default=2)
     parser.add_argument("--max-n", type=int, default=10)
     parser.add_argument("--depth", type=int, default=10)
+    parser.add_argument("--lengths", type=int, nargs="+", default=(120, 500),
+                        help="Public trace lengths to test, using prefixes of one sampled input stream")
     parser.add_argument("--output")
     args = parser.parse_args()
     if not (1 <= args.samples_per_n <= 10000
             and 1 <= args.min_n <= args.max_n <= 100
-            and 1 <= args.depth <= 20):
+            and 1 <= args.depth <= 20
+            and len(set(args.lengths)) == len(args.lengths)
+            and all(1 <= length <= 100000 for length in args.lengths)):
         raise SystemExit("invalid sample count, state range, or output depth")
     data = run(
-        args.seed, args.samples_per_n, args.min_n, args.max_n, args.depth
+        args.seed, args.samples_per_n, args.min_n, args.max_n, args.depth,
+        tuple(args.lengths),
     )
     if args.output:
         Path(args.output).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
