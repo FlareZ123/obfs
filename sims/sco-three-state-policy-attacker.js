@@ -12,6 +12,13 @@ async function main(){
   const [origin,method,policyPath]=process.argv.slice(2);
   if(!origin||!method||!policyPath)
     throw new Error('Usage: node attacker.js <origin> <method> <policy.json>');
+  const clientResponse=await fetch(new URL('/obfs/client.mjs',origin),{
+    signal:AbortSignal.timeout(5000)
+  });
+  if(!clientResponse.ok)throw new Error('Public SCO client unavailable: '+clientResponse.status);
+  const clientSource=await clientResponse.text();
+  if(!clientSource.includes(method)||!clientSource.includes('/obfs/rpc'))
+    throw new Error('RPC method or endpoint is not visible in the public client');
   /** @type {{root:number,nodes:{input:number,children:[number,number]}[]}} */
   const policy=JSON.parse(fs.readFileSync(policyPath,'utf8'));
   let node=policy.root;
