@@ -1,0 +1,36 @@
+# Repeated private owner references through a closed record: conservative property-renaming extension
+
+**Agent 6, 28 November 2026.** Intermediate experimental compiler evidence on branch `agent6/multi-slot-private-record-proof-20261128` from frozen main SHA `57164802cf953fd94736c2871802b32cfd1791ac`. Scope is safe property renaming and observable native equivalence, **not static/dynamic source confidentiality, tamper protection or universal 2.5x security.** Main release remains **RELEASE-BLOCKED**.
+
+## New admitted ownership form
+
+Prior `src/properties.js` conservatively rejected private records containing the same tracked immutable owner under more than one property, e.g. `const vault={hiddenCount:41}; const holder={alpha:vault,beta:vault}; const a=holder.alpha; const b=holder.beta;`. The original proof tracked only `Map<holderName, ownerSlotKey>` and rejected duplicate `vault` reference in any other record slot. This was a **safety-driven omission**, not a demonstrated unsafe source pattern.
+
+The bounded candidate tracks `Map<holderName, Set<ownerSlotKey>>` and records every field whose initializer is a direct reference to the **same uniquely bound root object**. It retains all original restrictions: top-level immutable `const` holder with **1–8** fields, all field names unique, direct static non-magic keys, no getter/setter/method/computed/spread, all other values primitive literals, holder/owner in same scope, no exported holder or unproved free identifier. **Every** holder use must be an immediate statically named known-owner-key member read into a uniquely bound immutable local declarator (not a chained access), and owner aliases participate in the existing fixed-point interprocedural proof; unproved dynamic reads, reflection, mutation, unknown consumers, source exposure, and escapes reject the **entire** owner property transformation. The multiple known field-value AST `Identifier` nodes are excluded from owner escape detection **only after** the carrier's complete usage proof succeeds. Thus the property-renaming edit set still contains owner initializer and all proven owner alias/member/destructuring usages.
+
+### Bounded reasoning
+
+For every admitted holder `h`, all admitted field entries `k_i` satisfy `h[k_i] === owner` under ordinary object-literal creation semantics. The inert companion literals cannot execute user code. No admitted execution path can replace, reflect, publish, or dynamically select `h`; every read of `h[k_i]` is a direct `const alias = h[k_i]` that joins the existing alias identity fixed point. Property-name substitution of the owner is therefore globally consistent for every admitted read/update path. The proof remains *conditional* on the existing owner-analysis assumptions and the full supplied graph; it is not a proof against debugger-capable or source-inspecting adversaries. Dynamic unknown property or caller object flows explicitly decline transformation.
+
+No additional executable instructions are introduced by this extension. It expands a **compile-time proof** from one carrier slot to a set of at most eight; the emitted hot property reads and numeric writes remain JavaScript's own operations, only private key spelling changes. This alone does not establish a universal slowdown ceiling.
+
+## Reproducible observed acceptance
+
+Tests `test/agent6-multi-slot-private-record-proof.test.js` and `test/agent6-multi-slot-record-fuzz.test.js` compare native and emitted CommonJS under COO/SNO/SCO mode flags, include a native two-module ESM graph with a closed-world exported root and private carrier aliases, cumulative shared-reference numeric writes, fail-closed reflective/escaped/mutated/dynamic holder cases, 256 deterministic positive record layouts with 2–5 repeated owner references, 64 seeded escaped/mutated/reflected controls, and an independent static hashed-name normalizer showing **all** private owner names remain recoverable. Historical `test/private-record-proof.test.js` retains its existing negative controls but drops the obsolete `{owner:vault,also:vault}` refusal. The browser-only `test/agent6-multi-slot-record-browser.js` additionally compares native, esbuild-minified and compiled real Chromium ESM modules at 30,000 inputs and a 7×paired 400,000-iteration numeric workload; the browser proof result must be source-pinned separately.
+
+**Red first:** test-only `agent6/multi-slot-private-record-redfirst-20261128` at `eb8e14772ebe24f37a23cef2e469fad4210a6370`; [manually dispatched CI 46151536189](https://github.com/FlareZ123/obfs/actions/runs/46151536189) was **red** on Ubuntu and Windows in the targeted multiple-owner test: expected `metrics.properties === 2`, observed 0. Logs show refusal, not an alleged semantic exploit. This is the original conservative gate at the same frozen main base.
+
+**Initial patched:** [CI 46151539575](https://github.com/FlareZ123/obfs/actions/runs/46151539575) at `22779ef6dfffa3adae53aaf7915edec29cc91926` **green Ubuntu and Windows** for the selected Node native/ESM/unsafe and strict JSDoc controls. [CI 46151644869](https://github.com/FlareZ123/obfs/actions/runs/46151644869) at `078b0efb5ab1b434ccf360c211ac580332ec7d08` additionally **green both systems** with seeded fuzz and attacker normalizer. [CI 46151879297](https://github.com/FlareZ123/obfs/actions/runs/46151879297) at `dbc92ef87f60f897e6b9f72c0ccfa0ffcf9febb5` **green both systems**, adding all three SCO/COO/SNO obfuscation-mode flags and immutable multi-owner data-field checks; note these mode flag tests do not constitute full SCO network or SNO entrypoint deployments. A later cumulative-write-only test and genuine-browser test were added and have separate acceptance state.
+
+The source-pinned Node gate reused the default-branch registered `.github/workflows/manual-imported-identity-alias.yml`, adding **research-branch-only steps** for this specific private-record differential and skipping four **known unrelated baseline browser yield failures** (one source-only primitive-value browser fails 0 !== 2, another BigInt browser test fails on the frozen base). Those skipped original tests are **not** claimed green; all compiler source acceptance remains narrower than the full current-main gate. Before merge, revert the workflow to its exact default-main bytes to avoid changing unrelated acceptance policy. The new dedicated Chromium fixture is separate and only evaluates the new multi-slot implementation.
+
+Reproduce local tests from repository root after `npm ci --ignore-scripts --no-audit --no-fund`:
+
+```sh
+node --test test/agent6-multi-slot-private-record-proof.test.js test/agent6-multi-slot-record-fuzz.test.js test/private-record-proof.test.js
+npm run typecheck
+npm run typecheck:external
+CHROMIUM_BIN=/usr/bin/google-chrome node test/agent6-multi-slot-record-browser.js
+```
+
+These findings belong in `im-results/` because no novel anti-reconstruction strength has been shown: the independent offline normalizer still maps all affected hashed property names back and executes behaviorally equivalent output. Source visibility and runtime instrumentation assumptions dominate COO/SNO under the defined strong attacker models. Significant work remains on source-observer parity and negative-protection yield before any strong-obfuscation release decision.
