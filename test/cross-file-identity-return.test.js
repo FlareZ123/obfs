@@ -289,14 +289,14 @@ test('factory results retain ownership through multi-slot records and tuples',as
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
     'const carrier={left:first,right:first};'+
-    'const left=carrier.left;const carried=identity(left);'+
-    'console.log(carried.secretField+carrier.right.otherField+second.otherField);';
+    'const left=carrier.left;const right=carrier.right;const carried=identity(left);'+
+    'console.log(carried.secretField+right.otherField+second.otherField);';
   const tupleMain='import {makeState} from "./state.mjs";'+
     'import {identity} from "./identity.mjs";'+
     'const first=makeState();const second=makeState();'+
     'const carrier=[first,first];'+
-    'const slot=carrier[0];const carried=identity(slot);'+
-    'console.log(carried.secretField+carrier[1].otherField+second.otherField);';
+    'const slot=carrier[0];const peer=carrier[1];const carried=identity(slot);'+
+    'console.log(carried.secretField+peer.otherField+second.otherField);';
   const factory='export function makeState(){return {secretField:17,otherField:5};}';
   for(const mode of ['coo','sno','sco']) {
     await checkFactory(factory,recordMain,2,mode,undefined,identityModule);
