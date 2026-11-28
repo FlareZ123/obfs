@@ -2402,31 +2402,61 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
       if(value.type==='AssignmentExpression')return mayBeBoxedPrimitive(value.right);
       return false;
     }
-    let grew;
-    do {
-      grew=false;
-      walk(module.ast,node=>{
-        // for...in binds string property names even when the receiver is an
-        // unrelated record. The loop key's boxed String prototype is mutable.
-        if(node.type==='ForInStatement' && node.left.type==='VariableDeclaration') {
+    // Build a reverse use graph once, then propagate only newly discovered
+    // may-primitive bindings. Whole-AST fixed-point rescans were quadratic on
+    // reverse-ordered alias chains (a0=a1; ...; aN="primitive"). This is a
+    // monotone worklist: lexical shadows may cause extra propagation but can
+    // never enable a rewrite that the original may-flow would have refused.
+    /** @type {{name:string,value:AstNode}[]} */
+    const writes=[];
+    /** @type {Map<string,{name:string,value:AstNode}[]>} */
+    const dependents=new Map();
+    /** @type {string[]} */
+    const frontier=[];
+    /** @param {string} name @returns {void} */
+    function markPrimitive(name) {
+      if(maybePrimitives.has(name))return;
+      maybePrimitives.add(name);
+      frontier.push(name);
+    }
+    walk(module.ast,node=>{
+      if(node.type==='ForInStatement') {
+        // Both declared and existing for-in bindings receive property-key
+        // strings. The RHS is not the value of the loop binding.
+        if(node.left.type==='Identifier')markPrimitive(node.left.name);
+        if(node.left.type==='VariableDeclaration') {
           for(const declaration of node.left.declarations??[]) {
-            if(declaration.id.type==='Identifier'&&!maybePrimitives.has(declaration.id.name)) {
-              maybePrimitives.add(declaration.id.name);
-              grew=true;
-            }
+            if(declaration.id.type==='Identifier')markPrimitive(declaration.id.name);
           }
         }
-        const binding=node.type==='VariableDeclarator'?node.id:
-          node.type==='AssignmentExpression'?node.left:null;
-        const value=node.type==='VariableDeclarator'?node.init:
-          node.type==='AssignmentExpression'?node.right:null;
-        if(binding?.type==='Identifier'&&mayBeBoxedPrimitive(value)&&
-           !maybePrimitives.has(binding.name)) {
-          maybePrimitives.add(binding.name);
-          grew=true;
-        }
+      }
+      if(node.type==='UpdateExpression'&&node.argument.type==='Identifier')
+        markPrimitive(node.argument.name);
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type!=='Identifier'||!value)return;
+      const entry={name:binding.name,value};
+      writes.push(entry);
+      const dependencies=new Set();
+      walk(value,inner=>{
+        if(inner.type==='Identifier')dependencies.add(inner.name);
       });
-    } while(grew);
+      for(const dependency of dependencies) {
+        const users=dependents.get(dependency)??[];
+        users.push(entry);
+        dependents.set(dependency,users);
+      }
+    });
+    for(const entry of writes) {
+      if(mayBeBoxedPrimitive(entry.value))markPrimitive(entry.name);
+    }
+    for(let head=0;head<frontier.length;head++) {
+      for(const entry of dependents.get(frontier[head])??[]) {
+        if(mayBeBoxedPrimitive(entry.value))markPrimitive(entry.name);
+      }
+    }
     /**
      * JavaScript String exotic objects always provide nonconfigurable own
      * length and in-range code-unit index properties. Unlike an arbitrary
