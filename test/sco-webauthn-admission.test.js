@@ -206,6 +206,26 @@ test('custom WebAuthn stores without atomic policy fingerprint refuse at constru
     'A shared custom adapter must not silently omit cross-replica policy fencing');
 });
 
+test('signed topOrigin must refuse cross-frame ceremony when no iframe policy exists',async()=>{
+  for(const topOrigin of ['https://attacker.example.net','https://secure.example.com']){
+    const h=harness();
+    const challenge=h.admission.issueChallenge('accountA','loginA');
+    const packet=assertion(h,challenge);
+    const client=JSON.parse(Buffer.from(packet.clientDataJSON,'base64url').toString('utf8'));
+    client.topOrigin=topOrigin;
+    // Re-sign the exact modified bytes with a real registered P-256 key:
+    // signature validity must NOT substitute for top-frame admission policy.
+    const clientBytes=Buffer.from(JSON.stringify(client),'utf8');
+    packet.clientDataJSON=clientBytes.toString('base64url');
+    const authBytes=Buffer.from(packet.authenticatorData,'base64url');
+    const signed=Buffer.concat([authBytes,createHash('sha256').update(clientBytes).digest()]);
+    packet.signature=sign('sha256',signed,h.privateKey).toString('base64url');
+    assert.equal((await h.admission.verifyAssertion(packet)).ok,false,
+      'A no-iframe RP must not accept any signed topOrigin: '+topOrigin);
+    assert.equal(h.updates,0);
+  }
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
