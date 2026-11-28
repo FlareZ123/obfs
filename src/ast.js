@@ -659,7 +659,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const timingMethodObjectKeys=new Map();
   const timingNameMethods=new Set(['mark','measure','getEntriesByName',
     'clearMarks','clearMeasures']);
+  // Bounded may-flow of local receiver/method parameters and direct returns.
+  // A name may represent several closures under shadowing or reassignment;
+  // union all candidates rather than relying on unsound single-definition
+  // inference. This analysis is intentionally not a general JS call graph.
+  /** @type {Map<string,AstNode[]>} */
+  const timingLocalFunctions=new Map();
+  const timingReturnedReceivers=new Set();
+  const timingReturnedMethods=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const timingReturnedObjectKeys=new Map();
+  /** @param {string} name @param {AstNode} fn @returns {boolean} */
+  function addTimingFunction(name,fn) {
+    let candidates=timingLocalFunctions.get(name);
+    if(!candidates){candidates=[];timingLocalFunctions.set(name,candidates);}
+    if(candidates.includes(fn))return false;
+    candidates.push(fn);
+    return true;
+  }
   walk(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      addTimingFunction(node.id.name,node);
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init&&['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+      addTimingFunction(node.id.name,node.init);
     if(node.type!=='ImportDeclaration'||
        !['perf_hooks','node:perf_hooks'].includes(String(node.source?.value??'')))return;
     for(const spec of node.specifiers) {
@@ -946,18 +969,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isTimingReceiver(node) {
     return Boolean(node&&(node.type==='Identifier'&&timingReceivers.has(node.name) ||
       node.type==='MemberExpression'&&memberName(node)==='performance'&&
-        (isGlobal(node.object)||isTimingModule(node.object))));
+        (isGlobal(node.object)||isTimingModule(node.object)) ||
+      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+        timingReturnedReceivers.has(node.callee.name)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isTimingMethod(node) {
     if(!node)return false;
     if(node.type==='Identifier')return timingMethods.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier')
+      return timingReturnedMethods.has(node.callee.name);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     if(isTimingReceiver(node.object))
       return timingNameMethods.has(name??'')||Boolean(node.computed&&name===null);
-    if(node.object.type!=='Identifier')return false;
-    const keys=timingMethodObjectKeys.get(node.object.name);
+    const keys=node.object.type==='Identifier'?
+      timingMethodObjectKeys.get(node.object.name):
+      node.object.type==='CallExpression'&&node.object.callee.type==='Identifier'?
+        timingReturnedObjectKeys.get(node.object.callee.name):null;
     return name!==null?keys?.has(name)??false:
       Boolean(node.computed&&keys?.size);
   }
@@ -1061,6 +1090,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.left.type==='Identifier') {
         const name=node.type==='VariableDeclarator'?node.id.name:node.left.name;
         const value=node.type==='VariableDeclarator'?node.init:node.right;
+        if(value?.type==='Identifier') {
+          for(const candidate of timingLocalFunctions.get(value.name)??[])
+            changed=addTimingFunction(name,candidate)||changed;
+        }
+        if(value?.type==='CallExpression'&&value.callee.type==='Identifier') {
+          for(const key of timingReturnedObjectKeys.get(value.callee.name)??[])
+            addWebObjectKey(timingMethodObjectKeys,name,key);
+        }
         if(isTimingModule(value))changed=add(timingModules,name)||changed;
         if(isTimingReceiver(value))changed=add(timingReceivers,name)||changed;
         if(isTimingMethod(value)||isBoundTimingMethod(value))
@@ -1298,6 +1335,39 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(key!==null&&node.init.type==='Identifier'&&
              timingMethodObjectKeys.get(node.init.name)?.has(key))
             changed=add(timingMethods,property.value.name)||changed;
+        }
+      }
+      // Function formal arguments can transport a native User Timing
+      // receiver or detached method into a callback. Compute only bounded,
+      // statically named local calls and use monotone may-flow summaries.
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+        for(const fn of timingLocalFunctions.get(node.callee.name)??[]) {
+          for(let index=0;index<fn.params.length&&index<node.arguments.length;index++) {
+            const formal=fn.params[index];
+            const name=formal.type==='Identifier'?formal.name:
+              formal.type==='AssignmentPattern'&&formal.left.type==='Identifier'?
+                formal.left.name:null;
+            if(name===null)continue;
+            const actual=node.arguments[index];
+            if(!actual||actual.type==='SpreadElement')continue;
+            if(isTimingModule(actual))changed=add(timingModules,name)||changed;
+            if(isTimingReceiver(actual))changed=add(timingReceivers,name)||changed;
+            if(isTimingMethod(actual)||isBoundTimingMethod(actual))
+              changed=add(timingMethods,name)||changed;
+            if(actual.type==='Identifier') {
+              for(const key of timingMethodObjectKeys.get(actual.name)??[])
+                addWebObjectKey(timingMethodObjectKeys,name,key);
+            }
+            if(actual.type==='ObjectExpression') {
+              for(const property of actual.properties) {
+                if(property.type!=='Property'||property.kind!=='init')continue;
+                const key=property.computed?staticString(property.key):
+                  property.key.type==='Identifier'?property.key.name:staticString(property.key);
+                if(key!==null&&isTimingMethod(property.value))
+                  addWebObjectKey(timingMethodObjectKeys,name,key);
+              }
+            }
+          }
         }
       }
       // A known function-bearing iterable can pass the function to a
@@ -1564,6 +1634,38 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
     });
+    // Direct local function returns can expose native performance receivers,
+    // timing methods or method-bearing records to callers. Scan simple
+    // return positions; record all candidates and let the fixed point
+    // propagate effects across aliases and call sites.
+    for(const [name,candidates] of timingLocalFunctions) {
+      for(const fn of candidates) {
+        const values=fn.body?.type==='BlockStatement'?
+          fn.body.body.filter((/** @type {AstNode} */ stmt)=>
+            stmt.type==='ReturnStatement').map((/** @type {AstNode} */ stmt)=>stmt.argument):
+          [fn.body];
+        for(const value of values) {
+          if(!value)continue;
+          if(isTimingReceiver(value))
+            changed=add(timingReturnedReceivers,name)||changed;
+          if(isTimingMethod(value)||isBoundTimingMethod(value))
+            changed=add(timingReturnedMethods,name)||changed;
+          if(value.type==='Identifier') {
+            for(const key of timingMethodObjectKeys.get(value.name)??[])
+              addWebObjectKey(timingReturnedObjectKeys,name,key);
+          }
+          if(value.type==='ObjectExpression') {
+            for(const property of value.properties) {
+              if(property.type!=='Property'||property.kind!=='init')continue;
+              const key=property.computed?staticString(property.key):
+                property.key.type==='Identifier'?property.key.name:staticString(property.key);
+              if(key!==null&&isTimingMethod(property.value))
+                addWebObjectKey(timingReturnedObjectKeys,name,key);
+            }
+          }
+        }
+      }
+    }
   }while(changed);
   // A template substitution may preserve a function's native source, but
   // expressions proven primitive cannot contain a function object. Only
