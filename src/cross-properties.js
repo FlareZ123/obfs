@@ -648,15 +648,30 @@ function collectVerifiedImportedCssEscapeAliases(files,parseFile=parseModule) {
   for(const [filename,module] of modules) {
     /** @type {Map<string,AstNode>} */
     const candidates=new Map();
+    /** @type {Array<[string,AstNode]>} */
+    const assigned=new Array();
     for(const statement of module.ast.body) {
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'&&!statement.source?
           statement.declaration:null;
-      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
-      for(const entry of declaration.declarations)
-        if(entry.id.type==='Identifier'&&entry.init&&
-           module.bindings.get(entry.id.name)===1)
-          candidates.set(entry.id.name,entry.init);
+      if(declaration?.type==='VariableDeclaration') {
+        // Native method provenance is a MAY-alias: an exported let/var can
+        // still contain CSS.escape even if its value is later reassigned.
+        // Counting only immutable consts caused a source-change false safe.
+        for(const entry of declaration.declarations)
+          if(entry.id.type==='Identifier'&&entry.init&&
+             module.bindings.get(entry.id.name)===1)
+            candidates.set(entry.id.name,entry.init);
+      }
+      // Direct top-level updates of an exported let/var can install native
+      // methods after declaration. A write that may not run only enlarges
+      // the source-observation rejection set; it cannot authorize lowering.
+      const expression=statement.type==='ExpressionStatement'?
+        statement.expression:null;
+      if(expression?.type==='AssignmentExpression'&&
+         expression.operator==='='&&expression.left.type==='Identifier'&&
+         module.bindings.get(expression.left.name)===1)
+        assigned.push([expression.left.name,expression.right]);
     }
     // A locally declared CSS identifier shadows the ambient browser object.
     const cssNamespaces=new Set(module.bindings.has('CSS')?[]:['CSS']);
@@ -689,7 +704,7 @@ function collectVerifiedImportedCssEscapeAliases(files,parseFile=parseModule) {
     let changed;
     do {
       changed=false;
-      for(const [name,init] of candidates) {
+      for(const [name,init] of [...candidates,...assigned]) {
         if(!cssNamespaces.has(name)&&isCSS(init)) {
           cssNamespaces.add(name);
           changed=true;
