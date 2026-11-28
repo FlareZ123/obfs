@@ -3490,6 +3490,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'getEntries','getEntriesByType','getEntriesByName',
     'decodedBodySize','encodedBodySize','transferSize']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Bare WindowProxy globals can reach same-origin DOM and parser-created
+  // integrity checks without any explicit window/document or fetch token.
+  // Treat only actual identifier references as capability uses below.
+  const windowProxyRoots=new Set(['top','parent','opener','frameElement']);
   // Resource timing methods can be called through a mutable property name
   // on performance itself, or a simple alias of globalThis.performance.
   const performanceRoots=new Set(['performance']);
@@ -3498,6 +3502,12 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // A detached writer method can be invoked with Function#call/apply or
   // Reflect.apply. Track simple source-visible aliases conservatively.
   const documentWriterRoots=new Set();
+  // Inserting SRI-marked HTML through a detached Element method or its
+  // bound alias has the same byte-observation effect as a direct DOM call.
+  /** @type {Set<string>} */
+  const htmlParserWriterRoots=new Set();
+  /** @type {Set<string>} */
+  const domElementRoots=new Set();
   // Track DOM script-element creation and aliases for opaque integrity keys.
   const scriptElementRoots=new Set();
   // Module-registry objects can reach Node's internal source-file loader.
@@ -3547,6 +3557,58 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return method==='write'||method==='writeln'||
       value.computed&&method===null;
   }
+  /**
+   * Follow aliases of an actual Element insertion method and common bound
+   * aliases. The early fixed point uses only literal keys; a second pass
+   * can use verified immutable selector bindings after they are collected.
+   *
+   * @param {AstNode|null|undefined} value
+   * @param {boolean} [verified]
+   * @returns {boolean}
+   */
+  function isHtmlParserWriterReference(value,verified=false) {
+    if(value?.type==='Identifier')return htmlParserWriterRoots.has(value.name);
+    if(value?.type==='MemberExpression') {
+      const key=value.computed ? (verified ? knownKey(value.property) :
+        staticString(value.property)) :
+        value.property.type==='Identifier'?value.property.name:null;
+      return key==='insertAdjacentHTML';
+    }
+    if(value?.type==='CallExpression' &&
+       value.callee.type==='MemberExpression' && !value.optional) {
+      const method=value.callee.computed ?
+        (verified ? knownKey(value.callee.property) :
+          staticString(value.callee.property)) :
+        value.callee.property.type==='Identifier'?
+          value.callee.property.name:null;
+      return method==='bind' &&
+        isHtmlParserWriterReference(value.callee.object,verified);
+    }
+    return false;
+  }
+  /**
+   * Static provenance for DOM element roots, including document.head/body,
+   * elements returned by DOM queries, and simple element aliases. It is
+   * deliberately one-way conservative: an opaque member may be an Element.
+   * @param {AstNode|null|undefined} value
+   * @returns {boolean}
+   */
+  function mayBeDomElement(value) {
+    if(!value)return false;
+    if(value.type==='Identifier')
+      return documentRoots.has(value.name)||domElementRoots.has(value.name);
+    if(value.type==='MemberExpression')
+      return mayBeDomElement(value.object);
+    if(value.type==='CallExpression' && value.callee.type==='MemberExpression') {
+      const method=value.callee.computed?staticString(value.callee.property):
+        value.callee.property.type==='Identifier'?
+          value.callee.property.name:null;
+      return mayBeDomElement(value.callee.object) &&
+        (method===null || ['getElementById','querySelector','createElement',
+          'createElementNS','getElementsByTagName'].includes(method));
+    }
+    return false;
+  }
   /** @param {AstNode|null|undefined} value @returns {boolean} */
   function createsDomScript(value) {
     if(value?.type!=='CallExpression'||value.callee.type!=='MemberExpression'||
@@ -3573,7 +3635,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,scriptElementRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots,documentRoots,documentWriterRoots,htmlParserWriterRoots,domElementRoots,scriptElementRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3583,6 +3645,16 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(binding?.type==='Identifier'&&isDocumentWriterReference(initial)&&
          !documentWriterRoots.has(binding.name)){
         documentWriterRoots.add(binding.name);
+        changed=true;
+      }
+      if(binding?.type==='Identifier'&&isHtmlParserWriterReference(initial)&&
+         !htmlParserWriterRoots.has(binding.name)){
+        htmlParserWriterRoots.add(binding.name);
+        changed=true;
+      }
+      if(binding?.type==='Identifier'&&mayBeDomElement(initial)&&
+         !domElementRoots.has(binding.name)){
+        domElementRoots.add(binding.name);
         changed=true;
       }
       // The Node process builtin is available from a CJS require and from
@@ -3876,8 +3948,52 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return argument?.type!=='ArrayExpression' ||
       mayWriteIntegrityMarkup(argument.elements);
   }
+  /**
+   * Parser-active HTML injection can install a link/script with an SRI byte
+   * pin. A non-static fragment must fail closed. Complete, proven benign
+   * markup is not a byte observer; a dangling tag is conservatively opaque.
+   * @param {AstNode|null|undefined} fragment
+   * @returns {boolean}
+   */
+  function mayParseIntegrityMarkup(fragment) {
+    if(!fragment||fragment.type==='SpreadElement')return true;
+    const markup=knownKey(fragment);
+    return markup===null || /integrity\s*=/iu.test(markup) ||
+      /<[^>]*$/u.test(markup);
+  }
+  /** @param {AstNode|null|undefined} fragment @returns {boolean} */
+  function explicitIntegrityMarkup(fragment) {
+    if(!fragment||fragment.type==='SpreadElement')return false;
+    const markup=knownKey(fragment);
+    return markup!==null && /integrity\s*=/iu.test(markup);
+  }
+  /** @param {AstNode|null|undefined} args @returns {boolean} */
+  function mayApplyParserIntegrityMarkup(args) {
+    return args?.type!=='ArrayExpression' ||
+      mayParseIntegrityMarkup(args.elements[1]);
+  }
+  // A later immutable selector can identify a parsed Element method even
+  // when the original forward alias scan saw an unknown computed key.
+  let insertionChanged;
+  do {
+    insertionChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' &&
+        node.id.type==='Identifier' ? node.id :
+        node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const source=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type==='Identifier' &&
+         isHtmlParserWriterReference(source,true) &&
+         !htmlParserWriterRoots.has(binding.name)) {
+        htmlParserWriterRoots.add(binding.name);
+        insertionChanged=true;
+      }
+    });
+  }while(insertionChanged);
   let observed=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent,propertyKey)=>{
     // HTMLScriptElement.integrity can pin another published script's exact
     // response bytes even when no static HTML asset declares SRI. The target
     // may be chosen dynamically, so conservatively retain the entire group.
@@ -3889,6 +4005,14 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         node.left.property.type==='Identifier'?node.left.property.name:null;
       if(key==='integrity' || key===null && node.left.computed &&
          (isScriptElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
+      // Parser-controlled DOM replacements can install modulepreload/SRI
+      // without a script.integrity assignment in the analyzed AST.
+      const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') ||
+        key===null && node.left.computed &&
+        (mayBeDomElement(node.left.object) ||
+          explicitIntegrityMarkup(node.right));
+      if(htmlSink && (node.operator!=='=' ||
+         mayParseIntegrityMarkup(node.right)))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3898,6 +4022,33 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
       const receiver=node.callee.object;
+      // Element.insertAdjacentHTML accepts parsed HTML as its second input.
+      // The receiver may be a Document-derived host object tracked by aliases
+      // not modeled in this source-observation preflight.
+      // A computed one-argument Document writer cannot invoke the
+      // two-argument Element.insertAdjacentHTML HTML parser. Without this
+      // arity proof, ordinary benign document[method]('<p>...') calls
+      // incorrectly veto unrelated private property rewrites.
+      const possibleInsertion=node.arguments.length>=2 &&
+        (method==='insertAdjacentHTML' ||
+         method===null && node.callee.computed &&
+         (mayBeDomElement(receiver) ||
+           explicitIntegrityMarkup(node.arguments[1])));
+      if(possibleInsertion &&
+         mayParseIntegrityMarkup(node.arguments[1]))observed=true;
+      // The Function object may be a detached Element method, a bound
+      // instance, or a proven computed selector imported through aliases.
+      if(isHtmlParserWriterReference(receiver,true)) {
+        if((method==='call'||method==='bind'||
+            method===null && node.callee.computed) &&
+           mayParseIntegrityMarkup(node.arguments[2]))observed=true;
+        if(method==='apply'&&
+           mayApplyParserIntegrityMarkup(node.arguments[1]))observed=true;
+      }
+      if(receiver.type==='Identifier'&&receiver.name==='Reflect'&&
+         method==='apply' &&
+         isHtmlParserWriterReference(node.arguments[0],true) &&
+         mayApplyParserIntegrityMarkup(node.arguments[2]))observed=true;
       const isDocument=receiver.type==='Identifier' && documentRoots.has(receiver.name) ||
         receiver.type==='MemberExpression' && receiver.object.type==='Identifier' &&
           globals.has(receiver.object.name) &&
@@ -3922,6 +4073,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          method==='apply'&&isDocumentWriterReference(node.arguments[0])&&
          mayApplyIntegrityMarkup(node.arguments[2]))observed=true;
     }
+    // A previously bound DOM writer can also be invoked directly, with the
+    // parser position at argument zero and the SRI HTML at argument one.
+    if(node.type==='CallExpression' &&
+       isHtmlParserWriterReference(node.callee,true) &&
+       mayParseIntegrityMarkup(node.arguments[1]))observed=true;
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
@@ -3939,27 +4095,41 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          node.callee.object.name==='Reflect' && method==='set' &&
          node.arguments[1]) {
         const key=knownKey(node.arguments[1]);
+        const value=node.arguments[2];
         if(key==='integrity' || key===null &&
-           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(node.arguments[2])))
+           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(value)))
           observed=true;
+        // Reflect.set invokes a live DOM HTML parser setter, unlike
+        // Object.defineProperty's creation of an own data descriptor.
+        const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') ||
+          key===null && (mayBeDomElement(node.arguments[0]) ||
+            explicitIntegrityMarkup(value));
+        if(htmlSink && mayParseIntegrityMarkup(value))observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
         const scriptTarget=isScriptElementTarget(node.arguments[0]);
+        // Object.assign performs [[Set]] on each key, invoking Element
+        // innerHTML/outerHTML and HTMLIFrameElement.srcdoc setters.
+        const domTarget=mayBeDomElement(node.arguments[0]);
         for(const item of node.arguments.slice(1)) {
           if(item.type!=='ObjectExpression'){
-            if(scriptTarget)observed=true;
+            if(scriptTarget||domTarget)observed=true;
             continue;
           }
           for(const prop of item.properties) {
             if(prop.type!=='Property'){
-              if(scriptTarget)observed=true;
+              if(scriptTarget||domTarget)observed=true;
               continue;
             }
             const key=prop.computed ? knownKey(prop.key) :
               prop.key.type==='Identifier'?prop.key.name:knownKey(prop.key);
             if(key==='integrity'||key===null&&
                (scriptTarget||looksLikeSriHash(prop.value)))observed=true;
+            const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') &&
+              (domTarget||explicitIntegrityMarkup(prop.value)) ||
+              key===null && (domTarget||explicitIntegrityMarkup(prop.value));
+            if(htmlSink && mayParseIntegrityMarkup(prop.value))observed=true;
           }
         }
       }
@@ -4019,13 +4189,35 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
            canReadLoaderRoot(target,field) || target.type==='Identifier' &&
            globals.has(target.name) &&
            (field===null || browserReaders.has(field) ||
+            windowProxyRoots.has(field??'') ||
             ['require','module'].includes(field)))observed=true;
       }
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    // Strict identity comparison reads a WindowProxy identity but cannot
+    // dereference it or observe the ESM response's bytes. Keep private
+    // rewrite yield for common top===self/opener!==null frame checks.
+    const pureWindowIdentity=parent?.type==='BinaryExpression' &&
+      (parent.operator==='==='||parent.operator==='!==') &&
+      (propertyKey==='left'||propertyKey==='right');
+    if(node.type==='Identifier' && windowProxyRoots.has(node.name) &&
+       !pureWindowIdentity &&
+       !(parent?.type==='Property' && propertyKey==='key' && !parent.computed) &&
+       !(parent?.type==='MemberExpression' && propertyKey==='property' && !parent.computed) &&
+       !((parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
+         propertyKey==='key' && !parent.computed))observed=true;
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
+      // The WindowProxy can also be reached as window.top,
+      // globalThis.parent or through a global-object alias. An embedding
+      // page may supply an original source SRI digest at runtime, leaving no
+      // pin, parser call or source-reader name in this compiler's input.
+      const pureWindowMemberIdentity=parent?.type==='BinaryExpression' &&
+        (parent.operator==='==='||parent.operator==='!==') &&
+        (propertyKey==='left'||propertyKey==='right');
+      if(node.object.type==='Identifier' && globals.has(node.object.name) &&
+         windowProxyRoots.has(key??'') && !pureWindowMemberIdentity)observed=true;
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
@@ -4043,6 +4235,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
       if(root.type==='Identifier' && globals.has(root.name) &&
          (target===null||browserReaders.has(target)||
+          windowProxyRoots.has(target??'') ||
           ['require','process','module','performance','getBuiltinModule',
             'createRequire'].includes(target)) ||
          canReadPerformanceRoot(root) &&
@@ -4065,6 +4258,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(['get','getOwnPropertyDescriptor'].includes(method??'')) {
         if(root.type==='Identifier' && globals.has(root.name) &&
            (target===null || browserReaders.has(target) ||
+            windowProxyRoots.has(target??'') ||
             ['require','process','module','getBuiltinModule','createRequire'].includes(target)))observed=true;
         if(canReadLoaderRoot(root,target) ||
            isProcessModuleRequire(root) && canReachLoader('process',target))observed=true;

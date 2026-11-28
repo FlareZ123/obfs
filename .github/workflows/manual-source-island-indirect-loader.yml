@@ -21,6 +21,13 @@ jobs:
           node-version: '22'
       - name: Install dependencies without lock modification
         run: npm install --no-package-lock --ignore-scripts
+      - name: Real Chromium WindowProxy parser-inserted modulepreload SRI parity
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --expect-guarded
+      - name: WindowProxy / parser-inserted SRI source-island admission falsifier
+        run: node --test test/agent5-source-island-windowproxy-sri.test.js
       - name: Verify source-island native/generated regression and positive control
         run: node --test test/source-observer-islands.test.js test/source-observer-islands-host-argument.test.js test/source-observer-islands-reflection-gate.test.js test/cross-file-source-byte-reader.test.js
       - name: Native interprocedural helper ownership and ESM differential
@@ -82,3 +89,50 @@ jobs:
         run: node sims/straightline-reader-cold-placebo.js
       - name: COO strict fresh-process CPU budget after behavioral and JSDoc checks
         run: node sims/straightline-reader-cold-profile.js
+  # Additive CI: legacy island-escape remains completely unchanged and can
+  # fail independently of this focused source-admission regression.
+  agent5-sri-focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Native-vs-obfuscated source-island and default HTML-SRI regression
+        run: node --test test/agent5-source-island-windowproxy-sri.test.js test/agent5-html-integrity-dynamic-dom.test.js test/agent5-windowproxy-host-data-sri.test.js test/source-observer-islands.test.js test/document-opaque-method-sri.test.js test/reflective-document-write-sri.test.js
+      - name: Real Chromium SRI and byte-preserving default fallback
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --expect-guarded
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external corpus JSDoc
+        run: npm run typecheck:external
+  # Independent browser traces: each shape remains source-pinned even if
+  # the legacy integration job encounters unrelated baseline failures.
+  agent5-sri-runtime-falsifiers:
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [dynamic-selector, reflective-insert, computed-setter, reflect-set, object-assign, host-data-sri]
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Guarded Chromium parity for six WindowProxy and DOM HTML SRI paths
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }} --expect-guarded
