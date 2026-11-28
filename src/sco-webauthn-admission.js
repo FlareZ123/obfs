@@ -111,7 +111,11 @@ function createScoWebAuthnAdmission(options){
   if(!Array.isArray(options.allowedOrigins)||!options.allowedOrigins.length ||
      options.allowedOrigins.some(origin=>typeof origin!=='string'))
     throw new TypeError('WebAuthn allowedOrigins must be nonempty strings');
-  if(typeof options.lookupCredential!=='function'||typeof options.updateSignCount!=='function')
+  // Capture authority callbacks once. Mutable caller options must not change
+  // an already admitted server's authorization policy between requests.
+  const lookupCredential=options.lookupCredential;
+  const updateSignCount=options.updateSignCount;
+  if(typeof lookupCredential!=='function'||typeof updateSignCount!=='function')
     throw new TypeError('WebAuthn requires credential lookup and atomic sign-counter policy');
   const rpId=options.rpId;
   const origins=new Set(options.allowedOrigins.map(origin=>canonicalOrigin(origin,rpId,options.allowInsecureLocalhost===true)));
@@ -212,7 +216,7 @@ function createScoWebAuthnAdmission(options){
     if(!userPresent || (requireUV&&!userVerified) || (backedUp&&!backupEligible))return denied;
     const signCount=authBytes.readUInt32BE(33);
     let record;
-    try{record=await options.lookupCredential(principal,credentialId);}catch{return denied;}
+    try{record=await lookupCredential(principal,credentialId);}catch{return denied;}
     // Do not start a durable counter mutation for a revoked ceremony.
     if(pending.version!==(principalVersions.get(principal)??0))return denied;
     if(!record || !Number.isSafeInteger(record.signCount) || record.signCount<0 ||
@@ -225,7 +229,7 @@ function createScoWebAuthnAdmission(options){
     if(clock()>=pending.expiresAt)return denied;
     let committed;
     try{
-      committed=await options.updateSignCount(principal,credentialId,record.signCount,signCount,
+      committed=await updateSignCount(principal,credentialId,record.signCount,signCount,
         {userPresent,userVerified,backupEligible,backedUp});
     }catch{return denied;}
     if(committed!==true || clock()>=pending.expiresAt ||
