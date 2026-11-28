@@ -44,5 +44,10 @@ jobs:
           CHROMIUM_BIN: google-chrome
           RUN_NATIVE_DOM_COLLECTION_BROWSER: '1'
         run: node --test test/agent1-dom-nodelist-real-browser.test.js
+      - name: Real Chromium global Document constructor factory mutation and native source yield
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/agent1-dom-global-constructor-prototype-browser.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
