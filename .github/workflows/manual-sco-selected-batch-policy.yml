@@ -1,0 +1,42 @@
+name: Manual selected SCO batch policy validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_ref:
+        description: Git branch or tag to validate
+        required: true
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  selected-batch:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        id: install
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Verify generated SCO graph fixtures
+        run: node examples/sco-graph/build.cjs --check
+      - name: Test selected graph and lower-level batch authorization
+        run: node --test test/sco-selected-graph.test.js test/sco-selected-handler.test.js test/sco-batch-extra-arity-preflight.test.js
+      - name: Strict JSDoc for SCO graph integration
+        if: always() && steps.install.outcome == 'success'
+        run: npx tsc -p jsconfig.sco-graph.json
+      - name: Strict JSDoc for SCO child identity regressions
+        if: always() && steps.install.outcome == 'success'
+        run: npx tsc -p jsconfig.sco-private-child.json
