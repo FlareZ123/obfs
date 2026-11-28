@@ -213,6 +213,18 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       ],{encoding:'utf8',timeout:40000,maxBuffer:1024*1024});
       assert.deepEqual(JSON.parse(replay.stdout),expected);
     }
+    // Stronger *static* clone: one independent child receives only a
+    // published facade file, service origin and legitimate account token.
+    // It discovers the literal method/endpoint without ever importing or
+    // evaluating either public module (and without the private source).
+    const staticWorker=path.join(__dirname,
+      '../sims/agent18-application-static-rpc-relay.cjs');
+    for(const facade of [scoFile,ordinaryFile]){
+      const copy=await runFile(process.execPath,[
+        staticWorker,facade,origin,token,JSON.stringify(heldouts)
+      ],{encoding:'utf8',timeout:40000,maxBuffer:1024*1024});
+      assert.deepEqual(JSON.parse(copy.stdout),expected);
+    }
 
     /** @type {Record<'light'|'heavy',{
       native:number[],generated:number[],ordinary:number[]}>} */
@@ -325,6 +337,7 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       ordinaryMinifier:'esbuild',
       authorization:403,heldoutOnlineRelays:heldouts.length,
       facadeFreeWireReplayHeldouts:heldouts.length,
+      staticSourceOnlyReplayHeldouts:heldouts.length,
       identicalAuthenticatedWire:firstSco.call,
       initializationMs,paired,batchedCpu,
       cpuCaveat:'Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs',
