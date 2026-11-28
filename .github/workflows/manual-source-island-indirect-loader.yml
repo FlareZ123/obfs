@@ -135,4 +135,4 @@ jobs:
       - name: Native, tampered and generated modulepreload integrity results
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }}
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --${{ matrix.scenario }} --expect-guarded
