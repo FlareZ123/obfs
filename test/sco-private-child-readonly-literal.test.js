@@ -26,6 +26,8 @@ test('SCO child read-only literal proof retains static primitive property reads'
   const cases=[
     ['record dot','const table={n:41};export function next(){return table.n+1;}'],
     ['record bracket','const table={n:41};export function next(){return table["n"]+1;}'],
+    ['unique immutable key alias','const key="n";const table={n:41};'+
+      'export function next(){return table[key]+1;}'],
     ['record numeric','const table={0:41};export function next(){return table[0]+1;}'],
     ['array indexes','const table=[40,2];export function next(){return table[0]+table[1];}'],
     ['array length','const table=[41];export function next(){return table.length+table[0];}'],
@@ -50,6 +52,12 @@ test('SCO child read-only literal proof refuses mutations and first-class escape
     ['reflect','const table={n:41};export function next(){return Reflect.get(table,"n");}'],
     ['opaque call','const table={n:41};export function next(){return Object.keys(table).length;}'],
     ['dynamic key','const table={n:41};export function next(k){return table[k];}'],
+    ['key shadowed by parameter','const key="n";const table={n:41};'+
+      'export function next(key){return table[key];}'],
+    ['key shadowed by local','const key="n";const table={n:41};'+
+      'export function next(){const key="x";return table[key];}'],
+    ['key key mutation','const key="n";const table={n:41};'+
+      'export function next(){key="x";return table[key];}'],
     ['nested member','const table={n:41};export function next(){return table.n.toString();}'],
     ['call property','const table={n:41};export function next(){return table.n();}'],
     ['array mutation','const table=[41];export function next(){return table.push(1);}'],
@@ -63,7 +71,8 @@ test('SCO child read-only literal proof refuses mutations and first-class escape
     ['nonfinite value','const table={n:1e400};export function next(){return table.n;}']
   ];
   for(const [label,source] of cases){
-    assert.throws(()=>compile(source),/unproved shared module object state/u,label);
+    assert.throws(()=>compile(source),
+      /unproved shared module object state|realm-local prototype access/u,label);
   }
 });
 
