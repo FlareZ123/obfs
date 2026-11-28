@@ -70,6 +70,9 @@ async function runServer(){
   // still sees only the handler's JSON operation and its result.
   const methods={...bound,[targetMethod]:async(/** @type {number} */ symbol)=>{
     const output=await bound[targetMethod](symbol);
+    if(typeof output!=='number'||(output!==0&&output!==1)){
+      throw new Error('Unexpected trusted private step output');
+    }
     const previous=scoState;
     scoState=machine.next[previous][symbol];
     assert.equal(output,machine.output[previous][symbol]);
