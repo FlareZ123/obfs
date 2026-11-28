@@ -1799,27 +1799,49 @@ function hasWeakMapPrototypeExposure(ast) {
     }
   }
   /**
-   * Execute only a proven single receiver-slot setter forwarding its argument.
-   * An opaque setter remains unknown instead of assuming a direct write.
+   * Execute only a proven receiver/captured-slot setter forwarding its sole
+   * argument. Resolve stable named helpers or concise arrows cautiously:
+   * unproven scope, reassignment or complex bodies remain unknown.
    * @param {AstNode} setter
    * @param {CarrierContainer} receiver
    * @param {CarrierValue} assigned
+   * @param {Map<string,CarrierValue>} environment
    * @returns {boolean}
    */
-  function replayCarrierSetter(setter,receiver,assigned) {
-    const parameter=setter.params?.[0];
-    const statements=setter.body?.body;
-    if(parameter?.type!=='Identifier'||statements?.length!==1)return false;
-    const expression=statements[0]?.expression;
-    if(statements[0]?.type!=='ExpressionStatement'||
-       expression?.type!=='AssignmentExpression'||expression.operator!=='='||
+  function replayCarrierSetter(setter,receiver,assigned,environment) {
+    let functionNode=setter;
+    if(setter.type==='Identifier') {
+      if(localBindingCounts.get(setter.name)!==1||
+         reassignedLocalFunctions.has(setter.name))return false;
+      functionNode=localFunctionNodes.get(setter.name)??setter;
+    }
+    if(!functionTypes.has(functionNode.type)||functionNode.params?.length!==1||
+       functionNode.async||functionNode.generator)return false;
+    const parameter=functionNode.params?.[0];
+    if(parameter?.type!=='Identifier')return false;
+    const body=functionNode.body;
+    let expression;
+    if(body?.type==='BlockStatement') {
+      if(body.body?.length!==1||body.body[0]?.type!=='ExpressionStatement')
+        return false;
+      expression=body.body[0].expression;
+    } else expression=body;
+    if(expression?.type!=='AssignmentExpression'||expression.operator!=='='||
        expression.left?.type!=='MemberExpression'||
-       expression.left.object?.type!=='ThisExpression'||
        expression.right?.type!=='Identifier'||
        expression.right.name!==parameter.name)return false;
+    const owner=expression.left.object;
+    let target=carrierOther;
+    if(owner?.type==='ThisExpression') {
+      if(functionNode.type==='ArrowFunctionExpression')return false;
+      target=receiver;
+    } else if(owner?.type==='Identifier') {
+      target=environment.get(owner.name)??carrierOther;
+    }
+    if(target.kind!=='container')return false;
     const slot=carrierStaticKey(expression.left.property,expression.left.computed);
     if(slot===null)return false;
-    receiver.properties.set(slot,assigned);
+    target.properties.set(slot,assigned);
     return true;
   }
   /**
@@ -1946,7 +1968,7 @@ function hasWeakMapPrototypeExposure(ast) {
           if(key===null)base.unknown=true;
           else if(base.setters.has(key)) {
             const setter=base.setters.get(key);
-            if(!setter||!replayCarrierSetter(setter,base,assigned))
+            if(!setter||!replayCarrierSetter(setter,base,assigned,environment))
               base.unknown=true;
           } else if(base.getters.has(key)) {
             // Getter-only properties cannot be overwritten by assignment;
