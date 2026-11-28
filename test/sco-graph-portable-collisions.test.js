@@ -62,10 +62,14 @@ const collisions=[
 
 for(const {kind,a,b} of collisions){
   test('SCO private graph refuses '+kind+' portable collision',()=>{
-    assert.throws(()=>privateGraph(a,b),TypeError);
+    assert.throws(()=>privateGraph(a,b),error=>error instanceof TypeError &&
+      /Duplicate private graph path|Ambiguous directory spelling|File conflicts with directory/u
+        .test(error.message));
   });
   test('SCO selected graph refuses '+kind+' portable collision',()=>{
-    assert.throws(()=>selectedGraph(a,b),TypeError);
+    assert.throws(()=>selectedGraph(a,b),error=>error instanceof TypeError &&
+      /Case-colliding selected SCO module path|Ambiguous directory spelling|File conflicts with directory/u
+        .test(error.message));
   });
 }
 
@@ -94,4 +98,12 @@ test('SCO selected graph permits repeated identical private dependency with matc
   assert.deepEqual(graph.privatePaths,['private/shared.mjs']);
   assert.equal(graph.privateSourceDigests.filter(x=>
     x.path==='private/shared.mjs').length,1);
+});
+
+
+test('SCO path inventory preserves unambiguous source graphs',()=>{
+  assert.equal(privateGraph('a.mjs','b.mjs').exposedPaths.length,1);
+  assert.equal(selectedGraph('alpha.mjs','beta.mjs').exposedPaths.length,2);
+  assert.deepEqual(selectiveGraph('PRIVATE/a.mjs','PRIVATE/b.mjs').clientFile.privateModulePaths,
+    ['PRIVATE/a.mjs','PRIVATE/b.mjs']);
 });
