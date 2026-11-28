@@ -48,6 +48,65 @@ function hostRunner(){
   return [
     'const scenarios='+JSON.stringify(scenarios)+';',
     'const variants='+JSON.stringify(['native',...modes])+';',
+    "const hostIs=Object.is;",
+    "const hostNaN=Number.isNaN;",
+    "const hostKeys=Object.keys;",
+    "const hostHasOwn=Object.hasOwn;",
+    "const hostApply=Reflect.apply;",
+    "const hostPush=Array.prototype.push;",
+    "const hostOwnKeys=Reflect.ownKeys;",
+    "const hostDescriptor=Reflect.getOwnPropertyDescriptor;",
+    "const hostPrototype=Object.getPrototypeOf;",
+    "const hostIsArray=Array.isArray;",
+    "const hostObjectProto=Object.prototype;",
+    "const hostArrayProto=Array.prototype;",
+    "const hostJSONQuote=JSON.stringify;",
+    "const hostFinite=Number.isFinite;",
+    "const hostInteger=Number.isSafeInteger;",
+    "const hostString=String;",
+    "const hostBtoa=btoa;",
+    "const hostSink=document.getElementById('result');",
+    "function serializeHost(value,depth){",
+    "  if(depth>48)throw new Error('host observation too deep');",
+    "  if(value===null)return 'null';",
+    "  const type=typeof value;",
+    "  if(type==='string'||type==='boolean')return hostJSONQuote(value);",
+    "  if(type==='number'){",
+    "    if(!hostFinite(value))throw new Error('host observation has raw nonfinite number');",
+    "    return hostJSONQuote(value);",
+    "  }",
+    "  if(type!=='object')throw new Error('host observation has unsupported value');",
+    "  const array=hostIsArray(value);",
+    "  const proto=hostPrototype(value);",
+    "  if(proto!==(array?hostArrayProto:hostObjectProto)&&proto!==null)",
+    "    throw new Error('host observation has unsupported prototype');",
+    "  const keys=hostOwnKeys(value);",
+    "  if(array){",
+    "    const length=hostDescriptor(value,'length')?.value;",
+    "    if(!hostInteger(length)||length>10000||keys.length!==length+1)",
+    "      throw new Error('host observation array shape invalid');",
+    "    let result='[';",
+    "    for(let i=0;i<length;i++){",
+    "      const desc=hostDescriptor(value,hostString(i));",
+    "      if(!desc||!hostHasOwn(desc,'value'))",
+    "        throw new Error('host observation array has hole or accessor');",
+    "      if(i)result+=',';",
+    "      result+=serializeHost(desc.value,depth+1);",
+    "    }",
+    "    return result+']';",
+    "  }",
+    "  let result='{';",
+    "  for(let i=0;i<keys.length;i++){",
+    "    const key=keys[i];",
+    "    if(typeof key!=='string')throw new Error('host observation symbol key');",
+    "    const desc=hostDescriptor(value,key);",
+    "    if(!desc||!hostHasOwn(desc,'value'))",
+    "      throw new Error('host observation record has accessor');",
+    "    if(i)result+=',';",
+    "    result+=hostJSONQuote(key)+':'+serializeHost(desc.value,depth+1);",
+    "  }",
+    "  return result+'}';",
+    "}",
     'async function run(){',
     'const rows=[];',
     'for(const scenario of scenarios){',
@@ -56,32 +115,40 @@ function hostRunner(){
     'globalThis.externalObserver=(...args)=>{',
     'if(scenario==="escape"||scenario==="escape-mutate"){',
     'const owner=args[0];',
-    'raw.push({kind:"owner",data:{keys:Object.keys(owner),',
+    'hostApply(hostPush,raw,[{kind:"owner",data:{keys:hostKeys(owner),',
     'alpha:owner.privateAlpha,beta:owner.privateBeta,',
-    'betaIsNegativeZero:Object.is(owner.privateBeta,-0)}});',
+    'betaIsNegativeZero:hostIs(owner.privateBeta,-0)}}]);',
     'if(scenario==="escape-mutate"){owner.privateAlpha=11;owner.privateBeta=-0;}',
-    '}else raw.push({kind:"payload",values:args});',
+    '}else hostApply(hostPush,raw,[{kind:"payload",values:args}]);',
     '};',
     'const mod=await import("/"+scenario+"/"+variant+"/entry.mjs");',
     'const result=mod.result;',
-    'const events=raw.map(item=>item.kind==="owner"?item.data:{',
+    'const events=[];',
+    'for(let i=0;i<raw.length;i++){',
+    'const item=raw[i];',
+    'const event=item.kind==="owner"?item.data:{',
     'tag:item.values[0],alpha:item.values[1],',
     'sharedIdentity:item.values[2]===result[3],',
-    'negativeZero:Object.is(item.values[3],-0),',
-    'notANumber:Number.isNaN(item.values[4])});',
-    'const data={alpha:result[0],duplicate:Object.is(result[0],result[1]),',
-    'beta:result[2],betaIsNegativeZero:Object.is(result[2],-0),',
+    'negativeZero:hostIs(item.values[3],-0),',
+    'notANumber:hostNaN(item.values[4])};',
+    'hostApply(hostPush,events,[event]);',
+    '}',
+    'const data={alpha:result[0],duplicate:hostIs(result[0],result[1]),',
+    'beta:result[2],betaIsNegativeZero:hostIs(result[2],-0),',
     'aliases:result[3]===result[4],',
-    'sharedIsNegativeZero:Object.is(result[3].publicValue,-0),',
-    'exactZero:Object.is(result[5],-0),exactNaN:Number.isNaN(result[6]),events};',
-    'rows.push({scenario,variant,data});',
+    'sharedIsNegativeZero:hostIs(result[3].publicValue,-0),',
+    'exactZero:hostIs(result[5],-0),exactNaN:hostNaN(result[6]),events};',
+    'hostApply(hostPush,rows,[{scenario,variant,data}]);',
     '}}',
-    'const pre=document.getElementById("result");',
-    'pre.textContent=btoa(JSON.stringify(rows));',
+    // Mutation in the very last subject module must have poisoned globals.',
+    'if(JSON.stringify(null)!=="forged" || Object.is(-0,-0)!==false ||',
+    'Number.isNaN(NaN)!==false || Object.keys({a:1})[0]!=="spoofed" ||',
+    '[1].push(2)!==-1 || [1].map(value=>value).length!==0)',
+    'throw new Error("browser host poisoning negative control did not execute");',
+    'hostSink.textContent=hostBtoa(serializeHost(rows,0));',
     '}',
     'run().catch(error=>{',
-    'const pre=document.getElementById("result");',
-    'pre.textContent="ERROR:"+String(error.stack||error);',
+    'hostSink.textContent="ERROR:"+hostString(error.stack||error);',
     '});'
   ].join('\n');
 }
@@ -105,7 +172,7 @@ function expected(scenario){
   };
 }
 
-test('real Chromium out-of-graph host sees exact cross-file COO/SCO behavior',{
+test('real Chromium exact COO/SCO host parity survives selected intrinsic poisoning',{
   skip:process.platform==='win32'
 },async()=>{
   /** @type {Map<string,string>} */
@@ -130,8 +197,19 @@ test('real Chromium out-of-graph host sees exact cross-file COO/SCO behavior',{
           scenario+'/'+mode+': externally escaped owner must not be renamed');
       for(const file of built.files){
         assert.equal(typeof file.code,'string');
-        sourceByRoute.set('/'+scenario+'/'+mode+'/'+file.path,
-          /** @type {string} */(file.code));
+        let source=/** @type {string} */(file.code);
+        if(scenario==='escape-mutate'&&mode==='sco'&&file.path==='state.mjs'){
+          // Deliberate test-only post-compile mutation in the final browser
+          // variant; it poisons same-realm host intrinsics, not owner data.
+          // This is a falsification control, NOT a compiler behavior claim.
+          source+='\nObject.is=()=>false;Number.isNaN=()=>false;'+
+            'Object.keys=()=>["spoofed"];'+
+            'Array.prototype.push=()=>-1;Array.prototype.map=()=>[];'+
+            'JSON.stringify=()=>"forged";'+
+            'Object.prototype.toJSON=()=>({forged:true});'+
+            'Array.prototype.toJSON=()=>({forged:true});\n';
+        }
+        sourceByRoute.set('/'+scenario+'/'+mode+'/'+file.path,source);
       }
     }
   }
@@ -183,7 +261,8 @@ test('real Chromium out-of-graph host sees exact cross-file COO/SCO behavior',{
       }
     }
     process.stdout.write('EXACT_HOST_CHROMIUM '+JSON.stringify({
-      scenarios:scenarios.length,modes:modes.length,executions:rows.length,yields
+      scenarios:scenarios.length,modes:modes.length,executions:rows.length,
+      hostIntrinsicPoisonControl:true,yields
     })+'\n');
   }finally {
     await new Promise((resolve,reject)=>
