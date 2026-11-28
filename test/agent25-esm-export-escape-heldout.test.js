@@ -72,7 +72,13 @@ const cases=[
     importCode:'import {inspect} from "./barrel.mjs";',fn:'inspect',value:'inspect()'},
   {name:'default-namespace-import',
     logic:'const owner={secretField:57};export default function inspect(){return owner.secretField;}',
-    importCode:'import * as ns from "./logic.mjs";',fn:'ns.default',value:'ns.default()'}
+    importCode:'import * as ns from "./logic.mjs";',fn:'ns.default',value:'ns.default()'},
+  {name:'namespace-object-method',logic:'const owner={secretField:57};export const api={inspect(){return owner.secretField;}};',
+    importCode:'import * as ns from "./logic.mjs";',fn:'ns.api.inspect',value:'ns.api.inspect()'},
+  {name:'namespace-object-method-through-reexport',
+    logic:'const owner={secretField:57};export const api={inspect(){return owner.secretField;}};',
+    barrel:'export {api} from "./logic.mjs";',
+    importCode:'import * as ns from "./barrel.mjs";',fn:'ns.api.inspect',value:'ns.api.inspect()'}
 ];
 
 /** @param {Case} spec @returns {SourceFile[]} */
