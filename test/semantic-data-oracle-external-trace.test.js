@@ -10,7 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
-/** @typedef {'plain'|'payload'|'escape'} Scenario */
+/** @typedef {'plain'|'payload'|'escape'|'escape-mutate'} Scenario */
 /** @type {Array<'coo'|'sno'|'sco'>} */
 const modes=['coo','sno','sco'];
 
@@ -23,7 +23,7 @@ function graph(scenario) {
     "globalThis.externalObserver('before',state.privateAlpha,state.privateBeta);\n"+
     "state.privateBeta=1/0;\n"+
     "globalThis.externalObserver('after',state.privateAlpha,state.privateBeta);\n";
-  if(scenario==='escape')use+="globalThis.externalObserver(state);\n";
+  if(scenario==='escape'||scenario==='escape-mutate')\n    use+="globalThis.externalObserver(state);\n";
   use+="export const result=[state.privateAlpha,state.privateAlpha,state.privateBeta];\n";
   return [state,{path:'entry.mjs',sourceType:'module',code:use}];
 }
@@ -45,8 +45,9 @@ async function observe(files,scenario) {
       "const {snapshotDataGraph}=require(process.argv[2]);",
       "const events=[];",
       "globalThis.externalObserver=(...args)=>{",
-      "  if(process.argv[3]==='escape'){",
+      "  if(process.argv[3]==='escape'||process.argv[3]==='escape-mutate'){",
       "    const owner=args[0];events.push([Object.keys(owner),owner.privateAlpha,owner.privateBeta]);",
+      "    if(process.argv[3]==='escape-mutate'){owner.privateAlpha={publicValue:11};owner.privateBeta=-0;}",
       "  }else{events.push(args);}",
       "};",
       "(async()=>{const {result}=await import(pathToFileURL(process.argv[1]).href);",
@@ -71,18 +72,19 @@ function independentExpected(scenario) {
   const events=[];
   if(scenario==='payload')events.push(
     ['before',shared,NaN],['after',shared,Infinity]);
-  if(scenario==='escape')events.push([
+  if(scenario==='escape'||scenario==='escape-mutate')events.push([
     ['privateAlpha','privateBeta'],shared,NaN
   ]);
+  const current=scenario==='escape-mutate'?{publicValue:11}:shared;
   return snapshotDataGraph({events,result:[
-    shared,shared,scenario==='payload'?Infinity:NaN
+    current,current,scenario==='payload'?Infinity:scenario==='escape-mutate'?-0:NaN
   ]});
 }
 
 test('cross-file properties preserve exact out-of-graph callbacks and owner escape',async()=>{
   /** @type {Array<{scenario:Scenario,mode:string,rewritten:number}>} */
   const rows=[];
-  for(const scenario of /** @type {Scenario[]} */(['plain','payload','escape'])){
+  for(const scenario of /** @type {Scenario[]} */(['plain','payload','escape','escape-mutate'])){
     const files=graph(scenario);
     const native=await observe(files,scenario);
     assert.deepEqual(native,independentExpected(scenario),
@@ -95,7 +97,7 @@ test('cross-file properties preserve exact out-of-graph callbacks and owner esca
       assert.deepEqual(transformed,native,
         scenario+'/'+mode+': emitted export and external callback trace parity');
       rows.push({scenario,mode,rewritten:compiled.crossFile.properties});
-      if(scenario==='escape')
+      if(scenario==='escape'||scenario==='escape-mutate')
         assert.equal(compiled.crossFile.properties,0,
           scenario+'/'+mode+': external owner escape forbids private-field renaming');
     }
