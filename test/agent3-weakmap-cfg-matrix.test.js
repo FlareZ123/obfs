@@ -254,6 +254,15 @@ const cases=[
 ['destructure-nested-proxy-get',"let carrier={};const obj=new Proxy({x:{y:1}},{get(o,k){if(k==='x')carrier={instance:new WeakMap()};return Reflect.get(o,k);}});function fill({x:{y}}){}fill(obj);",'carrier.instance'],
 ['direct-class-expression-new-default',"let carrier={};new (class {constructor(x=(carrier={instance:new WeakMap()})) {}})();",'carrier.instance'],
 ['direct-derived-class-expression-default',"let carrier={};class Base{};new (class extends Base {constructor(x=(carrier={instance:new WeakMap()})){super();}})();",'carrier.instance'],
+// Independent Agent4 review: an inline class passed to new() is evaluated
+// before argument expressions, and class-definition computed keys, static
+// initializers and static blocks execute even without a named constructor.
+['inline-class-static-block-new','let carrier={};new (class {static {carrier={instance:new WeakMap()};}})();','carrier.instance'],
+['inline-class-static-field-new','let carrier={};new (class {static value=(carrier={instance:new WeakMap()});})()','carrier.instance'],
+['inline-class-computed-key-new','let carrier={};const key={toString(){carrier={instance:new WeakMap()};return "x";}};new (class {[key](){}})();','carrier.instance'],
+['inline-derived-pure-base-static-block-new','let carrier={};class Base{};new (class extends Base {static {carrier={instance:new WeakMap()};}})();','carrier.instance'],
+['inline-class-static-ordinary-positive','class Ordinary{};let carrier={instance:new Ordinary()};new (class {static value=3;})();','carrier.instance'],
+['inline-class-computed-primitive-positive','class Ordinary{};let carrier={instance:new Ordinary()};new (class {["x"](){}})();','carrier.instance'],
 ['host-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null,23);",'carrier.instance'],
 ['host-apply-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[3]);",'carrier.instance'],
 ['iterator-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const iterable={*[Symbol.iterator](){carrier={instance:new Ordinary()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
