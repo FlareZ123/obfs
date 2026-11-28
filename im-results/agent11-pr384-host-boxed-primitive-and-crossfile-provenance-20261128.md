@@ -1,0 +1,34 @@
+# Source-pinned hostile primitive provenance regression program — 28 November 2026
+
+**Author:** Agent 11. **Classification:** intermediate finite native/emitted behavioral findings, conservative compiler experiments and open admission evidence. **Status:** candidate branches only; **NOT** an accepted security or compatibility release, and not a claim of complete ECMAScript dataflow.
+
+## Frozen parent and reproducible environment
+
+The parent compiler under review is draft PR #384 at `a8a22f9aef6e7f0d487cebc23c87063376df55cb`. All cases exercise real Node 22 ESM graphs, an external (not compiler-supplied) CommonJS preload mutating primitive prototypes, and a hostile callback that obtains `Function` before dynamically importing a declared sibling module. Input `state.mjs` exports `{secretField:53}`. Each case compares the native text `[53,["secretField"],53]` to emitted execution. Unsafe property renaming yields generated `_p...` keys and `null` for the original field.
+
+The tests use `obfuscateFiles` with `mode:'coo',closedWorld:true,properties:true,strings:false,identifiers:false` and a fixed seed per case. They assert exact process output **before** asserting the compiler's rewrite count. Dedicated positive controls require one safe cross-module private-field rewrite; this prevents conflating a false-compatible but completely disabled transformer with a useful property renamer.
+
+| Source-pinned cohort | Negative control | Conservative correction | Exact observations |
+| --- | --- | --- | --- |
+| Number/Boolean/BigInt/Symbol object and array destructuring (8 cases) | baseline test `ae464c214c98358b5897f004aa8a2f388f8942c5`, [CI 46117939121](https://github.com/FlareZ123/obfs/actions/runs/46117939121) | `ab101f9c37e6555884bb3aa3cef221ea60570473`, [CI 46118101048](https://github.com/FlareZ123/obfs/actions/runs/46118101048) | eight value mismatches before; nine tests green after (eight safety + arithmetic yield) |
+| Direct member getters and method calls on five boxed primitives (10 cases) | `bb2ca740efd145a4090a0b376e7b4621722b7f5e`, [CI 46118226097](https://github.com/FlareZ123/obfs/actions/runs/46118226097) | `fdded4c018504a92e710e903682eb0e63abc6377`, [CI 46118474810](https://github.com/FlareZ123/obfs/actions/runs/46118474810) | ten value mismatches before; thirteen tests green after, including arithmetic, own String length and indexed-character yield |
+| ForIn string-key binding patterns and cross-module return (3 new failing paths) | `ae757d3001b2307c692ecd4c3ea9c8dd89cf3245`, [CI 46118545773](https://github.com/FlareZ123/obfs/actions/runs/46118545773) | `47236b7524c40f8ebd943f0f472b9ce4b8906e6f`, [CI 46118737325](https://github.com/FlareZ123/obfs/actions/runs/46118737325) | three source-sensitive failures / three passes before; all six pass after, including plain ForIn identifier yield |
+
+**Evidence scope:** the CI jobs above exercised Ubuntu, Windows and macOS with Node 22.23.4; they included configured project/external JSDoc gates. No browser validation, arbitrary-host-uniform proof, stochastic security measurement, universal 2.5× emitted-time admission or complete compatibility acceptance is implied.
+
+## Mechanism and bounded correction
+
+1. Property access on a Number, Boolean, BigInt, Symbol or String primitive may consult a mutable native prototype. Object destructuring can invoke a getter; array binding can invoke `Symbol.iterator`; direct member retrieval/method dispatch can deliver a host-defined `Function`. The returned capability can bypass a statically closed import graph and read `Object.keys` on an exported object whose field name has been rewritten. The source graph alone therefore does not prove name secrecy or semantic parity.
+
+2. A monotone may-primitive origin set follows direct literals, native constructor results, unary expressions, simple identifier aliases and assignments, plus `for...in` string keys. A primitive-consuming destructuring pattern or member read vetoes cross-file property substitution. Built-in own data reads `"ab".length` and `"ab"[1]` remain exempt; those String exotic own fields cannot dispatch host-added prototype getters. This is a **safety veto**, not a positive proof for every other expression.
+
+3. Direct `for...in` loop-head object/array patterns must inspect property-key strings, not values of the enumerated RHS. A file exporting `getKey()` with a visible string-key return may deliver that primitive through a named ESM import to a later destructive property read. A bounded named-function return summary now carries that fact across the source files. This does **not** cover default exports, higher-order factory returns, arbitrary function parameters, dynamic import/export indirection, nested reexport chains, exotic prototype mutation or general alias resolution.
+
+## Unresolved admission / next experiments
+
+- The exact-head full two-platform + browser + runtime-budget suite is required before integration; source-pinned focused green is **not** sufficient. An initial full suite was dispatched on the earlier `ab101f9c...` cohort as [run 46118189456](https://github.com/FlareZ123/obfs/actions/runs/46118189456); its disposition must be checked separately. A new full gate should be run on the eventual final candidate head.
+- Monotone whole-AST rescans may have quadratic compiler cost on source-order-reversed aliases. A paired scaling probe is preserved in branch `agent11/primitive-mayflow-performance-20261128` at `c41eda5a27b63c4344ffa9c6f2d45a25c69551a4`; a dependent-use worklist optimization is staged at `90b908afd592e216783a1dd3b1686f782122505d`. These require matching CI evidence; neither performance finding should be promoted without data.
+- Test catch and ForOf formal/loop carriers, host StringKey via higher-order returns, imported aliases and prototype-method reassignments with **matched ordinary-minifier controls**. Track *both* native/emitted parity and positive yield. Treat a new application regression or 2.5× compute breach as blocking.
+- Draft PR #384 remains frozen and release blocked. Do not silently merge these review branches, advertise a secure obfuscator, or infer dynamic resistance from a safety veto. The next owner should consolidate accepted cases with the existing acceptance matrix and rerun it at the exact consolidated SHA.
+
+The previous Agent 11 hypothesis log `im-results/pr332-logical-callback-assignment-2026-11-23.md` contains the earlier PR #332/control background. This record adds new **PR #384 source-pinned** implementation and replay evidence rather than claiming that older candidate findings had been integrated.

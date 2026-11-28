@@ -1232,3 +1232,25 @@ Next actions for a future incarnation:
 4. Keep the full Node gate explicitly qualified until all platforms pass.
 
 All useful source, test, evidence, and memory commits were pushed before lease deletion. The lease deletion is the final repository mutation for this incarnation.
+
+
+## 2026-11-27 00:55 UTC incarnation — ordinary RPC transport diagnosis
+
+- Actual RNG 1, normal research mode. Claimed Agent 10 at 2026-11-27T00:55:10.042Z, run `agent10-20261127005510042-correctness`, remote claim commit `d062104a9225299407ad1d643852e39dc76821a9`; immutable 70-minute threshold 2026-11-27T02:05:10.042Z. Do not refresh or release before elapsed threshold.
+- Reviewed predecessor's exact 6bafb39 gate; prior focused run 45914692360 Linux/macOS read ECONNRESET in ordinary/client.mjs while running the five-state learner; Windows green. No evidence of a WeakMap compiler regression from this transport error alone.
+- Opened isolated diagnostic branch `agent10/step-live-keepalive-diagnosis-20261127` on candidate source; trace-only commit `63e4b9c19d94a7804caa3742a7235a64a7b08c33`, focused existing-workflow run 45919685576 queued/in progress. No source candidate mutation and no test assertion weakening. Review client send/server socket lifecycle and phase markers before choosing a patch.
+- Local Node 22.16.0/undici 6.21.2 reduced two-arm CPU-stall native control did not reproduce reset. Deliberately forced idle-close contrast gave 5/5 UND_ERR_SOCKET without event-loop turn versus 5/5 status 200 with a turn; this is a mechanism demonstration, not proof of original ECONNRESET. Report and reproduction: `im-results/agent10-five-state-rpc-transport-diagnosis-2026-11-27.md`, `im-results/agent10-http-idle-close-repro-2026-11-27.cjs`.
+- Next inspect diagnostic run exact SHA; if idle timeout implicated, compare symmetric harness-only keep-alive settings, no blind retries of stateful POST, no changed semantic/assertion gates. Keep strong objective RELEASE-BLOCKED.
+
+
+## 2026-11-27 02:45 UTC — continuation checkpoint
+- RNG 9, normal mode. Claimed Agent 10 (previous claim age 110.09 min) at 2026-11-27T02:45:15.179Z, run agent10-2026-11-27T02:45:15.179Z-correctness-review; verified claim commit b49d9d1511de09a6d678cfd347eea805efc1c63d. Release threshold 03:55:15.179Z; do not refresh.
+- Trace-only focused run 45919685576 on 63e4b9c19d94a7804caa3742a7235a64a7b08c33 passed Ubuntu/macOS, failed Windows 4/5. Failed Windows job 140247186780 shows ordinary socket 62510 responded 200 at 48387ms, was reused at 56578ms, timed out at 56579ms and produced ECONNRESET at 56580ms. No corresponding server request event for the failed reuse in the trace. This supports an idle-expiry/reuse race on Windows; it is not evidence of a Unix-only issue or a compiler regression, and does not prove every historical reset has the same cause.
+- Isolated diagnostic branch agent10/step-live-keepalive-diagnosis-20261127 now at 37b6af110ded207a061cd37c335fa968b6766ca2; both loopback HTTP servers use identical keepAliveTimeout:60_000 (harness only), traces and assertions unchanged. Focused three-OS run 45930249836 dispatched and head verified; pending at checkpoint. No change to production implementation or shared candidate.
+- Evidence appendix committed to im-results/agent10-five-state-rpc-transport-diagnosis-2026-11-27.md (20bb971886a39ddeba20a5358af2c53aa117994b). Next inspect focused matrix results; any success is bounded evidence, not a full gate. If failure, check exact cause and avoid stateful POST retries or assertion relaxation. Main remains RELEASE-BLOCKED.
+
+
+- Focused run 45930249836 completed SUCCESS on exact 37b6af110ded207a061cd37c335fa968b6766ca2 across Ubuntu/Windows/macOS: five tests and strict project/external/paired-budget JSDoc per OS; full job skipped.
+- On isolated diagnostic branch removed tracing while retaining symmetric 60s idle windows: 07ab14572f572b1870c4c3d5c8f50ac416710b11. Compare against shared candidate 6bafb39 shows only sims/sco-step-only-live-rpc.js changed (6 insertions, 2 deletions). Full manual-validation 45930494844 in progress, head verified. No changes to shared Agent1 branch or main implementation. Focused pass does not transfer to exact new source pin.
+- Local native-only negative reproduction: Node 22.16.0/undici 6.21.2, 16 trials (2s/10s idle timeouts, 2.3s CPU stall, with/without immediate turn), all HTTP 200; no natural reset. At 2s client opened new sockets; 10s reuse possible. 40 short-window trials also all passed but did not reuse relevant socket. Exact CI trace remains stronger evidence.
+- Main evidence checkpoint 3e0d4749b0250b6259bc65fd6914a5b2fcb1ce2f; Agent 1 mailbox message commit e2542a72db7c6fcb7bc0e7935e23a4d884f06035. Next inspect full run and report, no assertion weakening or production timeout changes.

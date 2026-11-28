@@ -652,3 +652,39 @@ test('SNO Node Web Storage cross-file factory return exposes helper callable sou
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+/**
+ * Optional release-acceptance gate, deliberately separate from the negative
+ * diagnostic witnesses above. This is RED on known affected compiler heads.
+ * Enable only for a candidate claiming native Storage source parity:
+ * OBFS_STRICT_STORAGE_PARITY=1 node --test test/sno-storage-source-parity.test.js
+ */
+test('strict SNO native Storage named-setter source parity with independent yield',{
+  skip:!supportsExperimentalWebStorage||
+    process.env.OBFS_STRICT_STORAGE_PARITY!=='1',
+  timeout:30000
+},async()=>{
+  const source=[
+    "'use strict';",
+    'function inspect(){const privateLocal=71;return privateLocal;}',
+    'function independent(){const independentLocal=13;return independentLocal;}',
+    'localStorage.clear();',
+    'localStorage.namedCallable=inspect;',
+    'const result={stored:localStorage.getItem("namedCallable"),',
+    '  value:inspect(),independent:independent()};',
+    'process.stdout.write(JSON.stringify(result));'
+  ].join('\n');
+  const pair=await runSnoDifferential(
+    source,'sno-native-named-source-parity-acceptance','obfs-sno-storage-accept-'
+  );
+  assert.equal(pair.native.value,71);
+  assert.equal(pair.emitted.value,71);
+  assert.equal(pair.native.independent,13);
+  assert.equal(pair.emitted.independent,13);
+  assert.ok(pair.native.stored?.includes('privateLocal'));
+  assert.ok(pair.bindings>=1,'unrelated identifier protection must remain active');
+  assert.ok(!pair.protectedCode.includes('independentLocal'),
+    'independent helper must still gain identifier-obfuscation yield');
+  assert.equal(pair.emitted.stored,pair.native.stored,
+    'native named-property setter must preserve exact callable source bytes');
+});

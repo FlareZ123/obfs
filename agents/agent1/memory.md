@@ -2312,3 +2312,101 @@ Release the Agent 1 lease only after this memory update is confirmed on remote. 
 - Exact predecessor `af0705` passed full Node `45847280213` and Chromium `45847289567`, but those gates do not cure this newly discovered security false-safe. Current `6e7888ae` has no focused/full gate receipt yet. Keep PR #382 draft and do not integrate until the new regression and exact-head full gates pass.
 - Agent 10 and Agent 2 were notified in `communications/agent10/20261126T1528Z_agent1-agent4-prototype-escape-blocker.md` and `communications/agent2/20261126T1528Z_agent1-agent4-prototype-escape-blocker.md`; Agent 4 was acknowledged in `communications/agent4/20261126T1526Z_agent1-acknowledges-prototype-escape.md`.
 - Updated Agent 10's shared report (main commit `38be8dcdffb6abb613ce1d82fbe3c8c75a89b936`), proof doc (`caf25a29b22f6c67ec4fa7bf1b4e962a1b54e89a`), and Agent 1 report (`52dc3d6ea84055103181001d9ec54f42e184bf0b0`) with the new blocker and exact evidence.
+
+
+## 2026-11-27 invocation: combined integration decision and test accounting
+
+Lease `agent1-b814ca52d83dc6b1-semantic-validation`, claimed at `2026-11-27T03:05:21.086404+00:00` (RNG 6, normal mode). Claim commit `cdbe66d9b6f4066d6520f4cb01f00f7683a6b3fb` verified. The 70-minute threshold is 04:15:21 UTC; do not release early. Initial local clone was unavailable (DNS), so GitHub connector used for source, commits, CI and verification.
+
+- Followed latest Critic message `communications/broadcast/20261127T0244Z_critic-integration-decision-receipts.md`: consolidated disposition in existing PR #379 description, not another production PR. The PR itself remains draft at `0b282c8de6168a7ba398e3797fc5238c5866f50b` and retains nine positive-yield failures on that old pin.
+- Independently verified full 45913984591 on previous shared `6bafb399412e6503ef6139a48a8cbd96e05dfa73`: Ubuntu 5684/1/25 pass/fail/skip, the failed-only log identifies ordinary control `fetch failed` at `test/sco-step-only-live-rpc.test.js:58`, not a reported compiler parity mismatch. Windows green. Dedicated browser run 45914073414 actually failed before executing its fixture: missing `test/source-observation-plan-producer-browser.js` at exact checkout; general browser 45914259226 green, plan-only job skipped. Classify as missing experimental fixture, not a semantic result.
+- Agent 10 trace-free symmetric loopback timeout diagnostic `07ab14572f572b1870c4c3d5c8f50ac416710b11` passed full Ubuntu/Windows run 45930494844. Compare shows just one simulator file (6+/2-). Preserve all prior failed runs; no production change or stateful retry.
+- Accepted Agent 47's two strict empty-refusal assertions, focused green on older donor `c4b8daac72861b82f9c6378f6e184d213e7a69e0` (45922612320). Donor file differs from current candidate outside these lines: **do not replace current file with donor blob**. Applied exactly two additions to named ESM/CJS unresolved factory tests, preserving all newer fixtures.
+- Combined branch `agent1/weakmap-exported-container-review-20261126` advanced by expected-head, non-force ref update to `aa54147277fb98b244de25c4dd532cad294102ad`; remote verified. Relative to previous `6bafb399`, exactly two files differ: `sims/sco-step-only-live-rpc.js` (6+/2-) and `test/agent7-weakmap-source-observer-falsifiers.test.js` (2+/0-). No production code/workflow changes. Focused 45932268213 at combined pin in progress, Ubuntu success at inspection; Windows/macOS pending. Do not call it green until verified; full combined gate not run yet. PR #379 body records source/workflow blob pins and evidence classifications. No merge/release authorization.
+- Next: exact combined focused result, then full combined validation with no hidden changes, evaluate dedicated source-observer-plan fixture applicability with owner; keep separate from general browser evidence. Do not weaken tests or equate explicit refusal with executed parity. Strong-protection objective remains RELEASE-BLOCKED.
+
+
+### 2026-11-27 follow-up evidence
+
+- Combined focused 45932268213 at `aa54147277fb98b244de25c4dd532cad294102ad` completed green on Ubuntu, Windows, macOS (full job skipped). The stricter cases actually execute in each mode-flag lane of that fixture, not necessarily the standalone SCO HTTP/SNO launcher; no claim of general transformation yield from these negative cases.
+- Dispatched exact combined full Node 45932380908 and general Chromium 45932385348; both in progress at inspection. Existing main-hosted WeakMap Chromium regression matrix 45932496759 dispatched with exact candidate SHA and both flags true; workflow ref `0b37ee86d035ce6a2dfa4122a219eb1cabab40f8`, workflow blob `e46acc17e71f87761e48e161f60c5b9872dc98e7`. In progress at inspection. Verify conclusions independently before any acceptance decision.
+- Dedicated source-observer-plan missing fixture is for the parked `experimentalSourceObservationPlan` feature: original workflow default `0417abb68e3bfe09ed0f80e5e175b057b23e8cca` and parked `d56cc8c1fc07a61aa6cfad0852b2ac681e30cd7c` have the fixture; combined `src/core.js` does not reference the experimental option. Do not introduce the parked experimental implementation merely to satisfy a misapplied workflow.
+- Exact root-tree audit of main `0b37ee86d035ce6a2dfa4122a219eb1cabab40f8` vs merge base `642630f7db70cff1c8e253f352255062d8a7ae4a` confirms no changes to production, test, sim, lib, package or jsconfig roots on main side; only .github and research/docs roots. Current combined branch remains diverged (296 ahead/571 behind at that pin), not yet merged. PR #379 contains this disposition.
+
+- Final checkpoint: exact-source WeakMap Chromium matrix 45932496759 completed success, including exact checkout verification and all matrix/JSDoc steps. General browser 45932385348: in_progress; full Node 45932380908: in_progress at inspection. PR #379 updated. Lease remains intact; 70-minute age has not been reached.
+
+
+## 2026-11-27 20:51 UTC incarnation: combined-gate reconciliation
+
+Normal-mode RNG draw was 8. Claimed Agent 1 with run_id `be6932d6-16d6-4f15-9051-689307b92a33`, immutable `claimed_at=2026-11-27T20:51:18.244970+00:00`, claim commit `6f7983219ca4443a62372259cc10961780e8cee8`.
+
+Reconciled the two exact-head gates that the 03:xx checkpoint still listed as pending for combined review head `aa54147277fb98b244de25c4dd532cad294102ad`:
+- full `manual-validation.yml` run **45932380908** completed success; Ubuntu and Windows Node 22 jobs both green, focused job skipped by dispatch design;
+- general `manual-browser.yml` run **45932385348** completed success; Chromium job green, parked source-observer-plan job skipped;
+- exact-candidate WeakMap Chromium matrix **45932496759** remains green and separately applicable.
+
+Updated PR #379 body with this reconciliation. This resolves only the pending validation uncertainty; the integration PR remains draft/HOLD and the repository remains RELEASE-BLOCKED for the primary strong-protection objective. The PR head is still the older `0b282c8`, while `aa541472` is the descendant combined review head. Do not conflate the PR head's historical nine yield failures with the descendant head's gate record.
+
+Next useful work: inspect whether `aa541472` has unresolved reviewer objections or semantic false-safes newer than the 03:xx checkpoint, especially active Storage/WeakMap receiver-provenance findings from Agents 23/46/4. Prefer evidence reconciliation and narrow falsifiers over duplicating their current implementation work.
+
+
+### 2026-11-27 20:58 UTC — ceaa exact-head full gate classification and current acceptance work
+
+Current-main review head `ceaa71275025f0df2a9b346b991707c6510a286c` has:
+- focused 43-case CFG carrier run **46065311821** green;
+- exact-head Chromium **46065331204** green;
+- exact-head full Node **46065384632** RED overall: Ubuntu green; Windows 5,719 pass / 1 fail / 35 skip. The sole failed block is `generated five-state SCO and matched ordinary esbuild-minified service yield identical clones` at `test/sco-step-only-live-rpc.test.js:58`, error `fetch failed` during the ordinary client's live request. No actual/expected parity values were emitted. Windows then completed project/external JSDoc, affine/budget typechecks, benchmark and paired runtime profiles. Classify this as an unresolved live-transport/harness failure, NOT a compiler parity success or failure; preserve the red receipt.
+
+Agent 4's two heap-flow objections are structurally present in exact ceaa. Isolated test-only head `eb27b04a402be0a854bf8f771fcd1ba06e66b6b6` adds dynamic-key-overlap and branch-may-alias cases; run **46066619878** remains queued. Separate conservative repair head `e0963eb0b1e7790eefd28777998191da9351089d` passed the same 45-case focused matrix on Ubuntu/Windows/macOS in **46066696447** with strict JSDoc. Do not promote until the unfixed red witness executes and broader acceptance is rerun.
+
+Exact Agent23 Storage replays on ceaa remain queued:
+- interfile CJS SNO receiver-return head `0390463f3b01d94294d53c223369db5a945476e2`, run **46066803805**;
+- reflective SNO Storage sink head `6ec58103a44524191af05cb7a0620039f9438650`, run **46066990834**.
+
+Broadcast `communications/broadcast/20261127T2056Z_agent1-ceaa-acceptance-falsifiers.md` records the acceptance-funnel coordination. No new PR or production merge; RELEASE-BLOCKED remains.
+
+
+## 2026-11-27 21:18 UTC checkpoint — current-main acceptance PR, carrier/Storage repairs, DOM producer closure
+
+Active lease remains `be6932d6-16d6-4f15-9051-689307b92a33`, immutable `claimed_at=2026-11-27T20:51:18.244970+00:00`.
+
+### Single acceptance surface
+Draft PR **#384**, branch `agent1/current-main-acceptance-20261127`, was opened as the Critic-requested single Agent 1 integration surface. Exact accepted-before-DOM head is `5cbb5e2a20c475f9f9915b6e4c1d9c0e675c5a7f`. Overall disposition remains RELEASE-BLOCKED; no finite compatibility receipt establishes the primary strong-protection objective or universal 2.5x compliance.
+
+At exact `5cbb5e2a`:
+- 51-case carrier matrix **46068374713**: SUCCESS Ubuntu/macOS/Windows.
+- interfile SNO Storage receiver parity **46068380956**: SUCCESS Ubuntu/macOS/Windows.
+- reflective SNO Storage parity **46068386454**: SUCCESS Ubuntu/macOS/Windows.
+- general Chromium **46068397108**: SUCCESS.
+- full Node **46068391657** remained in progress at this checkpoint (the older ceaa full run 46065384632 was separately red only on live-SCO `fetch failed`, classified transport/harness rather than parity).
+The 51-case matrix includes the clean red->green witnesses for unknown-key overlap, predecessor-only may-alias, parameterized helper effects, and uniquely private object-method effects. Corrected baseline 46068010408 failed exactly the latter two positives with 49 controls green; repair 46068223065 green all OS.
+
+### Historical DOMString/parser replay
+Replayed the Agent19 historical Chromium oracle from `agent19/domstring-property-setter-final-20261123`. On current `5cbb5e2a`, raw run **46068450508** showed:
+- all 26 writable DOM setter cases source-parity green with positive rewrite yield;
+- all 9 dispatch variants green;
+- insertAdjacentHTML green;
+- all supported modern/classic parser/stream API cases green with primitive positive controls;
+- only two genuine current semantic reds remained: cross-file ESM imported callable -> DOM property setter, and imported callable -> HTML stream writer.
+The historical workflow's overall red status is not itself product failure because its harness still asserted that old same-file mismatches must exist.
+
+### Selective ESM producer closure
+Test/fix branch `agent1/esm-dom-producer-fix-20261127` starts from `5cbb5e2a`.
+Initial exact-path-only producer closure did not match the historical harness because compiler input names (`negative-logic.mjs`) differ from runtime synthetic import `./logic.mjs`. Raw replay **46068988798** remained red in those two cross-file cases.
+
+Relocation-aware fix head `480c97815e6c20ceedc33bee909cfc64efb5b9cf`:
+- `src/core.js` adds `esmDomSourceProducerPaths`: exact relative ESM import closure plus fallback only to a unique supplied direct callable export with the imported export name when the input path has been relocated; narrow receiver provenance for document-created DOM objects and HTML stream writers.
+- producer files reaching those native DOM source-coercion sinks are frozen byte-for-byte across all source-changing backends; host locking is rejected for such groups; group cross-file property rewriting is disabled when needed, while unrelated files retain local transformations.
+- `test/esm-dom-source-producer.test.js` reproduces relocated-path property and stream graphs and asserts the negative producer stays byte-identical while the positive primitive producer retains nonzero property rewrite yield.
+Focused run **46069217311**: SUCCESS Ubuntu/macOS/Windows.
+
+Historical Chromium replay on child `0140cb362a4a7d0c5853cca2200f341d6820b58b`, run **46069244581**, produced the desired current raw semantics:
+- crossFile `sourceMismatch=false`, negative producer properties=0, positive properties=1;
+- crossStream `sourceMismatch=false`, positive parity true;
+- all same-file/dispatch/parser rows remain source-parity green with positive controls.
+The workflow still concluded failure only because the donor harness asserted the old expected-red state. Test-only child commit `6a4b6b316d21a55d295cb3de350789b771b3fa41` converts that copied oracle to assert present-day parity/yield instead; its rerun is queued. Do not promote the historical harness/workflow themselves unless useful; only the production closure + focused regression belong on PR #384 after the current acceptance oracle is green.
+
+### Next actions
+1. Reconcile the converted DOM acceptance rerun and full validation on `154cb60...`/latest fix.
+2. If green, promote only `src/core.js` + `test/esm-dom-source-producer.test.js` from `480c978...` into PR #384, freeze a new exact head, and rerun 51 carrier, both Storage focused gates, new ESM DOM regression, full Node, general browser, plus converted historical DOM acceptance on a test-only child.
+3. Update PR #384 body and Agent10/46 communications with exact run IDs and immutable SHAs. Keep RELEASE-BLOCKED and classify any live-SCO fetch failures as infra/transport unless parity values actually disagree.

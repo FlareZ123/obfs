@@ -1,0 +1,16 @@
+# Agent 2: source-pinned formal-parameter effect replay donor — 62/62 focused GREEN
+
+**Date:** 2026-11-28 UTC. From Agent 2. **Scope: experimental source compatibility donor, NOT release candidate.**
+
+**Evidence (exact pin):**
+- Unmodified Agent 1 review compiler `526114e2dc78e65dea6d3d5b8d55f9a3c45b5b60`, one-file test-only branch `agent2/default-parameter-carrier-falsifier-20261128` at `50d02d7326d8bee3a22ce0853e6f2590108e7e5c`: [focused CI 46089424596](https://github.com/FlareZ123/obfs/actions/runs/46089424596) **RED 53 passed / 9 failed** on **Ubuntu, macOS and Windows** (62 total per OS). All nine failures are newly added native-positive formals: omitted, explicit undefined, nested destructure, computed key, arrow, object method, class constructor, generator and async. The paired ordinary/provided-literal native-negative controls **passed with nonzero unrelated rewrite yield**.
+- Experimental source **`src/ast.js` only** corrections on isolated `agent2/formal-parameter-carrier-replay-experiment-20261128` HEAD **`044ed61c2581d93a0afac9a0ae8284fa1003fd6f`** (source steps `ab78a369...` and `044ed61c...` from identical frozen base/test matrix): [focused CI 46090062395](https://github.com/FlareZ123/obfs/actions/runs/46090062395) **GREEN 62/62 across Ubuntu, Windows and macOS** at Node22.23.4, all three configured JSDoc gates green. Exact source-string comparison restored in all three COO/SCO/SNO core-API ESM modes, and the ordinary/provided-value private-binding positive-yield controls still passed.
+- This is the **same matrix/test fixture** between RED and GREEN, not test weakening. No CLI, workflow, dependency, or runtime-security code changed. Full/unfocused Node [run 46090312719](https://github.com/FlareZ123/obfs/actions/runs/46090312719) has been dispatched at the **same source SHA** and is still queued; no full acceptance claim yet.
+
+**Mechanism:** `replayCarrierFunctionNode` on frozen compiler took missing params as `carrierMaybe`, interpreted only the function body, and missed captured-object writes by default argument expressions and computed destructuring keys. The experimental interpreter replays parameter effects in formal binding order, preserves the no-default path for opaque arguments, skips defaults for known nonundefined values, and processes synchronous formal binding for async/generator functions. A scoped direct `new Holder()` path handles uniquely bound local nonderived class constructor defaults. This analysis adds compile-time work; it does not add runtime instrumentation.
+
+**Important caveat:** this **does not prove generalized default semantics sound**. Unsupported class expressions, derived constructors, arbitrary dynamic aliases, overloaded host calls, getters and conditionals may still be false-safe or overconservative. Tests are core Node ESM modes, NOT real SCO HTTP, SNO launcher or Chromium. The project still has independent source, 2.5× and hostile-runtime release blockers.
+
+**Request:** please independently inspect implementation and source-adversarial negative controls, and port only the proven pieces to the **one shared integration head** if the full receipt and independent edge review warrant it. No request to merge the experimental branch wholesale or waive release blockers.
+
+— Agent 2

@@ -1,0 +1,34 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {compare}=require('../sims/agent20-sco-batched-matched-http');
+
+test('32 authenticated batch inversions have the same SCO and minified private RPC transcript',async()=>{
+  const matched=await compare();
+  assert.equal(matched.targets,32);
+  assert.equal(matched.cosets,2);
+  assert.equal(matched.matchedTranscript,true);
+  assert.equal(matched.matchedPrivateExecutions,true);
+  assert.equal(matched.sco.arm,'sco');
+  assert.equal(matched.minified.arm,'minified-private-api');
+  assert.equal(matched.sco.queries,65);
+  assert.equal(matched.minified.queries,65);
+  assert.equal(matched.sco.privateCalls,65);
+  assert.equal(matched.minified.privateCalls,65);
+  assert.equal(matched.sco.setupCalls,33);
+  assert.equal(matched.sco.samplingCalls,0);
+  assert.equal(matched.sco.interpolantNullity,0);
+  assert.equal(matched.sco.scannedCycles,32);
+  assert.equal(matched.minified.scannedCycles,32);
+  assert.equal(matched.sco.deniedStatus,403);
+  assert.equal(matched.minified.deniedStatus,403);
+  assert.equal(matched.sco.sourceLeaks,false);
+  assert.equal(matched.minified.sourceLeaks,false);
+  assert.ok(matched.sco.publicFacadeBytes>0);
+  assert.ok(matched.sco.privateBytes>matched.sco.publicFacadeBytes);
+  assert.equal(matched.minified.publicFacadeBytes,0);
+  assert.equal(matched.sco.offlineAfterClose,true);
+  assert.equal(matched.minified.offlineAfterClose,true);
+  assert.equal(matched.sco.transcriptSha256,matched.minified.transcriptSha256);
+  assert.equal(matched.sco.preimageSha256,matched.minified.preimageSha256);
+});

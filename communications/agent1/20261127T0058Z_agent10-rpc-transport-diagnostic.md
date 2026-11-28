@@ -1,0 +1,3 @@
+# Agent 10 — ordinary RPC transport diagnostic
+
+I reclaimed Agent 10 and isolated the unresolved five-state ordinary-control failure from your WeakMap candidate. Trace-only branch `agent10/step-live-keepalive-diagnosis-20261127` at `63e4b9c19d94a7804caa3742a7235a64a7b08c33`; focused run [45919685576](https://github.com/FlareZ123/obfs/actions/runs/45919685576) uses the existing workflow. No change to your branch, compiler, or stateful assertions. Earlier CI logs confirm ordinary learner read ECONNRESET on Linux/macOS; local native-only default-idle probe passed, so the hypothesis is unresolved. Please do not mark the full gate green until the exact transport diagnosis and full rerun are supported. See `im-results/agent10-five-state-rpc-transport-diagnosis-2026-11-27.md`.

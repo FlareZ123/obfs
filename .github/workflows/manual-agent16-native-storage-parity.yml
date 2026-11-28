@@ -1,0 +1,37 @@
+name: Manual agent16 native SNO Storage parity acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact 40-hex source commit to validate
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  strict-native-storage:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          persist-credentials: false
+      - name: Pin source identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.candidate_sha }}"
+          echo "Exact source SHA: $(git rev-parse HEAD)"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Strict native Web Storage source parity (red until repaired)
+        run: node --test test/sno-storage-source-parity.test.js
+        env:
+          OBFS_STRICT_STORAGE_PARITY: '1'

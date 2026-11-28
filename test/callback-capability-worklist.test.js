@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {CapabilityFlowGraph}=require('../sims/callback-capability-worklist');
+const {CapabilityFlowGraph,FACTS}=require('../sims/callback-capability-worklist');
 
 test('ESM callback scheduling and Promise return retain one source-to-sink witness',()=>{
   const g=new CapabilityFlowGraph();
@@ -13,6 +13,7 @@ test('ESM callback scheduling and Promise return retain one source-to-sink witne
   g.addEdge('entry.mjs::callback','entry.mjs::Promise.then','callback-schedule');
   g.addEdge('entry.mjs::Promise.then','entry.mjs::await','promise-fulfillment');
   g.addEdge('entry.mjs::await','entry.mjs::dynamic-import','opaque-call');
+  g.addNode('entry.mjs::unrelated');
   const stats=g.solve();
   assert.equal(stats.facts,7);
   assert.equal(g.has('entry.mjs::dynamic-import','host-callable'),true);
@@ -58,6 +59,7 @@ test('newly added ESM edge is recomputed without stale false negatives',()=>{
   const g=new CapabilityFlowGraph();
   g.seed('a','returned-holder');
   g.addEdge('a','b','return');
+  g.addNode('c');
   let stats=g.solve();
   assert.equal(stats.facts,2);
   assert.equal(g.has('c','returned-holder'),false);
@@ -94,4 +96,88 @@ test('invalid contracts and explicit caps throw, never authorize a rename',()=>{
   g.addEdge('y','z','other');
   assert.throws(()=>g.solve({maxSteps:1}),RangeError);
   assert.equal(g.solve({maxSteps:2}).facts,3);
+});
+
+
+test('unsolved and mutated graph queries fail closed, rather than returning false negatives',()=>{
+  const g=new CapabilityFlowGraph();
+  assert.throws(()=>g.has('unseen','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('unseen','host-callable'),/solve\(\) did not complete/);
+  g.seed('origin','host-callable');
+  g.addNode('sink');
+  g.solve();
+  assert.equal(g.has('sink','host-callable'),false);
+  g.addEdge('origin','sink','assignment');
+  assert.throws(()=>g.has('sink','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('sink','host-callable'),/solve\(\) did not complete/);
+  g.solve();
+  assert.equal(g.has('sink','host-callable'),true);
+  g.seed('origin','owner-reflection');
+  assert.throws(()=>g.has('sink','owner-reflection'),/solve\(\) did not complete/);
+  g.solve();
+  assert.equal(g.has('sink','owner-reflection'),true);
+});
+
+test('bounded solve failures never authorize stale or partial negative reachability',()=>{
+  const g=new CapabilityFlowGraph();
+  g.seed('a','host-callable');
+  g.addEdge('a','b','return');
+  g.addEdge('b','c','assignment');
+  assert.equal(g.solve().facts,3);
+  assert.equal(g.has('c','host-callable'),true);
+  assert.throws(()=>g.solve({maxSteps:1}),/step limit exceeded/);
+  assert.throws(()=>g.has('c','host-callable'),/solve\(\) did not complete/);
+  assert.throws(()=>g.explain('c','host-callable'),/solve\(\) did not complete/);
+  assert.equal(g.solve({maxSteps:2}).facts,3);
+  assert.equal(g.has('c','host-callable'),true);
+});
+
+test('new isolated graph node invalidates solution, repeated solve is deterministic',()=>{
+  const g=new CapabilityFlowGraph();
+  g.seed('root','opaque-host');
+  const before=g.solve();
+  g.addNode('isolated');
+  assert.throws(()=>g.has('isolated','opaque-host'),/solve\(\) did not complete/);
+  const after=g.solve();
+  assert.equal(after.nodes,before.nodes+1);
+  assert.equal(g.has('isolated','opaque-host'),false);
+  assert.deepEqual(g.solve(),after);
+});
+
+test('unknown graph nodes and invalid fact queries cannot silently return safe',()=>{
+  const g=new CapabilityFlowGraph();
+  g.addNode('modeled-but-unreached');
+  g.solve();
+  assert.equal(g.has('modeled-but-unreached','host-callable'),false);
+  assert.throws(()=>g.has('misspelled-node','host-callable'),ReferenceError);
+  assert.throws(()=>g.explain('misspelled-node','host-callable'),ReferenceError);
+  assert.throws(()=>g.has('modeled-but-unreached',/** @type {any} */ ('host-callble')),TypeError);
+  assert.throws(()=>g.explain('modeled-but-unreached',/** @type {any} */ ('unrecognized')),TypeError);
+});
+
+test('external graph shadows, witnesses and exported facts cannot mutate proof state',()=>{
+  const g=new CapabilityFlowGraph();
+  g.seed('seed','host-callable');
+  g.addEdge('seed','sink','assignment');
+  g.solve();
+  const witness=g.explain('sink','host-callable');
+  assert.ok(witness&&witness[1]?.via);
+  witness[1].via.to='injected-target';
+  assert.deepEqual(g.explain('sink','host-callable').map(step=>step.at),['seed','sink']);
+  const external=/** @type {any} */(g);
+  external.edges=new Map();
+  external.initial=new Map();
+  external.reached=new Map();
+  external.predecessors=new Map();
+  external.solutionValid=true;
+  assert.equal(g.has('sink','host-callable'),true);
+  g.addEdge('sink','after','return');
+  assert.throws(()=>g.has('after','host-callable'),/solve\(\) did not complete/);
+  g.solve();
+  assert.equal(g.has('after','host-callable'),true);
+  assert.deepEqual(g.explain('sink','host-callable').map(step=>step.at),['seed','sink']);
+  try {
+    FACTS.add(/** @type {any} */('invalid-user-fact'));
+    assert.throws(()=>g.seed('root',/** @type {any} */('invalid-user-fact')),TypeError);
+  } finally {FACTS.delete(/** @type {any} */('invalid-user-fact'));}
 });

@@ -115,3 +115,22 @@ The PR-head workflow [45818326478](https://github.com/FlareZ123/obfs/actions/run
 The live version-space audit selected two ambiguous five-state traces. For both, candidate sizes 1–4 were UNSAT and size 5 timed out; both final statuses were UNKNOWN. The solver reported 4,529 and 4,419 trace-separation constraints. Thus smaller alternatives were excluded for these two cases, but five-state alternatives remain undecided.
 
 The independent exhaustive script enumerated every labelled complete deterministic binary Mealy machine of sizes 1–2 for the two-state regression fixture and sizes 1–3 for the three-state fixture. It found respectively `{1: 0, 2: 9}` and `{1: 0, 2: 0, 3: 622}` minimal strongly connected, trace-consistent machines with future divergence. The Z3 unit tests independently found the expected k=2 and k=3 witnesses, with lower candidate sizes UNSAT. This validates those concrete small cases only, not the general SMT encoding for arbitrary N.
+
+## Completed 36-target 16–24-state live version-space audit (run 45815986225)
+
+The previously pending [workflow 45815986225](https://github.com/FlareZ123/obfs/actions/runs/45815986225), exact source `719bb1f438e0b1645782d520f34f97dcae559d96`, completed **success**. The archived evidence is artifact `15118288275` (`agent2-live-hw-matched-control`; ZIP SHA-256 `8397e7209dc8a23a35210568a5930ad1bbca70dba03e82bdeb4d727c2d0fdbf9`, expiring 2027-02-24). I retrieved and inspected the complete JSON files on 2026-11-28, not merely the CI status.
+
+The live matched control completed **36/36** independently seeded 16–24-state targets, **36/36** matched SCO/ordinary pairs, **zero** errors or timeouts, **36/36** future-behavior clones in *each* arm and **28/36** exact initial-state clones in *each* arm. SCO and ordinary each made **129,790** SUL steps and **129,970** HTTP requests; the live benchmark took **98.8138 seconds** excluding the later Z3 audit. These are returned-hypothesis evaluation outcomes; the eight non-exact initial matches must not be silently reclassified.
+
+The separate selected live-trace full-version-space audit used Z3 `5.4.1.0`, four prioritized ambiguous cases and a **20,000 ms per-candidate-size** timeout. All four final statuses were **UNKNOWN** (zero SAT, zero final UNSAT, zero skipped), with details:
+
+| Hidden target states / fixture seed | Proved UNSAT candidate sizes | Timed-out candidate sizes | Audit wall time |
+| --- | --- | --- | --- |
+| 24 / `3493739885176087174` | 1 | 2–24 | 677.2542 s |
+| 24 / `4192016255979584362` | 1–6 | 7–24 | 420.9978 s |
+| 24 / `16373758958132047675` | 1–6 | 7–24 | 437.7379 s |
+| 23 / `17678319770404900897` | none | 1–23 | 893.8073 s |
+
+The solver's cumulative audit time was **2,429.7973 seconds**. Some small candidate counts were refuted, but **no audit ruled out a future-divergent candidate at the target-size bound**. Thus the observed returned-hypothesis success remains a scoped cloning result, not a proof of complete version-space uniqueness; the long-trace Z3 scaling is an evidence-quality limitation. This test source predates the subsequent broader local-interface listener scanner, although its learner, random fixture generator, and evaluator logic are unchanged.
+
+The experiment does not test arbitrary JavaScript, anti-LLM resistance, captured script source reconstruction, browser execution, or original-local-JavaScript runtime cost under the strict 2.5× limit. No production protection advance or release decision follows.

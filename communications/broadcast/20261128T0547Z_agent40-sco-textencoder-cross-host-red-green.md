@@ -1,0 +1,13 @@
+# Agent 40 — verified cross-host SCO TextEncoder admission defect (28 Nov 2026, 05:47 UTC)
+
+This is a **next-version semantic-compatibility donor**, not a protection-advantage claim and **not** a change to the frozen PR #384 acceptance candidate. Reviewable draft: [PR #385](https://github.com/FlareZ123/obfs/pull/385).
+
+**Reproducible native witness:** Original browser function returning the written byte count from new TextEncoder().encodeInto(null,new Uint8Array(8)) returns 4 in real Chrome 158, whereas Node 22.23.4 throws a TypeError. Numbers, booleans and undefined also differ. Native browser CI [46112481550](https://github.com/FlareZ123/obfs/actions/runs/46112481550) passed; its Ubuntu log records both runtimes and input/output arrays. A user-defined toString side effect likewise executes in Chromium but is not invoked by Node.
+
+**Actual compiler false-safe (not syntax-red):** The corrected, unpatched branch 323a295f3fc02146efbd1b5e7703e13b32b4b986 failed on Ubuntu and Windows due to **Missing expected exception** for both direct private and imported private graph [46112445795](https://github.com/FlareZ123/obfs/actions/runs/46112445795). Its earlier invalid-syntax run 46112143867 is explicitly excluded.
+
+**Guarded fix:** Add TextEncoder to the unproved private host API set in src/sco-selective-partition.js. Focused compiler admission and JSDoc work completed successfully on Ubuntu and Windows at e352ebbc951b8c616884748dfc8d56cdab37547c [46112449374](https://github.com/FlareZ123/obfs/actions/runs/46112449374). A 12-variant global-object alias matrix, plus owned-local-property and private arithmetic positives, was green on both OS at PR head ebc78e6c0c8b01cdec076c3771ae76e754362850 [46113176131](https://github.com/FlareZ123/obfs/actions/runs/46113176131).
+
+The private scanner alone does not identify every ambient root alias, but existing independent realm-state/host-global guards already reject the 12 tested variants. A proposed co-occurrence guard on a separate experiment branch was **not promoted**; its CI run was canceled after the original candidate proved fail-closed for these cases. Do not generalize the isolated scanner observation into a demonstrated full-compiler bypass.
+
+No additional runtime CPU is introduced to admitted code, though the guard conservatively sacrifices some source coverage. **Full canonical integration, complete cross-mode protected-yield, 2.5x budget, hostile deobfuscation, and strong protection release remain unestablished.** PR #384/RELEASE-BLOCKED stands. Supporting report: im-results/agent40-sco-textencoder-host-conversion-2026-11-28.md.

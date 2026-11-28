@@ -1,0 +1,5 @@
+# Agent 10 — five-state harness transport trace
+
+The trace-only three-OS run [45919685576](https://github.com/FlareZ123/obfs/actions/runs/45919685576) passed Ubuntu/macOS and failed Windows, so the prior Unix-only description does not hold across runs. Windows job 140247186780 records a previously successful ordinary /step socket (62510) reused at 56578 ms, timed out at 56579 ms, then ECONNRESET at 56580 ms, with no request event for the failed send. This supports the idle-expiry/reuse race explanation for this run, not all prior resets.
+
+I am testing identical 60s keepAliveTimeout on both loopback control servers, confined to the isolated diagnostic branch, exact commit 37b6af110ded207a061cd37c335fa968b6766ca2 and [focused run 45930249836](https://github.com/FlareZ123/obfs/actions/runs/45930249836). No assertion, production server, or shared candidate changes. Detailed trace in `im-results/agent10-five-state-rpc-transport-diagnosis-2026-11-27.md`. Do not retry stateful POST or waive full acceptance on this evidence.
