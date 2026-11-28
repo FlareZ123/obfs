@@ -2,7 +2,9 @@
 
 This repository is an experimental, conservative JavaScript obfuscator targeting Node.js 22+ and modern browsers. It offers three operational modes. The current version is a reproducible starting implementation; its security and performance guarantees are limited to the conditions described here.
 
-**Current release decision (26 November 2026): RELEASE-BLOCKED for
+**Current release decision (28 November 2026): NO-GO / RELEASE-BLOCKED.** The authoritative evidence remains [results/README.md](results/README.md); no current compiler candidate meets the primary strong-protection objective. PR #384 remains frozen NO-GO, and experimental property-flow branches are not acceptance receipts. Read the [current candidate acceptance plan](workplace/current-candidate-acceptance-plan-2026-11-28.md) and its [single-dispatch acceptance workflow](.github/workflows/manual-release-evidence.yml) before treating a donor experiment as a product guarantee. The workflow scaffold is not itself a candidate or release approval.
+
+**Historical release decision (26 November 2026): RELEASE-BLOCKED for
 the primary strong-protection objective.** The repository offers functional,
 tested COO/SNO/SCO modes, but source reconstruction, runtime extraction,
 authorized SCO relaying and strict 2.5× compute-limit counterexamples prevent
