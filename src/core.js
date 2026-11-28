@@ -28,7 +28,7 @@ const {canonicalAllowedHosts}=require('./hosts');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalEntropyPropertyNames?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -1919,6 +1919,14 @@ function obfuscateFiles(files, options = {}) {
   const allowedHosts=suppliedHosts===undefined ? undefined :
     canonicalAllowedHosts(suppliedHosts);
   const seed = options.seed ?? randomBytes(24).toString('hex');
+  // Optional independent CSPRNG entropy for *property spellings only*. A
+  // public/reproducible build seed otherwise lets a dictionary attacker
+  // invert short hashed field names using emitted paths and ESM export names.
+  // Never publish this private seed in the output or the return metadata.
+  // The opt-in deliberately sacrifices identical rebuild bytes; it does not
+  // purport to protect the program against public-code functional cloning.
+  const privatePropertyEntropy=options.experimentalEntropyPropertyNames===true;
+  const propertySeed=privatePropertyEntropy?randomBytes(24).toString('hex'):seed;
   const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
   const prepared = files.map(file => {
@@ -2045,7 +2053,7 @@ function obfuscateFiles(files, options = {}) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+    renameCrossFileProperties(prepared,propertySeed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2088,6 +2096,8 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
+    const propertySalt=privatePropertyEntropy ?
+      createHash('sha256').update(`${propertySeed}/${filename}`).digest('hex') : salt;
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
@@ -2236,8 +2246,8 @@ function obfuscateFiles(files, options = {}) {
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
-        symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        symbolizeLocalProperties(code,ast,{seed:propertySalt}) :
+        renameLocalProperties(code,ast,{seed:propertySalt});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
