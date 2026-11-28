@@ -20,7 +20,7 @@ function ordinaryFacade(method){
     'headers:{"content-type":"application/json"},body:JSON.stringify({method:'+
       JSON.stringify(method)+',args:[...arguments]})});',
     'const result=await response.json();',
-    'if(!response.ok||result.ok!==true)throw Error("Remote operation failed");',
+    'if(!response.ok||!result||result.ok!==true)throw Error("Remote operation failed");',
     'return result.value;',
     '}'
   ].join('');
