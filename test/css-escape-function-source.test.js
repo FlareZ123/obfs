@@ -20,7 +20,10 @@ const observed=base+'module.exports=CSS.escape(f);';
 function observe(source){
   const module={exports:null};
   const context={module,WebAssembly,Uint8Array,Buffer,
-    CSS:{/** @param {unknown} value */ escape(value){return String(value);}}};
+    CSS:{
+      /** @param {unknown} value */
+      escape(value){return String(value);}
+    }};
   vm.runInNewContext(source,context,{timeout:4000});
   return module.exports;
 }
@@ -97,9 +100,9 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])){
       strings:false,identifiers:false,properties:false,
       experimentalWasmI32:{'entry.cjs':['f']}
     });
-    assert.match(emitted.files[0].code,/WebAssembly/,
+    assert.match(String(emitted.files[0].code),/WebAssembly/,
       'CSS.escape(primitive) must not force a vacuous unchanged selection');
-    assert.equal(JSON.stringify(observe(emitted.files[0].code)),
+    assert.equal(JSON.stringify(observe(String(emitted.files[0].code))),
       JSON.stringify(observe(source)));
   });
 }
