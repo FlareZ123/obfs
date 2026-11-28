@@ -12,7 +12,18 @@ const cases=[
   {label:'new Function',body:"return (new Function('return typeof process'))();"},
   {label:'indirect Function alias',
     body:"const F=Function;return F('return typeof process')();"},
-  {label:'direct eval',body:"return eval('typeof process');"}
+  {label:'direct eval',body:"return eval('typeof process');"},
+  {label:'globalThis Function',
+    body:"return globalThis.Function('return typeof process')();"},
+  {label:'globalThis eval',body:"return globalThis.eval('typeof process');"},
+  {label:'direct arrow inherited constructor',
+    body:"return (()=>0).constructor('return typeof process')();"},
+  {label:'object inherited constructor chain',
+    body:"return ({}).constructor.constructor('return typeof process')();"},
+  {label:'array inherited constructor chain',
+    body:"return [].constructor.constructor('return typeof process')();"},
+  {label:'named local arrow constructor',
+    body:"const local=()=>0;return local.constructor('return typeof process')();"}
 ];
 
 /** @param {string} body @returns {string} */
@@ -48,7 +59,8 @@ test('selected SCO can still admit stable direct local callable expressions',()=
   for(const body of [
     'return 7;',
     'return (function(){return 7;})();',
-    'const run=()=>7;return run();'
+    'const run=()=>7;return run();',
+    'const own={constructor:7};return own.constructor;'
   ])assert.deepEqual(compile(body).privateNames,['protectedOp'],body);
 });
 
