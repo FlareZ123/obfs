@@ -108,7 +108,11 @@ const cases=[
 ['weakmap-constructor-held-record','const holder={ctor:WeakMap};const C=holder.ctor;const carrier={instance:new C()};','carrier.instance'],
 ['weakmap-constructor-post-write','const holder={ctor:Object};holder.ctor=WeakMap;const carrier={instance:new holder.ctor()};','carrier.instance'],
 ['ordinary-constructor-local-record','class Ordinary{} const C=({ctor:Ordinary}).ctor;const carrier={instance:new C()};','carrier.instance'],
-['ordinary-constructor-local-array','class Ordinary{} const C=[Ordinary][0];const carrier={instance:new C()};','carrier.instance']
+['ordinary-constructor-local-array','class Ordinary{} const C=[Ordinary][0];const carrier={instance:new C()};','carrier.instance'],
+['weakmap-constructor-write-through-alias','const holder={ctor:Object};const alias=holder;alias.ctor=WeakMap;const carrier={instance:new holder.ctor()};','carrier.instance'],
+['weakmap-constructor-write-through-param','function install(target){target.ctor=WeakMap;}const holder={ctor:Object};install(holder);const carrier={instance:new holder.ctor()};','carrier.instance'],
+['weakmap-constructor-write-through-iife','const holder={ctor:Object};(function(target){target.ctor=WeakMap;})(holder);const carrier={instance:new holder.ctor()};','carrier.instance'],
+['ordinary-constructor-write-through-param','class Ordinary{}function install(target){target.ctor=Ordinary;}const holder={ctor:Object};install(holder);const carrier={instance:new holder.ctor()};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
