@@ -65,6 +65,44 @@ function carriesSharedLiteralObject(value,depth=0){
   }
 }
 
+/**
+ * A module-level constant is not automatically a constant VALUE. An
+ * unreviewed factory call, `new`, imported value, await or member read can
+ * allocate a retained object whose state is shared after SCO relocation.
+ * Permit only a bounded grammar with statically primitive operands here;
+ * arrow/function objects and provably nonescaping scalar tables are handled
+ * separately. This rule applies only when private source bytes were supplied.
+ *
+ * @param {import('./ast').AstNode|null|undefined} value
+ * @param {number} [depth]
+ * @returns {boolean}
+ */
+function provenPrimitiveInitializer(value,depth=0){
+  if(!value||depth>16)return false;
+  switch(value.type){
+    case 'Literal':
+      return value.regex===undefined;
+    case 'TemplateLiteral':
+      return value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
+    case 'UnaryExpression':
+      return ['+','-','!','~','void','typeof'].includes(value.operator)&&
+        provenPrimitiveInitializer(value.argument,depth+1);
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return provenPrimitiveInitializer(value.left,depth+1)&&
+        provenPrimitiveInitializer(value.right,depth+1);
+    case 'ConditionalExpression':
+      return provenPrimitiveInitializer(value.test,depth+1)&&
+        provenPrimitiveInitializer(value.consequent,depth+1)&&
+        provenPrimitiveInitializer(value.alternate,depth+1);
+    case 'SequenceExpression':
+      return value.expressions.length>0&&
+        value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
+    default:
+      return false;
+  }
+}
+
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
@@ -88,13 +126,19 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
         // RegExp object. These values (and their identity-preserving syntax
         // wrappers) may accumulate state across direct private calls.
         // Unknown dynamic initializers remain outside this bounded proof.
-        if(carriesSharedLiteralObject(item.init)&&
-           !(item.id.type==='Identifier'&&
+        if(!item.init||provenPrimitiveInitializer(item.init)||
+           item.init.type==='FunctionExpression'||
+           item.init.type==='ArrowFunctionExpression'||
+           item.id.type==='Identifier'&&
              statement.type!=='ExportNamedDeclaration'&&
-             isReadOnlyOwnedLiteral(ast,item.id.name,item.init))){
-          throw new TypeError(
-            'Selected SCO private dependency has unproved shared module object state: '+filename);
+             isReadOnlyOwnedLiteral(ast,item.id.name,item.init)){
+          continue;
         }
+        const reason=carriesSharedLiteralObject(item.init)?
+          'unproved shared module object state':
+          'unproved module initializer state';
+        throw new TypeError(
+          'Selected SCO private dependency has '+reason+': '+filename);
       }
     }
     if((declaration.type==='FunctionDeclaration'||
