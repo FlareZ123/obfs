@@ -33,6 +33,9 @@ function loadCases(filename) {
   assert.ok(first>=0&&last>first,'expected trusted literal const cases=[...] matrix');
   const data=vm.runInNewContext(source.slice(first,last)+'\n cases;',{}, {timeout:2000});
   assert.ok(Array.isArray(data));
+  assert.ok(data.every(row=>Array.isArray(row)&&row.length===3&&
+    typeof row[0]==='string'&&typeof row[1]==='string'&&typeof row[2]==='string'),
+    'each matrix row must be a complete name/setup/access tuple');
   return data.map(row=>[row[0],row[1],row[2]]);
 }
 const STORAGE=[
