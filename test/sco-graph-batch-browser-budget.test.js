@@ -10,18 +10,22 @@ const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const {transformSync}=require('esbuild');
 const {partitionScoAsyncGraph}=require('../src');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 const secretCode='export const seed=0x9e3779b9;';
-const apiCode=[
+/** @param {number} rounds @returns {string} */
+function sourceForRounds(rounds){
+  return [
   "import {seed} from './secret.mjs';",
   'export async function compute(text){',
   '  let state=seed;',
-  '  for(let i=0;i<250000;i++){',
+  '  for(let i=0;i<'+String(rounds)+';i++){',
   '    state=(Math.imul(state^(text.charCodeAt(i%text.length)+i),1664525)+1013904223)|0;',
   '  }',
   '  return state>>>0;',
   '}'
 ].join('\n');
+}
 
 /** @returns {string} */
 function chromeBinary(){
@@ -65,13 +69,15 @@ function ordinarySource(method,batchMethod){
  * solely for a legitimate unprotected native comparison. This benchmark
  * cannot certify SCO source secrecy or anti-relay protection.
  */
-test('real Chromium paired browser/server compute and hot wall-time for SCO graph batching',async()=>{
+for(const rounds of [250000,5000000]){
+test('real Chromium native/generated/ordinary SCO graph batch: '+rounds+' rounds',async()=>{
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-graph-browser-cdp-'));
   /** @type {import('node:child_process').ChildProcess|undefined} */
   let child;
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
   try{
+    const apiCode=sourceForRounds(rounds);
     await fs.writeFile(path.join(temp,'secret.mjs'),secretCode);
     await fs.writeFile(path.join(temp,'api.mjs'),apiCode);
     const original=await import(pathToFileURL(path.join(temp,'api.mjs')).href);
@@ -86,7 +92,7 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     if(!partition.batchMethod)throw Error('Missing batch method');
     const minified=ordinarySource(partition.methodNames.compute,partition.batchMethod);
     /** @type {string[][]} */
-    const inputs=Array.from({length:6},(_,trial)=>
+    const inputs=Array.from({length:9},(_,trial)=>
       Array.from({length:8},(_,index)=>
         'abcdef0123456789'+String(trial).padStart(2,'0')+String(index).padStart(2,'0')));
     /** @type {number[][]} */
@@ -197,7 +203,7 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     const serverCpuMs={native:[],generated:[],ordinary:[]};
     /** @type {Record<'native'|'generated'|'ordinary',number[]>} */
     const combinedCpuMs={native:[],generated:[],ordinary:[]};
-    for(let trial=0;trial<6;trial++){
+    for(let trial=0;trial<9;trial++){
       const order=trial%2===0?arms:[...arms].reverse();
       for(const name of order){
         const beforeTask=taskDuration(await cdp.send('Performance.getMetrics'));
@@ -230,11 +236,17 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
       wallOverNative:wallMs.generated[index]/wallMs.native[index],
       ordinaryWallOverNative:wallMs.ordinary[index]/wallMs.native[index]
     }));
-    assert.equal(ratios.length,6);
+    assert.equal(ratios.length,9);
+    const cpuBudget=pairedBudgetBound(combinedCpuMs.native,combinedCpuMs.generated);
+    const wallBudget=pairedBudgetBound(wallMs.native,wallMs.generated);
+    const ordinaryCpuBudget=pairedBudgetBound(combinedCpuMs.native,combinedCpuMs.ordinary);
+    const ordinaryWallBudget=pairedBudgetBound(wallMs.native,wallMs.ordinary);
+    const serverCpuQuantized=serverCpuMs.generated.some(ms=>ms===0)||
+      serverCpuMs.ordinary.some(ms=>ms===0);
     console.log(JSON.stringify({
       experiment:'sco-graph-browser-and-node-cdp-compute',
       node:process.version,platform:process.platform,chrome:await browser.version(),
-      trialCount:6,batchSize:8,roundsPerCall:250000,
+      trialCount:9,batchSize:8,roundsPerCall:rounds,
       originalModules:2,privateModules:1,
       clock:'real Chromium performance.now plus renderer CDP TaskDuration; no virtual time',
       serverCpu:'isolated trusted child process CPU during each HTTP RPC; no Puppeteer/CDP process CPU',
@@ -242,6 +254,10 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
       minifierControl:'ordinary esbuild-minified transport, same server/secret/policy/method IDs',
       nativeControl:'browser-native original JS served under /native solely for reference',
       wallMs,rendererTaskMs,serverCpuMs,combinedCpuMs,ratios,
+      pairedMedianDiagnostics:{cpu:cpuBudget,wall:wallBudget,
+        ordinaryCpu:ordinaryCpuBudget,ordinaryWall:ordinaryWallBudget},
+      serverCpuQuantized,
+      cpuConclusion:serverCpuQuantized?'unresolved (zero server CPU samples)':cpuBudget.decision,
       strictGeneratedCpuBreaches:ratios.filter(r=>r.cpuOverNative>2.5).length,
       strictGeneratedWallBreaches:ratios.filter(r=>r.wallOverNative>2.5).length,
       strictOrdinaryCpuBreaches:ratios.filter(r=>r.ordinaryCpuOverNative>2.5).length,
@@ -259,3 +275,4 @@ test('real Chromium paired browser/server compute and hot wall-time for SCO grap
     await fs.rm(temp,{recursive:true,force:true});
   }
 });
+}
