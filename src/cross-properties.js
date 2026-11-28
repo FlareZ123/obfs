@@ -2347,12 +2347,9 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         const key=value.computed?staticString(value.property):staticName(value.property);
         return key!==null&&!['prototype','for','keyFor'].includes(key);
       }
-      if(value.type==='ConditionalExpression')return
-        mayBeBoxedPrimitive(value.consequent)||mayBeBoxedPrimitive(value.alternate);
-      if(value.type==='LogicalExpression')return
-        mayBeBoxedPrimitive(value.left)||mayBeBoxedPrimitive(value.right);
-      if(value.type==='SequenceExpression')return
-        mayBeBoxedPrimitive(value.expressions[value.expressions.length-1]);
+      if(value.type==='ConditionalExpression')return mayBeBoxedPrimitive(value.consequent)||mayBeBoxedPrimitive(value.alternate);
+      if(value.type==='LogicalExpression')return mayBeBoxedPrimitive(value.left)||mayBeBoxedPrimitive(value.right);
+      if(value.type==='SequenceExpression')return mayBeBoxedPrimitive(value.expressions[value.expressions.length-1]);
       if(value.type==='AssignmentExpression')return mayBeBoxedPrimitive(value.right);
       return false;
     }
