@@ -48,10 +48,10 @@ async function check(utility,main,renamed) {
  */
 async function checkFactory(factory,main,renamed) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
-  const files=[
+  const files=/** @type {import('../src/core').SourceFile[]} */ ([
     {path:'state.mjs',sourceType:'module',code:factory},
     {path:'main.mjs',sourceType:'module',code:main}
-  ];
+  ]);
   try {
     /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
     async function execute(sources) {
@@ -67,6 +67,7 @@ async function checkFactory(factory,main,renamed) {
     });
     assert.equal(output.crossFile.properties,renamed);
     if(renamed>0) {
+      assert.equal(output.crossFile.objects,1);
       const state=output.files.find(file=>file.path==='state.mjs');
       const entry=output.files.find(file=>file.path==='main.mjs');
       assert.ok(state&&entry);
