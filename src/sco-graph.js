@@ -2,7 +2,7 @@
 
 const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
-const {parse,walk,staticString}=require('./ast');
+const {parse,walk,staticString,observesFunctionSource}=require('./ast');
 const {safePath}=require('./core');
 const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
@@ -181,6 +181,15 @@ function partitionScoAsyncGraph(files,options) {
   const names=new Set(modules.keys());
   for(const [filename,file] of modules) {
     const ast=parse(file.code,'module');
+    // The public facade withholds source bytes, but an authenticated RPC
+    // result can still reveal an original function body if the private
+    // module turns a function into its source string. Reuse the bounded
+    // source-observer provenance check to decline these known exposures
+    // rather than treating file non-publication as full confidentiality.
+    // Dynamic higher-order/string-producing paths remain an explicit limit.
+    if(observesFunctionSource(ast)){
+      throw new TypeError('Private SCO graph exposes private function source');
+    }
     walk(ast,(node,parent,key)=>{
       if(isDirectDynamicEvaluator(node,parent,key)){
         throw new TypeError('Private SCO graph cannot prove imports through eval or Function');
