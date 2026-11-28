@@ -381,7 +381,7 @@ jobs:
           from pathlib import Path
           path = Path("historical/live-hw-matched-results.json")
           data = json.loads(path.read_bytes())
-          assert data["experiment"] == "live-isolated-matched-hw-sco-vs-ordinary-http"
+          assert data["benchmark"] == "agent2-live-http-no-reset-hW-matched-control"
           assert isinstance(data["results"], list) and data["results"]
           print("HISTORICAL_EVIDENCE_SOURCE",
                 json.dumps({"bytes": path.stat().st_size,
