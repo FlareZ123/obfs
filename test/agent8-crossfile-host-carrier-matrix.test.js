@@ -252,6 +252,10 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
     'Browser comparison must include actually rewritten safe exported fields');
   for(const file of safe)assets.set('/safe-native/'+file.path,file.code);
   for(const file of safeOutput.files)assets.set('/safe-emitted/'+file.path,file.code);
+  // Runtime CDP page evaluation is privileged and may bypass page CSP.
+  // Execute the negative control in a regular fetched ESM script instead.
+  assets.set('/csp-probe.mjs',
+    'export let blocked=false;try{(0,eval)("1+1");}catch(error){blocked=true;}');
   const strictCsp="default-src 'none'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'";
   let requests=0;
   const server=http.createServer((req,res)=>{
@@ -285,8 +289,8 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
       waitUntil:'domcontentloaded',timeout:60000
     });
     const report=await page.evaluate(async count=>{
-      let blocked=false;
-      try{(0,eval)('1+1');}catch(error){blocked=/EvalError|Content Security Policy|unsafe-eval|Refused to evaluate/u.test(String(error));}
+      const probe='/csp-probe.mjs';
+      const blocked=(await import(probe)).blocked;
       const realm=/** @type {any} */ (globalThis);
       realm.__hostCarrierTrace=[];
       // This callback is outside every obfuscator input file, exactly like an
@@ -337,8 +341,8 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
     }
     assert.deepEqual(report.logs,['[41,13]','[41,13]'],
       'The browser must preserve output with two actual renamed fields');
-    assert.equal(requests,selected.length*2*3+4,
-      'Every original and emitted module including positive control must load over HTTP');
+    assert.equal(requests,selected.length*2*3+5,
+      'Every original, emitted and CSP-probe module must load over HTTP');
     process.stdout.write('HOST_CARRIER_BROWSER '+
       JSON.stringify({cases:selected.length,servedModules:requests,positiveProperties:2,strictCsp,evalBlocked:true,
         chrome:await browser.version()})+'\n');
