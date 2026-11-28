@@ -124,7 +124,7 @@ function collectVerifiedImportedNativeNodeFactories(files) {
   // here. Admit only a single external module script template with no inline
   // source, event attributes, extra tags, or unreviewed executable assets.
   // An unknown asset must never become proof of an unmodified native realm.
-  const reviewedEntry=/^(?:<!doctype html>)?<script type="module" src="\\.\\/[A-Za-z0-9_.-]+\\.mjs"><\\/script>$/u;
+  const reviewedEntry=/^(?:<!doctype html>)?<script type="module" src="\.\/[A-Za-z0-9_.-]+\.mjs"><\/script>$/u;
   for(const file of files)if(file.sourceType==='asset'){
     const body=typeof file.code==='string'?file.code:
       Buffer.isBuffer(file.code)?file.code.toString('utf8'):'';
