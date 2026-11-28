@@ -113,6 +113,7 @@ Use CPU time for the budget decision; report wall latency and network time separ
 - **SCO:** report client CPU and server CPU separately. Only obfuscator-controlled server initialization may be amortized; never deduct client execution. Report RPC/network latency separately and do not label it compute.
 - **SNO:** measure actual server CPU after the server reaches READY; only server initialization may be amortized. Report cold-start latency separately.
 - Use identical inputs, work, runtime versions and paired order; preserve raw samples, ratios and uncertainty. A strict observed compute pair above 2.5× on a claimed supported workload is a veto. A finite workload matrix is not a universal bound for arbitrarily small operations.
+- The earlier 3.138× observation in run 46181044016 is a single wall-time sample (0.61 ms baseline, 1.90 ms obfuscated), not a validated CPU measurement; treat it as a falsifier to reproduce, not a CPU-budget conclusion. The v5 full run separately reports strict compute-boundary/SCO/SNO-post-init over-budget pairs in its evidence receipts; preserve and review their actual CPU samples and measurement method before generalizing.
 
 ## 7. Go / no-go rule
 
