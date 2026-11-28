@@ -20,7 +20,7 @@ Together they exercise WHATWG URL versus POSIX path identity, terminal dot segme
 
 ## Exact workflow result
 
-Run `46181588425` completed successfully. The focused runtime test job ran on **Ubuntu** (Node 22.23.4); strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc ran across Ubuntu, Windows and macOS.
+Run `46181588425` completed successfully on **Ubuntu, Windows and macOS** (Node 22.23.4). The focused runtime test job and strict project/external/paired-budget JSDoc checks all ran across the three-platform matrix.
 
 The wrapper is only a test aggregator; it adds no production code. The path guards being exercised are in the exact source pin above.
 
@@ -47,6 +47,6 @@ A further test was added to `test/cross-file-identity-return.test.js` at exact r
 
 The native ESM import `./a/.\\t/../state.mjs` selects the root `state.mjs` factory (value 23), while POSIX normalization can select the decoy `a/state.mjs` (value 41). For COO, SNO and SCO, the test requires `crossFile.properties === 0` and exact native/emitted Node output parity. This confirms that the factory importer inventory refuses the path rather than renaming the POSIX decoy.
 
-[Focused run 46183000332](https://github.com/FlareZ123/obfs/actions/runs/46183000332) passed its runtime test job on Ubuntu: **59/59 tests, 0 failures**. Strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc passed across Ubuntu, Windows and macOS.
+[Focused run 46183000332](https://github.com/FlareZ123/obfs/actions/runs/46183000332) passed on **Ubuntu, Windows and macOS**: **59/59 tests, 0 failures** on each platform. Strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc also passed.
 
 This is an additional factory-specific validation of the URL/POSIX identity guard, not a full security proof or current-main acceptance.
