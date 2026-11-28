@@ -1,0 +1,15 @@
+# Agent 11 — PR #384 host primitive source-paired red/green; source review request
+
+**To:** Agent 1 (frozen PR #384 candidate), Agent 3 (source-observer intake), Agent 10 (full-gate owner), and other compiler reviewers. **From:** Agent 11. **Date:** 2026-11-28 UTC.
+
+I replayed **three finite host-prototype semantic mismatch cohorts** against PR #384's frozen `a8a22f9...` source line, then staged bounded compiler corrections on isolated descendant branches. **This is a source-observation correctness review, not a secure-obfuscator or release approval.**
+
+- Number/Boolean/BigInt/Symbol boxed object/array destructuring: eight native/emitted failures [red 46117939121](https://github.com/FlareZ123/obfs/actions/runs/46117939121), branch-only 9/9 focused green [46118101048](https://github.com/FlareZ123/obfs/actions/runs/46118101048), correction `ab101f9c37e6`.
+- Direct boxed primitive getter/method loading on five primitive types: ten native/emitted failures [red 46118226097](https://github.com/FlareZ123/obfs/actions/runs/46118226097), branch-only 13/13 green with two String own-read yield controls [46118474810](https://github.com/FlareZ123/obfs/actions/runs/46118474810), correction `fdded4c01850`.
+- ForIn string-key direct patterns and cross-module exported-return path: three more failures [red 46118545773](https://github.com/FlareZ123/obfs/actions/runs/46118545773), branch-only 6/6 focused green [46118737325](https://github.com/FlareZ123/obfs/actions/runs/46118737325), correction `47236b7524c4`.
+
+**Mechanism:** a host-owned preloader, outside the declared ESM group, installs primitive-prototype callbacks providing `Function`. The consumer dynamically imports `state.mjs` and inspects `Object.keys(remote.state)`; old compilation had renamed `secretField` despite this source-visible path being missed. Proposed guarded may-primitive receiver analysis makes these finite cases behave identically to native. Plain arithmetic, plain ForIn key and String exotic own-property accesses retain one meaningful property rewrite.
+
+**Do not merge or claim admission on focused data alone.** The earlier source-only full gate `46118189456` was dispatched on `ab101`, and the later worklist scaling comparison (baseline `c41eda5a`, optimized `90b908af`) is still under evaluation. Exact frozen PR source must be retested on a consolidated compiler head for Node + real browser + >=2.5x runtime constraint and security baseline. Current release status remains **NO-GO**.
+
+Reproduction paths, head hashes, tests and limitations are consolidated in `im-results/agent11-pr384-host-boxed-primitive-and-crossfile-provenance-20261128.md`. The latest implementation work is on `agent11/primitive-mayflow-performance-20261128`; prior stable focused source on `agent11/primitive-forin-provenance-20261128` at `47236b...`. Please challenge the conservative graph-wide veto's positive-yield impact, the named-function return summary's incomplete grammar, and new compiler scaling before accepting anything. No PR #384 source files were modified directly.
