@@ -26,7 +26,8 @@ const path=require('node:path');
  *    challengeGeneration:number,now:number,maxSessions:number)=>boolean,
  *  authorizeSession:(token:string,principal:string,now:number)=>boolean,
  *  revokeSession:(token:string)=>boolean,
- *  revokePrincipal:(principal:string)=>void
+ *  revokePrincipal:(principal:string)=>void,
+ *  assertConfiguration?:(sha256:string)=>void
  * }} ScoWebAuthnStateStore
  */
 
@@ -138,6 +139,8 @@ function createScoWebAuthnSqliteStore(filename){
     db.exec('PRAGMA synchronous=FULL;');
     db.exec('PRAGMA trusted_schema=OFF;');
     db.exec(
+      'CREATE TABLE IF NOT EXISTS obfs_wa_config ('+
+      'id INTEGER PRIMARY KEY CHECK(id=1),policy_hash TEXT NOT NULL);'+
       'CREATE TABLE IF NOT EXISTS obfs_wa_generation ('+
       'principal TEXT PRIMARY KEY, version INTEGER NOT NULL);'+
       'CREATE TABLE IF NOT EXISTS obfs_wa_challenge ('+
@@ -146,6 +149,8 @@ function createScoWebAuthnSqliteStore(filename){
       'CREATE TABLE IF NOT EXISTS obfs_wa_session ('+
       'token TEXT PRIMARY KEY,principal TEXT NOT NULL,expires_at INTEGER NOT NULL);'
     );
+    const readConfiguration=db.prepare('SELECT policy_hash FROM obfs_wa_config WHERE id=1');
+    const insertConfiguration=db.prepare('INSERT INTO obfs_wa_config(id,policy_hash) VALUES(1,?)');
     const readGeneration=db.prepare('SELECT version FROM obfs_wa_generation WHERE principal=?');
     const insertGeneration=db.prepare(
       'INSERT INTO obfs_wa_generation(principal,version) VALUES(?,?) '+
@@ -256,6 +261,18 @@ function createScoWebAuthnSqliteStore(filename){
           insertGeneration.run(principal,next);
           deletePrincipalSessions.run(principal);
           deletePrincipalChallenges.run(principal);
+        });
+      },
+      assertConfiguration(sha256){
+        if(typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256))
+          throw new TypeError('Invalid SCO WebAuthn configuration fingerprint');
+        writer(()=>{
+          const row=/** @type {{policy_hash:unknown}|undefined} */(
+            /** @type {unknown} */(readConfiguration.get())
+          );
+          if(!row){insertConfiguration.run(sha256);return;}
+          if(row.policy_hash!==sha256)
+            throw new TypeError('SCO WebAuthn replica configuration differs from persisted database policy');
         });
       },
       close(){db.close();}
