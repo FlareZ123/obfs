@@ -2,6 +2,11 @@ name: Manual four-way minified ESM adversarial control
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_external_attacker:
+        description: 'Explicit core-only run when pinned JSIMPLIFIER npm tarball is unavailable; report external axis as unmeasured'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,6 +27,7 @@ jobs:
       - name: Install exact declared minifier and project libraries
         run: npm install --no-package-lock --ignore-scripts
       - name: Checkout pinned JSIMPLIFIER external attacker
+        if: ${{ !inputs.skip_external_attacker }}
         uses: actions/checkout@v4
         with:
           repository: XingTuLab/JSIMPLIFIER
@@ -29,17 +35,21 @@ jobs:
           path: external/JSIMPLIFIER
           persist-credentials: false
       - name: Record JSIMPLIFIER provenance and normalize temporary registry URLs
+        if: ${{ !inputs.skip_external_attacker }}
         working-directory: external/JSIMPLIFIER
         run: node -e 'const fs=require("node:fs");const crypto=require("node:crypto");const lock=fs.readFileSync("package-lock.json","utf8");fs.appendFileSync(process.env.GITHUB_ENV,"JSIMPLIFIER_LOCK_SHA256="+crypto.createHash("sha256").update(lock).digest("hex")+"\n");fs.writeFileSync("package-lock.json",lock.replaceAll("https://registry.npmmirror.com/","https://registry.npmjs.org/"));const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));const lic=fs.readFileSync("LICENSE","utf8");console.log(JSON.stringify({packageLicense:pkg.license,licenseHeader:lic.split(/\r?\n/).slice(0,2).join(" ")}));'
       - name: Install pinned JSIMPLIFIER dependencies without lifecycle scripts
+        if: ${{ !inputs.skip_external_attacker }}
         working-directory: external/JSIMPLIFIER
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run LLM-disabled JSIMPLIFIER against minified and published math
+        if: ${{ !inputs.skip_external_attacker }}
         env:
           OBFS_JSIMPLIFIER_ROOT: \${{ github.workspace }}/external/JSIMPLIFIER
           OBFS_JSIMPLIFIER_REPORT: jsimplifier-\${{ runner.os }}.json
         run: node sims/jsimplifier-static-attacker.js
       - name: Upload external deobfuscator attack report
+        if: ${{ !inputs.skip_external_attacker }}
         uses: actions/upload-artifact@v4
         with:
           name: jsimplifier-\${{ runner.os }}
