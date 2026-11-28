@@ -337,6 +337,7 @@ async function main(){
     'acceptance-decision.json';
   const rawJobs=process.env.OBFS_ACCEPTANCE_JOB_RESULTS||'{}';
   const jobResults=JSON.parse(rawJobs);
+  /** @type {import('node:fs').Dirent[]} */
   let entries=[];
   try{
     entries=await fs.readdir(directory,{withFileTypes:true});

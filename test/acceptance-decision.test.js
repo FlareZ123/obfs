@@ -203,7 +203,39 @@ test('the CLI rejects sample-inconclusive evidence at process level',async()=>{
 
 test('the CLI rejects static reconstruction at process level',async()=>{
   const linux=passingDocument('linux');
-  linux.summary.attackEvidence.coo.verdict='demonstrated-functional-clone';
+  linux.summary.securityAxes.staticReconstruction.coo='recovered-selected-functions';
+  const result=await runCli([linux,passingDocument('win32')]);
+  assert.equal(result.status,1);
+  assert.equal(result.decision.verdict,'RELEASE-BLOCKED');
+});
+
+test('the CLI rejects an SNO claimed-protection loader substitution',async()=>{
+  const linux=passingDocument('linux');
+  linux.summary.securityAxes.unauthorizedModification.sno='owner-loader-substitution';
+  const result=await runCli([linux,passingDocument('win32')]);
+  assert.equal(result.status,1);
+  assert.equal(result.decision.verdict,'RELEASE-BLOCKED');
+});
+
+test('the CLI rejects an SCO unauthorized token bypass',async()=>{
+  const linux=passingDocument('linux');
+  linux.summary.attackEvidence.sco.unauthorizedTokenBypass='demonstrated';
+  const result=await runCli([linux,passingDocument('win32')]);
+  assert.equal(result.status,1);
+  assert.equal(result.decision.verdict,'RELEASE-BLOCKED');
+});
+
+test('the CLI refuses acceptance when positive protection yield is unmeasured',async()=>{
+  const linux=passingDocument('linux');
+  linux.summary.acceptance.dimensions.positiveYield='unmeasured';
+  const result=await runCli([linux,passingDocument('win32')]);
+  assert.equal(result.status,1);
+  assert.equal(result.decision.verdict,'RESEARCH-INCONCLUSIVE');
+});
+
+test('the CLI rejects semantic parity failures',async()=>{
+  const linux=passingDocument('linux');
+  linux.summary.acceptance.dimensions.semanticParity='failed';
   const result=await runCli([linux,passingDocument('win32')]);
   assert.equal(result.status,1);
   assert.equal(result.decision.verdict,'RELEASE-BLOCKED');
