@@ -12,6 +12,22 @@ test('complete independent two-state policy has an exact nine-request certificat
   assert.equal(policy.beliefs.length,4501);
   assert.equal(policy.ranks[0],9);
   assert.ok(policy.ranks.every(rank=>rank>=0&&rank<=9));
+  // Global minimax lower-bound certificate: regardless of the attacker's
+  // chosen input, some output branch retains at least rank-1 calls of
+  // uncertainty. Its nonempty belief contains an actual source model.
+  let finiteNonterminal=0;
+  for(let belief=0;belief<policy.beliefs.length;belief++){
+    const rank=policy.ranks[belief];
+    if(rank===0)continue;
+    finiteNonterminal++;
+    for(let input=0;input<2;input++){
+      const branches=policy.transitions[belief][input]
+        .filter(next=>next>=0).map(next=>policy.ranks[next]);
+      assert.ok(branches.length>0);
+      assert.ok(Math.max(...branches)>=rank-1);
+    }
+  }
+  assert.ok(finiteNonterminal>4000);
   let worst=0;
   for(const model of policy.models){
     let realState=0;
