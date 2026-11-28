@@ -234,10 +234,11 @@ function symbolicDecode(bytes) {
           const test=stack.pop(),alternate=stack.pop(),consequent=stack.pop();
           if(!test||!alternate||!consequent)throw new TypeError('Invalid select operands');
           stack.push({type:'conditional',test,consequent,alternate});
-        } else if(opcode>=0x71&&opcode<=0x76) {
+        } else if(opcode===0x6a||(opcode>=0x71&&opcode<=0x76)) {
           const right=stack.pop(),left=stack.pop();
           if(!left||!right)throw new TypeError('Invalid stack expression');
-          const operator=['&','|','^','<<','>>','>>>'][opcode-0x71];
+          const operator=opcode===0x6a?'+':
+            ['&','|','^','<<','>>','>>>'][opcode-0x71];
           stack.push({type:'binary',operator,left,right});
         } else throw new TypeError('Unsupported Wasm opcode '+opcode);
       }
@@ -263,8 +264,12 @@ function printExpression(expr,parameters) {
     printExpression(expr.test,parameters)+'?'+
     printExpression(expr.consequent,parameters)+':'+
     printExpression(expr.alternate,parameters)+')';
-  return '('+printExpression(expr.left,parameters)+expr.operator+
+  const binary='('+printExpression(expr.left,parameters)+expr.operator+
     printExpression(expr.right,parameters)+')';
+  // The binary is a signed i32 value. Native JS addition needs an explicit
+  // wrap to reconstruct its exact Wasm modular semantics, even under another
+  // operator or before a conditional expression.
+  return expr.operator==='+'?'('+binary+'|0)':binary;
 }
 
 /**
