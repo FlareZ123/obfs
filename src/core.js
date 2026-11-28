@@ -228,6 +228,7 @@ function hasImportedDomStringSourceSink(files) {
     const factoryNames=new Set();
     const styleNames=new Set();
     const datasetNames=new Set();
+    const tokenListNames=new Set();
     for(const node of ast.body??[]) {
       if(node.type!=='ImportDeclaration'||typeof node.source?.value!=='string')continue;
       const specifier=node.source.value;
@@ -273,6 +274,10 @@ function hasImportedDomStringSourceSink(files) {
           if(property(node.init)==='dataset'&&!datasetNames.has(name)){
             datasetNames.add(name);changed=true;
           }
+          if(['classList','part'].includes(property(node.init)??'')&&
+             !tokenListNames.has(name)){
+            tokenListNames.add(name);changed=true;
+          }
         }
         if(node.init.type==='Identifier'){
           if(styleNames.has(node.init.name)&&!styleNames.has(name)){
@@ -280,6 +285,9 @@ function hasImportedDomStringSourceSink(files) {
           }
           if(datasetNames.has(node.init.name)&&!datasetNames.has(name)){
             datasetNames.add(name);changed=true;
+          }
+          if(tokenListNames.has(node.init.name)&&!tokenListNames.has(name)){
+            tokenListNames.add(name);changed=true;
           }
         }
       });
@@ -290,6 +298,14 @@ function hasImportedDomStringSourceSink(files) {
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
         const owner=node.callee.object;
         const method=property(node.callee);
+        if((owner?.type==='Identifier'&&tokenListNames.has(owner.name)||
+            owner?.type==='MemberExpression'&&
+              ['classList','part'].includes(property(owner)??'')&&
+              isImportedReceiver(owner.object))&&
+            ['add','remove','toggle','replace','contains','supports'].
+              includes(method??'')&&node.arguments.some(potentiallySourceBearing)){
+          observed=true;return;
+        }
         if(isImportedReceiver(owner) &&
             ['setAttribute','setAttributeNS','insertAdjacentText',
              'insertAdjacentHTML','append','prepend','replaceChildren',
@@ -317,9 +333,11 @@ function hasImportedDomStringSourceSink(files) {
           observed=true;return;
         }
         if(owner?.type==='MemberExpression'&&isImportedReceiver(owner.object)&&
-          (property(owner)==='dataset'||property(owner)==='style') ||
+          (property(owner)==='dataset'||property(owner)==='style'||
+            ['classList','part'].includes(property(owner)??'')&&key==='value') ||
           owner?.type==='Identifier'&&(datasetNames.has(owner.name)||
-            styleNames.has(owner.name)))observed=true;
+            styleNames.has(owner.name)||tokenListNames.has(owner.name)&&key==='value'))
+          observed=true;
       }
     });
     if(observed)return true;
