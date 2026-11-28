@@ -26,6 +26,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/wasm-i32-browser.js
+      - name: Real Chromium exact coerced add/sub native and source-only clone control
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/wasm-i32-additive-browser.js
       - name: Experimental fused four-word ARX semantics, extraction and warm profile
         run: node --test test/fused-arx-batch.test.js
       - name: Fused ARX fresh-instance amortization session curve
@@ -50,7 +55,7 @@ jobs:
       - name: Frozen three-module stateful ARX parity, source refusal and byte clone
         run: node --test test/stateful-arx-graph-fuse.test.js
       - name: Differential, negative and public-binary extraction tests
-        run: node --test test/wasm-i32.test.js test/wasm-i32-commonjs-lazy.test.js test/wasm-i32-deferred-static-recovery.test.js test/json-parse-function-source-observer.test.js test/wasm-i32-static-recovery.test.js test/wasm-runtime-capture.test.js test/fused-arx-runtime-extraction.test.js test/fused-arx-static-lift.test.js test/wasm-i32-multi-static-decoys.test.js test/wasm-i32-native-rebuild.test.js test/wasm-i32-esm-native-rebuild.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js test/source-observer-counterfactual-differential.test.js test/object-groupby-function-source-observer.test.js
+        run: node --test test/wasm-i32.test.js test/wasm-i32-commonjs-lazy.test.js test/wasm-i32-deferred-static-recovery.test.js test/json-parse-function-source-observer.test.js test/wasm-i32-static-recovery.test.js test/wasm-runtime-capture.test.js test/fused-arx-runtime-extraction.test.js test/fused-arx-static-lift.test.js test/wasm-i32-multi-static-decoys.test.js test/wasm-i32-native-rebuild.test.js test/wasm-i32-esm-native-rebuild.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-coerced-subtraction.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js test/source-observer-counterfactual-differential.test.js test/object-groupby-function-source-observer.test.js
       - name: Verify pinned before/after artifact
         run: |
           node examples/wasm-i32/build.cjs
@@ -59,6 +64,8 @@ jobs:
           node examples/wasm-i32-lazy/build.cjs
       - name: Hostile-runtime binary extraction and function replacement
         run: node sims/wasm-i32-runtime-extraction.js
+      - name: Four-way subtraction cold-start to sustained compute budget curve
+        run: node sims/wasm-i32-sub-cold-four-way.js
       - name: Whole-session initialization cost curve
         run: node sims/wasm-i32-cold-counterexample.js
       - name: CommonJS deferred-compilation native/eager/lazy control

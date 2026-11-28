@@ -30,6 +30,8 @@
     "test/wasm-i32-multifile.test.js",
     "test/wasm-i32-conditional.test.js",
     "test/wasm-i32-lazy-conditional.test.js",
+    "test/wasm-i32-coerced-subtraction.test.js",
+    "test/wasm-i32-additive-browser.js",
     "test/wasm-i32-multi-early-cycle.test.js",
     "test/wasm-i32-conditional-fuzz.test.js",
     "test/wasm-i32-static-recovery.test.js",
