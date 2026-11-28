@@ -16,7 +16,10 @@ const MODEL_COUNT=46656;
  *   policyNodes:number,terminalLeaves:number,maxQueries:number,
  *   totalMemoEntries:number,
  *   sourceReplay:{models:number,minQueries:number,maxQueries:number,
- *     meanQueries:number,histogram:number[]}
+ *     meanQueries:number,histogram:number[]},
+ *   policy?:{budget:number,input:number,children:[number,number]}[],
+ *   rootPolicyNode?:number,
+ *   classes?:Uint16Array
  * }} MinimaxResult
  */
 
@@ -122,7 +125,11 @@ function refineBehaviorClasses(corpus){
  * sorted Uint16Array is collision-free, unlike a probabilistic hash.
  * @returns {MinimaxResult}
  */
-function computeThreeStateMinimax(){
+/**
+ * @param {{includePolicy?:boolean}} [options]
+ * @returns {MinimaxResult}
+ */
+function computeThreeStateMinimax(options={}){
   const corpus=enumerateThreeStateModels();
   const quotient=refineBehaviorClasses(corpus);
   const {count,output:classOutput,next:classNext,root:rootIds}=quotient;
@@ -301,7 +308,9 @@ function computeThreeStateMinimax(){
     terminalLeaves,
     maxQueries,
     totalMemoEntries,
-    sourceReplay
+    sourceReplay,
+    ...(options.includePolicy===true?
+      {policy,rootPolicyNode,classes:quotient.classes}: {})
   };
 }
 
