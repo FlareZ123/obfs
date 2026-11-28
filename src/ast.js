@@ -534,6 +534,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  // CSS.escape is a native CSSOM DOMString coercer. Passing a function
+  // exposes its exact Function#toString text in the escaped identifier.
+  // Keep CSS namespaces distinct from the unrelated global escape() builtin.
+  const cssNamespaces=new Set(['CSS']);
+  const cssEscapeAliases=new Set();
   const nodeBufferNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
@@ -704,6 +709,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(node && (node.type==='Identifier' &&
       jsonNamespaces.has(node.name) || node.type==='MemberExpression' &&
       isGlobal(node.object) && memberName(node)==='JSON'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isCssNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      cssNamespaces.has(node.name) || node.type==='MemberExpression' &&
+      isGlobal(node.object) && memberName(node)==='CSS'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isCssEscape(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return cssEscapeAliases.has(node.name);
+    if(node.type==='SequenceExpression')
+      return isCssEscape(node.expressions[node.expressions.length-1]);
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       memberName(node.callee)==='bind')return isCssEscape(node.callee.object);
+    return node.type==='MemberExpression' &&
+      isCssNamespace(node.object) &&
+      (memberName(node)==='escape' || node.computed && memberName(node)===null);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeBufferNamespace(node) {
@@ -1009,6 +1032,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const name=node.type==='VariableDeclarator'?node.id.name:node.left.name;
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
+        if(isCssNamespace(value))changed=add(cssNamespaces,name)||changed;
+        if(isCssEscape(value))changed=add(cssEscapeAliases,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
@@ -1377,6 +1402,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isCssNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='escape'||property.computed&&name===null)
+            changed=add(cssEscapeAliases,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          isIntlNamespace(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
@@ -1447,6 +1482,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
+          if(name==='CSS')changed=add(cssNamespaces,property.value.name)||changed;
           if(name==='JSON')changed=add(jsonNamespaces,property.value.name)||changed;
           if(name==='structuredClone')changed=add(cloneFunctions,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
@@ -2963,6 +2999,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // CSSOM CSS.escape performs ToString on its first argument, including
+      // the exact native source of a function. Detached methods and static
+      // CSS namespace aliases are resolved by the fixed-point pass.
+      if(node.type==='CallExpression' && isCssEscape(callee) &&
+         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))
+        observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isCssEscape(callee.object)) {
+        const method=memberName(callee);
+        if((method==='call'||method==='bind') && node.arguments[1] &&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(method==='apply') {
+          const supplied=node.arguments[1];
+          if(supplied?.type==='ArrayExpression') {
+            if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+              observed=true;
+          } else if(supplied)observed=true;
+        }
+      }
+      if(node.type==='CallExpression' && isReflectApplyMethod(callee) &&
+         isCssEscape(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied)observed=true;
+      }
       // MessagePort, Worker and browser postMessage use structured cloning.
       // Their DataCloneError can expose exact function source in the payload,
       // including nested values. The receiver may be an opaque host object.
