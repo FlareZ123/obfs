@@ -188,3 +188,44 @@ test('SCO denial-only callback is snapped and truthy nonbooleans cannot grant ad
     assert.equal(checks,0,'Truthy preflight result is not treated as authorization');
   }finally{await close(other.server);}
 });
+
+
+test('SCO pre-admission refuses asynchronous and thenable results without unhandled rejections',async()=>{
+  let checks=0,privateEffects=0,index=0,thenableObserved=0;
+  /** @type {Array<()=>unknown>} */
+  const outcomes=[
+    ()=>Promise.reject(Error('invalid-async-denial')),
+    ()=>Promise.resolve(true),
+    ()=>({
+      then:(/** @type {(value:unknown)=>void} */resolve,
+        /** @type {(reason:unknown)=>void} */reject)=>{
+        void resolve;
+        thenableObserved++;
+        reject(Error('invalid-thenable-denial'));
+      }
+    }),
+    ()=>{throw Error('synchronous-preflight-error');}
+  ];
+  const handler=createScoHandler([],{
+    remoteMethods:{check:()=>{privateEffects++;return 17;}},
+    authorizeRpc:()=>{checks++;return true;},
+    runRpcIsolated:createScoKeyedIsolation(()=>'verified'),
+    admitRpcEarly:/** @type {any} */(()=>outcomes[index++]())
+  });
+  const {server,url}=await start(handler);
+  try {
+    for(let i=0;i<3;i++){
+      assert.deepEqual(await rpc(url,'verified'),{
+        status:403,body:{ok:false,error:'Forbidden'}
+      },'No thenable or promise result can grant early admission');
+    }
+    assert.deepEqual(await rpc(url,'verified'),{
+      status:500,body:{ok:false,error:'Operation failed'}
+    },'Synchronous admission exception is generic server error');
+    await new Promise(resolve=>setTimeout(resolve,15));
+    assert.equal(index,4);
+    assert.equal(thenableObserved,1);
+    assert.equal(checks,0);
+    assert.equal(privateEffects,0);
+  }finally{await close(server);}
+});
