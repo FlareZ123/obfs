@@ -14,7 +14,7 @@ const {obfuscateFiles}=require('../src');
  * @returns {{observed:string,value:number}}
  */
 function execute(source) {
-  const sandbox={module:{exports:null},performance};
+  const sandbox={module:{exports:null},performance,require};
   vm.runInNewContext(source,sandbox,{timeout:3000});
   return JSON.parse(JSON.stringify(sandbox.module.exports));
 }
@@ -34,7 +34,19 @@ const forms=[
   ['global mark','globalThis.performance.mark(inspect).name'],
   ['bound mark','(()=>{const mark=performance.mark.bind(performance);return mark(inspect).name;})()'],
   ['call mark','performance.mark.call(performance,inspect).name'],
-  ['reflective mark','Reflect.apply(performance.mark,performance,[inspect]).name']
+  ['reflective mark','Reflect.apply(performance.mark,performance,[inspect]).name'],
+  ['computed method','performance["mark"](inspect).name'],
+  ['native perf_hooks require','require("node:perf_hooks").performance.mark(inspect).name'],
+  ['native perf_hooks destructured require',
+    '(()=>{const {performance:native}=require("node:perf_hooks");return native.mark(inspect).name;})()'],
+  ['record-carried native mark',
+    '(()=>{const hooks={native:performance.mark};return hooks.native.call(performance,inspect).name;})()'],
+  ['record-assigned native mark',
+    '(()=>{const hooks={};hooks.native=performance.mark;return Reflect.apply(hooks.native,performance,[inspect]).name;})()'],
+  ['record-alias native mark',
+    '(()=>{const hooks={native:performance.mark};const copy=hooks;return copy.native.call(performance,inspect).name;})()'],
+  ['record-destructured native mark',
+    '(()=>{const hooks={native:performance.mark};const {native:call}=hooks;return call.call(performance,inspect).name;})()']
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
