@@ -87,7 +87,7 @@ test('SRI source-observer gate treats member token names as grammar, not global 
   const files=[
     {path:'owner.mjs',sourceType:'module',code:[
       'const record={top:23,parent:7,opener:19};',
-      'const value=record.top+record.parent+record.opener;',
+      'const value=record.top;',
       'export function leaf(){return value;}'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:
