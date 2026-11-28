@@ -1141,6 +1141,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // WeakMap when they reach an opaque call.
   /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
+  /** @typedef {{value:CarrierValue,environment:Map<string,CarrierValue>}} CarrierThrow */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
   /** @type {CarrierValue} */
@@ -1674,7 +1675,7 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
    * @param {boolean} [includeVarBindings=true]
-   * @param {CarrierValue[]|null} [throwCollector=null]
+   * @param {CarrierThrow[]|null} [throwCollector=null]
    * @returns {void}
    */
   function visitScopedCarrierBlock(statement,environment,thisValue=carrierOther,includeVarBindings=true,throwCollector=null) {
@@ -1705,7 +1706,7 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {AstNode} statement
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
-   * @param {CarrierValue[]|null} [throwCollector=null]
+   * @param {CarrierThrow[]|null} [throwCollector=null]
    * @returns {void}
    */
   function visitCarrierStatement(statement,environment,thisValue=carrierOther,throwCollector=null) {
@@ -1792,28 +1793,44 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ThrowStatement') {
-      if(throwCollector)
-        throwCollector.push(evaluateCarrierValue(statement.argument,environment,thisValue));
+      // A throw takes an exceptional edge *at this program point*. Later
+      // syntactic statements must not erase its reaching abstract heap.
       visitCarrierExpression(statement.argument,environment,thisValue);
+      if(throwCollector)throwCollector.push({
+        value:evaluateCarrierValue(statement.argument,environment,thisValue),
+        environment:snapshotCarrierEnvironment(environment)
+      });
       return;
     }
     if(statement.type==='TryStatement') {
       const tryEnvironment=snapshotCarrierEnvironment(environment);
-      /** @type {CarrierValue[]} */
-      const thrownValues=[];
-      visitCarrierStatement(statement.block,tryEnvironment,thisValue,thrownValues);
-      // At a throw, writes made before the exceptional edge may reach catch.
-      // Using the pre-try state alone incorrectly discards such carriers.
-      const catchEnvironment=snapshotCarrierEnvironment(tryEnvironment);
+      /** @type {CarrierThrow[]} */
+      const thrownPaths=[];
+      visitCarrierStatement(statement.block,tryEnvironment,thisValue,thrownPaths);
+      // Include the state before the try, its syntactic exit, and every
+      // explicit throw predecessor. The first two overapproximate implicit
+      // exceptional paths; actual explicit throws retain their own heap.
+      const catchCandidates=[
+        snapshotCarrierEnvironment(environment),
+        snapshotCarrierEnvironment(tryEnvironment),
+        ...thrownPaths.map(path=>snapshotCarrierEnvironment(path.environment))
+      ];
+      let catchEnvironment=catchCandidates[0];
+      for(const candidate of catchCandidates.slice(1)) {
+        /** @type {Map<string,CarrierValue>} */
+        const joined=new Map();
+        joinCarrierEnvironments(joined,catchEnvironment,candidate);
+        catchEnvironment=joined;
+      }
       if(statement.handler) {
-        const caughtValue=thrownValues.length?
-          thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
+        const caughtValue=thrownPaths.length?
+          thrownPaths.reduce((value,next)=>mergeCarrierValues(value,next.value),carrierOther):
           carrierMaybe;
         if(statement.handler.param)
           bindCarrierPattern(statement.handler.param,caughtValue,catchEnvironment);
         visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue,throwCollector);
       } else if(throwCollector) {
-        throwCollector.push(...thrownValues);
+        throwCollector.push(...thrownPaths);
       }
       const names=new Set([
         ...environment.keys(),...tryEnvironment.keys(),...catchEnvironment.keys()
