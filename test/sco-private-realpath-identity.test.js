@@ -8,6 +8,7 @@ const path=require('node:path');
 const os=require('node:os');
 const {pathToFileURL}=require('node:url');
 const {verifyScoPrivateSourceDigests}=require('../src/sco-private-integrity');
+const {partitionScoSelectedAsyncExports}=require('../src');
 
 const main='import {mark} from "./leaf.mjs"; export function probe(){return mark;}';
 const approvedLeaf='export const mark="reviewed-child";';
@@ -49,6 +50,55 @@ test('private SCO verifier refuses in-root symlink that changes Node ESM import 
     await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
       /private source path contains symlink: private\/main\.mjs/u,
       'A mere inside-root realpath/byte-hash check is not a closed ESM graph check');
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+// This fixture uses the production graph compiler, not a synthetic digest
+// object, to demonstrate that the exact audited static import closure can be
+// verified against a path that Node will resolve to a different child graph.
+test('compiled SCO manifest rejects an in-root alias before native private ESM load',{
+  timeout:15000,
+  skip:process.platform==='win32'?
+    'Windows hosted runner symlink privilege varies':false
+},async()=>{
+  const entry=[
+    'import {deriveProof} from "./private/engine.mjs";',
+    'export async function protectedDigest(v){return deriveProof(v);}',
+    'export function local(v){return String(v);}'
+  ].join('\\n');
+  const engine='import {hidden} from "./leaf.mjs"; '+
+    'export function deriveProof(v){return hidden+v;}';
+  const leaf='export const hidden=41;';
+  const poisonedLeaf='export const hidden=999;';
+  const issued=partitionScoSelectedAsyncExports({
+    path:'entry.mjs',sourceType:'module',code:entry
+  },{
+    seed:'sco-symlink-real-import-20261128',privateNames:['protectedDigest'],
+    privateModuleImports:['./private/engine.mjs'],
+    privateModuleSources:[
+      {path:'private/engine.mjs',code:engine},
+      {path:'private/leaf.mjs',code:leaf}
+    ]
+  });
+  assert.deepEqual(issued.privateSourceDigests?.map(item=>item.path),
+    ['entry.mjs','private/engine.mjs','private/leaf.mjs']);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-issued-symlink-'));
+  try{
+    await fs.mkdir(path.join(root,'private'),{recursive:true});
+    await fs.mkdir(path.join(root,'mirror'),{recursive:true});
+    await fs.writeFile(path.join(root,'entry.mjs'),entry);
+    await fs.writeFile(path.join(root,'private','leaf.mjs'),leaf);
+    await fs.writeFile(path.join(root,'mirror','engine.mjs'),engine);
+    await fs.writeFile(path.join(root,'mirror','leaf.mjs'),poisonedLeaf);
+    await fs.symlink(path.join(root,'mirror','engine.mjs'),
+      path.join(root,'private','engine.mjs'));
+    const executed=await import(pathToFileURL(path.join(root,'entry.mjs')).href);
+    assert.equal(await executed.protectedDigest(1),1000,
+      'Node executes an uncommitted private child despite matched entry and engine bytes');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(issued,root),
+      /private source path contains symlink: private\\/engine\\.mjs/u);
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
