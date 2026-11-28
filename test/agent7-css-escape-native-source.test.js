@@ -81,6 +81,57 @@ async function browser(url) {
   return /** @type {{text:string,value:number}} */(JSON.parse(match[1]));
 }
 
+/**
+ * Native CSSOM string conversion can be represented by an untransformed
+ * embedding host, which allows SCO/COO/SNO to share a Node differential.
+ * This is a source coercion model, not a substitute for the Chromium test.
+ * @param {string} source
+ * @returns {string}
+ */
+function executeNodeHost(source) {
+  const host={escape:/** @param {unknown} value */ value=>String(value)};
+  const module={exports:/** @type {unknown} */(null)};
+  new Function('module','CSS',source)(module,host);
+  return JSON.stringify(module.exports);
+}
+
+test('untransformed native-like CSS.escape host preserves function source across all modes',()=>{
+  for(const item of cases) {
+    // Only the direct and local-alias forms are portable to Node's
+    // intentionally minimal host object; globalThis.CSS requires the browser.
+    if(['global','destructured global namespace'].includes(item.name))continue;
+    const source='const owner={privateSlot:41,extraSlot:1};'+
+      'function protectedFn(secretArg){return secretArg+owner.privateSlot+owner.extraSlot;}'+
+      item.declarations+
+      'module.exports=['+item.expression+',protectedFn(0)];';
+    const expected=executeNodeHost(source);
+    assert.ok(expected.includes('secretArg'),item.name+' must expose original spelling');
+    for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+      const compiled=obfuscateFiles([{
+        path:'css-host.cjs',sourceType:'commonjs',code:source
+      }],{mode,seed:'css-node-source/'+item.name+'/'+mode,
+        closedWorld:true,properties:true,strings:false,identifiers:true});
+      assert.equal(executeNodeHost(String(compiled.files[0].code)),expected,
+        mode+' '+item.name+' untransformed host source parity');
+    }
+  }
+});
+
+test('inert CSS.escape preserves unrelated lexical identifier rewrite yield',()=>{
+  const source='function privateFn(privateArg){return privateArg+1;}'+
+    'CSS.escape("literal-input");module.exports=privateFn(41);';
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const compiled=obfuscateFiles([{
+      path:'css-primitive.cjs',sourceType:'commonjs',code:source
+    }],{mode,seed:'css-node-lexical-control/'+mode,closedWorld:true,
+      properties:false,strings:false,identifiers:true});
+    assert.ok(compiled.files[0].metrics.bindings>0,
+      mode+' must retain at least one provably private lexical rewrite');
+    assert.equal(executeNodeHost(String(compiled.files[0].code)),
+      executeNodeHost(source));
+  }
+});
+
 test('CSSOM native function-string coercion is recognized across static aliases',()=>{
   for(const item of cases) {
     const src=build(item.declarations,item.expression);
