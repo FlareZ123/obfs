@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Map<string,Set<string>>} [importedTimingAliases] Native ESM timing receivers/methods.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedTimingAliases=new Map()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedTimingAliases.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -649,6 +650,86 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const formConstructors=new Set(formNames);
   const encoderInstances=new Set();
   const formInstances=new Set();
+  // User Timing accepts DOMString names. A Function used as a mark name is
+  // converted to its exact source text and later exposed by PerformanceEntry.
+  // These are may-provenance sets: aliases only expand and may over-refuse.
+  const timingModules=new Set();
+  const timingReceivers=new Set(['performance']);
+  const timingMethods=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const timingMethodObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const timingReceiverObjectKeys=new Map();
+  const timingNameMethods=new Set(['mark','measure','getEntriesByName',
+    'clearMarks','clearMeasures']);
+  // Bounded may-flow of local receiver/method parameters and direct returns.
+  // A name may represent several closures under shadowing or reassignment;
+  // union all candidates rather than relying on unsound single-definition
+  // inference. This analysis is intentionally not a general JS call graph.
+  /** @type {Map<string,AstNode[]>} */
+  const timingLocalFunctions=new Map();
+  const timingReturnedReceivers=new Set();
+  const timingReturnedMethods=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const timingReturnedObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const timingReturnedReceiverObjectKeys=new Map();
+  // Source-safe cross-file provenance is a may-flow from the exact static
+  // ESM graph. An imported timing receiver need not use its native name at
+  // the consumer site. Keep method holder records and factories too.
+  for(const [name,tags] of importedTimingAliases) {
+    if(tags.has('receiver'))timingReceivers.add(name);
+    if(tags.has('module'))timingModules.add(name);
+    if(tags.has('method'))timingMethods.add(name);
+    if(tags.has('returnReceiver'))timingReturnedReceivers.add(name);
+    if(tags.has('returnMethod'))timingReturnedMethods.add(name);
+    for(const tag of tags) {
+      if(tag.startsWith('holder:')) {
+        let keys=timingMethodObjectKeys.get(name);
+        if(!keys){keys=new Set();timingMethodObjectKeys.set(name,keys);}
+        keys.add(tag.slice('holder:'.length));
+      }
+      if(tag.startsWith('returnsHolder:')) {
+        let keys=timingReturnedObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReturnedObjectKeys.set(name,keys);}
+        keys.add(tag.slice('returnsHolder:'.length));
+      }
+      if(tag.startsWith('receiverHolder:')) {
+        let keys=timingReceiverObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReceiverObjectKeys.set(name,keys);}
+        keys.add(tag.slice('receiverHolder:'.length));
+      }
+      if(tag.startsWith('returnsReceiverHolder:')) {
+        let keys=timingReturnedReceiverObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReturnedReceiverObjectKeys.set(name,keys);}
+        keys.add(tag.slice('returnsReceiverHolder:'.length));
+      }
+    }
+  }
+  /** @param {string} name @param {AstNode} fn @returns {boolean} */
+  function addTimingFunction(name,fn) {
+    let candidates=timingLocalFunctions.get(name);
+    if(!candidates){candidates=[];timingLocalFunctions.set(name,candidates);}
+    if(candidates.includes(fn))return false;
+    candidates.push(fn);
+    return true;
+  }
+  walk(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      addTimingFunction(node.id.name,node);
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.init&&['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+      addTimingFunction(node.id.name,node.init);
+    if(node.type!=='ImportDeclaration'||
+       !['perf_hooks','node:perf_hooks'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier'&&
+         (spec.imported.name??spec.imported.value)==='performance')
+        timingReceivers.add(spec.local.name);
+      else if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+        timingModules.add(spec.local.name);
+    }
+  });
   // ECMA-402 calls can stringify functions and expose native source bytes.
   const intlNamespaces=new Set(['Intl']);
   /** @type {{name:string,constructors:Set<string>,instances:Set<string>}[]} */
@@ -915,6 +996,53 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingModule(node) {
+    return Boolean(node&&(node.type==='Identifier'&&timingModules.has(node.name) ||
+      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+      node.callee.name==='require'&&
+      ['perf_hooks','node:perf_hooks'].includes(String(node.arguments[0]?.value??''))));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingReceiver(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return timingReceivers.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier')
+      return timingReturnedReceivers.has(node.callee.name);
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(name==='performance'&&(isGlobal(node.object)||isTimingModule(node.object)))
+      return true;
+    const keys=node.object.type==='Identifier'?
+      timingReceiverObjectKeys.get(node.object.name):
+      node.object.type==='CallExpression'&&node.object.callee.type==='Identifier'?
+        timingReturnedReceiverObjectKeys.get(node.object.callee.name):null;
+    return name!==null?keys?.has(name)??false:
+      Boolean(node.computed&&keys?.size);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return timingMethods.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier')
+      return timingReturnedMethods.has(node.callee.name);
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(isTimingReceiver(node.object))
+      return timingNameMethods.has(name??'')||Boolean(node.computed&&name===null);
+    const keys=node.object.type==='Identifier'?
+      timingMethodObjectKeys.get(node.object.name):
+      node.object.type==='CallExpression'&&node.object.callee.type==='Identifier'?
+        timingReturnedObjectKeys.get(node.object.callee.name):null;
+    return name!==null?keys?.has(name)??false:
+      Boolean(node.computed&&keys?.size);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundTimingMethod(node) {
+    return Boolean(node&&node.type==='CallExpression'&&
+      node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind'&&
+      isTimingMethod(node.callee.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       intlNamespaces.has(node.name) ||
@@ -1008,6 +1136,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.left.type==='Identifier') {
         const name=node.type==='VariableDeclarator'?node.id.name:node.left.name;
         const value=node.type==='VariableDeclarator'?node.init:node.right;
+        if(value?.type==='Identifier') {
+          for(const candidate of timingLocalFunctions.get(value.name)??[])
+            changed=addTimingFunction(name,candidate)||changed;
+        }
+        if(value?.type==='CallExpression'&&value.callee.type==='Identifier') {
+          for(const key of timingReturnedObjectKeys.get(value.callee.name)??[])
+            addWebObjectKey(timingMethodObjectKeys,name,key);
+        }
+        if(isTimingModule(value))changed=add(timingModules,name)||changed;
+        if(isTimingReceiver(value))changed=add(timingReceivers,name)||changed;
+        if(isTimingMethod(value)||isBoundTimingMethod(value))
+          changed=add(timingMethods,name)||changed;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
@@ -1187,6 +1327,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
             if(key!==null) {
               if(isFunctionValue(property.value))addObjectFunctionKey(name,key);
+              if(property.kind==='init'&&!property.method&&isTimingMethod(property.value))
+                addWebObjectKey(timingMethodObjectKeys,name,key);
+              if(property.kind==='init'&&!property.method&&isTimingReceiver(property.value))
+                addWebObjectKey(timingReceiverObjectKeys,name,key);
               if(property.kind==='init'&&!property.method)
                 addWebObjectExpression(name,key,property.value);
             }
@@ -1199,7 +1343,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
             boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
-            urlConstructorObjectKeys]) {
+            urlConstructorObjectKeys,timingMethodObjectKeys,timingReceiverObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1221,6 +1365,65 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(containsFunctionKeyEntries(value)) {
           changed=add(entryCollectionsWithFunctionKeys,name)||changed;
+        }
+      }
+      // Destructuring aliases the native performance receiver or a name-
+      // converting method without spelling the receiver at the call site.
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init&&(isTimingModule(node.init)||isTimingReceiver(node.init)||
+            node.init.type==='Identifier'&&(timingMethodObjectKeys.has(node.init.name)||
+              timingReceiverObjectKeys.has(node.init.name)))) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key==='performance'&&isTimingModule(node.init))
+            changed=add(timingReceivers,property.value.name)||changed;
+          if(key!==null&&timingNameMethods.has(key)&&isTimingReceiver(node.init))
+            changed=add(timingMethods,property.value.name)||changed;
+          if(key!==null&&node.init.type==='Identifier'&&
+             timingMethodObjectKeys.get(node.init.name)?.has(key))
+            changed=add(timingMethods,property.value.name)||changed;
+          if(key!==null&&node.init.type==='Identifier'&&
+             timingReceiverObjectKeys.get(node.init.name)?.has(key))
+            changed=add(timingReceivers,property.value.name)||changed;
+        }
+      }
+      // Function formal arguments can transport a native User Timing
+      // receiver or detached method into a callback. Compute only bounded,
+      // statically named local calls and use monotone may-flow summaries.
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+        for(const fn of timingLocalFunctions.get(node.callee.name)??[]) {
+          for(let index=0;index<fn.params.length&&index<node.arguments.length;index++) {
+            const formal=fn.params[index];
+            const name=formal.type==='Identifier'?formal.name:
+              formal.type==='AssignmentPattern'&&formal.left.type==='Identifier'?
+                formal.left.name:null;
+            if(name===null)continue;
+            const actual=node.arguments[index];
+            if(!actual||actual.type==='SpreadElement')continue;
+            if(isTimingModule(actual))changed=add(timingModules,name)||changed;
+            if(isTimingReceiver(actual))changed=add(timingReceivers,name)||changed;
+            if(isTimingMethod(actual)||isBoundTimingMethod(actual))
+              changed=add(timingMethods,name)||changed;
+            if(actual.type==='Identifier') {
+              for(const key of timingMethodObjectKeys.get(actual.name)??[])
+                addWebObjectKey(timingMethodObjectKeys,name,key);
+              for(const key of timingReceiverObjectKeys.get(actual.name)??[])
+                addWebObjectKey(timingReceiverObjectKeys,name,key);
+            }
+            if(actual.type==='ObjectExpression') {
+              for(const property of actual.properties) {
+                if(property.type!=='Property'||property.kind!=='init')continue;
+                const key=property.computed?staticString(property.key):
+                  property.key.type==='Identifier'?property.key.name:staticString(property.key);
+                if(key!==null&&isTimingMethod(property.value))
+                  addWebObjectKey(timingMethodObjectKeys,name,key);
+                if(key!==null&&isTimingReceiver(property.value))
+                  addWebObjectKey(timingReceiverObjectKeys,name,key);
+              }
+            }
+          }
         }
       }
       // A known function-bearing iterable can pass the function to a
@@ -1275,6 +1478,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(key!==null) {
           if(isFunctionValue(node.right))addObjectFunctionKey(node.left.object.name,key);
           addWebObjectExpression(node.left.object.name,key,node.right);
+          if(isTimingMethod(node.right))
+            addWebObjectKey(timingMethodObjectKeys,node.left.object.name,key);
+          if(isTimingReceiver(node.right))
+            addWebObjectKey(timingReceiverObjectKeys,node.left.object.name,key);
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
@@ -1485,6 +1692,42 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
     });
+    // Direct local function returns can expose native performance receivers,
+    // timing methods or method-bearing records to callers. Scan simple
+    // return positions; record all candidates and let the fixed point
+    // propagate effects across aliases and call sites.
+    for(const [name,candidates] of timingLocalFunctions) {
+      for(const fn of candidates) {
+        const values=fn.body?.type==='BlockStatement'?
+          fn.body.body.filter((/** @type {AstNode} */ stmt)=>
+            stmt.type==='ReturnStatement').map((/** @type {AstNode} */ stmt)=>stmt.argument):
+          [fn.body];
+        for(const value of values) {
+          if(!value)continue;
+          if(isTimingReceiver(value))
+            changed=add(timingReturnedReceivers,name)||changed;
+          if(isTimingMethod(value)||isBoundTimingMethod(value))
+            changed=add(timingReturnedMethods,name)||changed;
+          if(value.type==='Identifier') {
+            for(const key of timingMethodObjectKeys.get(value.name)??[])
+              addWebObjectKey(timingReturnedObjectKeys,name,key);
+            for(const key of timingReceiverObjectKeys.get(value.name)??[])
+              addWebObjectKey(timingReturnedReceiverObjectKeys,name,key);
+          }
+          if(value.type==='ObjectExpression') {
+            for(const property of value.properties) {
+              if(property.type!=='Property'||property.kind!=='init')continue;
+              const key=property.computed?staticString(property.key):
+                property.key.type==='Identifier'?property.key.name:staticString(property.key);
+              if(key!==null&&isTimingMethod(property.value))
+                addWebObjectKey(timingReturnedObjectKeys,name,key);
+              if(key!==null&&isTimingReceiver(property.value))
+                addWebObjectKey(timingReturnedReceiverObjectKeys,name,key);
+            }
+          }
+        }
+      }
+    }
   }while(changed);
   // A template substitution may preserve a function's native source, but
   // expressions proven primitive cannot contain a function object. Only
@@ -2606,6 +2849,45 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   /**
+   * User Timing exposes source both through DOMString name coercion and
+   * through structured-clone failures of options.detail. Node also reports
+   * exact source spellings in invalid measure start/end mark references.
+   * Include the first two arguments of native methods, but retain literal
+   * and proven primitive options as eligible. Unknown apply arrays can hide
+   * source-bearing arguments and must conservatively refuse.
+   * @param {AstNode} node
+   * @returns {boolean}
+   */
+  function invokesTimingWithSourceName(node) {
+    if(node.type!=='CallExpression')return false;
+    const callee=node.callee;
+    /** @type {(AstNode|null|undefined)[]|null} */
+    let inputs=null;
+    if(isTimingMethod(callee)||isBoundTimingMethod(callee)) {
+      inputs=node.arguments;
+    } else if(callee.type==='MemberExpression'&&
+              isTimingMethod(callee.object)) {
+      const method=memberName(callee);
+      if(method==='call'||method==='bind')inputs=node.arguments.slice(1);
+      else if(method==='apply') {
+        const array=node.arguments[1];
+        if(array?.type!=='ArrayExpression')return true;
+        inputs=array.elements;
+      }
+    } else if(callee.type==='MemberExpression'&&
+              isReflectiveReceiver(callee.object)&&
+              memberName(callee)==='apply'&&
+              (isTimingMethod(node.arguments[0])||
+               isBoundTimingMethod(node.arguments[0]))) {
+      const array=node.arguments[2];
+      if(array?.type!=='ArrayExpression')return true;
+      inputs=array.elements;
+    }
+    if(!inputs)return false;
+    return Boolean(inputs[0]&&!isDefinitelyPrimitive(inputs[0]) ||
+      inputs[1]&&mayCoerceSourceWithinWebRecord(inputs[1]));
+  }
+  /**
    * Return true when a runtime failure can escape the nearest local catch.
    * A catch surrounding a function declaration does not catch a later call
    * into that function, so function boundaries end this bounded proof.
@@ -2623,6 +2905,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return true;
   }
   walk(ast,(node,parent,key,ancestors)=>{
+    if(invokesTimingWithSourceName(node))observed=true;
     // An uncaught throw is itself a source-coordinate observer in Node: the
     // process diagnostic prints the throwing source line, caret and stack
     // column. Browser hosts can likewise surface uncaught error locations.
@@ -3446,7 +3729,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size)
+     !importedUrlStaticMethods.size&&!importedTimingAliases.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }

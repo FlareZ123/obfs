@@ -9,7 +9,7 @@ const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays,collectImportedTimingAliases} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -2002,6 +2002,8 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
+  const importedTimingProof=prepared.length>1 ?
+    collectImportedTimingAliases(prepared) : new Map();
   // Declared HTML script/modulepreload SRI metadata also observes the exact
   // served JavaScript bytes. If the HTML asset is preserved, every emitted
   // integrity-pinned script must retain its source hash.
@@ -2012,18 +2014,25 @@ function obfuscateFiles(files, options = {}) {
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path))));
+        importedUrlStaticProof.get(file.path),importedTimingProof.get(file.path))));
   // A single-file host lock is still a source-coordinate rewrite. Local AST
   // transforms can independently decline Function/source observers, but the
   // wrapper itself has no later per-transform guard. Reuse the same broad
   // source-observer proof used for multi-file publication so Error.stack,
   // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
-    prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
-      observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
-        importedUrlStaticProof.get(file.path)));
+  // Ordinary unselected transforms already have per-pass source guards.
+  // Avoid an extra full-graph parse unless a host lock or a specifically
+  // requested source-changing backend requires a group-wide proof.
+  const hasSelectedBackend=[...selectedFunctionNames.values()]
+    .some(byPath=>[...byPath.values()].some(names=>names.length>0));
+  const directSourceObserver=(Boolean(allowedHosts?.length)||hasSelectedBackend) &&
+    prepared.some(file=>
+    file.sourceType!=='asset' && typeof file.code==='string' &&
+    observesFunctionSource(parse(file.code,file.sourceType),
+      importedStringProof.get(file.path),importedCloneProof.get(file.path),
+      importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+      importedUrlStaticProof.get(file.path),importedTimingProof.get(file.path)));
+  const hostLockSourceObserver=Boolean(allowedHosts?.length) && directSourceObserver;
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
@@ -2091,7 +2100,7 @@ function obfuscateFiles(files, options = {}) {
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
@@ -2107,7 +2116,7 @@ function obfuscateFiles(files, options = {}) {
     const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
@@ -2123,7 +2132,7 @@ function obfuscateFiles(files, options = {}) {
     const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Native graph requires a module/CommonJS without cross-file source observation');
       }
       if(nativeNames.some(name=>expressionNames.includes(name))) {
@@ -2144,7 +2153,7 @@ function obfuscateFiles(files, options = {}) {
     const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Branch blocks require a module/CommonJS without cross-file source observation');
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
@@ -2161,7 +2170,7 @@ function obfuscateFiles(files, options = {}) {
     const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
-      if(sourceType==='script'||remoteSourceObserver){
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver){
         throw new TypeError('Statement flow requires a module/CommonJS without cross-file source observation');
       }
       if(statementNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2183,7 +2192,7 @@ function obfuscateFiles(files, options = {}) {
     const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
       }
       if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
@@ -2207,7 +2216,7 @@ function obfuscateFiles(files, options = {}) {
     const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
-      if(sourceType==='script'||remoteSourceObserver) {
+      if(sourceType==='script'||remoteSourceObserver||directSourceObserver) {
         throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
       }
       if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
