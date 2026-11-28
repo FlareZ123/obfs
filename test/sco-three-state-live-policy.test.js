@@ -536,8 +536,10 @@ test('24-call policy identifies selected sources through process-separated SCO a
     }
     const extensionClasses=observableStateClasses(extension);
     const extensionBehaviorClasses=new Set(extensionClasses).size;
-    assert.ok(extensionBehaviorClasses>=4,
-      'the reachable extension contains more than three distinct future behaviors');
+    assert.equal(extensionBehaviorClasses,extension.next.length,
+      'every reachable extension state has a distinct future behavior');
+    assert.ok(extensionBehaviorClasses>3,
+      'the reachable extension exceeds the three-state prior');
 
     const modifiedTrace=simulatePolicy(policy.nodes,extension);
     assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
