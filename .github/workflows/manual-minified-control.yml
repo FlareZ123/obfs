@@ -29,7 +29,7 @@ jobs:
       - name: Install project dependencies without changing package manifests
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install pinned external static deobfuscator
-        run: npm install --no-save --no-package-lock --ignore-scripts --omit=optional --no-audit --no-fund webcrack@2.16.0
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund webcrack@2.16.0
       - name: Record external install version and immutable package entry hash
         run: node -e "const fs=require('node:fs');const c=require('node:crypto');const p=require.resolve('webcrack');console.log(JSON.stringify({entry:p,sha256:c.createHash('sha256').update(fs.readFileSync(p)).digest('hex')}))"
       - name: Independently transform minified and COO math, check heldout original outputs
