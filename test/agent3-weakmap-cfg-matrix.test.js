@@ -263,6 +263,12 @@ const cases=[
 // Class-name lexical self-reference is available during a class-expression
 // static block even though the surrounding const binding has not initialized.
 ['class-expression-named-inner-static-getter','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static get load(){new Inner();return 0;}static {this.load;}};','carrier.instance'],
+// Static closures that do not run or escape must retain genuine positive
+// rewriting. A direct static invocation of the closure is the negative control.
+['class-expression-static-dormant-arrow-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {const later=()=>new this();}};','carrier.instance'],
+['class-expression-static-dormant-function-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {function later(){return 1;}}};','carrier.instance'],
+['class-expression-static-invoked-arrow','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {const immediately=()=>new this();immediately();}};','carrier.instance'],
+['class-expression-static-arithmetic-field-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static answer=3+4;};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
