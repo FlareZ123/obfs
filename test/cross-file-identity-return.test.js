@@ -443,3 +443,22 @@ test('factory proof refuses in-program observation of exported factory source',a
   for(const mode of ['coo','sno','sco'])
     await checkFactory(factory,main,0,mode);
 });
+
+
+test('factory proof tracks arithmetic compound writes through distinct record and tuple roots',async()=>{
+  const identityModule='export function identity(value){return value;}';
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const main='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const record={left:first,right:second};'+
+    'const recordLeft=record.left;const recordRight=record.right;'+
+    'const tuple=[first,second];'+
+    'const tupleLeft=tuple[0];const tupleRight=tuple[1];'+
+    'const carried=identity(recordLeft);'+
+    'function update(n){first.secretField+=n;second.otherField+=(n^3);'+
+      'return (carried.secretField+recordRight.otherField+tupleLeft.otherField+tupleRight.secretField)|0;}'+
+    'let total=0;for(let i=0;i<1000;i++)total=(total+update(i|0))|0;console.log(total);';
+  for(const mode of ['coo','sno','sco'])
+    await checkFactory(factory,main,2,mode,undefined,identityModule);
+});
