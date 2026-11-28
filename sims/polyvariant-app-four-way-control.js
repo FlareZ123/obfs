@@ -19,7 +19,7 @@ const {build}=require('../examples/polyvariant-app/build.cjs');
 /** @typedef {'native'|'minified'|'published'|'reconstructed'} Variant */
 /** @typedef {{path:string,code:string}[]} Graph */
 /** @typedef {{kind:string,payload:string}[]} Events */
-/** @typedef {{output:string,emitted:number,trace:unknown[],ms:number}} Session */
+/** @typedef {{output:string,emitted:number,trace:unknown[],ms:number,cpuMs:number}} Session */
 const names=['math.mjs','state.mjs','entry.mjs'];
 
 /** @param {Graph} graph @returns {string} */
@@ -47,6 +47,7 @@ async function materialize(folder,graph){
 }
 /** @param {string} folder @param {Events} records @returns {Promise<Session>} */
 async function execute(folder,records){
+  const cpuStarted=process.cpuUsage();
   const started=performance.now();
   const app=await import(pathToFileURL(path.join(folder,'entry.mjs')).href);
   /** @type {unknown[]} */
@@ -55,7 +56,9 @@ async function execute(folder,records){
     /** @param {unknown} value */
     emit(value){trace.push(value);}
   });
-  return {output,emitted:trace.length,trace,ms:performance.now()-started};
+  const cpu=process.cpuUsage(cpuStarted);
+  return {output,emitted:trace.length,trace,ms:performance.now()-started,
+    cpuMs:(cpu.user+cpu.system)/1000};
 }
 /**
  * Separate the compiler/minifier construction phase from application timing.
@@ -194,6 +197,7 @@ async function runEvidence(){
       }
       /** @type {Record<Variant,number[]>} */
       const timings={native:[],minified:[],published:[],reconstructed:[]};
+      const cpuTimings={native:[],minified:[],published:[],reconstructed:[]};
       for(let trial=0;trial<12;trial++){
         /** @type {Session|undefined} */
         let expected;
@@ -211,6 +215,7 @@ async function runEvidence(){
               'External callback trace differs: '+variant+'/'+count);
           }else expected=current;
           timings[variant].push(current.ms);
+          cpuTimings[variant].push(current.cpuMs);
         }
       }
       rows.push({
@@ -222,7 +227,7 @@ async function runEvidence(){
         reconstructedVsMinified:pairedBudgetBound(timings.minified,timings.reconstructed),
         reconstructedVsNative:pairedBudgetBound(timings.native,timings.reconstructed),
         ratioReconstructedVsPublished:median(timings.reconstructed)/median(timings.published),
-        timingMs:timings
+        timingMs:timings,cpuMs:cpuTimings
       });
     }
     /** @type {Record<Variant,number>} */
