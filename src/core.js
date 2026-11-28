@@ -160,9 +160,12 @@ function collectVerifiedImportedNativeNodeFactories(files) {
       body.callee.property.name==='createElement');
   }
   for(const [filename,ast] of modules) {
-    // Any other top-level execution or module side effect can invalidate the
-    // native factory independently of this exported function's return.
-    if(collectBindings(ast).has('document')||
+    // A pure `build` body does not prove the module's initialization pure.
+    // An additional exported const can run a hostile host callback before
+    // any importing module invokes build. Admit one direct export statement,
+    // not a collection of individually checked declarations.
+    if(ast.body.length!==1||
+       collectBindings(ast).has('document')||
        ast.body.some((/** @type {import('./ast').AstNode} */ statement)=>
          statement.type!=='ExportNamedDeclaration'||Boolean(statement.source)||
          !statement.declaration))continue;
