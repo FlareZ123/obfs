@@ -3,6 +3,8 @@ name: Manual four-way minified ESM adversarial control
 on:
   workflow_dispatch:
 
+  workflow_call:
+
 permissions:
   contents: read
 
