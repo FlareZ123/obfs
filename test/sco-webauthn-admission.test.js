@@ -447,3 +447,82 @@ test('valid signatures over unsupported authenticator extensions/flags are decli
   assert.equal((await h.admission.verifyAssertion(packet)).ok,false);
   assert.equal(h.updates,0);
 });
+
+test('credential registry authority IDs fence same-RP memory store across tenants',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const first=harness({stateStore:shared,credentialAuthorityId:'registry:tenant-A'});
+  assert.doesNotThrow(()=>harness({
+    stateStore:shared,credentialAuthorityId:'registry:tenant-A'
+  }), 'Replicas may explicitly select the same trusted credential authority');
+  assert.throws(()=>harness({
+    stateStore:shared,credentialAuthorityId:'registry:tenant-B'
+  }),/replica configuration/u,
+  'Different credential registries sharing RP/origin/UV must refuse shared bearer state');
+  assert.throws(()=>harness({stateStore:shared}),/replica configuration/u,
+    'An omitted registry ID must not accidentally equal an explicit one');
+
+  const issued=first.admission.issueChallenge('accountA','loginA');
+  const verified=await first.admission.verifyAssertion(assertion(first,issued));
+  assert.equal(verified.ok,true,'A correctly scoped real ES256 assertion still works');
+  if(verified.ok)assert.equal(first.admission.authorizeSession(verified.token,'accountA'),true);
+  const independent=harness({
+    stateStore:createScoWebAuthnMemoryStore(),
+    credentialAuthorityId:'registry:tenant-B'
+  });
+  const isolated=independent.admission.issueChallenge('accountA','loginA');
+  assert.equal((await independent.admission.verifyAssertion(assertion(independent,isolated))).ok,true,
+    'An independent registry can use its own store without a cross-tenant collision');
+});
+
+test('credential registry namespace rejects ambiguous and unbounded labels',()=>{
+  for(const value of ['', 'bad whitespace', 'bad\nline',
+    '\u212a', 'a'.repeat(129), 0, null]){
+    assert.throws(()=>harness({
+      credentialAuthorityId:/** @type {any} */(value)
+    }),/credentialAuthorityId/u,'Bad namespace label: '+String(value));
+  }
+  assert.doesNotThrow(()=>harness({credentialAuthorityId:'TENANT-8/keys:v2'}));
+});
+
+test('optional registry authority keeps exact v1 policy fingerprint for unnamed stores',()=>{
+  /** @type {string[]} */
+  const anonymousDigests=[];
+  const anonymous=createScoWebAuthnMemoryStore();
+  /** @type {import('../src/sco-webauthn-state').ScoWebAuthnStateStore} */
+  const oldStore={...anonymous,assertConfiguration(hash){
+    anonymousDigests.push(hash);
+    anonymous.assertConfiguration(hash);
+  }};
+  harness({stateStore:oldStore});
+  assert.deepEqual(anonymousDigests,[
+    'a704f58f4edcbd538a0db73cdcbba9f7ffc807abf6acb1094c5d3c6bb233c576'
+  ],'Unlabelled persisted stores must not be invalidated by the optional extension');
+
+  /** @type {string[]} */
+  const namedDigests=[];
+  const named=createScoWebAuthnMemoryStore();
+  /** @type {import('../src/sco-webauthn-state').ScoWebAuthnStateStore} */
+  const namedStore={...named,assertConfiguration(hash){
+    namedDigests.push(hash);
+    named.assertConfiguration(hash);
+  }};
+  harness({stateStore:namedStore,credentialAuthorityId:'registry:tenant-A'});
+  assert.deepEqual(namedDigests,[
+    'b6538a1c2e62202d4e6381e59e8bb0527c5f921a1ebd86ba508c20fb4819aa61'
+  ],'Explicit registry labels must bind to a distinct reproducible v2 tuple');
+});
+
+test('registry ID is a trusted assertion, not proof that callbacks share credentials',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const first=harness({stateStore:shared,credentialAuthorityId:'same-declared-registry'});
+  const second=harness({stateStore:shared,credentialAuthorityId:'same-declared-registry'});
+  assert.notEqual(first.credentialId,second.credentialId,
+    'The fixture deliberately supplies different credential registries');
+  const challenge=first.admission.issueChallenge('accountA','loginA');
+  const crossSigned=assertion(second,challenge);
+  const minted=await second.admission.verifyAssertion(crossSigned);
+  assert.equal(minted.ok,true,
+    'If the trusted application mislabels two registries as one, both share a policy');
+  if(minted.ok)assert.equal(first.admission.authorizeSession(minted.token,'accountA'),true,
+    'An explicit label is not a cryptographic certificate of callback equivalence');
+});

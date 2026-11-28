@@ -17,6 +17,7 @@ const {createScoWebAuthnMemoryStore}=require('./sco-webauthn-state');
  *   signCount:number}} RegisteredCredential
  * @typedef {{
  *   rpId:string, allowedOrigins:string[], requireUserVerification?:boolean,
+ *   credentialAuthorityId?:string,
  *   allowInsecureLocalhost?:boolean, challengeTtlMs?:number, sessionTtlMs?:number,
  *   maxChallenges?:number, maxSessions?:number,
  *   lookupCredential:(principal:string,credentialId:string)=>RegisteredCredential|null|Promise<RegisteredCredential|null>,
@@ -131,14 +132,30 @@ function createScoWebAuthnAdmission(options){
   const maxSessions=positiveInteger(options.maxSessions??4096,'maxSessions');
   const now=options.now??Date.now;
   if(typeof now!=='function')throw new TypeError('WebAuthn now must be a function');
+  // A stable application-owned credential-registry/tenant namespace can bind
+  // otherwise identical RP/origin/UV policies to distinct authorities when
+  // a challenge/session store is shared. This is a non-secret label, not
+  // automatic discovery of callback semantics or proof of registry identity.
+  const credentialAuthorityId=options.credentialAuthorityId;
+  if(credentialAuthorityId!==undefined &&
+     (typeof credentialAuthorityId!=='string'||!/^[!-~]{1,128}$/u.test(credentialAuthorityId)))
+    throw new TypeError('WebAuthn credentialAuthorityId must be 1-128 printable non-space ASCII characters');
   // Shared admission state must not silently mix RP IDs, origin lists,
   // user-verification policy or TTL/capacity rules across Node replicas.
   // Caller-provided credential registries and clocks still need identical
   // trusted application policy and a synchronized time model.
-  const configurationHash=createHash('sha256').update(JSON.stringify([
+  // Preserve the existing on-disk v1 fingerprint for deployments that do
+  // not opt in. A named authority uses a disjoint v2 fingerprint, so mixing
+  // a named registry with legacy unlabeled workers refuses at startup.
+  const policyInputs=[
     'obfs-sco-webauthn-admission-v1',rpId,[...origins].sort(),requireUV,
     challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions
-  ])).digest('hex');
+  ];
+  if(credentialAuthorityId!==undefined){
+    policyInputs[0]='obfs-sco-webauthn-admission-v2';
+    policyInputs.push(credentialAuthorityId);
+  }
+  const configurationHash=createHash('sha256').update(JSON.stringify(policyInputs)).digest('hex');
   const rpHash=createHash('sha256').update(rpId,'utf8').digest();
   const suppliedState=options.stateStore??createScoWebAuthnMemoryStore();
   if(!suppliedState||typeof suppliedState.insertChallenge!=='function'||
