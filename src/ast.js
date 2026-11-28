@@ -185,18 +185,27 @@ function hasWeakMapPrototypeExposure(ast) {
     ));
   }
   /**
-   * Track direct WeakMap constructors as well as native-compatible derived
-   * handles: Function#bind and Reflect.get(globalThis, 'WeakMap'). Treat a
-   * shadowed or replaced intrinsic conservatively as a possible WeakMap
-   * constructor, not as proof that no native WeakMap can be created.
+   * Track direct WeakMap constructors and a bounded set of native-compatible
+   * constructor recoveries: Function#bind, Reflect.get, global property data
+   * descriptors, and transparent Proxy constructors. A user-replaced builtin
+   * may instead return an ordinary constructor: this is deliberately a
+   * conservative may-WeakMap test, never evidence of definite instance brand.
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
   function isWeakMapConstructor(node) {
     if(!node)return false;
     if(node.type==='Identifier')return weakMapConstructors.has(node.name);
-    if(node.type==='MemberExpression')
-      return isGlobalRoot(node.object)&&memberKey(node)==='WeakMap';
+    if(node.type==='MemberExpression') {
+      if(isGlobalRoot(node.object)&&memberKey(node)==='WeakMap')return true;
+      if(memberKey(node)==='value'&&
+         node.object.type==='CallExpression'&&
+         node.object.callee.type==='MemberExpression'&&
+         memberKey(node.object.callee)==='getOwnPropertyDescriptor'&&
+         isNamespace(node.object.callee.object,objectNamespaces)&&
+         isGlobalRoot(node.object.arguments[0])&&
+         staticString(node.object.arguments[1])==='WeakMap')return true;
+    }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       if(memberKey(node.callee)==='bind'&&
          isWeakMapConstructor(node.callee.object))return true;
@@ -204,7 +213,29 @@ function hasWeakMapPrototypeExposure(ast) {
          isNamespace(node.callee.object,reflectNamespaces)&&
          isGlobalRoot(node.arguments[0])&&
          staticString(node.arguments[1])==='WeakMap')return true;
+      // Function.prototype.bind.call(WeakMap, null) also returns a
+      // constructor with the WeakMap internal [[Construct]] behavior.
+      if(memberKey(node.callee)==='call'&&node.arguments.length>=1&&
+         isWeakMapConstructor(node.arguments[0])) {
+        const bindMember=node.callee.object;
+        if(bindMember.type==='MemberExpression'&&memberKey(bindMember)==='bind'&&
+           bindMember.object.type==='MemberExpression'&&
+           memberKey(bindMember.object)==='prototype') {
+          const functionRoot=bindMember.object.object;
+          if(functionRoot.type==='Identifier'&&functionRoot.name==='Function'||
+             functionRoot.type==='MemberExpression'&&
+             isGlobalRoot(functionRoot.object)&&memberKey(functionRoot)==='Function')
+            return true;
+        }
+      }
     }
+    // A transparent constructor Proxy delegates native construction. A
+    // trapped proxy may still return a WeakMap and must be treated as such.
+    if(node.type==='NewExpression'&&node.arguments.length>=2&&
+       (node.callee.type==='Identifier'&&node.callee.name==='Proxy'||
+        node.callee.type==='MemberExpression'&&
+        isGlobalRoot(node.callee.object)&&memberKey(node.callee)==='Proxy')&&
+       isWeakMapConstructor(node.arguments[0]))return true;
     return false;
   }
   /**
