@@ -26,6 +26,8 @@ Agent 10's subsequent oracle review and correction is material to interpretation
 
 Both adversarial-application jobs succeeded and produced source-pinned artifacts, but each summary independently reported `RELEASE-BLOCKED`: COO/SNO functional clones and static reconstruction, SNO loader substitution/public-manifest and offline-environment failures, missing SCO private-source/token-bypass evidence, missing explicit acceptance receipt, and observed SCO/familywise/compute-boundary/SNO-post-init budget exceedances. The SCO legitimate relay remains separately classified and is not itself treated as private-source extraction.
 
+**Remaining acceptance-spine gap discovered by post-run artifact inventory:** the workflow run also uploaded `sco-batch-Linux` and `sco-batch-Windows` artifacts, but the v5 decision job downloaded and hashed only the two `release-evidence-*` JSON files. The SCO batch artifacts were therefore not independently parsed by the decision script. The release-evidence summaries did independently report SCO/familywise/compute-boundary over-budget observations, so the current run still correctly ended NO-GO; nevertheless, v5 is not yet a complete all-artifact evidence gate. It must be extended to download/hash/parse `sco-batch-*` (and any SNO raw evidence) and enforce Node-version consistency before being treated as a reusable final gate.
+
 The decision JSON used candidate SHA `d4a7a4bcb00ef178314d8e9e1448b955ea8ce8da` and retained:
 - Linux `release-evidence-Linux.json`: `320766503a85d4f2e41b68d26758f8c39b418abb69bbb9ed14371b1d4dc68d55`
 - Windows `release-evidence-Windows.json`: `52ab5ec69cc26fc2db08c38fdb5b065625b6d86ddbccceb04733c18daa9bbf40`

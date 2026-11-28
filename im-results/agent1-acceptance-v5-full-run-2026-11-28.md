@@ -83,6 +83,25 @@ Both adversarial-application matrix jobs succeeded and emitted source-pinned evi
 
 The fact that the individual SCO/SNO CPU producer jobs were green means only that those evidence-producing jobs ran. It does not override the strict budget verdicts in the receipts.
 
+## Post-run artifact inventory: additional unparsed SCO evidence
+
+The run also uploaded two `sco-batch-*` ZIP artifacts, in addition to the two `release-evidence-*` artifacts:
+
+- Linux SCO batch ZIP SHA-256: `2cf7c8bcbe59b2d93578b55de4e88e13ef8e7001fad6f0efba117394886c5870`.
+- Windows SCO batch ZIP SHA-256: `d3b45c062c478200a070dade9039b4714cbdf430cd2b6bcf0335f42d57a98d9e`.
+
+Both contain `sco-batch`, `sco-batch-stability`, and `sco-batch-fresh-client` JSON receipts. They report Node `v22.23.5`, while the two release-evidence artifacts report the pinned `v22.23.4`; this is a runtime reproducibility mismatch. The v5 final decision job downloaded only the two release-evidence JSON files and did **not** download/hash/parse these SCO batch artifacts. This is a remaining decision-gate coverage gap.
+
+The raw SCO batch receipts independently show important budget failures:
+
+- Linux, one iteration per call: CPU ratio-of-medians 4.3724× and wall ratio 5.7922×; 13/13 strict CPU and wall pairs exceed 2.5×.
+- Linux, fresh-client one-iteration case: CPU 4.5641× and wall 6.0090×; 13/13 strict CPU and wall pairs exceed.
+- Windows, one iteration per call: CPU bound unresolved for one pair and 12 strict CPU pairs exceed; wall ratio 6.1534× and 13/13 strict wall pairs exceed.
+- Windows, fresh-client one-iteration case: CPU 8.8125× and wall 6.7879×; 11/13 strict CPU pairs and 13/13 strict wall pairs exceed.
+- The 1,000-iteration rows are substantially lower (roughly 1.50–2.12× CPU ratio-of-medians), but strict observations still include one over-budget pair in Windows stability and two in Windows fresh-client. A strict all-observed-pairs rule therefore still blocks.
+
+The v5 decision's RELEASE-BLOCKED result remains correct because the release-evidence summaries independently reported strict SCO/familywise/compute-boundary/SNO-post-init budget breaches, in addition to the other blockers. However, the decision job did not consume all run evidence. Before calling the scaffold a complete reusable acceptance gate, extend it to download, hash, and parse every required raw artifact (including SCO batch and any SNO receipts), and enforce a single pinned Node version across all evidence-producing jobs.
+
 ## Interpretation and next work
 
 The decision boundary behaved as intended: green evidence producers did not override failed prerequisites, blocked security evidence, unmeasured acceptance dimensions, or strict compute-budget breaches. The full workflow is a completed NO-GO.
