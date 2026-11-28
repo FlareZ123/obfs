@@ -75,3 +75,21 @@ The unfiltered current-main run [46181044016](https://github.com/FlareZ123/obfs/
 This resolves the earlier attribution uncertainty. The 11 non-SCO failures and the two private-child environment/relay failures are current-main baseline blockers, not regressions introduced by the realm donor. The donor does, however, add six failures (five security false negatives and one over-conservative locale/prototype refusal) while fixing one benchmark-positive test; net full-suite failures rise from 14 to 19.
 
 The successful Agent 1 run `46175756818` remains a focused test, not a full-suite baseline. Do not cite it as a passing full validation. Current main itself is not green, and the donor is not green on top of it.
+
+
+## Main baseline validation dimensions that did pass
+
+The current-main full workflow's failed job log also shows that the failures are concentrated in the compact behavioral/adversarial suite. After that suite failed, the workflow continued and completed the following steps without errors on Ubuntu:
+
+- `npm run typecheck`
+- `npm run typecheck:external`
+- `tsc -p jsconfig.affine-low-rank-oracle.json`
+- `tsc -p jsconfig.paired-budget.json`
+- `npm run benchmark`
+- `sims/verified-record-session-profile.js`
+- `sims/local-parameter-value-profile.js`
+- `npm run test:browser` (Chromium cycle and trace witnesses passed)
+- `test/verified-record-browser.js`
+- `test/esm-observation-browser.js` (`nativeBrowserParity: true`)
+
+Thus the current-main no-go is driven by functional/yield/adversarial assertions, not by strict JSDoc, the listed specialized TypeScript projects, or the browser integration steps. This is useful prioritization evidence; it does not weaken the 14 failing behavioral cases.
