@@ -10,7 +10,7 @@ const {obfuscateFiles}=require('../src/core');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{workMs:number,wallMs:number,digest:number,source:string}} Sample */
+/** @typedef {{workMs:number,workCpuMs:number,wallMs:number,digest:number,source:string}} Sample */
 
 /** @param {number[]} values @returns {number} */
 function median(values){
@@ -55,10 +55,13 @@ function measurementAdapter(iterations) {
     'import {answer} from "./entry.mjs";',
     'import {unrelated} from "./independent.mjs";',
     'let digest=0;',
+    'const cpuStart=process.cpuUsage();',
     'const start=performance.now();',
     'for(let i=0;i<'+iterations+';i++){digest=(digest+unrelated())|0;}',
     'const workMs=performance.now()-start;',
-    'console.log(JSON.stringify({digest,source:answer.source,workMs}));'
+    'const cpu=process.cpuUsage(cpuStart);',
+    'const workCpuMs=(cpu.user+cpu.system)/1000;',
+    'console.log(JSON.stringify({digest,source:answer.source,workMs,workCpuMs}));'
   ].join('\n');
 }
 
@@ -80,13 +83,16 @@ function sample(root){
   assert.equal(child.status,0,child.stderr || child.error?.message);
   const result=JSON.parse(child.stdout.trim());
   assert.equal(typeof result.workMs,'number');
+  assert.ok(Number.isFinite(result.workCpuMs) && result.workCpuMs>=0);
   assert.equal(typeof result.digest,'number');
   assert.equal(typeof result.source,'string');
-  return {workMs:result.workMs,wallMs,digest:result.digest,source:result.source};
+  return {workMs:result.workMs,workCpuMs:result.workCpuMs,wallMs,
+    digest:result.digest,source:result.source};
 }
 
 /**
- * Emit paired per-run CPU and cold-process wall samples. The compiler runs
+ * Emit paired hot-loop process CPU, hot-loop elapsed time and cold-process
+ * wall samples. Zero-tick CPU pairs are explicitly unscorable, not passes. The compiler runs
  * once out of band, as the normal COO/SNO pre-obfuscation build does. Cold
  * process startup is measured separately from in-app work, without claiming
  * that either sample set universally proves the 2.5x threshold.
@@ -96,6 +102,8 @@ function sample(root){
  * @returns {Promise<{iterations:number,originalBytes:number,emittedBytes:number,renamedProperties:number,
  *  pairs:number,medianNativeWorkMs:number,medianEmittedWorkMs:number,
  *  medianNativeWallMs:number,medianEmittedWallMs:number,medianWorkRatio:number,
+ *  medianNativeCpuMs:number,medianEmittedCpuMs:number,medianCpuRatio:number|null,
+ *  comparableCpuPairs:number,overBudgetCpuPairs:number,
  *  medianWallRatio:number,overBudgetWorkPairs:number,overBudgetWallPairs:number}>}
  */
 async function profile(iterations,pairs=9) {
@@ -120,6 +128,7 @@ async function profile(iterations,pairs=9) {
     /** @type {Sample[]} */
     const after=[];
     let overBudgetWorkPairs=0,overBudgetWallPairs=0;
+    let comparableCpuPairs=0,overBudgetCpuPairs=0;
     for(let trial=0;trial<pairs;trial++) {
       /** @type {Sample} */
       let native,emitted;
@@ -135,11 +144,17 @@ async function profile(iterations,pairs=9) {
       assert.equal(native.source,'function watched(){return valueA;}');
       if(emitted.workMs>2.5*native.workMs)overBudgetWorkPairs++;
       if(emitted.wallMs>2.5*native.wallMs)overBudgetWallPairs++;
+      if(native.workCpuMs>0 && emitted.workCpuMs>0) {
+        comparableCpuPairs++;
+        if(emitted.workCpuMs>2.5*native.workCpuMs)overBudgetCpuPairs++;
+      }
       before.push(native);
       after.push(emitted);
     }
     const origWork=median(before.map(x=>x.workMs));
     const emitWork=median(after.map(x=>x.workMs));
+    const origCpu=median(before.map(x=>x.workCpuMs));
+    const emitCpu=median(after.map(x=>x.workCpuMs));
     const origWall=median(before.map(x=>x.wallMs));
     const emitWall=median(after.map(x=>x.wallMs));
     return {
@@ -150,6 +165,9 @@ async function profile(iterations,pairs=9) {
       pairs,
       medianNativeWorkMs:origWork,medianEmittedWorkMs:emitWork,
       medianNativeWallMs:origWall,medianEmittedWallMs:emitWall,
+      medianNativeCpuMs:origCpu,medianEmittedCpuMs:emitCpu,
+      medianCpuRatio:origCpu>0 && emitCpu>0 ? emitCpu/origCpu : null,
+      comparableCpuPairs,overBudgetCpuPairs,
       medianWorkRatio:emitWork/origWork,
       medianWallRatio:emitWall/origWall,
       overBudgetWorkPairs,overBudgetWallPairs
