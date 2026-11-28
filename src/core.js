@@ -2341,6 +2341,13 @@ function obfuscateFiles(files, options = {}) {
   // A different module can publish a WeakMap instance or a factory that
   // the source-observer module later imports. Summarize the complete supplied
   // graph, not only modules that independently look like source observers.
+  // An earlier shipped module can replace Function.prototype.call/apply/bind
+  // before a later module makes an apparently known-argument local call.
+  // The protocol is realm-wide in both ESM and ordered classic scripts.
+  const untrustedCallProtocols=new Set();
+  for(const {ast} of sourceObserverFiles)
+    for(const name of mutatedFunctionCallProtocols(ast))
+      untrustedCallProtocols.add(name);
   const classicScriptAsts=sourceObserverFiles.filter(({file})=>
     file.sourceType==='script').map(({ast})=>ast);
   // Browser classic scripts in one output group share one realm and one
@@ -2351,15 +2358,7 @@ function obfuscateFiles(files, options = {}) {
     hasWeakMapPrototypeExposure({
       type:'Program',start:0,end:0,
       body:classicScriptAsts.flatMap(ast=>ast.body??[])
-    }):false;
-  // An earlier shipped module may replace Function.prototype.call/apply/bind
-  // before another module makes an apparently known-argument local call.
-  // A default parameter can then run despite a supplied argument. Carry
-  // that realm-wide fact into every module's WeakMap provenance scan.
-  const untrustedCallProtocols=new Set();
-  for(const {ast} of sourceObserverFiles)
-    for(const name of mutatedFunctionCallProtocols(ast))
-      untrustedCallProtocols.add(name);
+    },untrustedCallProtocols):false;
   const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
     sourceObserverFiles.some(({ast})=>
       hasWeakMapPrototypeExposure(ast,untrustedCallProtocols));
