@@ -475,7 +475,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
     }
     for(const modelIndex of models){
       const sco=receipts.find(item=>item.model===modelIndex&&item.transport==='generated-sco-http');
-      const ordinary=receipts.find(item=>item.model===modelIndex&&item.transport==='matched-ordinary-rpc');
+      const ordinary=receipts.find(item=>item.model===modelIndex&&item.transport==='matched-ordinary-minified-rpc');
       assert.ok(sco&&ordinary);
       assert.equal(sco.queries,ordinary.queries);
       assert.deepEqual(sco.inputs,ordinary.inputs);
