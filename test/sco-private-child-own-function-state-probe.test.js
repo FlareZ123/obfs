@@ -53,6 +53,35 @@ test('standalone SCO refuses const-arrow child own-property state',()=>{
   },alternate),/private dependency escapes a shared function identity/u);
 });
 
+test('standalone SCO rejects named function-expression self-property state',()=>{
+  const alternate={...options(),privateModuleSources:[{
+    path:'private/next.mjs',
+    code:'export const next=function inner(){inner.count=(inner.count??0)+1;return inner.count;};'
+  }]};
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:selectedCode
+  },alternate),/private dependency escapes a shared function identity/u);
+});
+
+test('standalone SCO rejects class identity state in a private child',()=>{
+  const alternate={...options(),privateModuleSources:[{
+    path:'private/next.mjs',
+    code:'export class next{static count=0;constructor(){next.count++;this.value=next.count;}}'
+  }]};
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:selectedCode
+  },alternate),/private dependency escapes a shared function identity/u);
+});
+
+test('standalone SCO preserves stateless const-arrow direct calls',()=>{
+  const alternate={...options(),privateModuleSources:[{
+    path:'private/next.mjs',code:'export const next=()=>7;'
+  }]};
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:selectedCode
+  },alternate));
+});
+
 test('standalone SCO retains direct stateless private function calls',()=>{
   const safe={...options(),privateModuleSources:[{
     path:'private/next.mjs',code:'export function next(){return 7;}'
