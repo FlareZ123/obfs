@@ -102,13 +102,64 @@ node --test test/agent18-application-equal-trust-sco.test.js
 npx tsc --project jsconfig.agent18-application-equal-trust.json
 ```
 
-The first exact `ded4790d1b78cb02fc18a58b266e4efd7be9913f` validation run
-[46125517952](https://github.com/FlareZ123/obfs/actions/runs/46125517952)
-passed the new behavioral test on Ubuntu and Windows but failed its new
-strict JSDoc step on three cleanup annotations; it is **not green**.
-A subsequent isolated correction at
-`7c0240e8e77a770e4a4656a40590bdb858d83d68` is being validated.
+### Pinned positive and negative controls
 
-**Exact matched-results CPU and holdout values remain pending** until the
-source-pinned run is inspected. The repository-wide release claim stays
-RELEASE-BLOCKED independently of this bounded exercise.
+The first exact `ded4790d1b78cb02fc18a58b266e4efd7be9913f`
+[run 46125517952](https://github.com/FlareZ123/obfs/actions/runs/46125517952)
+passed behavior on both platforms but failed its new strict JSDoc step on
+three cleanup annotations. An intermediate policy assertion incorrectly
+expected HTTP 403 for unknown RPC method keys, where the real handler correctly
+returns HTTP 400 during method-shape parsing; [run 46125691503](https://github.com/FlareZ123/obfs/actions/runs/46125691503)
+reproduced that incorrect assertion on both platforms. The corrected
+source pin **`8e463e8cdfe02bc47ecdc27bf3993a6af07401b1`** passed the
+entire prior application SCO workflow, the new paired-control test and
+strict JSDoc on Ubuntu and Windows:
+[run 46125878951](https://github.com/FlareZ123/obfs/actions/runs/46125878951).
+
+At that exact pin, each public client reproduced **40/40 independently
+held-out calls** in a separate process, using only its emitted bytes,
+original server address and legitimate account token. Both emitted clients
+carried the **identical captured RPC wire request** (`method` and
+`args:[17,400]`), retained 403 unauthorized service rejection and
+server-owned invalid-argument refusal. The generated SCO public facade was
+**515 bytes**, versus **347 bytes** for the ordinary esbuild-minified
+equal-trust facade. Neither public facade contained the private arithmetic
+source or configuration keys.
+
+The Linux nine-pair **single-operation caller+server process-CPU** samples
+from this source pin have median generated/ordinary ratios:
+**1.04565×** for 1-event work and **1.02643×** for sustained
+120,000-event work. The median SCO/native ratios are respectively
+**150.60×** and **1.44524×**; ordinary/native medians are
+**107.71×** and **1.59697×**. These values are **ratios of matched
+per-pair observations**, not ratios of median total durations.
+All **9/9 lightweight generated/native CPU pairs** exceeded the
+strict 2.5× limit, and **1/9 heavy generated/native CPU pairs** did
+so. The corresponding ordinary/minified numbers were 9/9 and 2/9.
+The sample is finite, local loopback, noisy at low absolute CPU usage,
+and is neither a statistical universal guarantee nor a defensible
+per-call client-only compute bound.
+
+On Windows, `process.cpuUsage()` returned **0 milliseconds for all nine
+native samples** in both workload groups due to its coarser quantization,
+so those Windows per-call ratio fields are `null` and un-evaluable.
+Some naive breach counters in the raw first version compared numbers
+against zero, giving misleading nonzero or zero counts; **do not interpret
+those counters as valid performance decisions**. A subsequent version
+adds independently repeated operations to cross the coarse CPU timer
+quantum; its results must be evaluated on a new source pin before use.
+
+Exact immutable raw profiles and the Windows timer caveat are archived in
+[`agent18-equal-trust-sco-raw-20261128.json`](agent18-equal-trust-sco-raw-20261128.json).
+The subsequent *facade-free trace attacker* copies only one intercepted RPC
+method name, legitimate account token and endpoint, and replays held-outs
+without loading **either** public facade. This extension is pending its own
+source-pinned acceptance run.
+
+These observations support a **bounded negative protection-value finding**:
+on the measured six-module app, the generated source-private SCO facade
+does not obstruct a permitted client from copying its own network behavior
+more effectively than conventional minification under the *same* trusted
+server. This is not a claim that either design discloses the original
+server-side algorithm or bypasses unauthorized access. The repository-wide
+release claim stays **RELEASE-BLOCKED** independently of this experiment.
