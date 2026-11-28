@@ -23,9 +23,10 @@ const JAVASCRIPT_MIME=new Set([
   'text/jscript','text/livescript','text/x-ecmascript','text/x-javascript'
 ]);
 
-/** Recognized opaque MIME types under a required nosniff response. */
+/** Strict scanner for executable UTF-8 response bytes. */
 const UTF8_DECODER=new TextDecoder('utf-8',{fatal:true});
 
+/** Recognized opaque MIME types under a required nosniff response. */
 const OPAQUE_MIME=new Set([
   'application/octet-stream','application/json','text/plain',
   'image/png','image/jpeg','image/gif','image/webp',
@@ -52,7 +53,7 @@ function auditByDeliveredMime(file) {
   // establish the parser's UTF-8 interpretation of those bytes.
   if(scriptOrText||xml) {
     try { UTF8_DECODER.decode(file.bytes); }
-    catch(error) {
+    catch {
       throw new TypeError('Executable response is not valid UTF-8: '+file.path);
     }
   }
