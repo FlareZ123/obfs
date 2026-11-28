@@ -284,7 +284,8 @@ function reviewedOutputExpression(node,primitiveImports,depth=0) {
   if(callee.property.name==='toString' &&
      primitiveImports.has(callee.object.name))
     return node.arguments.length===0;
-  if(callee.object.name==='JSON' && callee.property.name==='stringify' &&
+  if(callee.object.name==='JSON' && !primitiveImports.has('JSON') &&
+     callee.property.name==='stringify' &&
      node.arguments.length===1 && node.arguments[0].type!=='SpreadElement')
     return reviewedOutputExpression(node.arguments[0],primitiveImports,depth+1);
   return false;
@@ -331,6 +332,7 @@ function purePrimitiveOutputProgram(ast,filename,modules,known) {
        expression.callee.computed||expression.callee.optional||
        expression.callee.object.type!=='Identifier'||
        expression.callee.object.name!=='console'||
+       primitiveImports.has('console')||
        expression.callee.property.type!=='Identifier'||
        expression.callee.property.name!=='log' ||
        !expression.arguments.every(argument=>argument.type!=='SpreadElement' &&
