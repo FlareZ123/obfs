@@ -649,9 +649,12 @@ function hasImportedDomStringSourceSink(files) {
       if(node.type==='Identifier')return receiverNames.has(node.name);
       if(node.type==='CallExpression') {
         if(isImportedFactory(node.callee))return true;
-        if(node.callee.type==='Identifier'&&
-           [...(localForwarders.get(node.callee.name)??[])].some(index=>
-             isImportedReceiver(node.arguments[index])))return true;
+        if(node.callee.type==='Identifier'){
+          if([...(localForwarders.get(node.callee.name)??[])].some(index=>
+            isImportedReceiver(node.arguments[index])))return true;
+          if([...(localCollectionItemForwarders.get(node.callee.name)??[])].some(index=>
+            isImportedCollection(node.arguments[index])))return true;
+        }
         if(node.callee.type==='MemberExpression'&&
            ['item','namedItem'].includes(property(node.callee)??'')&&
            isImportedCollection(node.callee.object))return true;
@@ -688,6 +691,8 @@ function hasImportedDomStringSourceSink(files) {
     // through parameters, not just through direct return of an imported name.
     /** @type {Map<string,Set<number>>} */
     const localForwarders=new Map();
+    /** @type {Map<string,Set<number>>} */
+    const localCollectionItemForwarders=new Map();
     /**
      * @param {string} name
      * @param {import('./ast').AstNode|null|undefined} fn
@@ -705,13 +710,36 @@ function hasImportedDomStringSourceSink(files) {
       }else if(fn.body) returns.push(fn.body);
       let added=false;
       const owned=localForwarders.get(name)??new Set();
-      for(const value of returns){
-        if(value.type!=='Identifier')continue;
-        const index=(fn.params??[]).findIndex((/** @type {import('./ast').AstNode} */ param)=>
-          param.type==='Identifier'&&param.name===value.name);
-        if(index>=0&&!owned.has(index)){owned.add(index);added=true;}
+      const items=localCollectionItemForwarders.get(name)??new Set();
+      /** @param {string} argumentName @returns {number} */
+      function parameterIndex(argumentName) {
+        return (fn?.params??[]).findIndex((/** @type {import('./ast').AstNode} */ param)=>
+          param.type==='Identifier'&&param.name===argumentName);
       }
-      if(added)localForwarders.set(name,owned);
+      for(const value of returns){
+        if(value.type==='Identifier'){
+          const index=parameterIndex(value.name);
+          if(index>=0&&!owned.has(index)){owned.add(index);added=true;}
+          continue;
+        }
+        /** @type {import('./ast').AstNode|null} */
+        let collection=null;
+        if(value.type==='MemberExpression'&&value.computed){
+          const key=property(value);
+          if(key===null||/^(0|[1-9][0-9]*)$/u.test(key))
+            collection=value.object;
+        }else if(value.type==='CallExpression'&&
+                 value.callee.type==='MemberExpression'&&
+                 ['item','namedItem'].includes(property(value.callee)??'')){
+          collection=value.callee.object;
+        }
+        if(collection?.type==='Identifier'){
+          const index=parameterIndex(collection.name);
+          if(index>=0&&!items.has(index)){items.add(index);added=true;}
+        }
+      }
+      if(owned.size)localForwarders.set(name,owned);
+      if(items.size)localCollectionItemForwarders.set(name,items);
       return added;
     }
     let changed;
