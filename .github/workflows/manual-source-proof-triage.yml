@@ -37,6 +37,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observer-islands-browser.js
+      - name: Real Chromium unlisted host-global source reader and positive counterfactual
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent3-source-island-ambient-browser.js
       - name: CacheStorage browser source-byte observation counterfactual and admission
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
