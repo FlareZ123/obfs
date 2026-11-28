@@ -1,0 +1,36 @@
+name: Manual SCO private child factory-state admission
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Run child-state and existing positive/refusal regressions
+        run: >-
+          node --test
+          test/sco-private-child-dynamic-factory-state.test.js
+          test/sco-private-child-lexical-state.test.js
+          test/sco-private-child-own-function-state-probe.test.js
+          test/sco-private-child-readonly-literal.test.js
+          test/sco-private-child-readonly-fuzz.test.js
+          test/sco-private-child-transitive-identity.test.js
+      - name: Strict SCO oracle JSDoc
+        run: npx tsc -p jsconfig.sco-oracles.json
+      - name: Strict project JSDoc
+        run: npm run typecheck
