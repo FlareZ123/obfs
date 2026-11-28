@@ -19,17 +19,25 @@ const runBrowser=promisify(execFile);
  * There is no injected Function/require/fetch/globalThis/window/document
  * identifier, source-file API, or opaque computed member in the declared AST.
  *
+ * @param {'windowproxy'|'dynamic'|'reflected'|'computedSetter'} [scenario]
  * @returns {SourceFile[]}
  */
-function originalFiles(){
+function originalFiles(scenario='windowproxy'){
   const leaf='const record={privateField:23};const value=record.privateField;export function leaf(){return value;}';
   const sri='sha256-'+createHash('sha256').update(leaf).digest('base64');
   const markup='<link id="sri-probe" rel="modulepreload" href="./leaf.mjs?integrity=1" integrity="'+sri+'">';
+  const insertion=scenario==='dynamic' ?
+    "const selector=['insert','AdjacentHTML'].join('');doc.head[selector]('beforeend',"+JSON.stringify(markup)+");" :
+    scenario==='reflected' ?
+      "const insert=doc.head.insertAdjacentHTML;Reflect.apply(insert,doc.head,['beforeend',"+JSON.stringify(markup)+"]);" :
+      scenario==='computedSetter' ?
+        "const selector=['inner','HTML'].join('');doc.head[selector]="+JSON.stringify(markup)+";" :
+        'doc.head.insertAdjacentHTML("beforeend",'+JSON.stringify(markup)+');';
   const entry=[
     "import {leaf} from './leaf.mjs';",
     'const value=leaf();',
-    "const doc=top['document'];",
-    'doc.head.insertAdjacentHTML("beforeend",'+JSON.stringify(markup)+');',
+    scenario==='windowproxy' ? "const doc=top['document'];" : 'const doc=document;',
+    insertion,
     "const link=doc.getElementById('sri-probe');",
     "const display=result=>{const el=doc.createElement('pre');el.id='result';el.textContent=value+':'+result;doc.body.appendChild(el);};",
     "link.addEventListener('load',()=>display('load'),{once:true});",
@@ -47,13 +55,16 @@ function originalFiles(){
  * @returns {Promise<{origin:string,close:()=>Promise<void>}>}
  */
 async function serve(){
-  const original=originalFiles();
+  const scenario=process.argv.includes('--dynamic-selector')?'dynamic':
+    process.argv.includes('--reflective-insert')?'reflected':
+    process.argv.includes('--computed-setter')?'computedSetter':'windowproxy';
+  const original=originalFiles(scenario);
   // This script is deliberately dual-use. On the red-first source, run it
   // without flags to prove native-vs-generated SRI mismatch. After the
   // admission repair, --expect-guarded verifies both the island refusal and
   // byte-preserving default-mode output against real Chromium.
   const expectGuarded=process.argv.includes('--expect-guarded');
-  if(expectGuarded) {
+  if(expectGuarded && scenario==='windowproxy') {
     assert.throws(()=>obfuscateFiles(original,{
       mode:'coo',closedWorld:true,seed:'agent5-windowproxy-sri-real-browser',
       strings:false,identifiers:false,
@@ -63,7 +74,8 @@ async function serve(){
   const compiled=obfuscateFiles(original,{
     mode:'coo',closedWorld:true,seed:'agent5-windowproxy-sri-real-browser',
     strings:false,identifiers:false,
-    ...(expectGuarded?{}:{experimentalSourceObserverIslands:['leaf.mjs']})
+    ...(expectGuarded||scenario!=='windowproxy'?{}:
+      {experimentalSourceObserverIslands:['leaf.mjs']})
   });
   const leaf=compiled.files.find(file=>file.path==='leaf.mjs');
   assert.ok(leaf && typeof leaf.code==='string');
