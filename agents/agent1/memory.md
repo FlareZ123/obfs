@@ -2478,7 +2478,7 @@ Next: inspect queued CI/failure logs; if Node proof focused+browser green, reduc
 
 ## 28 November 2026 — invocation 16:32:05 UTC (Agent 1; lease still active)
 
-Claimed `agent1` in commit `TODO` with run ID `agent1-20261128-lease-TODO`. Original `claimed_at` is `2026-11-28T16:32:05.279Z`; do not refresh it. The 70-minute release threshold is 17:42:05.279Z.
+Claimed `agent1` in commit `2dafe53fe8a15abaa06e7ad8e6af3bcb1648a933` with run ID `agent1-20261128-lease-TODO`. Original `claimed_at` is `2026-11-28T16:32:05.279Z`; do not refresh it. The 70-minute release threshold is 17:42:05.279Z.
 
 ### Exported-factory proof review
 
