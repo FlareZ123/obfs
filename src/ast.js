@@ -1664,6 +1664,45 @@ function hasWeakMapPrototypeExposure(ast) {
       (right.arguments?.length??0)===0&&pureEmptyClassNames.has(right.callee.name);
   }
   /**
+   * A parameter initializer (including a destructuring computed key) can
+   * mutate a captured carrier before the function's body is entered. Replay
+   * those source expressions in their formal binding order, rather than
+   * treating the default as an inert pure value.
+   *
+   * For unknown argument values, callers must join with the no-default path.
+   * @param {AstNode} pattern
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @returns {void}
+   */
+  function replayCarrierParameterEffects(pattern,environment,thisValue) {
+    if(pattern.type==='AssignmentPattern') {
+      visitCarrierExpression(pattern.right,environment,thisValue);
+      replayCarrierParameterEffects(pattern.left,environment,thisValue);
+      return;
+    }
+    if(pattern.type==='ObjectPattern') {
+      for(const property of pattern.properties??[]) {
+        if(property.type==='RestElement') {
+          replayCarrierParameterEffects(property.argument,environment,thisValue);
+        } else if(property.type==='Property') {
+          if(property.computed)
+            visitCarrierExpression(property.key,environment,thisValue);
+          replayCarrierParameterEffects(property.value,environment,thisValue);
+        }
+      }
+      return;
+    }
+    if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[]) {
+        if(element)replayCarrierParameterEffects(element,environment,thisValue);
+      }
+      return;
+    }
+    if(pattern.type==='RestElement')
+      replayCarrierParameterEffects(pattern.argument,environment,thisValue);
+  }
+  /**
    * Replay a stable local callable against the current carrier state.
    * Parameters receive the abstract values of direct call arguments; opaque
    * callback invocations receive Maybe for missing arguments. Parameter names
@@ -1679,30 +1718,61 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function replayCarrierFunctionNode(local,environment,thisValue,direct,
     callArguments,allowDefinite) {
-    if(local.async||local.generator||local.body?.type!=='BlockStatement')return;
+    if(local.body?.type!=='BlockStatement')return;
     if(activeLocalCallEffects.has(local)) {
-      // Recursive effects need an explicit fixed-point proof; otherwise the
-      // caller's abstract state cannot justify a source-spelling rewrite.
+      // Recursive parameter defaults and body effects require a fixed-point
+      // proof; never silently assume they leave captured objects unchanged.
       exposed=true;
       return;
     }
-    const definite=direct&&allowDefinite&&
+    const definite=direct&&allowDefinite&&!local.async&&!local.generator&&
       provenDefiniteLocalSlotWrite(local,environment,thisValue);
     const before=forkCarrierEnvironment(environment);
     const invoked=forkCarrierEnvironment(environment);
     /** @type {Map<string,number>} */
     const parameterNames=new Map();
-    for(let index=0;index<(local.params??[]).length;index++) {
-      const parameter=local.params[index];
-      addPatternBindings(parameter,parameterNames);
-      const argument=callArguments[index];
-      const value=!argument||argument.type==='SpreadElement'?
-        carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
-      bindCarrierPattern(parameter,value,invoked);
-    }
     activeLocalCallEffects.add(local);
     try {
-      visitCarrierStatement(local.body,invoked,thisValue);
+      for(let index=0;index<(local.params??[]).length;index++) {
+        const parameter=local.params[index];
+        addPatternBindings(parameter,parameterNames);
+        const argument=callArguments[index];
+        const value=!argument||argument.type==='SpreadElement'?
+          carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
+        if(parameter.type==='AssignmentPattern') {
+          // Missing and void-valued arguments execute the initializer.
+          // Literal / constructed values cannot be undefined here. Other
+          // argument expressions can evaluate to undefined, so join paths.
+          const mustDefault=!argument||
+            argument.type==='UnaryExpression'&&argument.operator==='void';
+          const cannotDefault=Boolean(argument&&(
+            argument.type==='Literal'||argument.type==='ObjectExpression'||
+            argument.type==='ArrayExpression'||argument.type==='NewExpression'||
+            argument.type==='FunctionExpression'||argument.type==='ArrowFunctionExpression'
+          ));
+          if(mustDefault)
+            replayCarrierParameterEffects(parameter,invoked,thisValue);
+          else if(!cannotDefault) {
+            const noDefault=forkCarrierEnvironment(invoked);
+            const withDefault=forkCarrierEnvironment(invoked);
+            replayCarrierParameterEffects(parameter,withDefault,thisValue);
+            joinCarrierEnvironments(invoked,noDefault,withDefault);
+          }
+        } else if(parameter.type==='ObjectPattern'||parameter.type==='ArrayPattern') {
+          // Destructuring keys always execute; defaults can run on missing
+          // fields. Include the path without their optional effects as well.
+          const noEffects=forkCarrierEnvironment(invoked);
+          const withEffects=forkCarrierEnvironment(invoked);
+          replayCarrierParameterEffects(parameter,withEffects,thisValue);
+          joinCarrierEnvironments(invoked,noEffects,withEffects);
+        }
+        bindCarrierPattern(parameter,value,invoked);
+      }
+      // Generator/async parameter binding is synchronous at invocation.
+      // The body may be suspended or deferred and is not safely replayable
+      // as a direct synchronous state transition.
+      if(!local.async&&!local.generator)
+        visitCarrierStatement(local.body,invoked,thisValue);
     } finally {
       activeLocalCallEffects.delete(local);
     }
