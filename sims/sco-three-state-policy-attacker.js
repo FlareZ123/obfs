@@ -31,7 +31,7 @@ async function main(){
         'content-type':'application/json',
         cookie:'session=legitimate'
       },
-      body:JSON.stringify({method,args:[input]})
+      body:JSON.stringify({method,args:[input]}),\n      signal:AbortSignal.timeout(5000)
     });
     const payload=await response.json();
     if(response.status!==200||payload?.ok!==true)
