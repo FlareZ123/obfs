@@ -145,6 +145,8 @@ async function main(){
   });
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
+  /** @type {import('puppeteer-core').CDPSession|undefined} */
+  let browserSession;
   try{
     await new Promise((resolve,reject)=>{
       server.once('error',reject);
@@ -162,62 +164,98 @@ async function main(){
     await page.goto('http://127.0.0.1:'+address.port+'/index.html',{
       waitUntil:'domcontentloaded',timeout:45000
     });
-    const samples=await page.evaluate(async(origin)=>{
-      const aliasModules=await Promise.all([
-        import(origin+'/path-native/entry.mjs'),
-        import(origin+'/path-minified/entry.mjs'),
-        import(origin+'/path-obfuscated/entry.mjs')
+    const origin='http://127.0.0.1:'+address.port;
+    const aliasValues=await page.evaluate(async(base)=>{
+      const modules=await Promise.all([
+        import(base+'/path-native/entry.mjs'),
+        import(base+'/path-minified/entry.mjs'),
+        import(base+'/path-obfuscated/entry.mjs')
       ]);
-      const aliasValues=aliasModules.map(module=>module.value);
-      if(aliasValues.some(value=>value!==23))
-        throw Error('Browser WHATWG C0 URL identity selected a POSIX decoy: '+JSON.stringify(aliasValues));
-      /** @typedef {{checksumResult:number,elapsedMs:number}} BrowserReport */
-      /** @type {Record<string,number[]>} */
-      const times={native:[],minified:[],obfuscated:[]};
-      /** @type {number|undefined} */
-      let expectedChecksum;
-      for(let round=0;round<11;round++){
-        const order=round%2===0?
-          ['native','minified','obfuscated']:
-          ['obfuscated','minified','native'];
-        for(const variant of order){
-          const moduleUrl=origin+'/'+variant+'/entry.mjs?round='+round;
-          const loaded=/** @type {{checksumResult:number,elapsedMs:number}} */(
-            await import(moduleUrl)
-          );
-          if(expectedChecksum===undefined)expectedChecksum=loaded.checksumResult;
-          if(loaded.checksumResult!==expectedChecksum)
-            throw Error('native/minified/obfuscated checksum mismatch in '+variant+' round '+round);
-          if(!(loaded.elapsedMs>0&&Number.isFinite(loaded.elapsedMs)))
-            throw Error('Invalid browser timing for '+variant+' round '+round);
-          if(round>=2)times[variant].push(loaded.elapsedMs);
+      return modules.map(module=>module.value);
+    },origin);
+    assert.deepEqual(aliasValues,[23,23,23],
+      'Browser WHATWG C0 URL identity must select the root factory in every variant');
+
+    browserSession=await browser.target().createCDPSession();
+    /**
+     * Read cumulative CPU seconds for renderer processes from Chromium's
+     * SystemInfo domain. This is CPU time, unlike performance.now wall time.
+     * @returns {Promise<number>}
+     */
+    async function rendererCpuSeconds(){
+      const raw=await browserSession.send('SystemInfo.getProcessInfo');
+      const info=/** @type {{processInfo:Array<{type:string,cpuTime:number}>}} */(raw);
+      const renderers=info.processInfo.filter(process=>process.type==='renderer');
+      assert.ok(renderers.length>0,'Chromium must expose at least one renderer CPU counter');
+      return renderers.reduce((total,process)=>total+process.cpuTime,0);
+    }
+
+    /** @type {Record<string,number[]>} */
+    const cpuSamples={native:[],minified:[],obfuscated:[]};
+    /** @type {Record<string,number[]>} */
+    const wallSamples={native:[],minified:[],obfuscated:[]};
+    /** @type {number|undefined} */
+    let expectedChecksum;
+    for(let round=0;round<11;round++){
+      const order=round%2===0?
+        ['native','minified','obfuscated']:
+        ['obfuscated','minified','native'];
+      for(const variant of order){
+        const before=await rendererCpuSeconds();
+        const moduleUrl=origin+'/'+variant+'/entry.mjs?round='+round;
+        const loaded=/** @type {{checksumResult:number,elapsedMs:number}} */(
+          await page.evaluate(async(url)=>{
+            const module=await import(url);
+            return {checksumResult:module.checksumResult,elapsedMs:module.elapsedMs};
+          },moduleUrl)
+        );
+        const after=await rendererCpuSeconds();
+        if(expectedChecksum===undefined)expectedChecksum=loaded.checksumResult;
+        if(loaded.checksumResult!==expectedChecksum)
+          throw Error('native/minified/obfuscated checksum mismatch in '+variant+' round '+round);
+        if(!(loaded.elapsedMs>0&&Number.isFinite(loaded.elapsedMs)))
+          throw Error('Invalid browser wall timing for '+variant+' round '+round);
+        if(round>=2){
+          cpuSamples[variant].push(Math.max(0,after-before));
+          wallSamples[variant].push(loaded.elapsedMs);
         }
       }
-      return {expectedChecksum,times};
-    },'http://127.0.0.1:'+address.port);
-    assert.ok(samples.expectedChecksum!==undefined);
+    }
+    assert.ok(expectedChecksum!==undefined);
+    /** @param {number[]} values */
+    const sum=values=>values.reduce((total,value)=>total+value,0);
     /** @param {number[]} values */
     const median=values=>{
       const sorted=[...values].sort((a,b)=>a-b);
       return sorted[Math.floor(sorted.length/2)];
     };
-    const nativeMs=median(samples.times.native);
-    const minifiedMs=median(samples.times.minified);
-    const obfuscatedMs=median(samples.times.obfuscated);
-    const nativeRatio=obfuscatedMs/nativeMs;
-    const minifiedRatio=obfuscatedMs/minifiedMs;
+    const nativeCpuMs=sum(cpuSamples.native)*1000;
+    const minifiedCpuMs=sum(cpuSamples.minified)*1000;
+    const obfuscatedCpuMs=sum(cpuSamples.obfuscated)*1000;
+    assert.ok(nativeCpuMs>0&&minifiedCpuMs>0&&obfuscatedCpuMs>0,
+      'Chromium renderer CPU counters must advance during each workload');
+    const nativeCpuRatio=obfuscatedCpuMs/nativeCpuMs;
+    const minifiedCpuRatio=obfuscatedCpuMs/minifiedCpuMs;
+    const nativeWallMs=median(wallSamples.native);
+    const minifiedWallMs=median(wallSamples.minified);
+    const obfuscatedWallMs=median(wallSamples.obfuscated);
+    const nativeWallRatio=obfuscatedWallMs/nativeWallMs;
+    const minifiedWallRatio=obfuscatedWallMs/minifiedWallMs;
     const report={
-      roundsPerArm:samples.times.native.length,
-      checksum:samples.expectedChecksum,
-      nativeMs,minifiedMs,obfuscatedMs,nativeRatio,minifiedRatio,
-      note:'Real Chromium COO exported-factory multi-root record+tuple graph; selected workload, not universal 2.5x proof'
+      roundsPerArm:cpuSamples.native.length,
+      checksum:expectedChecksum,
+      cpuSource:'Chromium SystemInfo.getProcessInfo cumulative CPU seconds summed over renderer processes',
+      nativeCpuMs,minifiedCpuMs,obfuscatedCpuMs,nativeCpuRatio,minifiedCpuRatio,
+      nativeWallMs,minifiedWallMs,obfuscatedWallMs,nativeWallRatio,minifiedWallRatio,
+      note:'Real Chromium COO exported-factory multi-root graph; selected workload, not universal 2.5x proof'
     };
     process.stdout.write('AGENT9_FACTORY_MULTIROOT_CHROMIUM '+JSON.stringify(report)+'\n');
-    assert.ok(nativeRatio<=2.5&&minifiedRatio<=2.5,
-      'This exact protected browser workload must remain within 2.5x of native and minified');
+    assert.ok(nativeCpuRatio<=2.5&&minifiedCpuRatio<=2.5,
+      'Renderer CPU for this exact protected workload must remain within 2.5x of native and minified');
   }finally{
+    await browserSession?.detach();
     await browser?.close();
-    await new Promise(resolve=>server.close(error=>error?reject(error):resolve(undefined)));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 
