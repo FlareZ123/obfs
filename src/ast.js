@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Map<string,Set<string>>} [importedTimingAliases] Native ESM timing receivers/methods.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedTimingAliases=new Map()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedTimingAliases.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -669,6 +670,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const timingReturnedMethods=new Set();
   /** @type {Map<string,Set<string>>} */
   const timingReturnedObjectKeys=new Map();
+  // Source-safe cross-file provenance is a may-flow from the exact static
+  // ESM graph. An imported timing receiver need not use its native name at
+  // the consumer site. Keep method holder records and factories too.
+  for(const [name,tags] of importedTimingAliases) {
+    if(tags.has('receiver'))timingReceivers.add(name);
+    if(tags.has('module'))timingModules.add(name);
+    if(tags.has('method'))timingMethods.add(name);
+    if(tags.has('returnReceiver'))timingReturnedReceivers.add(name);
+    if(tags.has('returnMethod'))timingReturnedMethods.add(name);
+    for(const tag of tags) {
+      if(tag.startsWith('holder:')) {
+        let keys=timingMethodObjectKeys.get(name);
+        if(!keys){keys=new Set();timingMethodObjectKeys.set(name,keys);}
+        keys.add(tag.slice('holder:'.length));
+      }
+      if(tag.startsWith('returnsHolder:')) {
+        let keys=timingReturnedObjectKeys.get(name);
+        if(!keys){keys=new Set();timingReturnedObjectKeys.set(name,keys);}
+        keys.add(tag.slice('returnsHolder:'.length));
+      }
+    }
+  }
   /** @param {string} name @param {AstNode} fn @returns {boolean} */
   function addTimingFunction(name,fn) {
     let candidates=timingLocalFunctions.get(name);
