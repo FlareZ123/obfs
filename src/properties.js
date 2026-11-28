@@ -741,13 +741,16 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   function resolvingDependency(expression) {
     if(!expression)return false;
     if(expression.type==='Identifier')return expression.name;
-    // A proven owner is a non-null object literal. Both ?? and || return
-    // that owner without evaluating the right operand, even if the right is
-    // opaque. This applies only to aliases already grounded in this root;
-    // unresolved left operands must never become private owner facts.
+    // A proven owner is a non-null, truthy object literal: ?? and || return
+    // the original owner without evaluating their right operand. Restrict
+    // this extension to identifier left operands, whose unique binding and
+    // no-escape invariant are already established by the alias fixed point.
+    // In particular, do not infer a new fact about arbitrary member access,
+    // call results, or a nonowner primitive left operand.
     if(expression.type==='LogicalExpression' &&
-       (expression.operator==='??'||expression.operator==='||'))
-      return resolvingDependency(expression.left);
+       (expression.operator==='??'||expression.operator==='||') &&
+       expression.left.type==='Identifier')
+      return expression.left.name;
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
        expression.property.type==='Literal'&&
