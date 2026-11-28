@@ -303,14 +303,11 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function isWeakMapConstructor(node,seen=new Set()) {
     if(!node)return false;
-    if(node.type==='Identifier') {
-      if(weakMapConstructors.has(node.name))return true;
-      if(seen.has(node.name))return false;
-      const next=new Set(seen);
-      next.add(node.name);
-      return (constructorBindingExpressions.get(node.name)??[])
-        .some(value=>isWeakMapConstructor(value,next));
-    }
+    // Constructor binding aliases are discovered by the monotone fixed point
+    // below. Rewalking their initializer chains here on *every* read makes
+    // ordinary programs with long alias chains quadratic in analysis time.
+    // The may-values extractor still follows record/array alias references.
+    if(node.type==='Identifier')return weakMapConstructors.has(node.name);
     if(node.type==='MemberExpression') {
       if(isGlobalRoot(node.object)&&memberKey(node)==='WeakMap')return true;
       if(memberKey(node)==='value'&&
