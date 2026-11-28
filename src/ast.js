@@ -3961,6 +3961,37 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     return markup===null || /integrity\s*=/iu.test(markup) ||
       /<[^>]*$/u.test(markup);
   }
+  /** @param {AstNode|null|undefined} fragment @returns {boolean} */
+  function explicitIntegrityMarkup(fragment) {
+    if(!fragment||fragment.type==='SpreadElement')return false;
+    const markup=knownKey(fragment);
+    return markup!==null && /integrity\s*=/iu.test(markup);
+  }
+  /** @param {AstNode|null|undefined} args @returns {boolean} */
+  function mayApplyParserIntegrityMarkup(args) {
+    return args?.type!=='ArrayExpression' ||
+      mayParseIntegrityMarkup(args.elements[1]);
+  }
+  // A later immutable selector can identify a parsed Element method even
+  // when the original forward alias scan saw an unknown computed key.
+  let insertionChanged;
+  do {
+    insertionChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' &&
+        node.id.type==='Identifier' ? node.id :
+        node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const source=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type==='Identifier' &&
+         isHtmlParserWriterReference(source,true) &&
+         !htmlParserWriterRoots.has(binding.name)) {
+        htmlParserWriterRoots.add(binding.name);
+        insertionChanged=true;
+      }
+    });
+  }while(insertionChanged);
   let observed=false;
   walk(ast,(node,parent,propertyKey)=>{
     // HTMLScriptElement.integrity can pin another published script's exact
@@ -3976,8 +4007,12 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          (isScriptElementTarget(node.left.object)||looksLikeSriHash(node.right)))observed=true;
       // Parser-controlled DOM replacements can install modulepreload/SRI
       // without a script.integrity assignment in the analyzed AST.
-      if(['innerHTML','outerHTML','srcdoc'].includes(key??'') &&
-         (node.operator!=='=' || mayParseIntegrityMarkup(node.right)))observed=true;
+      const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') ||
+        key===null && node.left.computed &&
+        (mayBeDomElement(node.left.object) ||
+          explicitIntegrityMarkup(node.right));
+      if(htmlSink && (node.operator!=='=' ||
+         mayParseIntegrityMarkup(node.right)))observed=true;
     }
     // A parser-active document.write may create SRI-pinned script/link
     // resources even if no provided static HTML contains an integrity tag.
@@ -3990,8 +4025,25 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       // Element.insertAdjacentHTML accepts parsed HTML as its second input.
       // The receiver may be a Document-derived host object tracked by aliases
       // not modeled in this source-observation preflight.
-      if(method==='insertAdjacentHTML' &&
+      const possibleInsertion=method==='insertAdjacentHTML' ||
+        method===null && node.callee.computed &&
+        (mayBeDomElement(receiver) ||
+          explicitIntegrityMarkup(node.arguments[1]));
+      if(possibleInsertion &&
          mayParseIntegrityMarkup(node.arguments[1]))observed=true;
+      // The Function object may be a detached Element method, a bound
+      // instance, or a proven computed selector imported through aliases.
+      if(isHtmlParserWriterReference(receiver,true)) {
+        if((method==='call'||method==='bind'||
+            method===null && node.callee.computed) &&
+           mayParseIntegrityMarkup(node.arguments[2]))observed=true;
+        if(method==='apply'&&
+           mayApplyParserIntegrityMarkup(node.arguments[1]))observed=true;
+      }
+      if(receiver.type==='Identifier'&&receiver.name==='Reflect'&&
+         method==='apply' &&
+         isHtmlParserWriterReference(node.arguments[0],true) &&
+         mayApplyParserIntegrityMarkup(node.arguments[2]))observed=true;
       const isDocument=receiver.type==='Identifier' && documentRoots.has(receiver.name) ||
         receiver.type==='MemberExpression' && receiver.object.type==='Identifier' &&
           globals.has(receiver.object.name) &&
@@ -4016,6 +4068,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          method==='apply'&&isDocumentWriterReference(node.arguments[0])&&
          mayApplyIntegrityMarkup(node.arguments[2]))observed=true;
     }
+    // A previously bound DOM writer can also be invoked directly, with the
+    // parser position at argument zero and the SRI HTML at argument one.
+    if(node.type==='CallExpression' &&
+       isHtmlParserWriterReference(node.callee,true) &&
+       mayParseIntegrityMarkup(node.arguments[1]))observed=true;
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
