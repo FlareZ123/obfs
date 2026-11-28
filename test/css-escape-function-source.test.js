@@ -20,7 +20,7 @@ const observed=base+'module.exports=CSS.escape(f);';
 function observe(source){
   const module={exports:null};
   const context={module,WebAssembly,Uint8Array,Buffer,
-    CSS:{escape(value){return String(value);}}};
+    CSS:{/** @param {unknown} value */ escape(value){return String(value);}}};
   vm.runInNewContext(source,context,{timeout:4000});
   return module.exports;
 }
