@@ -1342,6 +1342,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // A direct root call cannot prove its imported function is free of
     // persistent own-property state in a shared Node module singleton.
     assertNoSharedChildFunctionIdentity(filename,ast);
+    // Every transitive private importer has the same per-client identity
+    // boundary as the selected root. A direct root call does not prevent a
+    // child from mutating a function object imported from its sibling.
+    assertNoPrivateImportMemberState(filename,code);
     // The source snapshot lets us apply the same bounded intrinsic-state
     // refusal used for directly partitioned functions to imported modules.
     const realmEffect=realmStateObservation(ast,true);
