@@ -4,29 +4,6 @@ const {walk,staticString}=require('./ast');
 const {isReadOnlyOwnedLiteral,insideAssignmentTarget}=require('./sco-private-child-readonly-literal');
 
 /**
- * Conservative per-client module-state admission for each server-private
- * ESM child, used by both standalone selective SCO and selected graph builds.
- *
- * Browser clients ordinarily instantiate independent module function objects
- * and lexical cells; SCO relocates a child to one long-lived Node instance.
- * A direct `next()` can still mutate an exported function's own fields, a
- * module-level let/var, a const-owned record/array or a RegExp's lastIndex.
- *
- * Decline top-level mutable cells and known shared literal/constructor owners.
- * The deliberate positive exception is an unexported literal scalar table
- * proved to have only static own-property reads, no mutation or escape.
- * For named functions and classes, allow declaration names and direct calls
- * but refuse unproved value references, reflection and member-state access.
- * Shadowed identifiers are overapproximated rather than assumed safe.
- * This is a bounded syntactic gate, NOT a cross-realm semantic proof for
- * dynamic initializers, higher-order code, external hosts or private sources
- * not provided for auditing.
- *
- * @param {string} filename
- * @param {import('./ast').AstNode} ast
- * @returns {void}
- */
-/**
  * Identify mutable literal owners even when JavaScript expression syntax
  * wraps the value. This is a refusal predicate, not a general value solver:
  * unknown functions and dynamically resolved constructors are unproved.
@@ -87,7 +64,8 @@ function provenPrimitiveInitializer(value,depth=0){
       return value.regex===undefined&&typeof value.value!=='bigint'&&
         (typeof value.value!=='number'||Number.isFinite(value.value));
     case 'TemplateLiteral':
-      return value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
+      return value.expressions.every((/** @type {import('./ast').AstNode} */ item)=>
+          provenPrimitiveInitializer(item,depth+1));
     case 'UnaryExpression':
       return ['+','-','!','~','void','typeof'].includes(value.operator)&&
         provenPrimitiveInitializer(value.argument,depth+1);
@@ -107,12 +85,36 @@ function provenPrimitiveInitializer(value,depth=0){
         provenPrimitiveInitializer(value.alternate,depth+1);
     case 'SequenceExpression':
       return value.expressions.length>0&&
-        value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
+        value.expressions.every((/** @type {import('./ast').AstNode} */ item)=>
+          provenPrimitiveInitializer(item,depth+1));
     default:
       return false;
   }
 }
 
+/**
+ * Conservative per-client module-state admission for each server-private
+ * ESM child, used by both standalone selective SCO and selected graph builds.
+ *
+ * Browser clients ordinarily instantiate independent module function objects
+ * and lexical cells; SCO relocates a child to one long-lived Node instance.
+ * A direct `next()` can still mutate an exported function's own fields, a
+ * module-level let/var, a const-owned record/array or a RegExp's lastIndex.
+ *
+ * Decline top-level mutable cells and known shared literal/constructor owners.
+ * The deliberate positive exception is an unexported literal scalar table
+ * proved to have only static own-property reads, no mutation or escape.
+ * For named functions and classes, allow declaration names and direct calls
+ * but refuse unproved value references, reflection and member-state access.
+ * Shadowed identifiers are overapproximated rather than assumed safe.
+ * This is a bounded syntactic gate, NOT a cross-realm semantic proof for
+ * dynamic initializers, higher-order code, external hosts or private sources
+ * not provided for auditing.
+ *
+ * @param {string} filename
+ * @param {import('./ast').AstNode} ast
+ * @returns {void}
+ */
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
