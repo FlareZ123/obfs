@@ -315,10 +315,17 @@ function createScoSelectedGraphHandler(graph,namespaces,options){
   const remoteMethods=bindScoSelectedGraphExports(trusted,namespaces);
   // Derive mandatory inner-operation preflight from the sealed compiler graph.
   // Caller metadata must never be able to omit a generated batch route.
-  const requiredBatchPreflights=trusted.exposedPaths.flatMap(name=>{
+  /** @type {string[]} */
+  const requiredBatchPreflights=[];
+  // Use indexed reads rather than a caller-modifiable Array.prototype method
+  // while deriving the server's mandatory policy routes.
+  for(let index=0;index<trusted.exposedPaths.length;index++){
+    const name=trusted.exposedPaths[index];
     const batchMethod=trusted.partitions[name]?.batchMethod;
-    return typeof batchMethod==='string'?[batchMethod]:[];
-  });
+    if(typeof batchMethod==='string'){
+      requiredBatchPreflights[requiredBatchPreflights.length]=batchMethod;
+    }
+  }
   if(requiredBatchPreflights.length&&typeof stableOptions.authorizeOperation!=='function'){
     throw new TypeError('Selected SCO graph batch exports require authorizeOperation');
   }
