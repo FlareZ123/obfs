@@ -17,6 +17,17 @@ const primitive=[
   'performance.mark("fixed browser mark");',
   'export const view={text:"fixed browser mark",value};'
 ].join('\n');
+const detailObserved=[
+  'function inspect(){const owner={secretField:57};return owner.secretField;}',
+  'let message="";try{performance.mark("detail",{detail:{nested:[inspect]}});}',
+  'catch(error){message=String(error.message);}',
+  'export const view={text:message,value:inspect()};'
+].join('\n');
+const detailPrimitive=[
+  'const owner={secretField:57};const value=owner.secretField;',
+  'performance.mark("detail",{detail:{nested:[1,2]}});',
+  'export const view={text:"detail",value};'
+].join('\n');
 /** @param {string} code @param {string} seed */
 function compile(code,seed) {
   return obfuscateFiles([{path:'case.mjs',sourceType:'module',code}],{
@@ -26,6 +37,12 @@ function compile(code,seed) {
 
 const output=compile(observed,'agent19-user-timing-browser-observed');
 const safe=compile(primitive,'agent19-user-timing-browser-primitive');
+const detailOutput=compile(detailObserved,'agent19-user-timing-browser-detail');
+const detailSafe=compile(detailPrimitive,'agent19-user-timing-browser-primitive-detail');
+assert.equal(detailOutput.metrics.properties,0,
+  'Function-bearing detail clone error must not rewrite function source');
+assert.ok(detailSafe.metrics.properties>0,
+  'Primitive detail must leave unrelated owner transformation eligible');
 assert.equal(output.metrics.properties,0,
   'A real Chrome Performance.mark source sink must veto local rewrite');
 assert.equal(output.metrics.bindings,0);
@@ -37,12 +54,18 @@ const html=[
   '<!doctype html><html><head><meta charset="utf-8"></head><body>',
   '<pre id="result">pending</pre><script type="module">',
   'try {',
-  'const [native,emitted,plain,positive]=await Promise.all([',
+  'const [native,emitted,plain,positive,detailNative,detailCompiled,detailPlain,detailPositive]=await Promise.all([',
   'import("/native.mjs"),import("/emitted.mjs"),',
-  'import("/primitive.mjs"),import("/positive.mjs")]);',
+  'import("/primitive.mjs"),import("/positive.mjs"),',
+  'import("/detail-native.mjs"),import("/detail-compiled.mjs"),',
+  'import("/detail-primitive.mjs"),import("/detail-positive.mjs")]);',
   'if(!native.view.text.includes("secretField"))',
   'throw Error("Actual native Performance.mark did not expose exact function source");',
-  'if(JSON.stringify(native.view)!==JSON.stringify(emitted.view)||',
+  'if(!detailNative.view.text.includes("secretField"))',
+  'throw Error("Actual Chrome detail DataCloneError did not carry callable source");',
+  'if(JSON.stringify(detailNative.view)!==JSON.stringify(detailCompiled.view)||',
+  'JSON.stringify(detailPlain.view)!==JSON.stringify(detailPositive.view)||',
+  'JSON.stringify(native.view)!==JSON.stringify(emitted.view)||',
   'JSON.stringify(plain.view)!==JSON.stringify(positive.view))',
   'throw Error("Chrome User Timing native/emitted mismatch "+',
   'JSON.stringify({native:native.view,emitted:emitted.view,plain:plain.view,positive:positive.view}));',
@@ -52,7 +75,11 @@ const html=[
 ].join('\n');
 const bodies=new Map([
   ['/',html],['/native.mjs',observed],['/emitted.mjs',String(output.code)],
-  ['/primitive.mjs',primitive],['/positive.mjs',String(safe.code)]
+  ['/primitive.mjs',primitive],['/positive.mjs',String(safe.code)],
+  ['/detail-native.mjs',detailObserved],
+  ['/detail-compiled.mjs',String(detailOutput.code)],
+  ['/detail-primitive.mjs',detailPrimitive],
+  ['/detail-positive.mjs',String(detailSafe.code)]
 ]);
 
 /** @returns {Promise<void>} */
@@ -80,7 +107,9 @@ async function main() {
       /<pre id="result">PASS native Chrome User Timing source and positive<\/pre>/u,
       String(stderr));
     console.log(JSON.stringify({browser:'Chromium',api:'Performance.mark',
-      observedExactSource:true,primitiveRewriteCount:safe.metrics.properties,
+      observedExactSource:true,
+      primitiveRewriteCount:safe.metrics.properties,
+      primitiveDetailRewriteCount:detailSafe.metrics.properties,
       nativeEmittedParity:true}));
   } finally {
     await new Promise(resolve=>server.close(()=>resolve(undefined)));
