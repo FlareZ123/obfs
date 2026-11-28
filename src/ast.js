@@ -1133,6 +1133,24 @@ function hasWeakMapPrototypeExposure(ast) {
       break;
     }
   }
+  // A direct zero-argument local helper may write a WeakMap into a captured
+  // carrier even when its return value says nothing about that effect.
+  // Keep the simulation narrowly scoped to a syntactic WeakMap construction,
+  // and may-join its effects rather than assuming direct calls are immutable.
+  /** @type {Map<string,AstNode[]>} */
+  const localWeakMapEffectDeclarations=new Map();
+  for(const [functionNode,info] of functionInfoByNode) {
+    if(functionNode.type!=='FunctionDeclaration'||!info.name||!functionNode.body)continue;
+    let hasLocalWeakMap=false;
+    walk(functionNode.body,node=>{
+      if(node.type==='NewExpression'&&isWeakMapConstructor(node.callee))
+        hasLocalWeakMap=true;
+    });
+    if(!hasLocalWeakMap)continue;
+    const definitions=localWeakMapEffectDeclarations.get(info.name)??[];
+    definitions.push(functionNode);
+    localWeakMapEffectDeclarations.set(info.name,definitions);
+  }
   // A bounded intra-module points-to pass closes the gap between a WeakMap
   // constructor and a later prototype-getter call that receives a container
   // member, destructured alias, spread copy, factory result, or class field.
@@ -1501,6 +1519,8 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
+  /** @type {Set<AstNode>} */
+  const activeCarrierFunctions=new Set();
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
   /**
@@ -1579,6 +1599,29 @@ function hasWeakMapPrototypeExposure(ast) {
         visitCarrierExpression(argument,environment,thisValue);
       }
       visitCarrierExpression(node.callee,environment,thisValue);
+      if(node.callee.type==='Identifier') {
+        const definitions=localWeakMapEffectDeclarations.get(node.callee.name)??[];
+        for(const definition of definitions) {
+          if(activeCarrierFunctions.has(definition)||definition.params.length||
+              definition.async||definition.generator) {
+            // The invoked body cannot be safely modeled as one local transfer.
+            exposed=true;
+            continue;
+          }
+          activeCarrierFunctions.add(definition);
+          try {
+            const before=snapshotCarrierEnvironment(environment);
+            const invoked=snapshotCarrierEnvironment(environment);
+            visitCarrierStatement(definition.body,invoked,thisValue);
+            // Block/parameter-local names must not escape the call site.
+            for(const name of [...invoked.keys()])
+              if(!before.has(name))invoked.delete(name);
+            joinCarrierEnvironments(environment,before,invoked);
+          } finally {
+            activeCarrierFunctions.delete(definition);
+          }
+        }
+      }
       return;
     }
     if(node.type==='NewExpression') {
