@@ -159,9 +159,10 @@ test('the CLI exits successfully only for the all-requirements-passing positive 
   ]);
   assert.equal(result.status,0,result.stderr);
   assert.equal(result.decision.verdict,'RELEASE-GO');
-  assert.equal(result.decision.artifactHashes.length,2);
-  assert.ok(result.decision.artifactHashes.every(item=>
-    /^[0-9a-f]{64}$/u.test(item.sha256)));
+  /** @type {Array<{name:string,sha256:string,platform:string}>} */
+  const hashes=result.decision.artifactHashes;
+  assert.equal(hashes.length,2);
+  assert.ok(hashes.every(item=>/^[0-9a-f]{64}$/u.test(item.sha256)));
 });
 
 test('the CLI rejects a failed workflow job even when both receipts say GO',async()=>{
