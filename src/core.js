@@ -155,6 +155,94 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       directCallableExports.set(originPath,names);
     }
   }
+  // Resolve re-exported callable origins across the supplied static ESM graph.
+  // A barrel module merely forwards the Function object; freezing the barrel
+  // itself does not preserve the origin Function#toString bytes.
+  /** @type {Map<string,import('./ast').AstNode>} */
+  const callableModuleAsts=new Map();
+  for(const [filename,source] of modules)
+    callableModuleAsts.set(filename,parse(/** @type {string} */ (source.code),'module'));
+  /** @type {Map<string,Map<string,Set<string>>>} */
+  const resolvedCallableOrigins=new Map();
+  for(const filename of modules) {
+    const exports=new Map();
+    for(const name of directCallableExports.get(filename)??[])
+      exports.set(name,new Set([filename]));
+    resolvedCallableOrigins.set(filename,exports);
+  }
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
+  function staticExportName(node) {
+    return node?.type==='Identifier'?node.name:
+      node?.type==='Literal'&&typeof node.value==='string'?node.value:null;
+  }
+  /** @param {string} filename @param {unknown} source @returns {string|null} */
+  function staticModuleTarget(filename,source) {
+    if(typeof source!=='string'||!source.startsWith('./')&&!source.startsWith('../')||
+       /[?#%\\]/u.test(source)||source.includes('//')||
+       hasUrlPathnameNormalizationHazard(source)||
+       hasTerminalUrlDotSegment(source))return null;
+    const target=path.posix.normalize(path.posix.join(path.posix.dirname(filename),source));
+    return modules.has(target)?target:null;
+  }
+  /** @param {string} filename @param {string} exportName @param {ReadonlySet<string>} origins @returns {boolean} */
+  function unionCallableOrigins(filename,exportName,origins) {
+    const exports=resolvedCallableOrigins.get(filename);
+    if(!exports)return false;
+    const candidates=exports.get(exportName)??new Set();
+    let changed=false;
+    for(const origin of origins)if(!candidates.has(origin)) {
+      candidates.add(origin);changed=true;
+    }
+    if(changed)exports.set(exportName,candidates);
+    return changed;
+  }
+  // Re-exports and cycles form a finite monotonic union: each origin added to
+  // each published name only once. At most N+1 sweeps resolve a simple N-file
+  // barrel chain, with no source text changes during this analysis.
+  for(let sweep=0;sweep<=modules.size;sweep++) {
+    let changed=false;
+    for(const [filename,ast] of callableModuleAsts) {
+      /** @type {Map<string,{target:string,exportName:string}>} */
+      const importedBindings=new Map();
+      for(const stmt of ast.body??[]) {
+        if(stmt.type!=='ImportDeclaration')continue;
+        const target=staticModuleTarget(filename,stmt.source.value);
+        if(!target)continue;
+        for(const spec of stmt.specifiers??[]) {
+          if(spec.local?.type!=='Identifier')continue;
+          const exportName=spec.type==='ImportSpecifier'?
+            staticExportName(spec.imported):spec.type==='ImportDefaultSpecifier'?'default':null;
+          if(exportName!==null)importedBindings.set(spec.local.name,{target,exportName});
+        }
+      }
+      for(const stmt of ast.body??[]) {
+        if(stmt.type==='ExportNamedDeclaration') {
+          const source=stmt.source?.value;
+          const target=staticModuleTarget(filename,source);
+          for(const spec of stmt.specifiers??[]) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const exportName=staticExportName(spec.exported);
+            const localName=staticExportName(spec.local);
+            if(exportName===null||localName===null)continue;
+            const imported=target?{target,exportName:localName}:
+              importedBindings.get(localName);
+            const origins=imported?
+              resolvedCallableOrigins.get(imported.target)?.get(imported.exportName):null;
+            if(origins?.size&&unionCallableOrigins(filename,exportName,origins))
+              changed=true;
+          }
+        } else if(stmt.type==='ExportAllDeclaration'&&!stmt.exported) {
+          const target=staticModuleTarget(filename,stmt.source.value);
+          const exports=target?resolvedCallableOrigins.get(target):null;
+          for(const [exportName,origins] of exports??[]) {
+            if(exportName!=='default'&&
+               unionCallableOrigins(filename,exportName,origins))changed=true;
+          }
+        }
+      }
+    }
+    if(!changed)break;
+  }
   /** @type {Set<string>} */
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
@@ -163,6 +251,10 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     const importedOrigins=new Map();
     /** @type {Set<string>} */
     const directCallableImports=new Set();
+    /** @type {Map<string,Set<string>>} */
+    const callableOriginSets=new Map();
+    /** @type {Map<string,string>} */
+    const importedNamespaces=new Map();
     for(const statement of ast.body??[]) {
       if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
          typeof statement.source.value!=='string')continue;
@@ -176,13 +268,19 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       for(const spec of statement.specifiers??[]) {
         if(spec.local?.type!=='Identifier')continue;
         if(modules.has(target)) {
-          importedOrigins.set(spec.local.name,target);
-          if(spec.type==='ImportSpecifier') {
-            const importedName=spec.imported.name??spec.imported.value;
-            if(typeof importedName==='string'&&
-               directCallableExports.get(target)?.has(importedName))
-              directCallableImports.add(spec.local.name);
-          }
+          if(spec.type==='ImportNamespaceSpecifier')
+            importedNamespaces.set(spec.local.name,target);
+          const exportName=spec.type==='ImportSpecifier'?
+            staticExportName(spec.imported):
+            spec.type==='ImportDefaultSpecifier'?'default':null;
+          const origins=exportName===null?null:
+            resolvedCallableOrigins.get(target)?.get(exportName);
+          if(origins?.size) {
+            directCallableImports.add(spec.local.name);
+            callableOriginSets.set(spec.local.name,new Set(origins));
+            importedOrigins.set(spec.local.name,origins.size===1?
+              [...origins][0]:target);
+          } else importedOrigins.set(spec.local.name,target);
           continue;
         }
         // Build/test harnesses may relocate an otherwise closed supplied ESM
@@ -196,6 +294,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           if(origins?.size===1) {
             importedOrigins.set(spec.local.name,[...origins][0]);
             directCallableImports.add(spec.local.name);
+            callableOriginSets.set(spec.local.name,new Set(origins));
           }
         }
       }
@@ -291,7 +390,22 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          !parent.computed)return;
       if(parent?.type==='Property'&&key==='key'&&
          !parent.computed&&!parent.shorthand)return;
-      protectedPaths.add(origin);
+      const origins=callableOriginSets.get(node.name)??new Set([origin]);
+      for(const producer of origins)protectedPaths.add(producer);
+    });
+    // A namespace import is not a direct callable Identifier, but a member
+    // read on that namespace may expose an actual function through a host.
+    // Direct namespace method calls preserve their local-call positive yield.
+    walk(ast,(node,parent,key)=>{
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier')return;
+      const target=importedNamespaces.get(node.object.name);
+      const name=target?member(node):null;
+      const origins=name!==null&&target?
+        resolvedCallableOrigins.get(target)?.get(name):null;
+      if(!origins?.size)return;
+      if(parent?.type==='CallExpression'&&key==='callee'&&
+         parent.callee===node&&!parent.optional)return;
+      for(const producer of origins)protectedPaths.add(producer);
     });
   }
   return protectedPaths;
