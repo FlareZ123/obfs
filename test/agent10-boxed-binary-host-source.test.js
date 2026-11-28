@@ -16,7 +16,18 @@ const variants=[
   ['numeric binary alias','const first=5;const nativeNumber=first+2;'],
   ['numeric bitwise','const nativeNumber=7|0;'],
   ['numeric exponent','const nativeNumber=2**3-1;'],
-  ['awaited numeric primitive','const nativeNumber=await Promise.resolve(7);']
+  ['awaited numeric primitive','const nativeNumber=await Promise.resolve(7);'],
+  ['function-return primitive','const nativeNumber=(()=>7)();'],
+  ['property-read primitive','const nativeNumber=({n:7}).n;'],
+  ['array-slot primitive','const nativeNumber=[7][0];'],
+  ['tagged-template primitive','const nativeNumber=(strings=>7)`x`;'],
+  ['native numeric builtin','const nativeNumber=Math.max(3,7);'],
+  ['optional-chain primitive','const nativeNumber=({n:7})?.n;'],
+  ['destructured primitive','const [nativeNumber]=[7];'],
+  ['for-of primitive','let nativeNumber;for(const n of [7])nativeNumber=n;'],
+  ['class static primitive','class Box{static n=7}const nativeNumber=Box.n;'],
+  ['catch primitive','let nativeNumber;try{throw 7;}catch(ex){nativeNumber=ex;}'],
+  ['parseInt primitive','const nativeNumber=parseInt("7",10);']
 ];
 /** @param {string} binding @returns {Input[]} */
 function graphFor(binding){
