@@ -100,10 +100,12 @@ async function main() {
     const storage=obfuscated.files.find(file=>file.path==='storage.mjs');
     assert.ok(storage,'Missing transformed Storage module');
     bindingCount.set(item.name,storage.metrics.bindings);
-    for(const [label,source] of [
+    /** @type {Array<readonly [string,Array<{path:string,code:unknown}>]>} */
+    const variants=[
       ['original',originals],
       ['emitted',obfuscated.files]
-    ]) {
+    ];
+    for(const [label,source] of variants) {
       for(const file of source) {
         assert.equal(typeof file.code,'string');
         files.set('/'+item.name+'/'+label+'/'+file.path,String(file.code));
