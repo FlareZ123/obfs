@@ -8,13 +8,18 @@ on:
         required: false
         default: false
         type: boolean
+      host_reentry_only:
+        description: "Run only the Agent 10 native/emitted prototype-host reentry browser parity test"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   chromium:
-    if: ${{ !inputs.source_observer_plan_only }}
+    if: ${{ !inputs.source_observer_plan_only && !inputs.host_reentry_only }}
     # Avoid duplicate expensive Chromium runs for the identical source revision.
     concurrency:
       group: obfs-browser-${{ github.sha }}
@@ -201,7 +206,7 @@ jobs:
         run: npx tsc -p jsconfig.dom-source-evidence.json
 
   source-observer-plan:
-    if: ${{ inputs.source_observer_plan_only }}
+    if: ${{ inputs.source_observer_plan_only && !inputs.host_reentry_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
@@ -222,3 +227,21 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observation-plan-producer-browser.js
+
+  host-reentry:
+    if: ${{ inputs.host_reentry_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Real Chromium hostile native prototype ESM source parity
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent10-browser-host-reentry.js
+      - name: Validate compiler JSDoc
+        run: npm run typecheck
