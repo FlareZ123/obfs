@@ -50,6 +50,26 @@ test('dynamic ESM import consumers cannot be omitted from an exported factory ow
       identifiers:false
     });
     assert.equal(await execute(output.files),native);
+
+    // A literal Node builtin cannot import an untracked member of this ESM
+    // source group, so it should not suppress an otherwise proved factory.
+    const safeFiles=[
+      files[0],
+      {
+        path:'safe-consumer.mjs',
+        sourceType:'module',
+        code:'import {makeState} from "./state.mjs";const state=makeState();'+
+          'const os=await import("node:os");console.log(state.secretField,os.platform());'
+      },
+      {path:'main.mjs',sourceType:'module',code:'import "./safe-consumer.mjs";'}
+    ];
+    const safeNative=await execute(safeFiles);
+    const safeOutput=obfuscateFiles(safeFiles,{
+      mode:'coo',seed:'factory-dynamic-import-safe-builtin',
+      closedWorld:true,strings:false,identifiers:false
+    });
+    assert.equal(safeOutput.crossFile.properties,2);
+    assert.equal(await execute(safeOutput.files),safeNative);
   } finally {
     await fs.rm(dir,{recursive:true,force:true});
   }
