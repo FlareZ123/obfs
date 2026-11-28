@@ -1,7 +1,7 @@
 'use strict';
 
-const {walk}=require('./ast');
-const {isReadOnlyOwnedLiteral}=require('./sco-private-child-readonly-literal');
+const {walk,staticString}=require('./ast');
+const {isReadOnlyOwnedLiteral,insideAssignmentTarget}=require('./sco-private-child-readonly-literal');
 
 /**
  * Conservative per-client module-state admission for each server-private
@@ -116,6 +116,8 @@ function provenPrimitiveInitializer(value,depth=0){
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
+  /** @type {Set<string>} */
+  const privateReadonlyFunctionMetadata=new Set();
   let unprovedClass=false;
   for(const statement of ast.body){
     const declaration=statement.type==='ExportNamedDeclaration'&&
@@ -195,14 +197,42 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
           continue;
         }
         functions.add(item.id.name);
+        // An unexported immutable function can expose its own fixed
+        // primitive name/arity without leaking its mutable function object.
+        if(statement.type!=='ExportNamedDeclaration'&&
+           ['FunctionExpression','ArrowFunctionExpression'].includes(item.init.type)){
+          privateReadonlyFunctionMetadata.add(item.id.name);
+        }
         // A named expression has its own recursive self-binding, distinct
         // from the exported const. It can mutate that same shared function.
         if(item.init.id?.type==='Identifier')functions.add(item.init.id.name);
       }
     }
   }
-  if(functions.size)walk(ast,(node,parent,key)=>{
+  if(functions.size)walk(ast,(node,parent,key,ancestors)=>{
     if(node.type!=='Identifier'||!functions.has(node.name))return;
+    if(parent?.type==='MemberExpression'&&key==='object'&&
+       privateReadonlyFunctionMetadata.has(node.name)&&
+       !insideAssignmentTarget(ancestors)){
+      const property=parent.computed?staticString(parent.property):
+        parent.property.type==='Identifier'?parent.property.name:null;
+      if(property==='name'||property==='length'){
+        const consumer=ancestors.length>1?ancestors[ancestors.length-2]:null;
+        const consumerProperty=consumer?.type==='MemberExpression'&&
+          consumer.object===parent?
+            (consumer.computed?staticString(consumer.property):
+             consumer.property.type==='Identifier'?consumer.property.name:null):null;
+        const nestedLength=property==='name'&&consumerProperty==='length';
+        const noOpaqueInvocation=!(consumer&&(
+          (consumer.type==='CallExpression'||consumer.type==='NewExpression')&&
+            consumer.callee===parent||
+          consumer.type==='TaggedTemplateExpression'&&consumer.tag===parent));
+        if(noOpaqueInvocation&&
+           (!consumer||consumer.type!=='MemberExpression'||nestedLength)){
+          return;
+        }
+      }
+    }
     if((parent?.type==='FunctionDeclaration'||
         parent?.type==='FunctionExpression'||
         parent?.type==='ClassDeclaration'||
