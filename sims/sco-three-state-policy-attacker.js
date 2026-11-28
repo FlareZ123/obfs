@@ -36,7 +36,7 @@ async function main(){
     const payload=await response.json();
     if(response.status!==200||payload?.ok!==true)
       throw new Error('RPC rejected policy step: '+response.status+' '+JSON.stringify(payload));
-    const output=payload.result;
+    const output=payload.value;
     if(output!==0&&output!==1)
       throw new Error('Unexpected oracle output '+String(output));
     inputs.push(input);
