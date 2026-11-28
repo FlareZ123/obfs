@@ -2970,6 +2970,7 @@ function renameCrossFileProperties(files,seed) {
             }
             if(statement.type==='ExportNamedDeclaration') {
               if(statement.specifiers.some((/** @type {AstNode} */ spec)=>
+                spec.type==='ExportNamespaceSpecifier'||
                 spec.type==='ExportSpecifier'&&
                 (spec.local.name??spec.local.value)===factory.name)) {
                 failed=true;
