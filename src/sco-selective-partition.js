@@ -996,6 +996,142 @@ function realmStateObservation(body,checkHostConfiguration=false){
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
+  // Primitive property reads may invoke the executing realm's prototype.
+  // Track function metadata and simple aliases without assuming arbitrary
+  // function return values or a whole-program value-flow proof.
+  const functionNames=new Set();
+  walk(body,node=>{
+    if((node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+        node.type==='ArrowFunctionExpression')&&node.id?.type==='Identifier'){
+      functionNames.add(node.id.name);
+    }
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init&&
+       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)){
+      functionNames.add(node.id.name);
+      if(node.init.id?.type==='Identifier')functionNames.add(node.init.id.name);
+    }
+  });
+  /** @type {Set<string>} */
+  const primitiveAliases=new Set();
+  /** @param {import('./ast').AstNode} receiver @param {string|null} property @returns {boolean} */
+  function isOwnStringIndex(receiver,property){
+    if(property===null||!/^(?:0|[1-9]\d*)$/u.test(property))return false;
+    let value=null;
+    if(receiver.type==='Literal'&&typeof receiver.value==='string')value=receiver.value;
+    if(receiver.type==='TemplateLiteral'&&receiver.expressions.length===0){
+      value=receiver.quasis[0]?.value.cooked??null;
+    }
+    if(typeof value!=='string')return false;
+    const index=Number(property);
+    return Number.isSafeInteger(index)&&index<value.length;
+  }
+  /**
+   * @param {import('./ast').AstNode} expression
+   * @param {number} [depth]
+   * @returns {'string'|'number'|'boolean'|'bigint'|'symbol'|'nullish'|'primitive'|null}
+   */
+  function primitiveKind(expression,depth=0){
+    if(depth>24)return 'primitive';
+    switch(expression.type){
+      case 'Literal': {
+        if(expression.regex!==undefined)return null;
+        if(expression.value===null)return 'nullish';
+        const kind=typeof expression.value;
+        return ['string','number','boolean','bigint'].includes(kind)?kind:null;
+      }
+      case 'TemplateLiteral':
+        return 'string';
+      case 'Identifier':
+        if(expression.name==='undefined')return 'nullish';
+        return primitiveAliases.has(expression.name)?'primitive':null;
+      case 'MemberExpression': {
+        if(expression.object.type==='Identifier'&&functionNames.has(expression.object.name)){
+          const property=keyName(expression);
+          if(property==='name')return 'string';
+          if(property==='length')return 'number';
+        }
+        if(isImmutableNumericMember(expression))return 'number';
+        const receiver=primitiveKind(expression.object,depth+1);
+        const property=keyName(expression);
+        if(receiver==='string'&&property==='length')return 'number';
+        if(receiver==='string'&&isOwnStringIndex(expression.object,property))return 'string';
+        return null;
+      }
+      case 'UnaryExpression':
+        if(expression.operator==='typeof')return 'string';
+        if(expression.operator==='!'||expression.operator==='delete')return 'boolean';
+        if(expression.operator==='void')return 'nullish';
+        if(expression.operator==='+')return 'number';
+        if(expression.operator==='-'||expression.operator==='~'){
+          const argument=primitiveKind(expression.argument,depth+1);
+          if(argument==='bigint')return 'bigint';
+          return argument?'number':null;
+        }
+        return null;
+      case 'BinaryExpression': {
+        if(['==','===','!=','!==','<','<=','>','>=','in','instanceof'].includes(expression.operator)){
+          return 'boolean';
+        }
+        const left=primitiveKind(expression.left,depth+1);
+        const right=primitiveKind(expression.right,depth+1);
+        if(expression.operator==='+'&&(left==='string'||right==='string'))return 'string';
+        if(left==='number'&&right==='number')return 'number';
+        if(left==='bigint'&&right==='bigint')return 'bigint';
+        if(left&&right)return 'primitive';
+        return null;
+      }
+      case 'LogicalExpression':
+      case 'ConditionalExpression': {
+        const left=primitiveKind(expression.type==='LogicalExpression'?
+          expression.left:expression.consequent,depth+1);
+        const right=primitiveKind(expression.type==='LogicalExpression'?
+          expression.right:expression.alternate,depth+1);
+        if(!left||!right)return null;
+        return left===right?left:'primitive';
+      }
+      case 'SequenceExpression':
+        return expression.expressions.length?
+          primitiveKind(expression.expressions[expression.expressions.length-1],depth+1):null;
+      case 'ChainExpression':
+        return primitiveKind(expression.expression,depth+1);
+      case 'AssignmentExpression':
+        return primitiveKind(expression.right,depth+1);
+      case 'AwaitExpression':
+        return primitiveKind(expression.argument,depth+1);
+      case 'UpdateExpression':
+        return primitiveKind(expression.argument,depth+1)==='bigint'?'bigint':'number';
+      case 'CallExpression':
+      case 'NewExpression': {
+        const callee=expression.callee;
+        if(callee.type==='Identifier'&&
+           ['String','Number','Boolean','BigInt','Symbol'].includes(
+             intrinsicKinds.get(callee.name)??''))return 'primitive';
+        if(callee.type==='MemberExpression'&&callee.object.type==='Identifier'&&
+           intrinsicKinds.get(callee.object.name)==='String'&&
+           ['fromCharCode','fromCodePoint'].includes(keyName(callee)??''))return 'primitive';
+        return null;
+      }
+      default:
+        return null;
+    }
+  }
+  // Alias names are intentionally overapproximated across scopes. An
+  // ambiguous name blocks property reads rather than assuming it is an object.
+  let primitiveAliasesChanged=true;
+  while(primitiveAliasesChanged){
+    primitiveAliasesChanged=false;
+    walk(body,(node,parent)=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type!=='Identifier'||!initial||primitiveAliases.has(binding.name))return;
+      if(primitiveKind(initial)){
+        primitiveAliases.add(binding.name);
+        primitiveAliasesChanged=true;
+      }
+    });
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function rootedInIntrinsic(node){
     return isIntrinsic(node)||node.type==='MemberExpression'&&
@@ -1224,6 +1360,10 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     if(node.type==='MemberExpression'){
       const key=keyName(node);
+      const primitiveReceiver=primitiveKind(node.object);
+      const ownStringLength=primitiveReceiver==='string'&&key==='length';
+      const ownStringIndex=primitiveReceiver==='string'&&isOwnStringIndex(node.object,key);
+      if(primitiveReceiver&&!ownStringLength&&!ownStringIndex)prototypeTouched=true;
       if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)prototypeTouched=true;
       if(isIntrinsic(node.object)&&reflectorMethods.has(key??''))prototypeTouched=true;
       if(node.object.type==='Identifier'&&regexpNames.has(node.object.name)&&
