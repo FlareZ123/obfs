@@ -176,7 +176,51 @@ const cases=[
 ['object-method-side-effect','let carrier={};const helper={fill(){carrier={instance:new WeakMap()};}};helper.fill();','carrier.instance'],
 ['object-method-negative','class Ordinary{};let carrier={instance:new Ordinary()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
 ['inline-callback-side-effect','let carrier={};[0].forEach(()=>{carrier={instance:new WeakMap()};});','carrier.instance'],
-['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance']
+['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance'],
+// Follow-up adversarial matrix: all positive/negative expectations were
+// validated independently with separate native Node module executions and
+// binding-only function-source mutations; none is synthesized from the
+// compiler's abstract interpretation result.
+['extra-class-expression-constructor-default',
+ 'let carrier={};const Holder=class{constructor(x=(carrier={instance:new WeakMap()})) {}};new Holder();',
+ 'carrier.instance'],
+['extra-derived-class-constructor-default',
+ 'let carrier={};class Base{};class Holder extends Base{constructor(x=(carrier={instance:new WeakMap()})){super();}}new Holder();',
+ 'carrier.instance'],
+['extra-iife-parameter-default',
+ 'let carrier={};(function(x=(carrier={instance:new WeakMap()})){})();',
+ 'carrier.instance'],
+['extra-array-pattern-parameter-default',
+ 'let carrier={};function fill([x=(carrier={instance:new WeakMap()})]=[]){}fill();',
+ 'carrier.instance'],
+['extra-default-sequence-side-effect',
+ 'let carrier={};function fill(x=(carrier={instance:new WeakMap()},123)){}fill();',
+ 'carrier.instance'],
+['extra-default-helper-call-effect',
+ 'let carrier={};function assign(){carrier={instance:new WeakMap()};}function fill(x=assign()){}fill();',
+ 'carrier.instance'],
+['extra-default-true-conditional',
+ 'let carrier={};function fill(x=(true?(carrier={instance:new WeakMap()}):123)){}fill();',
+ 'carrier.instance'],
+['extra-computed-object-argument-key',
+ "let carrier={};function fill(o){}fill({[(carrier={instance:new WeakMap()},'x')]:1});",
+ 'carrier.instance'],
+['extra-computed-object-literal-key',
+ "let carrier={};const obj={[(carrier={instance:new WeakMap()},'x')]:1};",
+ 'carrier.instance'],
+['extra-getter-destructure-argument',
+ 'let carrier={};const obj={get x(){carrier={instance:new WeakMap()};return 4}};function fill({x}){}fill(obj);',
+ 'carrier.instance'],
+// Native negative side-effect controls must keep unrelated rewrite yield.
+['extra-provided-null-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill(null);',
+ 'carrier.instance'],
+['extra-false-logical-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false&&(carrier={instance:new WeakMap()}))){}fill();',
+ 'carrier.instance'],
+['extra-false-conditional-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false?(carrier={instance:new WeakMap()}):123)){}fill();',
+ 'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
