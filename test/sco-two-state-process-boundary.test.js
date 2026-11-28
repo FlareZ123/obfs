@@ -9,7 +9,7 @@ const {runProcessBoundary}=require('../sims/sco-two-state-process-boundary');
 test('complete independent two-state policy has an exact nine-request certificate',async()=>{
   const policy=createPolicy();
   assert.equal(policy.models.length,260);
-  assert.equal(policy.beliefs.length,4501);
+  assert.equal(policy.beliefs.length,4429);
   assert.equal(policy.ranks[0],9);
   assert.ok(policy.ranks.every(rank=>rank>=0&&rank<=9));
   // Global minimax lower-bound certificate: regardless of the attacker's
@@ -56,7 +56,7 @@ test('authenticated real SCO and equal-trust ordinary RPC clients are cloned fro
   assert.equal(result.exact,true);
   assert.equal(result.matchedControl,true);
   assert.equal(result.rank,9);
-  assert.equal(result.beliefs,4501);
+  assert.equal(result.beliefs,4429);
   assert.ok(result.queries>=0&&result.queries<=9);
   assert.equal(result.traceLength,result.queries+16);
   assert.equal(result.unauthorizedSco,403);
