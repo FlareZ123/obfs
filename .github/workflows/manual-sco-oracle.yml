@@ -91,6 +91,8 @@ jobs:
         run: node --test test/sco-two-state-process-boundary.test.js
       - name: Verify Linux different-UID SCO client with real generated HTTP facade
         if: runner.os == 'Linux'
+        env:
+          OBFS_SCO_UID_TEST: '1'
         run: node --test test/sco-two-state-process-boundary.test.js
       - name: Publish real SCO server-private to public continuation result
         run: node sims/sco-step-only-live-rpc.js
