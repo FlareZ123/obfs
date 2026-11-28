@@ -57,8 +57,11 @@ function hasUnlistedBrowserExecutableLoad(ast,filename,files,knownJavaScript) {
     return member.computed?staticString(member.property):
       member.property.type==='Identifier'?member.property.name:null;
   }
-  walk(ast,node=>{
-    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+  walk(ast,(node,parent)=>{
+    // Only immutable, uniquely bound native image values can be excluded.
+    // A let/var may be reassigned to a script before the src write.
+    if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+       parent.kind!=='const'||node.id.type!=='Identifier'||
        bindings.get(node.id.name)!==1)return;
     const init=node.init;
     if(init?.type!=='CallExpression'||init.callee.type!=='MemberExpression'||
