@@ -1,0 +1,639 @@
+{
+  "sourceSha": "e02d696d496e7be9d370e72594bb681e1e1ad727",
+  "workflowRun": 46126931909,
+  "measurement": "Post-init same-process server+client CPU with 1024 rotating deterministic inputs over seven paired trials; repeated independent HTTP requests, not batching; per-call normalized across different repetitions.",
+  "jobs": {
+    "ubuntu-latest": {
+      "jobId": 140923484605,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "linux",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "facadeFreeWireReplayHeldouts": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 23.735028,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0.047,
+                0.011,
+                0.008,
+                0.008,
+                0.006,
+                0.047,
+                0.005,
+                0.009,
+                0.007
+              ],
+              "generated": [
+                1.207,
+                1.022,
+                2.688,
+                3.412,
+                2.805,
+                2.611,
+                0.908,
+                0.871,
+                0.863
+              ],
+              "ordinary": [
+                1.036,
+                1.029,
+                2.958,
+                3.009,
+                0.938,
+                1.132,
+                0.875,
+                1.215,
+                0.878
+              ]
+            },
+            "medianGeneratedOverNative": 123.28571428571428,
+            "medianOrdinaryOverNative": 135.00000000000003,
+            "medianGeneratedOverOrdinary": 1.0377142857142858,
+            "generatedBreaches": 9,
+            "ordinaryBreaches": 9
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                2.43,
+                2.524,
+                2.545,
+                2.33,
+                2.528,
+                2.131,
+                2.127,
+                2.127,
+                2.145
+              ],
+              "generated": [
+                4.231,
+                3.537,
+                4.41,
+                3.038,
+                3.623,
+                3.041,
+                3.172,
+                3.174,
+                3.042
+              ],
+              "ordinary": [
+                3.094,
+                3.456,
+                3.124,
+                4.255,
+                4.438,
+                3.132,
+                3.05,
+                3.888,
+                3.014
+              ]
+            },
+            "medianGeneratedOverNative": 1.4331487341772153,
+            "medianOrdinaryOverNative": 1.4339445228020686,
+            "medianGeneratedOverOrdinary": 1.0092899800928998,
+            "generatedBreaches": 0,
+            "ordinaryBreaches": 0
+          }
+        },
+        "batchedCpu": {
+          "light": {
+            "repetitions": {
+              "native": 32768,
+              "generated": 1024,
+              "ordinary": 1024
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                90.825,
+                88.358,
+                72.651,
+                74.455,
+                69.083,
+                87.571,
+                81.642
+              ],
+              "generated": [
+                1229.403,
+                752.329,
+                691.151,
+                601.592,
+                625.912,
+                611.584,
+                641.957
+              ],
+              "ordinary": [
+                1018.123,
+                908.118,
+                691.258,
+                627.381,
+                608.605,
+                531.786,
+                582.874
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                0.002771759033203125,
+                0.00269647216796875,
+                0.002217132568359375,
+                0.002272186279296875,
+                0.002108245849609375,
+                0.002672454833984375,
+                0.00249151611328125
+              ],
+              "generated": [
+                1.2005888671875,
+                0.7346962890625,
+                0.6749521484375,
+                0.5874921875,
+                0.6112421875,
+                0.59725,
+                0.6269111328125
+              ],
+              "ordinary": [
+                0.9942607421875,
+                0.886833984375,
+                0.675056640625,
+                0.6126767578125,
+                0.5943408203125,
+                0.519322265625,
+                0.569212890625
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                0.002236897399902342,
+                0.002401053466796879,
+                0.002213204772949229,
+                0.002108291442871113,
+                0.0021037740173339703,
+                0.0024725350036620686,
+                0.002484276580810574
+              ],
+              "generated": [
+                0.8589433984374999,
+                0.5619626874999999,
+                0.551142645507813,
+                0.5020051162109374,
+                0.5302152802734375,
+                0.5059431249999999,
+                0.5306313212890625
+              ],
+              "ordinary": [
+                0.7269618095703125,
+                0.6307873876953125,
+                0.5454744423828126,
+                0.4990097050781248,
+                0.506246611328125,
+                0.4693714199218748,
+                0.49204173046875077
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 272.4657416419566,
+            "medianOrdinaryOverNative": 281.91248208676524,
+            "medianGeneratedOverOrdinary": 1.0284371636775906,
+            "generatedStrictBreaches": 7,
+            "ordinaryStrictBreaches": 7
+          },
+          "heavy": {
+            "repetitions": {
+              "native": 128,
+              "generated": 128,
+              "ordinary": 128
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                302.668,
+                278.026,
+                278.524,
+                277.701,
+                275.888,
+                279.174,
+                276.243
+              ],
+              "generated": [
+                360.632,
+                357.195,
+                375.431,
+                354.096,
+                353.877,
+                373.745,
+                357.237
+              ],
+              "ordinary": [
+                358.084,
+                366.2,
+                358.928,
+                403.962,
+                351.592,
+                353.379,
+                353.719
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                2.36459375,
+                2.172078125,
+                2.17596875,
+                2.1695390625,
+                2.155375,
+                2.181046875,
+                2.1581484375
+              ],
+              "generated": [
+                2.8174375,
+                2.7905859375,
+                2.9330546875,
+                2.766375,
+                2.7646640625,
+                2.9198828125,
+                2.7909140625
+              ],
+              "ordinary": [
+                2.79753125,
+                2.8609375,
+                2.804125,
+                3.155953125,
+                2.7468125,
+                2.7607734375,
+                2.7634296875
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                2.252101617187506,
+                2.1684902187499944,
+                2.1750199999999893,
+                2.1647551953124946,
+                2.1539914218749914,
+                2.1730144765625,
+                2.15687903125
+              ],
+              "generated": [
+                2.7727596328124946,
+                2.749151390624988,
+                2.8116722499999867,
+                2.7105497656250037,
+                2.715830171874998,
+                2.7805834843749864,
+                2.7197975390625118
+              ],
+              "ordinary": [
+                2.7518564531250007,
+                2.8119795234375005,
+                2.7620940078125074,
+                2.884487218749996,
+                2.691053351562502,
+                2.7039836796874965,
+                2.6904659374999937
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 1.2847539438757525,
+            "medianOrdinaryOverNative": 1.2804632153574933,
+            "medianGeneratedOverOrdinary": 1.007115648842171,
+            "generatedStrictBreaches": 0,
+            "ordinaryStrictBreaches": 0
+          }
+        },
+        "cpuCaveat": "Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs",
+        "batchedInput": "1024 varying seeded inputs per trial; rotated across seven paired trials",
+        "scope": "Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs"
+      }
+    },
+    "windows-latest": {
+      "jobId": 140923484501,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "win32",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "facadeFreeWireReplayHeldouts": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 26.895100000000014,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                15,
+                0,
+                0
+              ],
+              "ordinary": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": null,
+            "generatedBreaches": 1,
+            "ordinaryBreaches": 0
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "ordinary": [
+                0,
+                16,
+                0,
+                16,
+                15,
+                0,
+                16,
+                0,
+                15
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": 0,
+            "generatedBreaches": 0,
+            "ordinaryBreaches": 5
+          }
+        },
+        "batchedCpu": {
+          "light": {
+            "repetitions": {
+              "native": 32768,
+              "generated": 1024,
+              "ordinary": 1024
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                94,
+                77,
+                79,
+                125,
+                63,
+                78,
+                78
+              ],
+              "generated": [
+                1048,
+                625,
+                625,
+                531,
+                500,
+                594,
+                640
+              ],
+              "ordinary": [
+                858,
+                876,
+                718,
+                532,
+                453,
+                500,
+                516
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                0.00286865234375,
+                0.002349853515625,
+                0.002410888671875,
+                0.003814697265625,
+                0.001922607421875,
+                0.00238037109375,
+                0.00238037109375
+              ],
+              "generated": [
+                1.0234375,
+                0.6103515625,
+                0.6103515625,
+                0.5185546875,
+                0.48828125,
+                0.580078125,
+                0.625
+              ],
+              "ordinary": [
+                0.837890625,
+                0.85546875,
+                0.701171875,
+                0.51953125,
+                0.4423828125,
+                0.48828125,
+                0.50390625
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                0.0022626647949218794,
+                0.002466775512695321,
+                0.0022956848144531222,
+                0.0022172943115234267,
+                0.0021814727783203147,
+                0.0023215820312499913,
+                0.002229830932617166
+              ],
+              "generated": [
+                0.761871875,
+                0.5331095703125,
+                0.5155043945312503,
+                0.4556214843749995,
+                0.4449631835937504,
+                0.4978638671875002,
+                0.46489189453125057
+              ],
+              "ordinary": [
+                0.6449587890624997,
+                0.5742318359375003,
+                0.4761328124999995,
+                0.45993427734375025,
+                0.4452490234374995,
+                0.4393912109375,
+                0.46211982421874964
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 253.96825396825398,
+            "medianOrdinaryOverNative": 230.0952380952381,
+            "medianGeneratedOverOrdinary": 1.1037527593818985,
+            "generatedStrictBreaches": 7,
+            "ordinaryStrictBreaches": 7
+          },
+          "heavy": {
+            "repetitions": {
+              "native": 128,
+              "generated": 128,
+              "ordinary": 128
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                234,
+                250,
+                234,
+                250,
+                234,
+                265,
+                250
+              ],
+              "generated": [
+                313,
+                359,
+                312,
+                329,
+                312,
+                312,
+                329
+              ],
+              "ordinary": [
+                312,
+                375,
+                297,
+                297,
+                312,
+                297,
+                312
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                1.828125,
+                1.953125,
+                1.828125,
+                1.953125,
+                1.828125,
+                2.0703125,
+                1.953125
+              ],
+              "generated": [
+                2.4453125,
+                2.8046875,
+                2.4375,
+                2.5703125,
+                2.4375,
+                2.4375,
+                2.5703125
+              ],
+              "ordinary": [
+                2.4375,
+                2.9296875,
+                2.3203125,
+                2.3203125,
+                2.4375,
+                2.3203125,
+                2.4375
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                1.9080593750000077,
+                1.8804195312499985,
+                1.9052046874999888,
+                1.8778093749999982,
+                1.9000687499999884,
+                1.8836148437499958,
+                1.8739476562500101
+              ],
+              "generated": [
+                2.4462656249999952,
+                2.422284375000004,
+                2.3991257812499924,
+                2.5983234374999995,
+                2.4392171874999917,
+                2.4453507812499993,
+                2.4555710937499953
+              ],
+              "ordinary": [
+                2.4297859375,
+                2.545854687500011,
+                2.41814296874999,
+                2.410235937500005,
+                2.4335999999999984,
+                2.4529992187500085,
+                2.4600890625000034
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 1.3333333333333333,
+            "medianOrdinaryOverNative": 1.2692307692307692,
+            "medianGeneratedOverOrdinary": 1.0505050505050506,
+            "generatedStrictBreaches": 0,
+            "ordinaryStrictBreaches": 0
+          }
+        },
+        "cpuCaveat": "Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs",
+        "batchedInput": "1024 varying seeded inputs per trial; rotated across seven paired trials",
+        "scope": "Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs"
+      }
+    }
+  }
+}
