@@ -404,6 +404,8 @@ test('24-call policy identifies selected sources through process-separated SCO a
             ]])
           };
           fourState.next[state][input]=3;
+          assert.equal(reachableStates(fourState,0).length,4,
+            'the added fourth state is reachable from the original initial state');
           const modifiedTrace=simulatePolicy(policyNodes,fourState);
           assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
           assert.deepEqual(modifiedTrace.outputs,originalTrace.outputs);
