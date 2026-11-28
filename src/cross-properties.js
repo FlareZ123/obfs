@@ -2386,7 +2386,17 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         ['number','string','boolean','bigint'].includes(typeof value.value);
       if(value.type==='TemplateLiteral')return true;
       if(value.type==='Identifier')return maybePrimitives.has(value.name);
-      if(value.type==='UnaryExpression')return true;
+      // All binary operators produce primitives (or throw), including
+      // arithmetic, comparisons and bitwise operations. Update expressions
+      // also return primitive numbers/BigInts, and await may unwrap one.
+      // Member reads, calls and tagged templates can likewise return
+      // primitives unless a stronger nonprimitive provenance proof exists.
+      // An unproved result may dispatch a host-modified inherited method
+      // which can import the supposedly closed owner and inspect its keys.
+      if(['UnaryExpression','BinaryExpression','UpdateExpression',
+          'AwaitExpression','MemberExpression','CallExpression',
+          'TaggedTemplateExpression','ChainExpression','YieldExpression'].
+          includes(value.type))return true;
       if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
          (['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name)||
           primitiveReturningFunctions.has(value.callee.name)))
