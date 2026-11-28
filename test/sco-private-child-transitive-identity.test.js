@@ -100,7 +100,8 @@ test('SCO refuses aliased function metadata that loses primitive provenance',()=
     'export function run(){const fn=()=>1;const name=fn.name;return name.length;}',
     'export function run(){const fn=()=>1;const length=fn.length;return length.toString();}',
     'export function run(){const fn=()=>1;const length=fn.name.length;return length.toString();}',
-    'export function run(){const fn=()=>1;return consume(fn.name);}'
+    'export function run(){function consume(value){return value.toString();}'+
+      'const fn=()=>1;return consume(fn.name);}'
   ];
   for(const source of unsafe){
     assert.throws(()=>standalone(source,leaf),
