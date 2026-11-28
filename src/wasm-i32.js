@@ -81,9 +81,9 @@ function accepted(node,parameters,depth=0,coerced=false) {
     return -node.argument.value>=-2147483648&&-node.argument.value<=2147483647;
   }
   if(node.type!=='BinaryExpression')return false;
-  if(node.operator==='+') {
-    // A depth <=16 pure additive tree has at most 2**16 i32/uint32 leaves.
-    // Its absolute mathematical sum is <2**48, exactly representable by JS
+  if(node.operator==='+'||node.operator==='-') {
+    // A depth <=16 pure addition/subtraction tree has at most 2**16 i32/uint32 leaves.
+    // Its absolute mathematical magnitude is <2**48, exactly representable by JS
     // Number; only an enclosing bitwise coercion discards high bits.  A raw
     // return, a conditional test or an uncoerced branch must refuse.
     return coerced && accepted(node.left,parameters,depth+1,true) &&
@@ -177,8 +177,8 @@ function emit(node,parameters,entropy,state,conditionalStrategy) {
   if(node.type!=='BinaryExpression')throw Error('Compiler validation mismatch');
   const left=emit(node.left,parameters,entropy,state,conditionalStrategy);
   const right=emit(node.right,parameters,entropy,state,conditionalStrategy);
-  // Wasm i32.add is admitted only inside a proven ToInt32 context.
-  const opcode=node.operator==='+'?0x6a:OPS[node.operator];
+  // Wasm i32.add/sub are admitted only inside a proven ToInt32 context.
+  const opcode=node.operator==='+'?0x6a:node.operator==='-'?0x6b:OPS[node.operator];
   if((node.operator==='&'||node.operator==='|'||node.operator==='^')&&
      simpleOperand(node.left)&&simpleOperand(node.right)&&
      state.diversified<2 && (entropy[state.position++%entropy.length]&1)===1) {
