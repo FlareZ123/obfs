@@ -70,9 +70,9 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])){
       identifiers:false,strings:false,properties:false,
       experimentalWasmI32:{'entry.cjs':['inspect']}
     });
-    assert.match(output.files[0].code,/WebAssembly/,
+    assert.match(String(output.files[0].code),/WebAssembly/,
       'Primitive DOMParser input must not veto unrelated Wasm');
-    assert.equal(JSON.stringify(observe(output.files[0].code)),
+    assert.equal(JSON.stringify(observe(String(output.files[0].code))),
       JSON.stringify(observe(source)));
   });
 }
