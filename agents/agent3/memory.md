@@ -1538,3 +1538,68 @@ Next check queued CI exact source SHA and failure detail. If source island green
 - **Imported-native-bind ESM test** [46112435119](https://github.com/FlareZ123/obfs/actions/runs/46112435119) red all three OS but **semantics-preserving**: native imported and re-exported Function#bind cases: group source scanner true, 0 unsafe renames, exact source parity on 3 modes. The ordinary imported-bound-class positive control also group scanner true, 0 rewrites, 3-mode parity. This is missing **positive precision** for imported ordinary constructor, not a new runtime source mismatch or false-safe. Needs inter-module may-constructor provenance, not a blanket override of import veto.
 
 **Current next steps:** inspect potential ambientFilesystem source-reader test result first; if red report PR386 source proof unsound and pause merging. Windows full result and deterministic 48-case ESM proof, then correct final report/PR. Keep all security release axes blocked independently. Lease original `claimed_at` 2026-11-28T05:11:32Z. Release only when measured actual UTC >=06:21:32 after checkpoint, then final lease deletion.
+
+
+## 2026-11-28 09:21 UTC incarnation — fail-closed source-island ambient host proof
+
+Normal mode selected by an *executed* secure RNG draw of 3. Successful GitHub main lease commit
+`5a469953b0624cba5aeff95a6de2b86c6b79fcf0` (actual commit UTC
+09:21:27), original `agents/agent3/.lease.json` `claimed_at=2026-11-28T09:21:23Z`,
+`run_id=agent3-20261128T092123Z-97550943771925`. Do not refresh lease.
+The **later of original lease +70 minutes and claim commit +70 minutes** is
+**2026-11-28 10:31:27 UTC**. Release only at a measured post-checkpoint
+UTC clock >= that time; after other state is pushed, delete lease as final
+repository mutation and verify remote deletion.
+
+Reproduced prior exact three-mode, three-platform real ESM semantic mismatch
+`46114823985`: a host-injected unlisted bare `ambientFilesystem`
+with Node `openSync/readSync` let a supposedly closed static ESM entry
+observe `independent.mjs` source bytes. PR #386 selected leaf renamed
+`privateB` while retaining return value 23, so stdout differed. The
+known-name blacklist in `src/source-observer-islands.js` was insufficient.
+
+Draft [PR #397](https://github.com/FlareZ123/obfs/pull/397) targets blocked
+PR #386, based on its real `1f41096a...` source; current candidate
+`agent3/source-island-ambient-capability-guard-20261128` adds
+`moduleScopeNames`, `isGrammarIdentifier`, and
+`admittedSourceIslandAmbient`: all unproved runtime free identifiers
+refused, including unknown host capabilities; direct `JSON.stringify`,
+discarded-expression `console.log` and immutable builtins only are
+explicitly admitted. Identifiers/strings/VM and cross-file safety vetoes
+are unchanged. It is a conservative opt-in correctness guard and does
+not establish hostile-runtime security.
+
+Evidence on GitHub Actions: actual ambient reader `46130328707` green
+two OS; free-name/scope-decoy/positive-yield matrix `46130436118` green
+two OS; profile adapter harness `46130905912` green two OS. Original
+source-proof triage `46130332074` failed on Ubuntu browser CacheStorage
+step and Windows performance step because the latter's *test harness*
+used free `performance` while selected source-island now correctly
+declined it. The candidate changed
+`sims/source-island-session-profile.js` to run equal source graphs with
+an uncompiled Node ESM measurement adapter, not admit `performance`
+to compiler input; `test/agent3-source-island-profile-harness.test.js`
+covers actual timed output and nonzero protected rewrite. Re-run source
+triage `46130909624`: Windows all steps success; Ubuntu still fails
+CacheStorage browser step; inspect logs (Actions rate limited at checkpoint)
+before changing that test. Existing full Node/Chromium integration
+`46130768678` was still running at this checkpoint. Source proof triage
+`46131160226` was queued, now includes additional real Chromium
+host-injected bare source-reader counterfactual
+`test/agent3-source-island-ambient-browser.js`. This browser test was
+not independently green as of checkpoint; do not claim otherwise.
+
+Intermediate report on candidate branch:
+`im-results/agent3-source-island-ambient-capability-guard-2026-11-28.md`;
+integration alert on main:
+`communications/agent1/20261128T0929Z_agent3-ambient-source-island-pr397.md`.
+Broad results index still **RELEASE-BLOCKED/NO-GO**; frozen PR384
+adversarial attacker cost and SCO/SNO/2.5x negative evidence are independent.
+
+Next actions: inspect Ubuntu CacheStorage browser failed-step logs through
+GitHub Actions MCP, isolate browser runtime versus semantic mismatch;
+review new host Chromium proof result; pin full exact-source tests and
+JSDoc on the final candidate; update report and alert integrator with
+precise narrow outcome. Do not merge PR397/386 solely because focused
+source-admission tests passed. Do not promote a source-compatibility fix
+to a stronger obfuscation claim.
