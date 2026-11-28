@@ -159,14 +159,16 @@ function sampleHousekeepingCpu(store,capacity){
   store.assertConfiguration('c'.repeat(64));
   const now=1_900_000_000_000;
   const challenge=Buffer.alloc(32,0x42);
+  let admitted=0;
   const before=process.cpuUsage();
   for(let i=0;i<capacity;i++){
     store.insertChallenge('nonce-'+i,'account','login',challenge,now+120_000,
       now,capacity);
-    assert.equal(store.mintSession('token-'+i,'account',now+120_000,0,
-      now,capacity),true);
+    if(store.mintSession('token-'+i,'account',now+120_000,0,now,capacity)===true)
+      admitted++;
   }
   const elapsed=process.cpuUsage(before);
+  assert.equal(admitted,capacity,'Both arms must perform the same positive work');
   return elapsed.user+elapsed.system;
 }
 
