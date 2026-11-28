@@ -6,7 +6,8 @@ const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
-const {obfuscateFiles}=require('../src');
+const http=require('node:http');
+const {obfuscateFiles,createScoHandler}=require('../src');
 
 /** @typedef {{path:string,sourceType:'module'|'script',code:string}} SourceFile */
 /**
@@ -210,4 +211,55 @@ for(const hostile of [false,true]) {
         'The prior classic script can alter inherited invocation methods');
     }
   });
+}
+
+
+/**
+ * SCO publishes each path in its own HTTP request. The per-request compiler
+ * must nevertheless apply the same cross-file source-exposure decision.
+ * @param {SourceFile[]} files
+ * @returns {Promise<SourceFile[]>}
+ */
+async function publishScoFiles(files) {
+  const server=http.createServer(createScoHandler(files,{closedWorld:true}));
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',resolve);
+  });
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    /** @type {SourceFile[]} */
+    const emitted=[];
+    for(const file of files){
+      const response=await fetch('http://127.0.0.1:'+address.port+
+        '/obfs/'+file.path);
+      assert.equal(response.status,200,file.path);
+      emitted.push({...file,code:await response.text()});
+    }
+    return emitted;
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+}
+
+for(const sourceType of /** @type {const} */(['module','script'])) {
+  test('SCO HTTP publication honors sibling function protocol writes / '+sourceType,
+    async()=>{
+      const files=sourceType==='module'?corpus(true):scriptCorpus(true);
+      const native=sourceType==='module'?run(files):runScripts(files);
+      assert.ok(native.capturedSource.includes('privateLocal'));
+      const served=await publishScoFiles(files);
+      const actual=sourceType==='module'?run(served):runScripts(served);
+      console.log('AGENT2_SCO_HTTP_PROTO '+JSON.stringify({
+        sourceType,nativeSource:native.capturedSource,
+        emittedSource:actual.capturedSource,
+        changedFiles:served.filter((file,index)=>file.code!==files[index].code)
+          .map(file=>file.path),
+        parity:JSON.stringify(actual)===JSON.stringify(native)
+      }));
+      assert.deepEqual(actual,native,
+        'SCO source variation on any individually served path must retain host source');
+    });
 }
