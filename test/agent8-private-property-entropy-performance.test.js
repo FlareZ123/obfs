@@ -89,6 +89,7 @@ test('private field entropy: source-pinned paired process-CPU comparison with na
   });
   assert.equal(deterministic.crossFile.properties,3);
   assert.equal(entropy.crossFile.properties,3);
+  /** @type {Array<[string,Array<{path:string,code:string|Buffer}>]>} */
   const graphs=[
     ['native',source],['deterministic',deterministic.files],
     ['entropy',entropy.files]
