@@ -76,3 +76,36 @@ for(const mode of /** @type {const} */(['coo','sco','sno'])){
       JSON.stringify(observe(source)));
   });
 }
+
+/** @type {Array<[string,string]>} */
+const aliases=[
+  ['direct','module.exports=new DOMParser().parseFromString(inspect,"text/html").body.textContent;'],
+  ['global','module.exports=new globalThis.DOMParser().parseFromString(inspect,"text/html").body.textContent;'],
+  ['constructor-alias','const Parser=DOMParser;module.exports=new Parser().parseFromString(inspect,"text/html").body.textContent;'],
+  ['global-destructured','const {DOMParser:Parser}=globalThis;module.exports=new Parser().parseFromString(inspect,"text/html").body.textContent;'],
+  ['receiver-alias','const parser=new DOMParser();const other=parser;module.exports=other.parseFromString(inspect,"text/html").body.textContent;'],
+  ['computed','const parser=new DOMParser();module.exports=parser["parse"+"FromString"](inspect,"text/html").body.textContent;'],
+  ['unknown-key','const parser=new DOMParser();const key="parseFromString";module.exports=parser[key](inspect,"text/html").body.textContent;'],
+  ['bound-method','const parser=new DOMParser();const bound=parser.parseFromString.bind(parser);module.exports=bound(inspect,"text/html").body.textContent;'],
+  ['prebound-input','const parser=new DOMParser();const bound=parser.parseFromString.bind(parser,inspect,"text/html");module.exports=bound().body.textContent;'],
+  ['call','const parser=new DOMParser();module.exports=parser.parseFromString.call(parser,inspect,"text/html").body.textContent;'],
+  ['apply','const parser=new DOMParser();module.exports=parser.parseFromString.apply(parser,[inspect,"text/html"]).body.textContent;'],
+  ['reflect-apply','const parser=new DOMParser();module.exports=Reflect.apply(parser.parseFromString,parser,[inspect,"text/html"]).body.textContent;'],
+  ['prototype','const parser=new DOMParser();module.exports=DOMParser.prototype.parseFromString.call(parser,inspect,"text/html").body.textContent;'],
+  ['prototype-alias','const parser=new DOMParser();const parse=DOMParser.prototype.parseFromString;module.exports=parse.call(parser,inspect,"text/html").body.textContent;'],
+  ['destructured-method','const parser=new DOMParser();const {parseFromString:parse}=parser;module.exports=parse.call(parser,inspect,"text/html").body.textContent;']
+];
+
+for(const [name,consumer] of aliases){
+  test('DOMParser native source-observation guard: '+name,()=>{
+    const source=base+consumer;
+    assert.equal(observe(source),observe(observed),
+      'Host parser should see the exact unchanged function source');
+    const result=lowerWasmI32Functions(source,'commonjs',{
+      seed:'domparser-alias/'+name,names:['inspect']
+    });
+    assert.equal(result.functions,0,name+' source observer must decline');
+    assert.equal(result.declined,1);
+    assert.equal(result.code,source);
+  });
+}
