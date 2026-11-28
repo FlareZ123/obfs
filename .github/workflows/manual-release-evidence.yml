@@ -26,38 +26,14 @@ jobs:
     name: SCO client/server CPU boundary and fresh-client cost
     uses: ./.github/workflows/manual-sco-batch-cpu.yml
 
-  browser-applications:
-    name: Frozen application and hostile-host Chromium integration
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.23.4'
-      - name: Install declared dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Verify exact generated multi-file application bytes
-        run: |
-          node examples/polyvariant-app/build.cjs
-          node examples/application-challenge/build.cjs --check
-          node examples/application-challenge/sco-build.cjs --check
-      - name: Run actual COO application in Chromium
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/application-challenge-coo-browser.js
-      - name: Run actual authenticated SCO application in Chromium
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/application-challenge-sco-browser.js
-      - name: Verify hostile host callback source parity and positive yield
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/host-reflection-callback-browser.js
-      - name: Verify hostile global descriptor observer and safe positive control
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/closed-record-reflect-descriptor-browser.js
+  application-challenge:
+    name: Actual COO/SNO multi-file challenge and owner attack
+    uses: ./.github/workflows/manual-application-challenge.yml
+
+  application-sco:
+    name: Actual SCO HTTP/Chromium application and source withholding
+
+    uses: ./.github/workflows/manual-application-sco.yml
 
   adversarial-applications:
     strategy:
@@ -98,7 +74,8 @@ jobs:
       - matched-minifier
       - sco-equal-trust
       - sco-cpu
-      - browser-applications
+      - application-challenge
+      - application-sco
       - adversarial-applications
     runs-on: ubuntu-latest
     steps:
@@ -108,19 +85,22 @@ jobs:
           MATCHED_MINIFIER: ${{ needs.matched-minifier.result }}
           SCO_EQUAL_TRUST: ${{ needs.sco-equal-trust.result }}
           SCO_CPU: ${{ needs.sco-cpu.result }}
-          BROWSER_APPLICATIONS: ${{ needs.browser-applications.result }}
+          APPLICATION_CHALLENGE: ${{ needs.application-challenge.result }}
+          APPLICATION_SCO: ${{ needs.application-sco.result }}
           ADVERSARIAL_APPLICATIONS: ${{ needs.adversarial-applications.result }}
         run: |
           echo "full-validation=$FULL_VALIDATION"
           echo "matched-minifier=$MATCHED_MINIFIER"
           echo "sco-equal-trust=$SCO_EQUAL_TRUST"
           echo "sco-cpu=$SCO_CPU"
-          echo "browser-applications=$BROWSER_APPLICATIONS"
+          echo "application-challenge=$APPLICATION_CHALLENGE"
+          echo "application-sco=$APPLICATION_SCO"
           echo "adversarial-applications=$ADVERSARIAL_APPLICATIONS"
           test "$FULL_VALIDATION" = success
           test "$MATCHED_MINIFIER" = success
           test "$SCO_EQUAL_TRUST" = success
           test "$SCO_CPU" = success
-          test "$BROWSER_APPLICATIONS" = success
+          test "$APPLICATION_CHALLENGE" = success
+          test "$APPLICATION_SCO" = success
           test "$ADVERSARIAL_APPLICATIONS" = success
           echo "ALL ACCEPTANCE DIMENSIONS GREEN FOR THIS EXACT SOURCE SHA"
