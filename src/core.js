@@ -252,6 +252,11 @@ function hasImportedDomStringSourceSink(files) {
     for(const [filename,ast] of modules) {
       const own=exported.get(filename);
       if(!own)continue;
+      // Capture the proven record outside nested callbacks; lexical narrowing
+      // of a map lookup does not survive function boundaries in strict JSDoc.
+      const ownReceivers=own.receivers;
+      const ownFactories=own.factories;
+      const ownNamespaces=own.namespaces;
       /** @type {Set<string>} */
       const receivedElements=new Set();
       /** @type {Set<string>} */
@@ -273,11 +278,11 @@ function hasImportedDomStringSourceSink(files) {
       }
       /** @param {string} external @param {boolean} receiver @param {boolean} factory */
       function add(external,receiver,factory) {
-        if(receiver&&!own.receivers.has(external)) {
-          own.receivers.add(external);propagated=true;
+        if(receiver&&!ownReceivers.has(external)) {
+          ownReceivers.add(external);propagated=true;
         }
-        if(factory&&!own.factories.has(external)) {
-          own.factories.add(external);propagated=true;
+        if(factory&&!ownFactories.has(external)) {
+          ownFactories.add(external);propagated=true;
         }
       }
       for(const node of ast.body??[]) {
