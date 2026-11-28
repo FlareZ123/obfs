@@ -95,6 +95,7 @@ test('deterministic grammar: no proven numeric receiver leaks renamed closed ESM
         const renames=built.crossFile.properties;
         checked++;
         if(!renames){safe++;continue;}
+        /** @type {{expression:string,mode:string,renames:number,native?:string,emitted?:string}} */
         const sample={expression,mode,renames};
         if(leaks.length<6){
           sample.native=await hostExecute(input);
