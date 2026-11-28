@@ -28,13 +28,13 @@ function originalFiles(scenario='windowproxy'){
   const markup='<link id="sri-probe" rel="modulepreload" href="./leaf.mjs?integrity=1" integrity="'+sri+'">';
   const insertion=scenario==='hostData' ?
     [
-      "const link=doc.createElement('link');",
-      "link.id='sri-probe';",
-      "link.rel='modulepreload';",
-      "link.href='./leaf.mjs?integrity=1';",
+      "const stagedLink=doc.createElement('link');",
+      "stagedLink.id='sri-probe';",
+      "stagedLink.rel='modulepreload';",
+      "stagedLink.href='./leaf.mjs?integrity=1';",
       "const field=doc.body.dataset.pinKey;",
-      "link[field]=doc.body.dataset.pinValue;",
-      "doc.head.append(link);"
+      "stagedLink[field]=doc.body.dataset.pinValue;",
+      "doc.head.append(stagedLink);"
     ].join('\n') :
     scenario==='dynamic' ?
     "const selector=['insert','AdjacentHTML'].join('');doc.head[selector]('beforeend',"+JSON.stringify(markup)+");" :
