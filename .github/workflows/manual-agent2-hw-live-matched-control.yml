@@ -64,6 +64,14 @@ on:
         required: false
         default: 10000
         type: number
+      version_space_candidate_labeling:
+        description: "Experimental candidate-state symmetry; predecessor retains historical solver"
+        required: false
+        default: predecessor
+        type: choice
+        options:
+          - predecessor
+          - bfs
 
 permissions:
   contents: read
@@ -281,12 +289,15 @@ jobs:
                   summary_file.write("\n~~~\n")
           PY
       - name: Audit bounded full Mealy version space from evaluator-only live traces
+        env:
+          CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
         run: |
           python sims/agent2-hw-version-space-audit.py \
             --input live-hw-matched-results.json \
             --output hw-version-space-audit.json \
             --max-cases "${{ inputs.version_space_max_cases || 4 }}" \
-            --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}"
+            --timeout-ms "${{ inputs.version_space_timeout_ms || 10000 }}" \
+            --candidate-labeling "$CANDIDATE_LABELING"
       - name: Print bounded version-space uncertainty details
         run: |
           python - <<'PY'
