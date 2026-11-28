@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {parse,walk}=require('./ast');
@@ -120,8 +120,12 @@ function partitionScoSelectedGraph(units){
   const exposedPaths=[];
   /** @type {Set<string>} */
   const privatePaths=new Set();
-  /** @type {Map<string,string>} */
-  const foldedPaths=new Map();
+  // Shared private dependencies may be repeated identically across units.
+  // Unique path spellings must still satisfy the portable ancestor and
+  // Unicode file-identity inventory before publication.
+  const paths=createPathInventory();
+  /** @type {Set<string>} */
+  const seenPaths=new Set();
   /** @type {Map<string,string>} */
   const digestByPath=new Map();
   /** @type {Set<string>} */
@@ -138,12 +142,10 @@ function partitionScoSelectedGraph(units){
     if(normalized!==filename||!normalized.endsWith('.mjs')){
       throw new TypeError('Selected SCO graph requires canonical .mjs paths');
     }
-    const folded=normalized.toLowerCase();
-    const existing=foldedPaths.get(folded);
-    if(existing!==undefined&&existing!==normalized){
-      throw new TypeError('Case-colliding selected SCO module path: '+filename);
+    if(!seenPaths.has(normalized)){
+      registerFilePath(paths,normalized,'Case-colliding selected SCO module path: ');
+      seenPaths.add(normalized);
     }
-    foldedPaths.set(folded,normalized);
     return normalized;
   }
 
