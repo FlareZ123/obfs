@@ -27,7 +27,7 @@ const cases=/** @type {Case[]} */([
   },
   {
     name:'implicit-template',
-    setup:'const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};'+String.raw`\`\${hook}\`;}`+'};',
+    setup:'const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};`${hook}`;}};',
     observed:true
   },
   {
