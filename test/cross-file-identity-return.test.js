@@ -398,7 +398,7 @@ test('distinct factory results retain ownership through multi-slot records and t
 
 
 test('factory importer inventory refuses a WHATWG URL versus POSIX C0 path alias',async()=>{
-  const specifier='./a/.\\t/../state.mjs';
+  const specifier='./a/.\t/../state.mjs';
   const files=/** @type {import('../src/core').SourceFile[]} */ ([
     {path:'state.mjs',sourceType:'module',
       code:'export function makeState(){return {secretField:23,otherField:5};}'},
