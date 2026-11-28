@@ -539,6 +539,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Keep CSS namespaces distinct from the unrelated global escape() builtin.
   const cssNamespaces=new Set(['CSS']);
   const cssEscapeAliases=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const cssEscapeObjectKeys=new Map();
   const nodeBufferNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
@@ -724,9 +726,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       return isCssEscape(node.expressions[node.expressions.length-1]);
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        memberName(node.callee)==='bind')return isCssEscape(node.callee.object);
-    return node.type==='MemberExpression' &&
-      isCssNamespace(node.object) &&
-      (memberName(node)==='escape' || node.computed && memberName(node)===null);
+    if(node.type!=='MemberExpression')return false;
+    const key=memberName(node);
+    if(isCssNamespace(node.object))
+      return key==='escape' || Boolean(node.computed && key===null);
+    if(node.object.type!=='Identifier')return false;
+    const known=cssEscapeObjectKeys.get(node.object.name);
+    return key!==null ? known?.has(key)??false : Boolean(node.computed&&known?.size);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeBufferNamespace(node) {
@@ -1020,6 +1026,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(redirectObjectKeys,receiver,key);
     if(isUrlStaticMethod(expression))
       addWebObjectKey(urlStaticObjectKeys,receiver,key);
+    if(isCssEscape(expression))
+      addWebObjectKey(cssEscapeObjectKeys,receiver,key);
     if(isWebConstructor(expression,urlConstructors,urlNativeNames))
       addWebObjectKey(urlConstructorObjectKeys,receiver,key);
   }
@@ -1224,7 +1232,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
             boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
-            urlConstructorObjectKeys]) {
+            urlConstructorObjectKeys,cssEscapeObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1314,6 +1322,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(key===null)continue;
           if(known?.has(key))changed=add(functions,property.value.name)||changed;
+          if(cssEscapeObjectKeys.get(node.init.name)?.has(key))
+            changed=add(cssEscapeAliases,property.value.name)||changed;
           if(webRecordObjectKeys.get(node.init.name)?.has(key))
             changed=add(webRecords,property.value.name)||changed;
           if(responseObjectKeys.get(node.init.name)?.has(key))
