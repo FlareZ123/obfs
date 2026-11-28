@@ -55,10 +55,14 @@ test('real Chromium preserves function source through imported DOMString receive
         mode,closedWorld:true,seed:'agent11-crossfile-domstring-'+fixture.id,
         identifiers:true,properties:false,strings:false
       });
-      const safe=compiled.files.find(file=>file.path==='safe.mjs');
-      assert.ok(safe,fixture.id+' emitted safe module');
-      assert.ok(safe.metrics.bindings>0,
-        mode+' '+fixture.id+' source-free sibling retains positive rewrite yield');
+      const safeSource=files.find(file=>file.path==='safe.mjs');
+      assert.ok(safeSource,fixture.id+' safe source module');
+      const positive=obfuscateFiles([safeSource],{
+        mode,closedWorld:true,seed:'agent11-crossfile-domstring-positive',
+        identifiers:true,properties:false,strings:false
+      });
+      assert.ok(positive.files[0].metrics.bindings>0,
+        mode+' '+fixture.id+' isolated source-free positive control');
       for(const [variant,items] of [['native',files],['emitted',compiled.files]]){
         const base='/'+variant+'/'+fixture.id+'/'+mode;
         routes.set(base+'/index.html',{mime:'text/html',body:
@@ -72,7 +76,7 @@ test('real Chromium preserves function source through imported DOMString receive
       pairs.push({fixture:fixture.id,mode,
         nativePath:'/native/'+fixture.id+'/'+mode+'/index.html',
         emittedPath:'/emitted/'+fixture.id+'/'+mode+'/index.html',
-        safeBindings:safe.metrics.bindings});
+        positiveBindings:positive.files[0].metrics.bindings});
     }
   }
 
@@ -125,7 +129,7 @@ test('real Chromium preserves function source through imported DOMString receive
       assert.equal(emitted.safe,29,pair.fixture+' emitted sibling control');
       const sourceParity=emitted.source===native.source;
       console.log(JSON.stringify({fixture:pair.fixture,mode:pair.mode,
-        safeBindings:pair.safeBindings,
+        positiveBindings:pair.positiveBindings,
         nativeSourceLength:native.source.length,
         emittedSourceLength:emitted.source.length,sourceParity}));
       if(!sourceParity)mismatches.push(pair.fixture+' '+pair.mode);
