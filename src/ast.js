@@ -4465,6 +4465,199 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
     return isReferenceOnlyStorageOverride(current);
   }
+  // Ordinary browser DOMString setters can reveal Function#toString without a
+  // literal String()/toString() call. Track a narrow set of DOM objects from
+  // native document factories and stable-looking aliases. Alias unions are
+  // conservative: a later reassignment may cause refusal but never grant an
+  // unproved source-changing rewrite.
+  const domDocumentNames=new Set(['document']);
+  const domElementNames=new Set();
+  const domStyleNames=new Set();
+  const domDatasetNames=new Set();
+  const domRangeNames=new Set();
+  const domTokenListNames=new Set();
+  const domElementFactories=new Set();
+  const domStyleFactories=new Set();
+  const domDatasetFactories=new Set();
+  /** @type {Map<string,Set<number>>} */
+  const domForwarders=new Map();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDocument(node) {
+    return Boolean(node && (node.type==='Identifier'&&domDocumentNames.has(node.name) ||
+      node.type==='MemberExpression'&&isGlobal(node.object)&&
+      memberName(node)==='document'));
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isNativeDomElement(node,depth=0) {
+    if(!node||depth>12)return false;
+    if(node.type==='Identifier')return domElementNames.has(node.name);
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(isNativeDocument(node.object) &&
+         ['body','head','documentElement','activeElement','scrollingElement'].includes(name??''))return true;
+      if(['parentNode','parentElement','firstChild','lastChild',
+           'nextSibling','previousSibling','firstElementChild',
+           'lastElementChild','nextElementSibling',
+           'previousElementSibling'].includes(name??'')) {
+        return isNativeDomElement(node.object,depth+1);
+      }
+      return false;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+      const name=node.callee.name;
+      if(domElementFactories.has(name))return true;
+      return [...(domForwarders.get(name)??[])].some(index=>
+        isNativeDomElement(node.arguments[index],depth+1));
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const name=memberName(node.callee);
+      const owner=node.callee.object;
+      return Boolean(isNativeDocument(owner)&&[
+        'getElementById','querySelector','createElement','createElementNS',
+        'createTextNode','createComment','createDocumentFragment',
+        'getElementsByName'
+      ].includes(name??'') || isNativeDomElement(owner,depth+1)&&
+        ['querySelector','closest','cloneNode','appendChild','insertBefore',
+         'replaceChild'].includes(name??''));
+    }
+    return false;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomStyle(node) {
+    return Boolean(node && (
+      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+        domStyleFactories.has(node.callee.name) ||
+      node.type==='Identifier'&&domStyleNames.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='style'&&
+      isNativeDomElement(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomRange(node) {
+    return Boolean(node && (node.type==='Identifier'&&domRangeNames.has(node.name)||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+      isNativeDocument(node.callee.object)&&
+      memberName(node.callee)==='createRange'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomTokenList(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      domTokenListNames.has(node.name) ||
+      node.type==='MemberExpression'&&
+        ['classList','part'].includes(memberName(node)??'')&&
+        isNativeDomElement(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomDataset(node) {
+    return Boolean(node && (
+      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+        domDatasetFactories.has(node.callee.name) ||
+      node.type==='Identifier'&&domDatasetNames.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='dataset'&&
+      isNativeDomElement(node.object)));
+  }
+  let changedDom;
+  do {
+    changedDom=false;
+    walk(ast,node=>{
+      /** @param {string} name @param {AstNode} implementation */
+      function inspectFunction(name,implementation) {
+        if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+            includes(implementation.type))return;
+        /** @type {AstNode[]} */
+        const returns=[];
+        if(implementation.body?.type==='BlockStatement') {
+          walk(implementation.body,child=>{
+            if(child.type==='ReturnStatement'&&child.argument)
+              returns.push(child.argument);
+          });
+        } else if(implementation.body) {
+          returns.push(implementation.body);
+        }
+        for(const returned of returns){
+          if(isNativeDomElement(returned)&&!domElementFactories.has(name)) {
+            domElementFactories.add(name);changedDom=true;
+          }
+          if(isNativeDomStyle(returned)&&!domStyleFactories.has(name)) {
+            domStyleFactories.add(name);changedDom=true;
+          }
+          if(isNativeDomDataset(returned)&&!domDatasetFactories.has(name)) {
+            domDatasetFactories.add(name);changedDom=true;
+          }
+          if(returned.type==='Identifier') {
+            const index=(implementation.params??[]).findIndex(param=>
+              param.type==='Identifier'&&param.name===returned.name);
+            if(index>=0) {
+              const existing=domForwarders.get(name)??new Set();
+              if(!existing.has(index)) {
+                existing.add(index);domForwarders.set(name,existing);changedDom=true;
+              }
+            }
+          }
+        }
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.name)
+        inspectFunction(node.id.name,node);
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init)
+        inspectFunction(node.id.name,node.init);
+      const destination=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!destination||!value)return;
+      if(destination.type==='ObjectPattern') {
+        for(const property of destination.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const alias=property.value.name;
+          if(field==='document'&&isGlobal(value)&&!domDocumentNames.has(alias)) {
+            domDocumentNames.add(alias);changedDom=true;
+          }
+          if(['body','head','documentElement','activeElement'].includes(field??'') &&
+             isNativeDocument(value)&&!domElementNames.has(alias)) {
+            domElementNames.add(alias);changedDom=true;
+          }
+        }
+        return;
+      }
+      if(destination.type!=='Identifier')return;
+      const name=destination.name;
+      if(value.type==='Identifier') {
+        for(const set of [domElementFactories,domStyleFactories,domDatasetFactories]){
+          if(set.has(value.name)&&!set.has(name)) {
+            set.add(name);changedDom=true;
+          }
+        }
+        const input=domForwarders.get(value.name);
+        if(input){
+          const output=domForwarders.get(name)??new Set();
+          for(const index of input)if(!output.has(index)) {
+            output.add(index);changedDom=true;
+          }
+          if(output.size)domForwarders.set(name,output);
+        }
+      }
+      if(isNativeDocument(value)&&!domDocumentNames.has(name)) {
+        domDocumentNames.add(name);changedDom=true;
+      }
+      if(isNativeDomElement(value)&&!domElementNames.has(name)) {
+        domElementNames.add(name);changedDom=true;
+      }
+      if(isNativeDomStyle(value)&&!domStyleNames.has(name)) {
+        domStyleNames.add(name);changedDom=true;
+      }
+      if(isNativeDomDataset(value)&&!domDatasetNames.has(name)) {
+        domDatasetNames.add(name);changedDom=true;
+      }
+      if(isNativeDomRange(value)&&!domRangeNames.has(name)) {
+        domRangeNames.add(name);changedDom=true;
+      }
+      if(isNativeDomTokenList(value)&&!domTokenListNames.has(name)) {
+        domTokenListNames.add(name);changedDom=true;
+      }
+    });
+  }while(changedDom);
+
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -5671,6 +5864,67 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           !isDefinitelyPrimitive(node.object) && !nativeNumberLocale &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
+    // DOMString/USVString host setters: source-transform parity is broken when
+    // a local callable is implicitly converted by a real DOM binding. Direct
+    // document factories and their aliases are the only admitted receivers.
+    // Unknown dynamic keys may refer to a string-valued property; over-refuse.
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      const owner=node.left.object;
+      const attribute=memberName(node.left);
+      const unsafeValue=!isDefinitelyPrimitive(node.right);
+      const unsafeKey=node.left.computed &&
+        !isDefinitelyPrimitive(node.left.property);
+      if(unsafeValue && (
+        isNativeDomDataset(owner) ||
+        isNativeDomTokenList(owner) && (attribute==='value'||attribute===null) ||
+        isNativeDomStyle(owner) && (attribute==='cssText'||attribute===null) ||
+        isNativeDomElement(owner) && (
+          attribute===null ||
+          ['textContent','innerText','innerHTML','outerHTML',
+           'nodeValue','data','id','className','title','slot','dir',
+           'lang','ariaLabel','href','src','action','formAction','value',
+           'placeholder','alt','name','role','download','srcdoc','poster',
+           'integrity','referrerPolicy','rel','type','target','media',
+           'hreflang','accept','srcset','sizes','text','label','ping',
+           'nonce','autocapitalize','autocomplete','contentEditable',
+           'spellcheck','inputMode','accessKey','enterKeyHint'].includes(attribute))
+        ||isNativeDocument(owner) &&
+          ['cookie','title','domain'].includes(attribute??'')
+      ) || unsafeKey && (isNativeDomDataset(owner)||isNativeDomElement(owner)))
+        observed=true;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const owner=node.callee.object;
+      const method=memberName(node.callee);
+      if(isNativeDomElement(owner) &&
+         (['setAttribute','setAttributeNS','insertAdjacentText',
+           'insertAdjacentHTML','append','prepend','replaceChildren',
+           'before','after','replaceWith'].includes(method??'') ||
+           node.callee.computed&&method===null) &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDomStyle(owner) &&
+         (['setProperty','getPropertyValue','removeProperty'].includes(method??'') ||
+          node.callee.computed&&method===null) &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDomTokenList(owner)&&
+         ['add','remove','toggle','replace','contains','supports'].includes(method??'')&&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument)))observed=true;
+      if(isNativeDomRange(owner)&&method==='createContextualFragment'&&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument)))observed=true;
+      if(isNativeDocument(owner) &&
+         ['createTextNode','createComment','querySelector','getElementById',
+          'createElement','createElementNS'].includes(method??'') &&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument))) observed=true;
+    }
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+       ['Text','Option'].includes(node.callee.name)&&
+       node.arguments.some((/** @type {AstNode} */ argument)=>
+         !isDefinitelyPrimitive(argument)))observed=true;
     // Web Storage's indexed/named property setter is a separate Web IDL
     // DOMString coercion sink: Storage.prototype.setItem may be replaced
     // without affecting localStorage.someKey = callable. A computed key can
