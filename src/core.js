@@ -336,11 +336,17 @@ function hasImportedDomStringSourceSink(files) {
       // of a map lookup does not survive function boundaries in strict JSDoc.
       const ownReceivers=own.receivers;
       const ownFactories=own.factories;
+      const ownCollections=own.collections;
+      const ownCollectionFactories=own.collectionFactories;
       const ownNamespaces=own.namespaces;
       /** @type {Set<string>} */
       const receivedElements=new Set();
       /** @type {Set<string>} */
       const receivedFactories=new Set();
+      /** @type {Set<string>} */
+      const receivedCollections=new Set();
+      /** @type {Set<string>} */
+      const receivedCollectionFactories=new Set();
       /** @type {Map<string,Set<string>>} */
       const receivedNamespaces=new Map();
       /** @param {string} name @param {Iterable<string>} origins @returns {boolean} */
@@ -372,6 +378,8 @@ function hasImportedDomStringSourceSink(files) {
           if(typeof imported!=='string')continue;
           if(donor.receivers.has(imported))receivedElements.add(local);
           if(donor.factories.has(imported))receivedFactories.add(local);
+          if(donor.collections.has(imported))receivedCollections.add(local);
+          if(donor.collectionFactories.has(imported))receivedCollectionFactories.add(local);
           receiveNamespace(local,donor.namespaces.get(imported)??[]);
         }
       }
@@ -393,6 +401,13 @@ function hasImportedDomStringSourceSink(files) {
             if(receivedFactories.has(origin.name)&&!receivedFactories.has(local)){
               receivedFactories.add(local);aliasChanged=true;
             }
+            if(receivedCollections.has(origin.name)&&!receivedCollections.has(local)){
+              receivedCollections.add(local);aliasChanged=true;
+            }
+            if(receivedCollectionFactories.has(origin.name)&&
+               !receivedCollectionFactories.has(local)){
+              receivedCollectionFactories.add(local);aliasChanged=true;
+            }
             if(receivedNamespaces.has(origin.name)&&
                receiveNamespace(local,receivedNamespaces.get(origin.name)??[]))
               aliasChanged=true;
@@ -412,19 +427,38 @@ function hasImportedDomStringSourceSink(files) {
               if(member?.factories.has(name)&&!receivedFactories.has(local)){
                 receivedFactories.add(local);aliasChanged=true;
               }
+              if(member?.collections.has(name)&&!receivedCollections.has(local)){
+                receivedCollections.add(local);aliasChanged=true;
+              }
+              if(member?.collectionFactories.has(name)&&
+                 !receivedCollectionFactories.has(local)){
+                receivedCollectionFactories.add(local);aliasChanged=true;
+              }
               if(receiveNamespace(local,member?.namespaces.get(name)??[]))
                 aliasChanged=true;
             }
           }
         });
       }while(aliasChanged);
-      /** @param {string} external @param {boolean} receiver @param {boolean} factory */
-      function add(external,receiver,factory) {
+      /**
+       * @param {string} external
+       * @param {boolean} receiver
+       * @param {boolean} factory
+       * @param {boolean} [collection]
+       * @param {boolean} [collectionFactory]
+       */
+      function add(external,receiver,factory,collection=false,collectionFactory=false) {
         if(receiver&&!ownReceivers.has(external)) {
           ownReceivers.add(external);propagated=true;
         }
         if(factory&&!ownFactories.has(external)) {
           ownFactories.add(external);propagated=true;
+        }
+        if(collection&&!ownCollections.has(external)){
+          ownCollections.add(external);propagated=true;
+        }
+        if(collectionFactory&&!ownCollectionFactories.has(external)){
+          ownCollectionFactories.add(external);propagated=true;
         }
       }
       /** @param {string} external @param {Iterable<string>} targets */
@@ -448,6 +482,9 @@ function hasImportedDomStringSourceSink(files) {
           }else{
             for(const key of donor.receivers)if(key!=='default')add(key,true,false);
             for(const key of donor.factories)if(key!=='default')add(key,false,true);
+            for(const key of donor.collections)if(key!=='default')add(key,false,false,true);
+            for(const key of donor.collectionFactories)
+              if(key!=='default')add(key,false,false,false,true);
             for(const [key,targets] of donor.namespaces)
               if(key!=='default')addNamespace(key,targets);
           }
@@ -455,7 +492,8 @@ function hasImportedDomStringSourceSink(files) {
         if(node.type==='ExportDefaultDeclaration'&&
            node.declaration?.type==='Identifier') {
           const local=node.declaration.name;
-          add('default',receivedElements.has(local),receivedFactories.has(local));
+          add('default',receivedElements.has(local),receivedFactories.has(local),
+            receivedCollections.has(local),receivedCollectionFactories.has(local));
           addNamespace('default',receivedNamespaces.get(local)??[]);
         }
         if(node.type==='ExportNamedDeclaration'&&
@@ -463,7 +501,8 @@ function hasImportedDomStringSourceSink(files) {
           for(const item of node.declaration.declarations??[]) {
             if(item.id?.type!=='Identifier')continue;
             const local=item.id.name;
-            add(local,receivedElements.has(local),receivedFactories.has(local));
+            add(local,receivedElements.has(local),receivedFactories.has(local),
+              receivedCollections.has(local),receivedCollectionFactories.has(local));
             addNamespace(local,receivedNamespaces.get(local)??[]);
           }
         }
@@ -475,7 +514,9 @@ function hasImportedDomStringSourceSink(files) {
             const local=item.local?.name??item.local?.value;
             if(typeof external!=='string'||typeof local!=='string')continue;
             add(external,donor?donor.receivers.has(local):receivedElements.has(local),
-              donor?donor.factories.has(local):receivedFactories.has(local));
+              donor?donor.factories.has(local):receivedFactories.has(local),
+              donor?donor.collections.has(local):receivedCollections.has(local),
+              donor?donor.collectionFactories.has(local):receivedCollectionFactories.has(local));
             addNamespace(external,donor?
               donor.namespaces.get(local)??[]:receivedNamespaces.get(local)??[]);
           }
