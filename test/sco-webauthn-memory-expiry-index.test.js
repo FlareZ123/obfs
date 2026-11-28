@@ -214,3 +214,64 @@ test('paired CPU and monotonic wall receipt: 1536-row memory-store housekeeping'
   assert.equal(linear.length,5);
   assert.equal(ordered.length,5);
 });
+
+/**
+ * Check the opposite occupancy regime: one challenge and one session at a
+ * time, with no challenge retention. The fast path must not incur a large
+ * startup/sparse-regime penalty while solving the full-capacity quadratic scan.
+ * @param {ScoWebAuthnStateStore} store
+ * @param {number} iterations
+ * @returns {{cpuUs:number,wallUs:number}}
+ */
+function sampleSparseHousekeeping(store,iterations){
+  store.assertConfiguration('f'.repeat(64));
+  const now=1_900_000_000_000;
+  const challenge=Buffer.alloc(32,0x32);
+  let completed=0;
+  const c0=process.cpuUsage();
+  const w0=process.hrtime.bigint();
+  for(let i=0;i<iterations;i++){
+    const id='nonce-'+i,token='token-'+i;
+    store.insertChallenge(id,'account','login',challenge,now+120_000,now,1);
+    const row=store.consumeChallenge(id);
+    if(!row)throw new Error('Expected just-issued challenge');
+    if(!store.mintSession(token,'account',now+120_000,0,now,1))
+      throw new Error('Expected granted local session');
+    if(!store.revokeSession(token))throw new Error('Expected local revocation');
+    completed++;
+  }
+  const wallUs=Number(process.hrtime.bigint()-w0)/1000;
+  const elapsed=process.cpuUsage(c0);
+  assert.equal(completed,iterations);
+  return {cpuUs:elapsed.user+elapsed.system,wallUs};
+}
+
+test('paired sparse-regime control: single-live-record expiry guard overhead',()=>{
+  /** @type {Array<{cpuUs:number,wallUs:number}>} */
+  const control=[];
+  /** @type {Array<{cpuUs:number,wallUs:number}>} */
+  const candidate=[];
+  for(let i=0;i<5;i++){
+    for(const arm of (i%2?['candidate','control']:['control','candidate'])){
+      const observation=sampleSparseHousekeeping(arm==='control'?originalStore():
+        createScoWebAuthnMemoryStore(),12_000);
+      if(arm==='control')control.push(observation);
+      else candidate.push(observation);
+    }
+  }
+  /** @param {number[]} xs */
+  const median5=xs=>[...xs].sort((a,b)=>a-b)[2];
+  /** @param {Array<{cpuUs:number,wallUs:number}>} xs @param {'cpuUs'|'wallUs'} field */
+  const get=(xs,field)=>xs.map(x=>x[field]);
+  const cCpu=median5(get(control,'cpuUs')),oCpu=median5(get(candidate,'cpuUs'));
+  const cWall=median5(get(control,'wallUs')),oWall=median5(get(candidate,'wallUs'));
+  console.log('SCO_WA_MEMORY_SPARSE_CPU '+JSON.stringify({
+    workload:'12000 cycles of insert/consume/mint/revoke with at most one row per map',
+    baseline:control,optimized:candidate,
+    candidateCpuOverBaseline:cCpu>0?oCpu/cCpu:null,
+    candidateWallOverBaseline:cWall>0?oWall/cWall:null,
+    note:'isolated state methods, excludes WebAuthn signing and HTTP'
+  }));
+  assert.equal(control.length,5);
+  assert.equal(candidate.length,5);
+});
