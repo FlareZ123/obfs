@@ -14,7 +14,9 @@ const MODEL_COUNT=46656;
  *   statesAfterBudget23:{visited:number,cacheHits:number},
  *   statesAfterBudget24:{visited:number,cacheHits:number},
  *   policyNodes:number,terminalLeaves:number,maxQueries:number,
- *   totalMemoEntries:number
+ *   totalMemoEntries:number,
+ *   sourceReplay:{models:number,minQueries:number,maxQueries:number,
+ *     meanQueries:number,histogram:number[]}
  * }} MinimaxResult
  */
 
@@ -200,41 +202,90 @@ function computeThreeStateMinimax(){
   assert.equal(canWin23,false);
   assert.equal(canWin24,true);
 
-  // Materialize and verify the winning policy DAG, not merely its root bit.
-  /** @type {Set<string>} */
-  const policySeen=new Set();
-  let policyNodes=0;
+  // Materialize the winning policy DAG and verify every nonempty branch.
+  /** @typedef {{budget:number,input:number,children:[number,number]}} PolicyNode */
+  /** @type {Map<string,number>} */
+  const policyIndex=new Map();
+  /** @type {PolicyNode[]} */
+  const policy=[];
   let terminalLeaves=0;
   let maxQueries=0;
   /**
+   * Terminal children are encoded as -(classId+2); -1 means impossible;
+   * nonnegative values are policy-node indices.
    * @param {Uint16Array} belief
    * @param {number} budget
    * @param {number} depth
-   * @returns {void}
+   * @returns {number}
    */
   function verifyPolicy(belief,budget,depth){
     if(belief.length===1){
       terminalLeaves++;
       maxQueries=Math.max(maxQueries,depth);
-      return;
+      return -(belief[0]+2);
     }
     const key=encodeBelief(belief);
     const input=memo[budget].get(key);
     assert.ok(input===0||input===1);
     const stateKey=budget+':'+key;
-    if(policySeen.has(stateKey))return;
-    policySeen.add(stateKey);
-    policyNodes++;
+    const existing=policyIndex.get(stateKey);
+    if(existing!==undefined)return existing;
+    const id=policy.length;
+    policyIndex.set(stateKey,id);
+    /** @type {PolicyNode} */
+    const node={budget,input,children:[-1,-1]};
+    policy.push(node);
     for(let observed=0;observed<2;observed++){
       const child=successor(belief,input,observed);
       if(child.length){
         assert.equal(canWin(child,budget-1),true);
-        verifyPolicy(child,budget-1,depth+1);
+        node.children[observed]=verifyPolicy(child,budget-1,depth+1);
       }
     }
+    return id;
   }
-  verifyPolicy(root,24,0);
+  const rootPolicyNode=verifyPolicy(root,24,0);
+  assert.equal(rootPolicyNode,0);
+  const policyNodes=policy.length;
   const totalMemoEntries=memo.reduce((total,entries)=>total+entries.size,0);
+
+  // Replay every labelled source table through the materialized policy. This
+  // checks that the abstract quotient policy tracks each concrete machine.
+  const histogram=Array(25).fill(0);
+  let minObservedQueries=25;
+  let maxObservedQueries=0;
+  let totalObservedQueries=0;
+  for(let model=0;model<MODEL_COUNT;model++){
+    let state=0;
+    let nodeId=rootPolicyNode;
+    let queries=0;
+    while(nodeId>=0){
+      const node=policy[nodeId];
+      const input=node.input;
+      const observed=corpus.output[state][input][model];
+      state=corpus.next[state][input][model];
+      const childCode=node.children[observed];
+      queries++;
+      if(childCode<=-2){
+        assert.equal(quotient.classes[3*model+state],-childCode-2);
+        break;
+      }
+      assert.ok(childCode>=0);
+      nodeId=childCode;
+    }
+    assert.ok(queries<=24);
+    histogram[queries]++;
+    minObservedQueries=Math.min(minObservedQueries,queries);
+    maxObservedQueries=Math.max(maxObservedQueries,queries);
+    totalObservedQueries+=queries;
+  }
+  const sourceReplay={
+    models:MODEL_COUNT,
+    minQueries:minObservedQueries,
+    maxQueries:maxObservedQueries,
+    meanQueries:totalObservedQueries/MODEL_COUNT,
+    histogram
+  };
   // Keep timing out of the result: CI speed is runner-dependent.
   void lowerStart;
   void upperStart;
@@ -250,7 +301,8 @@ function computeThreeStateMinimax(){
     policyNodes,
     terminalLeaves,
     maxQueries,
-    totalMemoEntries
+    totalMemoEntries,
+    sourceReplay
   };
 }
 

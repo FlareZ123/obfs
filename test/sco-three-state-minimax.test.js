@@ -19,4 +19,8 @@ test('the complete at-most-three-state binary Mealy class has exact minimax cost
   assert.equal(result.terminalLeaves,6628);
   assert.equal(result.maxQueries,24);
   assert.equal(result.totalMemoEntries,4443360);
+  assert.equal(result.sourceReplay.models,46656);
+  assert.ok(result.sourceReplay.minQueries>=1);
+  assert.equal(result.sourceReplay.maxQueries,24);
+  assert.equal(result.sourceReplay.histogram.reduce((sum,count)=>sum+count,0),46656);
 });
