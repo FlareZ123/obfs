@@ -110,3 +110,89 @@ function recoverNamedEsmPropertySpellings(delivered,options) {
 }
 
 module.exports={recoverNamedEsmPropertySpellings};
+
+
+/** @typedef {{original:string,originalOffset:number,owner:string}} LocalProperty */
+
+/**
+ * Brute-force the source byte offset mixed into local property field digests.
+ * The attacker knows a public build seed and emitted file path but receives
+ * neither the original source nor the original object-literal position.
+ *
+ * Unlike the named ESM variant, local field hashes use SHA-256(seed/path) as
+ * their first-stage salt. The bounded offset scan is intentionally explicit;
+ * if the true offset exceeds maxSourceOffset, a miss is inconclusive.
+ *
+ * @param {{path:string,sourceType:'commonjs',code:string}} delivered
+ * @param {{seed:string,dictionary:string[],maxSourceOffset:number}} options
+ * @returns {{code:string,recovered:Map<string,LocalProperty>,lookups:number,targets:number}}
+ */
+function recoverLocalFieldSpellings(delivered,options){
+  if(!delivered||delivered.sourceType!=='commonjs'||
+     typeof delivered.path!=='string'||typeof delivered.code!=='string'||
+     typeof options?.seed!=='string'||!options.seed||
+     !Array.isArray(options.dictionary)||options.dictionary.length>20000||
+     options.dictionary.some(name=>
+       typeof name!=='string'||!/^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(name))||
+     !Number.isSafeInteger(options.maxSourceOffset)||options.maxSourceOffset<1||
+     options.maxSourceOffset>1024) {
+    throw new TypeError('Expected published CommonJS, public seed and bounded source-offset dictionary');
+  }
+  const ast=parse(delivered.code,'commonjs');
+  const salt=createHash('sha256').update(options.seed+'/'+delivered.path).digest('hex');
+  const dictionary=[...new Set(options.dictionary)];
+  /** @type {Map<string,LocalProperty>} */
+  const recovered=new Map();
+  /** @type {Set<string>} */
+  const targets=new Set();
+  let lookups=0;
+  walk(ast,node=>{
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       node.init?.type!=='ObjectExpression')return;
+    const owner=node.id.name;
+    const hashed=new Set();
+    for(const prop of node.init.properties){
+      if(prop.type!=='Property'||prop.key.type!=='Literal'||
+         typeof prop.key.value!=='string'||!/^_p[a-f0-9]{10}$/u.test(prop.key.value))continue;
+      hashed.add(prop.key.value);
+      targets.add(prop.key.value);
+    }
+    if(!hashed.size)return;
+    for(const original of dictionary){
+      for(let originalOffset=0;originalOffset<options.maxSourceOffset;originalOffset++){
+        lookups++;
+        const token='_p'+createHash('sha256').update(
+          salt+'/'+owner+'/'+originalOffset+'/'+original).digest('hex').slice(0,10);
+        if(!hashed.has(token))continue;
+        const prior=recovered.get(token);
+        if(prior && prior.original!==original)throw new Error('Ambiguous truncated local token');
+        recovered.set(token,{original,originalOffset,owner});
+      }
+    }
+  });
+  /** @type {import('../src/ast').Edit[]} */
+  const edits=[];
+  walk(ast,node=>{
+    if(node.type==='Property'&&node.key.type==='Literal'&&
+       typeof node.key.value==='string'){
+      const original=recovered.get(node.key.value)?.original;
+      if(original)edits.push({
+        start:node.key.start,end:node.key.end,text:JSON.stringify(original)
+      });
+    }
+    if(node.type==='MemberExpression'){
+      const prop=node.property;
+      const token=prop.type==='Identifier'&&!node.computed?prop.name:
+        prop.type==='Literal'&&node.computed&&typeof prop.value==='string'?
+          prop.value:null;
+      const original=token?recovered.get(token)?.original:null;
+      if(original)edits.push({
+        start:prop.start,end:prop.end,
+        text:node.computed?JSON.stringify(original):original
+      });
+    }
+  });
+  return {code:applyEdits(delivered.code,edits),recovered,lookups,targets:targets.size};
+}
+
+module.exports.recoverLocalFieldSpellings=recoverLocalFieldSpellings;
