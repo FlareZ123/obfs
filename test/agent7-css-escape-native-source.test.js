@@ -29,10 +29,10 @@ const cases=[
 function build(declarations,expression) {
   return [
     'const owner={privateSlot:41,extraSlot:1};',
-    'function protectedFn(){return owner.privateSlot+owner.extraSlot;}',
+    'function protectedFn(secretArg){return secretArg+owner.privateSlot+owner.extraSlot;}',
     declarations,
     'const text='+expression+';',
-    'const value=protectedFn();',
+    'const value=protectedFn(0);',
     'document.getElementById("out").textContent=JSON.stringify({text,value});'
   ].join('\n');
 }
@@ -113,7 +113,7 @@ test('real Chromium CSS.escape observes exact source bytes in all three modes',
       for(const mode of /** @type {const} */(['coo','sco'])) {
         const result=obfuscateFiles([{path:'entry.js',sourceType:'script',code:source}],{
           mode,seed:'css-native-'+item.name+'-'+mode,closedWorld:true,
-          properties:true,strings:false,identifiers:false
+          properties:true,strings:false,identifiers:true
         });
         scripts.set(mode,/** @type {string} */(result.files[0].code));
       }
@@ -121,7 +121,7 @@ test('real Chromium CSS.escape observes exact source bytes in all three modes',
       try {
         const original=await browser(server.url+'/native/index.html');
         assert.equal(original.value,42);
-        assert.ok(original.text.includes('privateSlot'),
+        assert.ok(original.text.includes('secretArg') && original.text.includes('privateSlot'),
           'Native CSS.escape must expose the original function bytes: '+
           JSON.stringify(original));
         for(const mode of ['coo','sco']) {
