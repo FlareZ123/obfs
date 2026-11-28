@@ -52,6 +52,53 @@ test('inert comma expression preserves owner identity and permits both property 
   }
 });
 
+test('inert comma forwarding into proven private helper parameters rewrites two fields',()=>{
+  const cases=[
+    'function read(record){return record.privateKey+record.otherKey;}'+
+      'module.exports=read((0,owner));',
+    'function read(record){return record.privateKey;}'+
+      'module.exports=read((true,false,owner))+owner.otherKey;',
+    'function forward(value){return value;}'+
+      'const alias=forward((null,owner));'+
+      'module.exports=alias.privateKey+alias.otherKey;',
+    'function read(record){return record.privateKey;}'+
+      'const alias=(0,owner);module.exports=read((0,alias))+alias.otherKey;'
+  ];
+  for(const ending of cases){
+    const original='const owner={privateKey:17,otherKey:5};'+ending;
+    const native=executeCjs(original);
+    assert.equal(native,'22');
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const output=obfuscateFiles([{path:'interprocedural-owner.cjs',
+        sourceType:'commonjs',code:original}],{
+        mode,seed:'interprocedural-comma-owner/'+mode+'/'+cases.indexOf(ending),
+        identifiers:false,strings:false,properties:true
+      }).files[0];
+      assert.equal(output.metrics.properties,2,
+        mode+' should propagate owner via inert comma argument and reader formal');
+      assert.equal(executeCjs(String(output.code)),native);
+      assert.doesNotMatch(String(output.code),/privateKey|otherKey/u);
+    }
+  }
+});
+
+test('side-effecting comma call actual must not be considered private',()=>{
+  const source='const owner={privateKey:17};'+
+    'function read(record){return record.privateKey;}'+
+    'const result=read((globalThis.leaked=owner,owner));'+
+    'module.exports=[result,Object.keys(globalThis.leaked)];';
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const emitted=obfuscateFiles([{path:'unsafe-call-owner.cjs',
+      sourceType:'commonjs',code:source}],{
+      mode,seed:'unsafe-sequence-call/'+mode,
+      strings:false,identifiers:false,properties:true
+    }).files[0];
+    assert.equal(emitted.metrics.properties,0,
+      mode+' must refuse side-effecting comma argument owner escape');
+    assert.equal(executeCjs(String(emitted.code)),executeCjs(source));
+  }
+});
+
 test('side-effectful or escaping comma expressions remain unchanged',()=>{
   const unsafe=[
     'const owner={privateKey:17};const alias=(globalThis.leaked=owner,owner);'+
