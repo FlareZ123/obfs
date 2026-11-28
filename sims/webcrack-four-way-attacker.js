@@ -107,6 +107,13 @@ async function runEvidence(){
         result.outputSha256=sha256(code);
         const outputPath=path.join(root,variant+'-webcrack.mjs');
         await fs.writeFile(outputPath,code,'utf8');
+        // Preserve *exact external-tool bytes* for third-party inspection;
+        // the original native source is never included in this archive.
+        if(process.env.OBFS_WEBCRACK_ARTIFACT_DIR){
+          const archive=path.resolve(process.env.OBFS_WEBCRACK_ARTIFACT_DIR);
+          await fs.mkdir(archive,{recursive:true});
+          await fs.writeFile(path.join(archive,variant+'-math.mjs'),code,'utf8');
+        }
         const candidate=await import(pathToFileURL(outputPath).href);
         for(const name of FUNCTION_NAMES){
           if(typeof candidate[name]!=='function')continue;
