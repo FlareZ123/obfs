@@ -127,14 +127,14 @@ async function main(){
       function timed(module){
         let checksum=0;
         const start=performance.now();
-        for(let i=0;i<400000;i++)
+        for(let i=0;i<5000000;i++)
           checksum^=module.calculate(Math.imul(i,1664525)|0);
         return {ms:performance.now()-start,checksum};
       }
       for(let warm=0;warm<2;warm++)for(const module of modules)timed(module);
       /** @type {number[][]} */
       const times=[[],[],[]];
-      for(let round=0;round<7;round++){
+      for(let round=0;round<9;round++){
         const order=round%2===0?[0,1,2]:[2,1,0];
         const results=order.map(index=>({index,...timed(modules[index])}));
         if(new Set(results.map(row=>row.checksum)).size!==1)
