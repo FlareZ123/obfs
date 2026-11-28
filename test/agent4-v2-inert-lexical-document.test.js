@@ -83,7 +83,7 @@ function run(code,hostilePrototype=false) {
       'Object.defineProperty(Object.prototype,"title",{configurable:true,set(value){globalThis.observed="host-"+String(value);}});':
       '';
     fs.writeFileSync(path.join(dir,'runner.mjs'),runner.replace('let title="";',
-      setup+'\\nlet title="";'));
+      setup+String.fromCharCode(10)+'let title="";'));
     const outcome=spawnSync(process.execPath,[path.join(dir,'runner.mjs')],{
       encoding:'utf8',cwd:dir,timeout:15000
     });
