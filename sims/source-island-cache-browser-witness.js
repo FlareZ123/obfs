@@ -2,8 +2,27 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const fsSync=require('node:fs');
+const nodePath=require('node:path');
 const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src/core');
+
+/**
+ * Puppeteer's executablePath expects a real path. Other browser test
+ * harnesses accept a binary in PATH (for example CHROMIUM_BIN=google-chrome).
+ * Resolve either form without invoking a shell.
+ * @param {string} binary
+ * @returns {string}
+ */
+function browserExecutable(binary) {
+  if(nodePath.isAbsolute(binary))return binary;
+  for(const folder of (process.env.PATH??'').split(nodePath.delimiter)) {
+    if(!folder)continue;
+    const pathname=nodePath.join(folder,binary);
+    if(fsSync.existsSync(pathname))return pathname;
+  }
+  return binary;
+}
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
@@ -104,7 +123,7 @@ async function main(){
     // CacheStorage asynchronous I/O finish. Wait for a completion marker
     // instead of allowing the virtual-time budget to outrun real I/O.
     const browser=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+      executablePath:browserExecutable(process.env.CHROMIUM_BIN??'google-chrome'),
       headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
