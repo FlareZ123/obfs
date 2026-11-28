@@ -264,6 +264,15 @@ const cases=[
 ['class-static-instanceof-hook','const has=Symbol.hasInstance;const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook=class{static [has](_v){new Inner();return false;}};({}) instanceof hook;}};','carrier.instance'],
 // ToBoolean on an object and typeof do not invoke user coercion hooks.
 ['class-static-boolean-test-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};if(hook){const x=1;}}};','carrier.instance'],
+// ToPropertyKey on a nonprimitive computed object or class key calls the
+// key's toString/@@toPrimitive hook before the next statement executes.
+['class-computed-method-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};class Holder{[key](){return 1;}}','carrier.instance'],
+['class-computed-instance-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const Holder=class{[key]=1;};','carrier.instance'],
+['class-computed-static-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const Holder=class{static [key]=1;};','carrier.instance'],
+['object-computed-key-coercion','const carrier={instance:{}};const key={toString(){carrier.instance=new WeakMap();return "x";}};const registry={[key]:1};','carrier.instance'],
+// Separate primitive computed-key controls retain real binding rewrites.
+['class-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{["x"](){return 1;}};','carrier.instance'],
+['object-computed-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const registry={["x"]:1};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
