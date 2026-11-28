@@ -144,11 +144,18 @@ function createScoWebAuthnAdmission(options){
   // user-verification policy or TTL/capacity rules across Node replicas.
   // Caller-provided credential registries and clocks still need identical
   // trusted application policy and a synchronized time model.
-  const configurationHash=createHash('sha256').update(JSON.stringify([
-    'obfs-sco-webauthn-admission-v2',rpId,[...origins].sort(),requireUV,
-    challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions,
-    credentialAuthorityId??null
-  ])).digest('hex');
+  // Preserve the existing on-disk v1 fingerprint for deployments that do
+  // not opt in. A named authority uses a disjoint v2 fingerprint, so mixing
+  // a named registry with legacy unlabeled workers refuses at startup.
+  const policyInputs=[
+    'obfs-sco-webauthn-admission-v1',rpId,[...origins].sort(),requireUV,
+    challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions
+  ];
+  if(credentialAuthorityId!==undefined){
+    policyInputs[0]='obfs-sco-webauthn-admission-v2';
+    policyInputs.push(credentialAuthorityId);
+  }
+  const configurationHash=createHash('sha256').update(JSON.stringify(policyInputs)).digest('hex');
   const rpHash=createHash('sha256').update(rpId,'utf8').digest();
   const suppliedState=options.stateStore??createScoWebAuthnMemoryStore();
   if(!suppliedState||typeof suppliedState.insertChallenge!=='function'||
