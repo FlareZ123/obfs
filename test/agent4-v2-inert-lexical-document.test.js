@@ -39,7 +39,12 @@ const variants=[
     yield:false,observed:false},
   {name:'null-proto-read-conservative',middle:
     'const document={__proto__:null};document.title=protectedFn;void document.title;',
-    yield:false,observed:false}
+    yield:false,observed:false},
+  {name:'caught-TDZ-error-before-null-proto-initialization',middle:
+    'try{hoisted();}catch(e){globalThis.observed=String(e);}' +
+    'const document={__proto__:null};' +
+    'function hoisted(){document.title=protectedFn;}',
+    yield:false,observed:true}
 ];
 const runner=[
   'globalThis.observed="";',
@@ -73,7 +78,7 @@ function run(code) {
 }
 for(const variant of variants) {
   test('proven lexical non-host Document: '+variant.name,()=>{
-    const source=head+'\n'+variant.middle+'\n'+tail;
+    const source=variant.middle+'\n'+head+'\n'+tail;
     const observed=observesFunctionSource(parse(source,'module'));
     const native=run(source);
     assert.equal(native.title.length>0||native.observed.length>0,variant.observed,
