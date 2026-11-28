@@ -1694,32 +1694,114 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {CarrierValue} thisValue
    * @returns {void}
    */
-  function replayCarrierParameterEffects(pattern,environment,thisValue) {
+  /**
+   * A missing syntax argument is represented by undefined, an unknown
+   * dynamically obtained argument by null, otherwise by its source AST.
+   * Only expressions that cannot possibly evaluate to undefined suppress
+   * execution of a corresponding formal default.
+   * @param {AstNode|null|undefined} argument
+   * @returns {boolean}
+   */
+  function carrierParamKnownPresent(argument) {
+    if(!argument)return false;
+    if(argument.type==='SequenceExpression')
+      return carrierParamKnownPresent(argument.expressions.at(-1));
+    if(argument.type==='UnaryExpression')
+      return argument.operator!=='void';
+    return [
+      'Literal','ObjectExpression','ArrayExpression','NewExpression',
+      'FunctionExpression','ArrowFunctionExpression','ClassExpression',
+      'TemplateLiteral','BinaryExpression','UpdateExpression'
+    ].includes(argument.type);
+  }
+  /**
+   * Replay exact parameter binding order. Unknown nested defaults are
+   * individually optional: joining only the no-default and all-default
+   * paths loses mixed-path executions (e.g. first default writes a WeakMap,
+   * second default writes an Ordinary value but is actually skipped).
+   * @param {AstNode} pattern
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} thisValue
+   * @param {AstNode|null|undefined} argument
+   * @returns {void}
+   */
+  function replayCarrierParameterEffects(pattern,environment,thisValue,argument) {
     if(pattern.type==='AssignmentPattern') {
-      visitCarrierExpression(pattern.right,environment,thisValue);
-      replayCarrierParameterEffects(pattern.left,environment,thisValue);
+      const definitelyUndefined=argument===undefined||(
+        argument?.type==='UnaryExpression'&&argument.operator==='void');
+      const definitelyPresent=carrierParamKnownPresent(argument);
+      if(definitelyUndefined) {
+        visitCarrierExpression(pattern.right,environment,thisValue);
+        replayCarrierParameterEffects(pattern.left,environment,thisValue,
+          pattern.right);
+      } else if(definitelyPresent) {
+        replayCarrierParameterEffects(pattern.left,environment,thisValue,argument);
+      } else {
+        const skip=forkCarrierEnvironment(environment);
+        const take=forkCarrierEnvironment(environment);
+        replayCarrierParameterEffects(pattern.left,skip,thisValue,argument);
+        visitCarrierExpression(pattern.right,take,thisValue);
+        replayCarrierParameterEffects(pattern.left,take,thisValue,pattern.right);
+        joinCarrierEnvironments(environment,skip,take);
+      }
       return;
     }
     if(pattern.type==='ObjectPattern') {
       for(const property of pattern.properties??[]) {
         if(property.type==='RestElement') {
-          replayCarrierParameterEffects(property.argument,environment,thisValue);
-        } else if(property.type==='Property') {
-          if(property.computed)
-            visitCarrierExpression(property.key,environment,thisValue);
-          replayCarrierParameterEffects(property.value,environment,thisValue);
+          replayCarrierParameterEffects(property.argument,environment,thisValue,null);
+          continue;
         }
+        if(property.type!=='Property')continue;
+        if(property.computed)
+          visitCarrierExpression(property.key,environment,thisValue);
+        const targetKey=carrierStaticKey(property.key,property.computed);
+        /** @type {AstNode|null|undefined} */
+        let nestedArgument=null;
+        if(argument?.type==='ObjectExpression'&&targetKey!==null) {
+          // A later unknown computed property or spread may override this
+          // key; a later explicit key restores a definitely known value.
+          nestedArgument=undefined;
+          for(const member of argument.properties??[]) {
+            if(member.type!=='Property') {
+              nestedArgument=null;
+              continue;
+            }
+            const key=carrierStaticKey(member.key,member.computed);
+            if(key===null)nestedArgument=null;
+            else if(key===targetKey)nestedArgument=member.value;
+          }
+        }
+        replayCarrierParameterEffects(property.value,environment,thisValue,
+          nestedArgument);
       }
       return;
     }
     if(pattern.type==='ArrayPattern') {
-      for(const element of pattern.elements??[]) {
-        if(element)replayCarrierParameterEffects(element,environment,thisValue);
+      const elements=pattern.elements??[];
+      const argumentElements=argument?.type==='ArrayExpression'?
+        argument.elements??[]:null;
+      let spreadBefore=false;
+      for(let index=0;index<elements.length;index++) {
+        const element=elements[index];
+        if(!element)continue;
+        /** @type {AstNode|null|undefined} */
+        let nestedArgument=null;
+        if(argumentElements&&!spreadBefore) {
+          const sourceElement=argumentElements[index];
+          if(sourceElement?.type==='SpreadElement')spreadBefore=true;
+          else nestedArgument=sourceElement??undefined;
+          for(let j=0;j<index;j++)
+            if(argumentElements[j]?.type==='SpreadElement')
+              spreadBefore=true;
+          if(spreadBefore)nestedArgument=null;
+        }
+        replayCarrierParameterEffects(element,environment,thisValue,nestedArgument);
       }
       return;
     }
     if(pattern.type==='RestElement')
-      replayCarrierParameterEffects(pattern.argument,environment,thisValue);
+      replayCarrierParameterEffects(pattern.argument,environment,thisValue,null);
   }
   /**
    * Replay a stable local callable against the current carrier state.
@@ -1758,33 +1840,8 @@ function hasWeakMapPrototypeExposure(ast) {
         const argument=callArguments[index];
         const value=!argument||argument.type==='SpreadElement'?
           carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
-        if(parameter.type==='AssignmentPattern') {
-          // Missing and void-valued arguments execute the initializer.
-          // Literal / constructed values cannot be undefined here. Other
-          // argument expressions can evaluate to undefined, so join paths.
-          const mustDefault=!argument||
-            argument.type==='UnaryExpression'&&argument.operator==='void';
-          const cannotDefault=Boolean(argument&&(
-            argument.type==='Literal'||argument.type==='ObjectExpression'||
-            argument.type==='ArrayExpression'||argument.type==='NewExpression'||
-            argument.type==='FunctionExpression'||argument.type==='ArrowFunctionExpression'
-          ));
-          if(mustDefault)
-            replayCarrierParameterEffects(parameter,invoked,thisValue);
-          else if(!cannotDefault) {
-            const noDefault=forkCarrierEnvironment(invoked);
-            const withDefault=forkCarrierEnvironment(invoked);
-            replayCarrierParameterEffects(parameter,withDefault,thisValue);
-            joinCarrierEnvironments(invoked,noDefault,withDefault);
-          }
-        } else if(parameter.type==='ObjectPattern'||parameter.type==='ArrayPattern') {
-          // Destructuring keys always execute; defaults can run on missing
-          // fields. Include the path without their optional effects as well.
-          const noEffects=forkCarrierEnvironment(invoked);
-          const withEffects=forkCarrierEnvironment(invoked);
-          replayCarrierParameterEffects(parameter,withEffects,thisValue);
-          joinCarrierEnvironments(invoked,noEffects,withEffects);
-        }
+        replayCarrierParameterEffects(parameter,invoked,thisValue,
+          argument??undefined);
         bindCarrierPattern(parameter,value,invoked);
       }
       // Generator/async parameter binding is synchronous at invocation.
