@@ -213,6 +213,8 @@ function createScoWebAuthnAdmission(options){
     const signCount=authBytes.readUInt32BE(33);
     let record;
     try{record=await options.lookupCredential(principal,credentialId);}catch{return denied;}
+    // Do not start a durable counter mutation for a revoked ceremony.
+    if(pending.version!==(principalVersions.get(principal)??0))return denied;
     if(!record || !Number.isSafeInteger(record.signCount) || record.signCount<0 ||
        record.signCount>0xffffffff)return denied;
     const key=publicEs256Key(record.publicKey);
