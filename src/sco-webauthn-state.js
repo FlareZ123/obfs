@@ -1,5 +1,7 @@
 'use strict';
 
+const path=require('node:path');
+
 // Keep node:sqlite lazy: the default in-memory SCO admission path should not
 // load an experimental native module or affect unrelated Node/browser builds.
 
@@ -120,8 +122,9 @@ function safeStoredInteger(value,field){
  * @returns {ScoWebAuthnStateStore & {close:()=>void}}
  */
 function createScoWebAuthnSqliteStore(filename){
-  if(typeof filename!=='string'||!filename||filename===':memory:')
-    throw new TypeError('Cross-process WebAuthn store requires an explicit durable SQLite file path');
+  if(typeof filename!=='string'||!path.isAbsolute(filename)||
+     path.normalize(filename)!==filename||filename.includes('\0'))
+    throw new TypeError('Cross-process WebAuthn store requires an absolute normalized SQLite file path');
   const {DatabaseSync}=require('node:sqlite');
   const db=new DatabaseSync(filename,{timeout:30000});
   try{
