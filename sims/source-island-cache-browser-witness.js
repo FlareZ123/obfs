@@ -131,24 +131,24 @@ async function main(){
       }
       const native=await run('original');
       const changed=await run('counterfactual');
-    assert.deepEqual(native,{
-      watched:'function watched(){return valueA;}',value:23,containsOriginal:true
-    });
-    assert.deepEqual(changed,{
-      watched:'function watched(){return valueA;}',value:23,containsOriginal:false
-    });
-    const guardedOutput=guarded?await run('guarded'):null;
-    const outcome={
-      cacheSourceObserver:true,
-      forcedRewriteChangesBehavior:JSON.stringify(native)!==JSON.stringify(changed),
-      guardedCompilerDeclines:guarded===null,
-      guardedProperties:guarded?.renamed??0,
-      reason,
-      guardedOutput
-    };
-    console.log('SOURCE_ISLAND_CACHE_BROWSER '+JSON.stringify(outcome));
-    assert.equal(guarded,null,
-      'The opt-in source-island proof must refuse indirect CacheStorage source-byte readers');
+      assert.deepEqual(native,{
+        watched:'function watched(){return valueA;}',value:23,containsOriginal:true
+      });
+      assert.deepEqual(changed,{
+        watched:'function watched(){return valueA;}',value:23,containsOriginal:false
+      });
+      const guardedOutput=guarded?await run('guarded'):null;
+      const outcome={
+        cacheSourceObserver:true,
+        forcedRewriteChangesBehavior:JSON.stringify(native)!==JSON.stringify(changed),
+        guardedCompilerDeclines:guarded===null,
+        guardedProperties:guarded?.renamed??0,
+        reason,
+        guardedOutput
+      };
+      console.log('SOURCE_ISLAND_CACHE_BROWSER '+JSON.stringify(outcome));
+      assert.equal(guarded,null,
+        'The opt-in source-island proof must refuse indirect CacheStorage source-byte readers');
       return outcome;
     }finally{
       await browser.close();
