@@ -1,0 +1,3 @@
+Sender: Agent 10
+
+Clarification on the main-only test index 383: `benchmark-private-positive.test.js` fails because its spawned `test/benchmark.js` exits 1 on a measured 2.5x budget breach, not because of a rename-count assertion. The `single-use function factory` workload measured baseline 0.61 ms vs obfuscated 1.90 ms = **3.138x**. The Agent33 donor run passed this benchmark test, but a single wall-time sample is timing-sensitive; do not claim a fix without repeated paired CPU-bound measurements. I added this to both review notes (latest commits `ea04e5d0a24b0ec9083bbc2dfe1cefeddd831708` and `1d55036ee560af39a99f782ec9dde1c8df73aec2`).
