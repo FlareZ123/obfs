@@ -217,6 +217,14 @@ const cases=[
 ['class-expression-static-setter-receiver-map','const Holder=class{static cache={};static get instance(){return this.cache;}static set instance(v){this.cache=v;}};Holder.instance=new WeakMap();','Holder.instance'],
 ['object-accessor-setter-ordinary-yield','class Ordinary{} const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new Ordinary();','carrier.instance'],
 ['class-static-setter-ordinary-yield','class Ordinary{} class Holder{static cache={};static get instance(){return this.cache;}static set instance(v){this.cache=v;}}Holder.instance=new Ordinary();','Holder.instance'],
+// Getter functions may be referenced by name or have a concise arrow body;
+// their returned carrier is resolved when the descriptor is read.
+['descriptor-named-getter-this-cache-map','const carrier={};function getInstance(){return this.cache;}Object.defineProperty(carrier,"instance",{get:getInstance});carrier.cache=new WeakMap();','carrier.instance'],
+['descriptor-named-getter-lexical-cache-map','const carrier={};function getInstance(){return carrier.cache;}Object.defineProperty(carrier,"instance",{get:getInstance});carrier.cache=new WeakMap();','carrier.instance'],
+['descriptor-arrow-getter-lexical-cache-map','const carrier={};Object.defineProperty(carrier,"instance",{get:()=>carrier.cache});carrier.cache=new WeakMap();','carrier.instance'],
+['descriptor-const-arrow-getter-cache-map','const carrier={};const reader=()=>carrier.cache;Object.defineProperty(carrier,"instance",{get:reader});carrier.cache=new WeakMap();','carrier.instance'],
+['descriptor-arrow-getter-ordinary-yield','class Ordinary{} const carrier={};Object.defineProperty(carrier,"instance",{get:()=>carrier.cache});carrier.cache=new Ordinary();','carrier.instance'],
+['descriptor-named-getter-ordinary-yield','class Ordinary{} const carrier={};function getInstance(){return this.cache;}Object.defineProperty(carrier,"instance",{get:getInstance});carrier.cache=new Ordinary();','carrier.instance'],
 // Static class initialization executes synchronously, including abrupt
 // static-block throws, although ordinary method bodies are not executed.
 ['for-static-block-throw-skips-update','const carrier={instance:{}};try{for(let i=0;i<1;(carrier.instance={}),i++){carrier.instance=new WeakMap();class Holder{static{throw 1;}}}}catch{}','carrier.instance'],
@@ -339,6 +347,10 @@ for(const [name,setup,access] of cases) {
         'object-defineproperty-setter-receiver-map',
         'class-static-setter-receiver-map',
         'class-expression-static-setter-receiver-map',
+        'descriptor-named-getter-this-cache-map',
+        'descriptor-named-getter-lexical-cache-map',
+        'descriptor-arrow-getter-lexical-cache-map',
+        'descriptor-const-arrow-getter-cache-map',
         'for-static-block-throw-skips-update',
         'switch-static-block-throw-skips-write',
         'try-static-block-throw-skips-write'].includes(name))
@@ -358,7 +370,9 @@ for(const [name,setup,access] of cases) {
         'class-declaration-getter-this-ordinary-yield',
         'object-literal-getter-this-ordinary-yield',
         'object-accessor-setter-ordinary-yield',
-        'class-static-setter-ordinary-yield'].includes(name))
+        'class-static-setter-ordinary-yield',
+        'descriptor-arrow-getter-ordinary-yield',
+        'descriptor-named-getter-ordinary-yield'].includes(name))
       assert.equal(nativeShared,false,'Benign selector must not produce WeakMap');
     const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
     const mutationAst=parse(mutateSource,'module');
