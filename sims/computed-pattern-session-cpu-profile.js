@@ -80,6 +80,15 @@ function run(directory,iterations){
   const measurement=JSON.parse(child.stdout);
   assert.ok(Number.isInteger(measurement.checksum));
   assert.ok(Number.isFinite(measurement.totalCpuUs)&&measurement.totalCpuUs>0);
+  if(!Number.isFinite(measurement.hotCpuUs)||measurement.hotCpuUs<0) {
+    // Diagnostic-only: preserve the strict assertion, but report raw data
+    // and source directory so native/emitted and zero-granularity issues
+    // can be distinguished without silently clamping invalid CPU samples.
+    console.error('COMPUTED_PATTERN_CPU_INVALID_SAMPLE '+JSON.stringify({
+      directory,iterations,node:process.version,platform:process.platform,
+      measurement,stdout:child.stdout,stderr:child.stderr
+    }));
+  }
   assert.ok(Number.isFinite(measurement.hotCpuUs)&&measurement.hotCpuUs>=0);
   return measurement;
 }
