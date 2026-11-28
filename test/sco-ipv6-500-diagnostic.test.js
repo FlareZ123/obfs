@@ -1,0 +1,67 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const http=require('node:http');
+const {obfuscateFiles}=require('../src/core');
+const {createScoHandler}=require('../src/sco');
+
+const source='document.getElementById("out").textContent=location.hostname+"|42";';
+const input={path:'client.js',sourceType:/** @type {'script'} */('script'),code:source};
+
+test('IPv6 host-lock compiler emits parseable JS for 128 deterministic SCO seeds',{
+  timeout:60000
+},()=>{
+  /** @type {{seed:string,error:string}[]} */
+  const failures=[];
+  for(let i=0;i<128;i++){
+    const seed=i.toString(16).padStart(48,'0');
+    try{
+      const result=obfuscateFiles([input],{
+        mode:'sco',seed,allowedHosts:['[::1]'],properties:true,identifiers:true
+      });
+      assert.equal(result.files.length,1);
+      const code=result.files[0].code;
+      assert.equal(typeof code,'string');
+      // Parse only. This host guard deliberately checks browser globals on run.
+      new Function(/** @type {string} */(code));
+    }catch(error){
+      failures.push({seed,error:/** @type {Error} */(error).stack??String(error)});
+      if(failures.length>=5)break;
+    }
+  }
+  assert.deepEqual(failures,[],
+    'Compiler errors from browser fixture, without HTTP or Chromium');
+});
+
+test('IPv6 Node HTTP SCO static script delivery succeeds for 64 independent requests',{
+  timeout:60000
+},async()=>{
+  const handler=createScoHandler([input],{
+    allowedHosts:['[::1]'],publicPaths:['client.js']
+  });
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'::1',resolve));
+  const address=server.address();
+  assert.ok(address&&typeof address!=='string');
+  const url='http://[::1]:'+address.port+'/obfs/client.js';
+  /** @type {{trial:number,status:number,body:string}[]} */
+  const failures=[];
+  try{
+    for(let i=0;i<64;i++){
+      const res=await fetch(url,{signal:AbortSignal.timeout(5000)});
+      const body=await res.text();
+      if(res.status!==200){
+        failures.push({trial:i,status:res.status,body:body.slice(0,120)});
+        if(failures.length>=5)break;
+      }else{
+        assert.doesNotThrow(()=>new Function(body));
+      }
+    }
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+  assert.deepEqual(failures,[],
+    'Node HTTP delivery against the same IPv6 fixture without Chromium');
+});
