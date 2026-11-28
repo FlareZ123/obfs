@@ -9,26 +9,25 @@ const path=require('node:path');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
-/** @typedef {{path:string,sourceType:'module',code:string}} File */
+/** @typedef {{path:string,sourceType:'commonjs',code:string}} File */
 /** @type {File[]} */
 const source=[
-  {path:'state.mjs',sourceType:'module',code:
-    'export const state={secretField:41,otherField:13,sessionMark:7};'},
-  {path:'kernel.mjs',sourceType:'module',code:[
-    'import {state} from "./state.mjs";',
-    'export function run(count){',
+  {path:'kernel.cjs',sourceType:'commonjs',code:[
+    'const state={secretField:41,otherField:13,sessionMark:7};',
+    'function privateRun(count){',
     'let value=0x12345678;',
     'for(let i=0;i<count;i++){',
     'value=(Math.imul(value ^ state.secretField,1664525) + state.otherField)|0;',
     'value^=state.sessionMark;',
     '}',
     'return value>>>0;',
-    '}'
+    '}',
+    'module.exports=function run(count){return privateRun(count);};'
   ].join('\n')}
 ];
 
 /**
- * The isolated child imports three real native ESM graphs and measures
+ * The isolated child imports three real native CommonJS graphs and measures
  * paired warmed *process CPU* and wall time in rotated execution order.
  * This evaluates only one selected compute boundary, not an arbitrary
  * JavaScript or startup performance guarantee.
@@ -40,8 +39,8 @@ const DRIVER=[
   "const modes=['native','deterministic','entropy'];",
   "const modules={};",
   "for(const mode of modes){",
-  " const file=pathToFileURL(path.join(root,mode,'kernel.mjs')).href;",
-  " modules[mode]=await import(file);",
+  " const file=pathToFileURL(path.join(root,mode,'kernel.cjs')).href;",
+  " modules[mode]=(await import(file)).default;",
   "}",
   "const input=3500000;",
   "for(let warm=0;warm<4;warm++){",
@@ -77,18 +76,19 @@ function median(values){
   return sorted[Math.floor(sorted.length/2)];
 }
 
-test('private field entropy: source-pinned paired process-CPU comparison with native ESM',{
+test('private field entropy: source-pinned paired process-CPU comparison with native CJS',{
   timeout:60000
 },async()=>{
   const opts={mode:/** @type {'coo'} */('coo'),
-    closedWorld:true,seed:'PUBLIC_BENCH_SEED',
+    seed:'PUBLIC_BENCH_SEED',
     properties:true,strings:false,identifiers:false};
   const deterministic=obfuscateFiles(source,opts);
   const entropy=obfuscateFiles(source,{
     ...opts,experimentalEntropyPropertyNames:true
   });
-  assert.equal(deterministic.crossFile.properties,3);
-  assert.equal(entropy.crossFile.properties,3);
+  assert.equal(deterministic.files[0].metrics.properties,3,
+    'The selected native kernel must have three actual private field rewrites');
+  assert.equal(entropy.files[0].metrics.properties,3);
   /** @type {Array<[string,Array<{path:string,code:string|Buffer}>]>} */
   const graphs=[
     ['native',source],['deterministic',deterministic.files],
@@ -131,7 +131,7 @@ test('private field entropy: source-pinned paired process-CPU comparison with na
       maxEntropyPair:Math.max(...cpuPairs)
     };
     process.stdout.write('PRIVATE_PROPERTY_ENTROPY_PAIRED_CPU '+JSON.stringify({
-      graph:'two actual ESM modules with 3 cross-file renamed fields',
+      graph:'one actual native CJS hot kernel with 3 local renamed fields',
       node:report.node,platform:report.platform,
       testedIterationsPerCall:report.input,pairedWarmedRounds:report.rounds.length,
       rotatingOrder:true,processCpuMs:summary,
