@@ -111,13 +111,12 @@ jobs:
           BROWSER_APPLICATIONS: ${{ needs.browser-applications.result }}
           ADVERSARIAL_APPLICATIONS: ${{ needs.adversarial-applications.result }}
         run: |
-          printf '%-28s %s\\n' \
-            'full-validation' "$FULL_VALIDATION" \
-            'matched-minifier' "$MATCHED_MINIFIER" \
-            'sco-equal-trust' "$SCO_EQUAL_TRUST" \
-            'sco-cpu' "$SCO_CPU" \
-            'browser-applications' "$BROWSER_APPLICATIONS" \
-            'adversarial-applications' "$ADVERSARIAL_APPLICATIONS"
+          echo "full-validation=$FULL_VALIDATION"
+          echo "matched-minifier=$MATCHED_MINIFIER"
+          echo "sco-equal-trust=$SCO_EQUAL_TRUST"
+          echo "sco-cpu=$SCO_CPU"
+          echo "browser-applications=$BROWSER_APPLICATIONS"
+          echo "adversarial-applications=$ADVERSARIAL_APPLICATIONS"
           test "$FULL_VALIDATION" = success
           test "$MATCHED_MINIFIER" = success
           test "$SCO_EQUAL_TRUST" = success
