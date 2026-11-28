@@ -18,6 +18,28 @@ const variants=[
     'const document={__proto__:null};document.title=protectedFn;document.title=protectedFn;',yield:true,observed:false},
   {name:'own-title-data-inert',middle:
     'const document={title:""};document.title=protectedFn;',yield:true,observed:false},
+  {name:'multi-field-null-prototype-and-title',middle:
+    'const document={__proto__:null,title:"",value:17,flag:true};document.title=protectedFn;',
+    yield:true,observed:false},
+  {name:'multi-field-own-title-data',middle:
+    'const document={value:17,flag:true,title:"",other:null};document.title=protectedFn;',
+    yield:true,observed:false},
+  {name:'duplicate-own-title-data',middle:
+    'const document={title:0,value:17,title:"ready"};document.title=protectedFn;',
+    yield:true,observed:false},
+  {name:'multi-field-null-prototype-without-title',middle:
+    'const document={__proto__:null,value:17,flag:true};document.title=protectedFn;',
+    yield:true,observed:false},
+  {name:'literal-record-getter-conservative',middle:
+    'const document={title:"",get value(){return 9;}};document.title=protectedFn;',
+    yield:false,observed:false},
+  {name:'literal-record-spread-source-observer',middle:
+    'const other={get value(){globalThis.observed=String(protectedFn);return 7;}};'+
+    'const document={title:"",...other};document.title=protectedFn;',
+    yield:false,observed:true},
+  {name:'literal-record-dynamic-prototype-conservative',middle:
+    'const document={__proto__:globalThis.document,title:""};document.title=protectedFn;',
+    yield:false,observed:false},
   {name:'own-title-data-hostile-inherited-setter',middle:
     'const document={title:""};document.title=protectedFn;',
     yield:true,observed:false,hostilePrototype:true},
