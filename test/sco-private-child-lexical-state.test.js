@@ -143,7 +143,7 @@ test('SCO child audit preserves exact generated client bytes for stateless sourc
   assert.deepEqual(audited.clientFile.privateModulePaths,unaudited.clientFile.privateModulePaths);
 });
 
-test('native independent ESM trees isolate lexical, record, array and RegExp state',
+test('native independent ESM trees isolate literal, lexical and factory owners',
   {timeout:20000},async()=>{
     /** @type {[string,string,(number|boolean)[]][]} */
     const variants=[
@@ -151,6 +151,16 @@ test('native independent ESM trees isolate lexical, record, array and RegExp sta
       ['record','const state={count:0};export function next(){return ++state.count;}',[1,1,1,2]],
       ['array','const history=[];export function next(){return history.push(1);}',[1,1,1,2]],
       ['regexp','const matcher=/a/g;export function next(){return matcher.test("a");}',[true,true,true,false]],
+      ['factory','function make(){return {count:0};}const state=make();'+
+        'export function next(){return ++state.count;}',[1,1,1,2]],
+      ['arrow factory','const make=()=>({count:0});const state=make();'+
+        'export function next(){return ++state.count;}',[1,1,1,2]],
+      ['IIFE','const state=(()=>({count:0}))();'+
+        'export function next(){return ++state.count;}',[1,1,1,2]],
+      ['Promise','const state=Promise.resolve({count:0});'+
+        'export async function next(){const object=await state;return ++object.count;}',[1,1,1,2]],
+      ['typed array','const state=new Uint8Array(1);'+
+        'export function next(){return ++state[0];}',[1,1,1,2]],
       ['primitive','const offset=41;export function next(){return offset+1;}',[42,42,42,42]]
     ];
     for(const [label,source,expected] of variants){
