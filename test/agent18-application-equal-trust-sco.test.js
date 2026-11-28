@@ -63,6 +63,34 @@ async function processCpu(execute){
   return {ms:(cpu.user+cpu.system)/1000,result:wire(result)};
 }
 
+/**
+ * Aggregate many independent API calls *without* batching them into a
+ * single RPC. This only overcomes coarse Windows CPU timer quantization;
+ * every generated/ordinary invocation still incurs its own HTTP request.
+ * Divide process-wide CPU by repetitions. Different repetition counts are
+ * recorded explicitly because the very thin native operation needs many
+ * more repetitions to cross the 15–16 ms Windows CPU clock quantum.
+ *
+ * @param {()=>Promise<unknown>} execute
+ * @param {number} repetitions
+ * @param {unknown} expected
+ * @returns {Promise<{cpuMsTotal:number,cpuMsPerCall:number,
+ *   wallMsPerCall:number,repetitions:number}>}
+ */
+async function repeatedProcessCpu(execute,repetitions,expected){
+  const start=process.cpuUsage();
+  const wallStart=performance.now();
+  for(let i=0;i<repetitions;i++){
+    const value=await execute();
+    if(i===0||i===repetitions-1)assert.deepEqual(wire(value),expected);
+  }
+  const wallMsTotal=performance.now()-wallStart;
+  const usage=process.cpuUsage(start);
+  const cpuMsTotal=(usage.user+usage.system)/1000;
+  return {cpuMsTotal,cpuMsPerCall:cpuMsTotal/repetitions,
+    wallMsPerCall:wallMsTotal/repetitions,repetitions};
+}
+
 test('frozen six-module SCO app and equal-trust minified RPC client have identical authenticated online relay',{
   timeout:90000
 },async()=>{
@@ -243,6 +271,57 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
         ordinaryBreaches:ratios.filter(x=>x.ordinaryOverNative>2.5).length
       };
     }
+    /** @type {Record<string,unknown>} */
+    const batchedCpu={};
+    for(const [label,count,repetitions] of /** @type {const} */ ([
+      ['light',1,{native:32768,generated:1024,ordinary:1024}],
+      ['heavy',120000,{native:128,generated:128,ordinary:128}]
+    ])){
+      const expected=wire(await native(0x12345678,count));
+      const methods={
+        native:()=>native(0x12345678,count),
+        generated:()=>emitted.evaluateRemote(0x12345678,count),
+        ordinary:()=>ordinary.evaluateRemote(0x12345678,count)
+      };
+      /** @type {{native:number[],generated:number[],ordinary:number[]}} */
+      const cpuMsPerCall={native:[],generated:[],ordinary:[]};
+      /** @type {{native:number[],generated:number[],ordinary:number[]}} */
+      const wallMsPerCall={native:[],generated:[],ordinary:[]};
+      /** @type {{native:number[],generated:number[],ordinary:number[]}} */
+      const cpuMsTotal={native:[],generated:[],ordinary:[]};
+      for(let index=0;index<7;index++){
+        const order=/** @type {('native'|'generated'|'ordinary')[]} */ (
+          index%2?['ordinary','generated','native']:
+            ['native','generated','ordinary']);
+        for(const kind of order){
+          const measurement=await repeatedProcessCpu(
+            methods[kind],repetitions[kind],expected);
+          cpuMsPerCall[kind].push(measurement.cpuMsPerCall);
+          wallMsPerCall[kind].push(measurement.wallMsPerCall);
+          cpuMsTotal[kind].push(measurement.cpuMsTotal);
+        }
+      }
+      const valid=cpuMsPerCall.native.map((n,i)=>(
+        n>0&&cpuMsPerCall.generated[i]>0&&cpuMsPerCall.ordinary[i]>0?
+          {generatedOverNative:cpuMsPerCall.generated[i]/n,
+            ordinaryOverNative:cpuMsPerCall.ordinary[i]/n,
+            generatedOverOrdinary:cpuMsPerCall.generated[i]/cpuMsPerCall.ordinary[i]}
+          :null
+      )).filter((ratio)=>ratio!==null);
+      batchedCpu[label]={
+        repetitions,rawCpuMsTotal:cpuMsTotal,perCallCpuMs:cpuMsPerCall,
+        perCallWallMs:wallMsPerCall,validCpuPairs:valid.length,
+        invalidCpuPairs:7-valid.length,
+        medianGeneratedOverNative:valid.length?
+          median(valid.map(x=>x.generatedOverNative)):null,
+        medianOrdinaryOverNative:valid.length?
+          median(valid.map(x=>x.ordinaryOverNative)):null,
+        medianGeneratedOverOrdinary:valid.length?
+          median(valid.map(x=>x.generatedOverOrdinary)):null,
+        generatedStrictBreaches:valid.filter(x=>x.generatedOverNative>2.5).length,
+        ordinaryStrictBreaches:valid.filter(x=>x.ordinaryOverNative>2.5).length
+      };
+    }
     process.stdout.write('APPLICATION_EQUAL_TRUST_SCO '+JSON.stringify({
       node:process.version,os:process.platform,
       originalPrivateModules:5,distributedFacades:1,
@@ -252,7 +331,9 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       authorization:403,heldoutOnlineRelays:heldouts.length,
       facadeFreeWireReplayHeldouts:heldouts.length,
       identicalAuthenticatedWire:firstSco.call,
-      initializationMs,paired,scope:'same private server; loopback HTTP; caller+server process CPU'
+      initializationMs,paired,batchedCpu,
+      cpuCaveat:'Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs',
+      scope:'Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs'
     })+'\n');
   }finally{
     globalThis.fetch=oldFetch;
