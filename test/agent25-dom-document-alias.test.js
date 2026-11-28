@@ -10,20 +10,23 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{source:string,value:number}} Observation */
+/** @typedef {{source:string,value:number,independent:number}} Observation */
 
 /** @param {'direct'|'alias'} style @returns {SourceFile[]} */
 function graph(style) {
   return [
     {path:'logic.mjs',sourceType:'module',
       code:'const owner={secretField:57};export function inspect(){return owner.secretField;}'},
+    {path:'pure.mjs',sourceType:'module',
+      code:'const safe={independentPrivate:73};export const pureValue=safe.independentPrivate;'},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {inspect} from "./logic.mjs";',
+      'import {pureValue} from "./pure.mjs";',
       style==='direct'?
         'const node=document.createElement("div");':
         'const doc=document;const node=doc.createElement("div");',
       'node.id=inspect;',
-      'console.log(JSON.stringify({source:node.id,value:inspect()}));'
+      'console.log(JSON.stringify({source:node.id,value:inspect(),independent:pureValue}));'
     ].join('\n')}
   ];
 }
@@ -60,6 +63,12 @@ for(const style of /** @type {const} */ (['direct','alias'])) {
     const native=await execute(originals);
     const emitted=await execute(/** @type {SourceFile[]} */(candidate.files));
     assert.equal(native.value,57);
+    assert.equal(native.independent,73);
+    const pure=candidate.files.find(file=>file.path==='pure.mjs');
+    assert.ok(pure&&pure.metrics.properties>0,
+      'A truly independent own field must still receive a genuine rewrite');
+    assert.ok(!String(pure.code).includes('independentPrivate'));
+
     assert.ok(native.source.includes('secretField'));
     assert.deepEqual(emitted,native,
       'DOMString sink must not expose a renamed callable source through '+style);
