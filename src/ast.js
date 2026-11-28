@@ -1419,11 +1419,11 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /**
    * @param {Map<string,CarrierValue>} environment
+   * @param {Map<CarrierValue,CarrierContainer>} [memo] Receivers must be remapped
+   *   to the *same* cloned heap as the captured lexical bindings.
    * @returns {Map<string,CarrierValue>}
    */
-  function forkCarrierEnvironment(environment) {
-    /** @type {Map<CarrierValue,CarrierContainer>} */
-    const memo=new Map();
+  function forkCarrierEnvironment(environment,memo=new Map()) {
     /** @type {Map<string,CarrierValue>} */
     const copy=new Map();
     for(const [name,value] of environment)
@@ -1892,7 +1892,11 @@ function hasWeakMapPrototypeExposure(ast) {
     const definite=direct&&allowDefinite&&!local.async&&!local.generator&&
       provenDefiniteLocalSlotWrite(local,environment,thisValue);
     const before=forkCarrierEnvironment(environment);
-    const invoked=forkCarrierEnvironment(environment);
+    /** @type {Map<CarrierValue,CarrierContainer>} */
+    const receiverMemo=new Map();
+    const invoked=forkCarrierEnvironment(environment,receiverMemo);
+    const boundThis=thisValue.kind==='container'?
+      receiverMemo.get(thisValue)??thisValue:thisValue;
     /** @type {Map<string,number>} */
     const parameterNames=new Map();
     activeLocalCallEffects.add(local);
@@ -1903,7 +1907,7 @@ function hasWeakMapPrototypeExposure(ast) {
         const argument=callArguments[index];
         const value=!argument||argument.type==='SpreadElement'?
           carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
-        replayCarrierParameterEffects(parameter,invoked,thisValue,
+        replayCarrierParameterEffects(parameter,invoked,boundThis,
           argument??undefined);
         bindCarrierPattern(parameter,value,invoked);
       }
@@ -1912,9 +1916,9 @@ function hasWeakMapPrototypeExposure(ast) {
       // as a direct synchronous state transition.
       if(!local.async&&!local.generator) {
         if(local.body.type==='BlockStatement')
-          visitCarrierStatement(local.body,invoked,thisValue);
+          visitCarrierStatement(local.body,invoked,boundThis);
         else // Concise arrow expressions also run after formal defaults.
-          visitCarrierExpression(local.body,invoked,thisValue);
+          visitCarrierExpression(local.body,invoked,boundThis);
       }
     } finally {
       activeLocalCallEffects.delete(local);
@@ -2065,7 +2069,8 @@ function hasWeakMapPrototypeExposure(ast) {
                     x?.type==='SpreadElement'))
             argumentsToReplay=node.arguments[1].elements.map(
               (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
-          replayLocalFunctionEffects(owner,environment,thisValue,false,
+          const receiver=evaluateCarrierValue(node.arguments[0],environment,thisValue);
+          replayLocalFunctionEffects(owner,environment,receiver,false,
             argumentsToReplay);
         }
       }
@@ -2084,9 +2089,10 @@ function hasWeakMapPrototypeExposure(ast) {
               (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
           // An inline callable has no mutable binding alias; still join both
           // execution and nonexecution for potentially overridden intrinsics.
+          const receiver=node.callee.object.type==='ArrowFunctionExpression'?
+            thisValue:evaluateCarrierValue(node.arguments[0],environment,thisValue);
           replayCarrierFunctionNode(node.callee.object,environment,
-            node.callee.object.type==='ArrowFunctionExpression'?thisValue:carrierOther,
-            false,passed,true);
+            receiver,false,passed,true);
         }
       }
       if(node.callee.type==='MemberExpression' &&
