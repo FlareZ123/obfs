@@ -104,6 +104,206 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Find a source-visible function crossing native DOMString setters when the
+ * setter receiver is a DOM object or factory *imported* from another source
+ * file. A per-file analysis cannot reconstruct the imported receiver's native
+ * provenance, so preserve source-visible JavaScript bytes for this graph.
+ *
+ * The graph proof is bounded to exact relative ESM imports. Failing closed
+ * may disable more transformations than are actually unsafe, especially if
+ * the imported DOM handle is reassigned before the sink; it must never assert
+ * source equivalence for unknown exported/host objects.
+ *
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {boolean}
+ */
+function hasImportedDomStringSourceSink(files) {
+  const modules=new Map(files.filter(file=>file.sourceType==='module'&&
+    typeof file.code==='string').map(file=>[file.path,parse(/** @type {string} */(file.code),'module')]));
+  if(modules.size<2)return false;
+  /** @type {Map<string,{receivers:Set<string>,factories:Set<string>}>} */
+  const exported=new Map();
+  /** @param {import('./ast').AstNode} node @returns {string|null} */
+  function property(node) {
+    if(node.type!=='MemberExpression')return null;
+    return node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+  function isDocument(node) {
+    return Boolean(node && (node.type==='Identifier'&&node.name==='document'||
+      node.type==='MemberExpression'&&property(node)==='document'&&
+      node.object.type==='Identifier'&&
+      ['globalThis','window','self'].includes(node.object.name)));
+  }
+  for(const [filename,ast] of modules) {
+    const locals=new Set();
+    const factories=new Set();
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isDom(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return locals.has(node.name);
+      if(node.type==='MemberExpression') {
+        const name=property(node);
+        return isDocument(node.object)&&
+          ['body','head','documentElement','activeElement'].includes(name??'')||
+          locals.has(node.object?.name)&&
+            ['parentNode','parentElement','firstElementChild','lastElementChild'].includes(name??'');
+      }
+      if(node.type==='CallExpression'){
+        if(node.callee.type==='Identifier')return factories.has(node.callee.name);
+        if(node.callee.type==='MemberExpression'){
+          const method=property(node.callee);
+          return isDocument(node.callee.object)&&[
+            'getElementById','querySelector','createElement','createElementNS'
+          ].includes(method??'') ||
+            isDom(node.callee.object)&&['querySelector','closest','cloneNode'].
+              includes(method??'');
+        }
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode} fn @returns {boolean} */
+    function producesDom(fn) {
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type))
+        return false;
+      if(fn.body?.type!=='BlockStatement')return isDom(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&isDom(node.argument))found=true;
+      });
+      return found;
+    }
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        if(node.type==='FunctionDeclaration'&&node.id?.name&&
+           producesDom(node)&&!factories.has(node.id.name)){
+          factories.add(node.id.name);changed=true;
+        }
+        if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
+        const name=node.id.name;
+        if(isDom(node.init)&&!locals.has(name)){locals.add(name);changed=true;}
+        if(producesDom(node.init)&&!factories.has(name)){
+          factories.add(name);changed=true;
+        }
+        if(node.init.type==='Identifier'&&factories.has(node.init.name)&&
+           !factories.has(name)){factories.add(name);changed=true;}
+      });
+    }while(changed);
+    const receivers=new Set();
+    const exportedFactories=new Set();
+    /** @param {string} local @param {string} external */
+    function expose(local,external) {
+      if(locals.has(local))receivers.add(external);
+      if(factories.has(local))exportedFactories.add(external);
+    }
+    for(const node of ast.body??[]) {
+      if(node.type!=='ExportNamedDeclaration')continue;
+      const declaration=node.declaration;
+      if(declaration?.type==='VariableDeclaration') {
+        for(const item of declaration.declarations??[])
+          if(item.id?.type==='Identifier')expose(item.id.name,item.id.name);
+      }
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name)
+        expose(declaration.id.name,declaration.id.name);
+      for(const specifier of node.specifiers??[]) {
+        if(node.source||specifier.type!=='ExportSpecifier')continue;
+        const local=specifier.local?.name??specifier.local?.value;
+        const name=specifier.exported?.name??specifier.exported?.value;
+        if(typeof local==='string'&&typeof name==='string')expose(local,name);
+      }
+    }
+    exported.set(filename,{receivers,factories:exportedFactories});
+  }
+  /** @param {import('./ast').AstNode|null|undefined} value @returns {boolean} */
+  function potentiallySourceBearing(value) {
+    return Boolean(value && !(value.type==='Literal'&&
+      (value.value===null||['string','number','boolean'].includes(typeof value.value)) ||
+      value.type==='TemplateLiteral'&&value.expressions?.length===0));
+  }
+  for(const [filename,ast] of modules) {
+    const receiverNames=new Set();
+    const factoryNames=new Set();
+    for(const node of ast.body??[]) {
+      if(node.type!=='ImportDeclaration'||typeof node.source?.value!=='string')continue;
+      const specifier=node.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+        /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+        hasUrlPathnameNormalizationHazard(specifier)||
+        hasTerminalUrlDotSegment(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      const donor=exported.get(target);
+      if(!donor)continue;
+      for(const item of node.specifiers??[]){
+        if(item.type!=='ImportSpecifier'||!item.local?.name)continue;
+        const external=item.imported?.name??item.imported?.value;
+        if(typeof external!=='string')continue;
+        if(donor.receivers.has(external))receiverNames.add(item.local.name);
+        if(donor.factories.has(external))factoryNames.add(item.local.name);
+      }
+    }
+    if(!receiverNames.size&&!factoryNames.size)continue;
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedReceiver(node) {
+      return Boolean(node && (
+        node.type==='Identifier'&&receiverNames.has(node.name)||
+        node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+          factoryNames.has(node.callee.name)));
+    }
+    let changed;
+    do {
+      changed=false;
+      walk(ast,node=>{
+        if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
+        const name=node.id.name;
+        if(isImportedReceiver(node.init)&&!receiverNames.has(name)){
+          receiverNames.add(name);changed=true;
+        }
+        if(node.init.type==='Identifier'&&factoryNames.has(node.init.name)&&
+           !factoryNames.has(name)){factoryNames.add(name);changed=true;}
+      });
+    }while(changed);
+    let observed=false;
+    walk(ast,node=>{
+      if(observed)return;
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+        const owner=node.callee.object;
+        const method=property(node.callee);
+        if(isImportedReceiver(owner) &&
+            ['setAttribute','setAttributeNS','insertAdjacentText',
+             'insertAdjacentHTML'].includes(method??'')&&
+            node.arguments.some(potentiallySourceBearing)) {
+          observed=true;return;
+        }
+        if(owner?.type==='MemberExpression'&&
+          property(owner)==='style'&&isImportedReceiver(owner.object)&&
+          ['setProperty','getPropertyValue','removeProperty'].includes(method??'')&&
+          node.arguments.some(potentiallySourceBearing)){
+          observed=true;return;
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         potentiallySourceBearing(node.right)) {
+        const owner=node.left.object;
+        const key=property(node.left);
+        if(isImportedReceiver(owner)&&
+          ['textContent','innerText','innerHTML','outerHTML',
+           'id','title','className'].includes(key??'')) {
+          observed=true;return;
+        }
+        if(owner?.type==='MemberExpression'&&isImportedReceiver(owner.object)&&
+          (property(owner)==='dataset'||property(owner)==='style'))observed=true;
+      }
+    });
+    if(observed)return true;
+  }
+  return false;
+}
+
+/**
  * Find ESM producer files whose imported values reach a proven browser
  * DOMString/TrustedHTML coercion sink in another supplied module. Protect the
  * producer's function source byte-for-byte while leaving unrelated primitive
@@ -2267,8 +2467,11 @@ function obfuscateFiles(files, options = {}) {
     sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
-  let remoteSourceObserver=hasPinnedSource||sharedCommonJsStorageSourceObserver;
-  let hostLockSourceObserver=sharedCommonJsStorageSourceObserver;
+  const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
+  let remoteSourceObserver=hasPinnedSource||sharedCommonJsStorageSourceObserver||
+    importedDomStringSourceObserver;
+  let hostLockSourceObserver=sharedCommonJsStorageSourceObserver||
+    importedDomStringSourceObserver;
   for(const {file,ast} of sourceObserverFiles) {
     const distributed=observesDistributedSource(ast,importedStringProof.get(file.path));
     const functionSource=observesFunctionSource(ast,
