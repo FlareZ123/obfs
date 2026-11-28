@@ -395,3 +395,28 @@ test('distinct factory results retain ownership through multi-slot records and t
     await checkFactory(factory,tupleMain,2,mode,undefined,identityModule);
   }
 });
+
+
+test('factory importer inventory refuses a WHATWG URL versus POSIX C0 path alias',async()=>{
+  const specifier='./a/.\t/../state.mjs';
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export function makeState(){return {secretField:23,otherField:5};}'},
+    {path:'a/state.mjs',sourceType:'module',
+      code:'export function makeState(){return {secretField:41,otherField:7};}'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {makeState} from '+JSON.stringify(specifier)+';'+
+      'const value=makeState();console.log(value.secretField+0);'}
+  ];
+  const native=await execute(files);
+  assert.equal(native.trim(),'23','Native WHATWG URL resolution must select the root state module');
+  for(const mode of ['coo','sno','sco']) {
+    const output=obfuscateFiles(files,{
+      mode,seed:'agent9-factory-url-path-identity',closedWorld:true,
+      strings:false,identifiers:false
+    });
+    assert.equal(output.crossFile.properties,0,
+      mode+' must refuse an incomplete importer inventory rather than rename the POSIX decoy');
+    assert.equal(await execute(output.files),native,mode+' native/emitted parity');
+  }
+});
