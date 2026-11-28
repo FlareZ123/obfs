@@ -87,6 +87,8 @@ const aliases=[
   ['computed','const parser=new DOMParser();module.exports=parser["parse"+"FromString"](inspect,"text/html").body.textContent;'],
   ['unknown-key','const parser=new DOMParser();const key="parseFromString";module.exports=parser[key](inspect,"text/html").body.textContent;'],
   ['bound-method','const parser=new DOMParser();const bound=parser.parseFromString.bind(parser);module.exports=bound(inspect,"text/html").body.textContent;'],
+  ['inline-bound','const parser=new DOMParser();module.exports=parser.parseFromString.bind(parser)(inspect,"text/html").body.textContent;'],
+  ['reflect-inline-bound','const parser=new DOMParser();module.exports=Reflect.apply(parser.parseFromString.bind(parser),parser,[inspect,"text/html"]).body.textContent;'],
   ['prebound-input','const parser=new DOMParser();const bound=parser.parseFromString.bind(parser,inspect,"text/html");module.exports=bound().body.textContent;'],
   ['call','const parser=new DOMParser();module.exports=parser.parseFromString.call(parser,inspect,"text/html").body.textContent;'],
   ['apply','const parser=new DOMParser();module.exports=parser.parseFromString.apply(parser,[inspect,"text/html"]).body.textContent;'],
