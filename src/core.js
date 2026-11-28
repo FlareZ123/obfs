@@ -533,6 +533,8 @@ function hasImportedDomStringSourceSink(files) {
   for(const [filename,ast] of modules) {
     const receiverNames=new Set();
     const factoryNames=new Set();
+    const collectionNames=new Set();
+    const collectionFactoryNames=new Set();
     /** @type {Map<string,Set<string>>} */
     const namespaceNames=new Map();
     /** @param {string} name @param {Iterable<string>} targets @returns {boolean} */
@@ -572,10 +574,14 @@ function hasImportedDomStringSourceSink(files) {
         if(typeof external!=='string')continue;
         if(donor.receivers.has(external))receiverNames.add(local);
         if(donor.factories.has(external))factoryNames.add(local);
+        if(donor.collections.has(external))collectionNames.add(local);
+        if(donor.collectionFactories.has(external))collectionFactoryNames.add(local);
         ownNamespace(local,donor.namespaces.get(external)??[]);
       }
     }
-    if(!receiverNames.size&&!factoryNames.size&&!namespaceNames.size)continue;
+    if(!receiverNames.size&&!factoryNames.size&&
+       !collectionNames.size&&!collectionFactoryNames.size&&
+       !namespaceNames.size)continue;
     /**
      * A namespace may be read through repeated static properties, e.g.
      * outer.holder.element. Return every possible module provenance rather
@@ -610,12 +616,42 @@ function hasImportedDomStringSourceSink(files) {
       return false;
     }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedCollectionFactory(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionFactoryNames.has(node.name);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.collectionFactories.has(key));
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
+    function isImportedCollection(node){
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionNames.has(node.name);
+      if(node.type==='CallExpression')return isImportedCollectionFactory(node.callee);
+      if(node.type==='MemberExpression'){
+        const key=property(node);
+        return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
+          exported.get(origin)?.collections.has(key));
+      }
+      return false;
+    }
+    /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isImportedReceiver(node) {
       if(!node)return false;
       if(node.type==='Identifier')return receiverNames.has(node.name);
-      if(node.type==='CallExpression')return isImportedFactory(node.callee);
+      if(node.type==='CallExpression') {
+        if(isImportedFactory(node.callee))return true;
+        if(node.callee.type==='MemberExpression'&&
+           ['item','namedItem'].includes(property(node.callee)??'')&&
+           isImportedCollection(node.callee.object))return true;
+      }
       if(node.type==='MemberExpression'){
         const key=property(node);
+        if(node.computed&&isImportedCollection(node.object)&&
+           (key===null||/^(0|[1-9][0-9]*)$/u.test(key)))return true;
         return key!==null&&[...namespaceOrigins(node.object)].some(origin=>
           exported.get(origin)?.receivers.has(key));
       }
@@ -632,6 +668,12 @@ function hasImportedDomStringSourceSink(files) {
         }
         if(isImportedFactory(node.init)&&!factoryNames.has(name)){
           factoryNames.add(name);changed=true;
+        }
+        if(isImportedCollection(node.init)&&!collectionNames.has(name)){
+          collectionNames.add(name);changed=true;
+        }
+        if(isImportedCollectionFactory(node.init)&&!collectionFactoryNames.has(name)){
+          collectionFactoryNames.add(name);changed=true;
         }
         if(ownNamespace(name,namespaceOrigins(node.init)))changed=true;
         if(node.init.type==='MemberExpression'&&isImportedReceiver(node.init.object)){
