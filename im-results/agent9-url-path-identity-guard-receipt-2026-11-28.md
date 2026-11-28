@@ -20,7 +20,7 @@ Together they exercise WHATWG URL versus POSIX path identity, terminal dot segme
 
 ## Exact workflow result
 
-Run `46181588425` completed **successfully on Ubuntu, Windows and macOS** (Node 22.23.4). The focused test execution, strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc steps all completed successfully on all three operating systems.
+Run `46181588425` completed successfully. The focused runtime test job ran on **Ubuntu** (Node 22.23.4); strict project JSDoc, strict external JSDoc, and paired/complete-suite budget evaluator JSDoc ran across Ubuntu, Windows and macOS.
 
 The wrapper is only a test aggregator; it adds no production code. The path guards being exercised are in the exact source pin above.
 
