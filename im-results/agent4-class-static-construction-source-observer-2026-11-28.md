@@ -62,3 +62,16 @@ These are compiler semantic-compatibility and a limited precision analysis only.
 ## 28 November 2026 10:24Z: corrected combined fixture count and initial green receipt
 
 The working branch name `agent4/combined-source-effects-173case-20261128` is a **stale label**; its actual matrix includes **181** source-parity fixtures. The exact combined source is `d9987387aef3bf6b127a2aefd665b583a771d85b`. The extra 8 account for the primitive lexical-const proof probes after the original 173 were assembled, so the earlier narrative count is superseded. [Focused run 46134779980](https://github.com/FlareZ123/obfs/actions/runs/46134779980) **passed 181/181 on macOS including strict JSDoc** (job `140947522032`); Windows and Ubuntu remain queued at this observation. Real Chrome fixture on this combined branch is not part of the focused command; it is present in the exact source and will be executed by the full matrix on Ubuntu. The **full repository/Node+browser validation** was separately dispatched for this same exact SHA; do not assert green until its run and jobs finish. This is a correctness development, not evidence that release criteria or obfuscation resistance have been met.
+
+## 28 November 2026 10:26Z: all 181 native-vs-emitted observations classified, not merely TAP green
+
+Parsed **all 181 `CFG_CARRIER` JSON payloads** from [combined macOS source-pinned job 140947522032 / run 46134779980](https://github.com/FlareZ123/obfs/actions/runs/46134779980), not just the last few TAP lines. Source: `d9987387aef3bf6b127a2aefd665b583a771d85b`. This particular fixture corpus includes exactly **140 native-shared WeakMap prototype source-observer paths** and **41 native-nonshared paths** under its concrete simulated host environment. A mechanically classified 2×2 matrix of the exact runtime test cases:
+
+| Native source observation (concrete fixture execution) | Compiler 0 protected binding rewrites | Compiler 4 protected binding rewrites |
+| --- | ---: | ---: |
+| Yes, source-shared | **140** | **0** |
+| No source-shared path | **0** | **41** |
+
+For **every row**, the COO, SCO and SNO evidence arrays each contain three records, all exact source-parity booleans are true, and every mode has the same observed rewrite count (0 or 4); all **181/181** TAP assertions plus strict JSDoc passed on macOS. This is a **finite empirical classification** against the specific three-file ESM harness and mock host, *not* a soundness theorem for arbitrary JavaScript or a measurement of attack resistance. It demonstrates explicitly that the combined conservative guards did **not** solve the matrix by vacuously turning off all protected rewriting: **41 native-negative controls produced actual four-binding rewrites in all three modes**. It also does not establish native SNO filesystem threat resilience or real SCO HTTP behavior.
+
+[Full combined-source Ubuntu/Windows validation run 46135025490](https://github.com/FlareZ123/obfs/actions/runs/46135025490) has been dispatched at the same SHA and remains pending at this note; [focused run 46134779980](https://github.com/FlareZ123/obfs/actions/runs/46134779980) Ubuntu/Windows also pending. A 2×2 matrix on concrete inputs must not be confused with a security-performance decision or population-level generalization.
