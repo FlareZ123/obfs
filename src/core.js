@@ -2672,4 +2672,4 @@ function obfuscateFiles(files, options = {}) {
   return {files:output,seed,mode,crossFile:{objects:cross.objects,properties:cross.properties}};
 }
 
-module.exports = {obfuscateFiles,safePath};
+module.exports = {obfuscateFiles,safePath,mutatedFunctionCallProtocols};
