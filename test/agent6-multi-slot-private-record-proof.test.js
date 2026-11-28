@@ -24,7 +24,7 @@ function evaluateCommonJs(code){
 
 /**
  * @param {string} code
- * @param {'coo'|'sno'} mode
+ * @param {'coo'|'sno'|'sco'} mode
  */
 function compile(code,mode){
   return obfuscateFiles([{path:'record.cjs',sourceType:'commonjs',code}],{
@@ -44,7 +44,7 @@ const multipleOwners=[
 ].join('\n');
 
 test('two immutable carrier slots forward the same private owner under COO/SNO',()=>{
-  for(const mode of ['coo','sno']){
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const result=compile(multipleOwners,mode);
     assert.equal(result.files[0].metrics.properties,2,
       mode+' must actually rename two owner data fields, not merely preserve runtime values');
@@ -65,7 +65,7 @@ test('three separate owner-valued fields and two aliases remain consistent',()=>
     'function privateRead(n){return x.hiddenCount*n+y.secretDelta;}',
     'module.exports=function calculate(n){return privateRead(n);}'
   ].join('\n');
-  for(const mode of ['coo','sno']){
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const result=compile(source,mode);
     assert.equal(result.files[0].metrics.properties,2,mode);
     const native=evaluateCommonJs(source);
@@ -88,7 +88,7 @@ test('multi-slot carrier conservatively refuses escapes, dynamic keys and mutati
     'module.exports=()=>carrier.left.hiddenCount;'
   ];
   for(const suffix of invalid){
-    for(const mode of ['coo','sno']){
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       const result=compile(head+suffix,mode);
       assert.equal(result.files[0].metrics.objects,0,mode+' '+suffix);
       assert.match(String(result.files[0].code),/hiddenCount/u);
@@ -111,7 +111,7 @@ test('invalid record literals refuse despite multiple owner-like fields',()=>{
   for(const carrier of records){
     const source='const vault={hiddenCount:9};const record='+carrier+
       ';const a=record.left;const b=record.right;module.exports=()=>a.hiddenCount+b.hiddenCount;';
-    for(const mode of ['coo','sno']){
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
       const result=compile(source,mode);
       assert.equal(result.files[0].metrics.objects,0,mode+' '+carrier);
     }
@@ -173,7 +173,7 @@ test('independent carrier aliases preserve shared own-field numeric writes',()=>
     'module.exports=function update(n){return privateUpdate(n);}'
   ].join('\n');
   const inputs=[-21,0,2,15,-4,100,-500,1,1,1,0];
-  for(const mode of ['coo','sno']){
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     const output=compile(source,mode);
     assert.equal(output.files[0].metrics.properties,2);
     const emitted=String(output.files[0].code);
