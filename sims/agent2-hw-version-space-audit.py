@@ -17,7 +17,7 @@ from collections import deque
 from pathlib import Path
 
 import z3
-from z3 import And, Array, If, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
+from z3 import And, Array, If, Implies, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
 
 from agent49_hw_trace_lower_bound import (
     trace_output_diversity_state_lower_bound,
@@ -236,7 +236,9 @@ def target_alternate_start_witness(
     return None
 
 
-def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling: str = "predecessor"):
+def solve_for_size(row, candidate_size: int, timeout_ms: int,
+                   candidate_labeling: str = "predecessor",
+                   trace_lower_bound_certificate=None):
     fixture = row["fixture_table"]
     target_transitions = [[int(x) for x in r] for r in fixture["transitions"]]
     target_outputs = [[int(x) for x in r] for r in fixture["outputs"]]
@@ -246,6 +248,18 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
     target_post = int(row["target_post_trace_state"])
     k = candidate_size
     tag = f"case_{row['state_count']}_{row['seed']}_k_{k}"
+    if candidate_labeling not in ("predecessor", "bfs", "trace-anchor"):
+        raise ValueError(f"unsupported candidate_labeling: {candidate_labeling}")
+    trace_anchored = (
+        candidate_labeling == "trace-anchor"
+        and trace_lower_bound_certificate is not None
+        and trace_lower_bound_certificate["minimum_states"] == k
+    )
+    effective_labeling = (
+        "trace-anchor" if trace_anchored else
+        "predecessor" if candidate_labeling == "trace-anchor" else
+        candidate_labeling
+    )
 
     solver = Solver()
     solver.set(timeout=timeout_ms)
@@ -301,20 +315,17 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
                               target_state, maximum_seen[index]))
         solver.add(maximum_seen[2 * k] == k - 1)
 
-    # Every state can also reach 0: a strictly decreasing rank certifies a
-    # return path. Predecessor mode uses a lower-index spanning arborescence
-    # for reachability from 0; BFS mode proves this in canonical row order.
+    # The witness positions are actually visited by a single no-reset
+    # trace. If all k states are anchored, this *already proves reachability
+    # from the trace's initial state*; no forward arborescence is necessary.
+    # Requiring every state to reach the symbolic trace initial state via a
+    # strictly decreasing rank then gives exact strong connectivity.
+    #
+    # With no anchors, predecessor/BFS still label the initial state 0 and
+    # retain their original root-reachability and return-path constraints.
     backward_rank = [Int(f"backward_rank_{tag}_{s}") for s in range(k)]
     for s in range(k):
         solver.add(backward_rank[s] >= 0, backward_rank[s] < k)
-        if s == 0:
-            solver.add(backward_rank[s] == 0)
-            continue
-        incoming = [
-            Select(delta, 2 * p + a) == s
-            for p in range(s)
-            for a in range(2)
-        ]
         outgoing = [
             And(
                 Select(delta, 2 * s + a) == t,
@@ -323,7 +334,20 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
             for a in range(2)
             for t in range(k)
         ]
-        if candidate_labeling == "predecessor":
+        if trace_anchored:
+            root = trace_states[0]
+            solver.add(Implies(root == s, backward_rank[s] == 0))
+            solver.add(Implies(root != s, And(backward_rank[s] > 0, Or(outgoing))))
+            continue
+        if s == 0:
+            solver.add(backward_rank[s] == 0)
+            continue
+        if effective_labeling == "predecessor":
+            incoming = [
+                Select(delta, 2 * p + a) == s
+                for p in range(s)
+                for a in range(2)
+            ]
             solver.add(Or(incoming))
         solver.add(backward_rank[s] > 0, Or(outgoing))
 
@@ -370,10 +394,12 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
         return "unknown", {
             "reason": solver.reason_unknown(),
             "trace_separation_constraints": len(separation_pairs),
+            "effective_candidate_labeling": effective_labeling,
         }
     if checked != sat:
         return "unsat", {
             "trace_separation_constraints": len(separation_pairs),
+            "effective_candidate_labeling": effective_labeling,
         }
 
     model = solver.model()
@@ -460,6 +486,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling
 
     return "sat", {
         "witness_source": "z3_candidate_machine",
+        "effective_candidate_labeling": effective_labeling,
         "candidate_state_count": len(candidate_transitions),
         "solver_model_state_count": k,
         "trace_separation_constraints": len(separation_pairs),
@@ -542,7 +569,9 @@ def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor",
     unsat_sizes = analytical_unsat_sizes.copy()
     unknown_sizes = []
     for candidate_size in range(minimum_size, target_n + 1):
-        status, detail = solve_for_size(row, candidate_size, timeout_ms, candidate_labeling)
+        status, detail = solve_for_size(
+            row, candidate_size, timeout_ms, candidate_labeling, lower_bound
+        )
         if status == "sat":
             return {
                 "status": "sat",
@@ -595,7 +624,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-cases", type=int, default=10)
     parser.add_argument("--timeout-ms", type=int, default=5000)
-    parser.add_argument("--candidate-labeling", choices=("predecessor", "bfs"),
+    parser.add_argument("--candidate-labeling", choices=("predecessor", "bfs", "trace-anchor"),
                         default="predecessor",
                         help="Root-reachable model label symmetry (experimental bfs canonicalization)")
     parser.add_argument("--trace-lower-bound-depth", type=int, default=0,
@@ -605,6 +634,8 @@ def main():
         raise SystemExit("--max-cases and --timeout-ms must be positive")
     if not 0 <= args.trace_lower_bound_depth <= 20:
         raise SystemExit("--trace-lower-bound-depth must be between 0 and 20")
+    if args.candidate_labeling == "trace-anchor" and args.trace_lower_bound_depth < 1:
+        raise SystemExit("trace-anchor requires a positive trace-lower-bound-depth")
 
     source = json.loads(Path(args.input).read_text(encoding="utf-8"))
     completed = [row for row in source.get("results", []) if row.get("status") == "completed"]
