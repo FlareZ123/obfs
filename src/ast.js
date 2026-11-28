@@ -2103,7 +2103,7 @@ function hasWeakMapPrototypeExposure(ast,untrustedCallProtocols=new Set()) {
                   !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
                     x?.type==='SpreadElement'))
             argumentsToReplay=node.arguments[1].elements.map(
-              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void',start:0,end:0}));
           const receiver=evaluateCarrierValue(node.arguments[0],environment,thisValue);
           replayLocalFunctionEffects(owner,environment,receiver,false,
             argumentsToReplay);
@@ -2121,7 +2121,7 @@ function hasWeakMapPrototypeExposure(ast,untrustedCallProtocols=new Set()) {
                   !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
                     x?.type==='SpreadElement'))
             passed=node.arguments[1].elements.map(
-              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void',start:0,end:0}));
           // An inline callable has no mutable binding alias; still join both
           // execution and nonexecution for potentially overridden intrinsics.
           const receiver=node.callee.object.type==='ArrowFunctionExpression'?
