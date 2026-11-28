@@ -63,6 +63,19 @@ async function verifyScoPrivateSourceDigests(partition,root){
     if(relative==='..'||relative.startsWith('..'+path.sep)||path.isAbsolute(relative)){
       throw new TypeError('SCO private source escapes integrity root: '+filename);
     }
+    // A symlink *inside* the allowed tree can still relocate ESM relative
+    // import resolution to an uncommitted directory. fs.realpath()+digest
+    // alone proves target bytes, not that Node imports the reviewed graph.
+    // lstat every segment, including parents, before accepting deployed bytes.
+    // This is still a non-atomic trusted-deployment preflight; the caller must
+    // keep paths immutable through Node's subsequent import.
+    let component=realRoot;
+    for(const segment of filename.split('/')){
+      component=path.join(component,segment);
+      if((await fs.lstat(component)).isSymbolicLink()){
+        throw new TypeError('SCO private source path contains symlink: '+filename);
+      }
+    }
     const actual=createHash('sha256').update(await fs.readFile(realFile)).digest('hex');
     if(actual!==expected.sha256){
       throw new TypeError('SCO private source bytes changed since partition: '+filename);
