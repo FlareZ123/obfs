@@ -13,7 +13,7 @@ the build outputs (for example, a secret manager or a cryptographic random
 generator), provide it through a narrowly scoped build environment variable,
 and point to the variable **name**, not the value, on the CLI:
 
-    export OBFS_PROPERTY_KEY=<64 hex characters, held in a trusted secret manager>
+    # Inject OBFS_PROPERTY_KEY using a trusted build-secret mechanism (64 hex characters).
     node bin/coo.js --root app --entry entry.mjs --out dist-keyed --closed-world --seed BUILD_SEED --property-key-env OBFS_PROPERTY_KEY
 
 The key itself must never be committed to the repository, logged, embedded in
