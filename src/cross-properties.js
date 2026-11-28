@@ -2429,7 +2429,31 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         const key=value.computed?staticString(value.property):staticName(value.property);
         return key!==null&&!['prototype','for','keyFor'].includes(key);
       }
-      if(value.type==='ConditionalExpression')return mayBeBoxedPrimitive(value.consequent)||mayBeBoxedPrimitive(value.alternate);
+      if(value.type==='ConditionalExpression') {
+        if(mayBeBoxedPrimitive(value.consequent)||
+           mayBeBoxedPrimitive(value.alternate))return true;
+        // The per-file source observer proves typeof x==='string'?x:null
+        // primitive even when x comes from an opaque runtime source such as
+        // process.argv[2]. The cross-file boxed-receiver guard must mirror
+        // that refinement: a host-installed String.prototype formatter can
+        // otherwise import an unrelated ESM owner and observe renamed keys.
+        const guard=value.test;
+        const candidate=value.consequent;
+        if(guard.type!=='BinaryExpression'||guard.operator!=='==='||
+           candidate.type!=='Identifier')return false;
+        /** @param {AstNode} node @returns {boolean} */
+        function isGuardedTypeof(node) {
+          return node.type==='UnaryExpression'&&node.operator==='typeof'&&
+            node.argument.type==='Identifier'&&
+            node.argument.name===candidate.name;
+        }
+        /** @param {AstNode} node @returns {boolean} */
+        function isStringType(node) {
+          return node.type==='Literal'&&node.value==='string';
+        }
+        return (isGuardedTypeof(guard.left)&&isStringType(guard.right))||
+          (isStringType(guard.left)&&isGuardedTypeof(guard.right));
+      }
       if(value.type==='LogicalExpression')return mayBeBoxedPrimitive(value.left)||mayBeBoxedPrimitive(value.right);
       if(value.type==='SequenceExpression')return mayBeBoxedPrimitive(value.expressions[value.expressions.length-1]);
       if(value.type==='AssignmentExpression')return mayBeBoxedPrimitive(value.right);
