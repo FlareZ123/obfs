@@ -182,6 +182,17 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
     }
     assert.deepEqual(await relay(scoFile),expected);
     assert.deepEqual(await relay(ordinaryFile),expected);
+    // A second attacker does not even copy or import either public facade.
+    // One intercepted method ID suffices to replay held-out operations from
+    // a fresh process under the same legitimate account credentials.
+    const traceWorker=path.join(__dirname,
+      '../sims/agent18-application-rpc-wire-relay.cjs');
+    for(const observed of [firstSco.call,firstOrdinary.call]){
+      const replay=await runFile(process.execPath,[
+        traceWorker,origin,token,observed.method,JSON.stringify(heldouts)
+      ],{encoding:'utf8',timeout:40000,maxBuffer:1024*1024});
+      assert.deepEqual(JSON.parse(replay.stdout),expected);
+    }
 
     /** @type {Record<'light'|'heavy',{
       native:number[],generated:number[],ordinary:number[]}>} */
@@ -239,6 +250,7 @@ test('frozen six-module SCO app and equal-trust minified RPC client have identic
       ordinaryPublicBytes:Buffer.byteLength(control),
       ordinaryMinifier:'esbuild',
       authorization:403,heldoutOnlineRelays:heldouts.length,
+      facadeFreeWireReplayHeldouts:heldouts.length,
       identicalAuthenticatedWire:firstSco.call,
       initializationMs,paired,scope:'same private server; loopback HTTP; caller+server process CPU'
     })+'\n');
