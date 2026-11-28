@@ -4472,6 +4472,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // unproved source-changing rewrite.
   const domDocumentNames=new Set(['document']);
   const domElementNames=new Set();
+  const domCollectionNames=new Set();
   const domStyleNames=new Set();
   const domDatasetNames=new Set();
   const domRangeNames=new Set();
@@ -4487,12 +4488,47 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='MemberExpression'&&isGlobal(node.object)&&
       memberName(node)==='document'));
   }
+  /**
+   * Browser DOM collection APIs return NodeLists/HTMLCollections, not DOM
+   * elements. An indexed item or .item() call can nevertheless reach the
+   * native DOMString setter that observes a supplied Function's exact text.
+   * Reject unknown computed indices conservatively; only known non-element
+   * collection metadata (e.g. .length) is excluded.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isNativeDomCollection(node,depth=0) {
+    if(!node||depth>12)return false;
+    if(node.type==='Identifier')return domCollectionNames.has(node.name);
+    if(node.type==='MemberExpression'){
+      const field=memberName(node);
+      return Boolean(isNativeDocument(node.object)&&
+        ['forms','images','links','anchors','scripts','embeds','all'].includes(field??'') ||
+        isNativeDomElement(node.object,depth+1)&&
+        ['children','childNodes'].includes(field??''));
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+      const method=memberName(node.callee);
+      return Boolean(isNativeDocument(node.callee.object)&&
+        ['querySelectorAll','getElementsByName','getElementsByTagName',
+         'getElementsByTagNameNS','getElementsByClassName'].includes(method??'') ||
+        isNativeDomElement(node.callee.object,depth+1)&&
+        ['querySelectorAll','getElementsByTagName','getElementsByTagNameNS',
+         'getElementsByClassName'].includes(method??''));
+    }
+    return false;
+  }
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function isNativeDomElement(node,depth=0) {
     if(!node||depth>12)return false;
     if(node.type==='Identifier')return domElementNames.has(node.name);
     if(node.type==='MemberExpression') {
       const name=memberName(node);
+      if(node.computed&&isNativeDomCollection(node.object,depth+1)){
+        const index=staticString(node.property);
+        if(index===null||/^(0|[1-9][0-9]*)$/u.test(index))return true;
+      }
       if(isNativeDocument(node.object) &&
          ['body','head','documentElement','activeElement','scrollingElement'].includes(name??''))return true;
       if(['parentNode','parentElement','firstChild','lastChild',
@@ -4512,10 +4548,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const name=memberName(node.callee);
       const owner=node.callee.object;
-      return Boolean(isNativeDocument(owner)&&[
+      return Boolean(isNativeDomCollection(owner,depth+1)&&
+        ['item','namedItem'].includes(name??'') ||
+        isNativeDocument(owner)&&[
         'getElementById','querySelector','createElement','createElementNS',
-        'createTextNode','createComment','createDocumentFragment',
-        'getElementsByName'
+        'createTextNode','createComment','createDocumentFragment'
       ].includes(name??'') || isNativeDomElement(owner,depth+1)&&
         ['querySelector','closest','cloneNode','appendChild','insertBefore',
          'replaceChild'].includes(name??''));
@@ -4639,6 +4676,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isNativeDocument(value)&&!domDocumentNames.has(name)) {
         domDocumentNames.add(name);changedDom=true;
+      }
+      if(isNativeDomCollection(value)&&!domCollectionNames.has(name)) {
+        domCollectionNames.add(name);changedDom=true;
       }
       if(isNativeDomElement(value)&&!domElementNames.has(name)) {
         domElementNames.add(name);changedDom=true;

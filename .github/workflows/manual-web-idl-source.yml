@@ -38,5 +38,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/url-static-source-browser.js
+      - name: Real Chromium indexed NodeList and HTMLCollection Function source
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+          RUN_NATIVE_DOM_COLLECTION_BROWSER: '1'
+        run: node --test test/agent1-dom-nodelist-real-browser.test.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
