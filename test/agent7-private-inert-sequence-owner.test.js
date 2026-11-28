@@ -29,7 +29,13 @@ const inertAliases=[
   '(0,owner)',
   '(true,false,owner)',
   '("ignored",null,owner)',
-  '(0n,owner)'
+  '(0n,owner)',
+  '(1+2,owner)',
+  '(true?1:2,owner)',
+  '(void 0,owner)',
+  '(0??1,owner)',
+  '(typeof 0,owner)',
+  '((1,2),owner)'
 ];
 
 test('inert comma expression preserves owner identity and permits both property renames',()=>{
