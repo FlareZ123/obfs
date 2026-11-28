@@ -31,7 +31,10 @@
     "workplace/sco-five-state-block-packed-benchmark.js",
     "test/sco-five-state-block-packed-benchmark.test.js",
     "sims/sco-step-only-smt.js",
-    "test/sco-step-only-smt.test.js"
+    "test/sco-step-only-smt.test.js",
+    "sims/sco-two-state-optimal-network-policy.js",
+    "sims/sco-two-state-process-boundary.js",
+    "test/sco-two-state-process-boundary.test.js"
   ],
   "exclude": [
     "node_modules"
