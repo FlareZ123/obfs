@@ -210,6 +210,8 @@ test('SQLite session tokens survive restart but not principal revocation',async(
 
 test('global SQLite challenge capacity and invalid path refuse across connections',async()=>{
   assert.throws(()=>createScoWebAuthnSqliteStore(':memory:'),TypeError);
+  assert.throws(()=>createScoWebAuthnSqliteStore('./relative-state.sqlite'),TypeError,
+    'All SCO workers must configure the same explicit absolute database path');
   await withDatabase('cap.sqlite',async file=>{
     const a=store(file),b=store(file);
     try{
