@@ -3,7 +3,7 @@
 const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
 const {parse,walk,staticString}=require('./ast');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
@@ -161,8 +161,7 @@ function partitionScoAsyncGraph(files,options) {
   }
   /** @type {Map<string,ScoPrivateModule>} */
   const modules=new Map();
-  /** @type {Set<string>} */
-  const folded=new Set();
+  const paths=createPathInventory();
   for(let index=0;index<fileCount;index++){
     const file=files[index];
     const code=file?.code;
@@ -173,9 +172,9 @@ function partitionScoAsyncGraph(files,options) {
     }
     const filename=safePath(file.path);
     if(!filename.endsWith('.mjs'))throw new TypeError('Private SCO graph supports only .mjs files');
-    const lower=filename.toLowerCase();
-    if(folded.has(lower))throw new TypeError('Duplicate private graph path: '+filename);
-    folded.add(lower);
+    // Full relative paths alone are insufficient: ancestor directory
+    // aliases and Unicode aliases can map distinct graph entries to one file.
+    registerFilePath(paths,filename,'Duplicate private graph path: ');
     modules.set(filename,{path:filename,code,sourceType:'module'});
   }
   const names=new Set(modules.keys());
