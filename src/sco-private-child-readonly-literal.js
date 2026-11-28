@@ -62,6 +62,33 @@ function literalScalarKeys(init){
 }
 
 /**
+ * Detect any enclosing assignment/update/delete role on the full AST path.
+ * Checking only the immediate parent of `table.n` misses destructuring:
+ * `({n:table.n} = value)` and `for ({n:table.n} of values)` write through
+ * ObjectPattern/Property nodes before reaching the actual assignment.
+ * The path is intentionally overapproximated: a read nested inside a
+ * destructuring target's computed key may also be declined.
+ *
+ * @param {import('./ast').AstNode[]} ancestors
+ * @returns {boolean}
+ */
+function insideAssignmentTarget(ancestors){
+  for(let index=0;index+1<ancestors.length;index++){
+    const outer=ancestors[index];
+    const inner=ancestors[index+1];
+    if((outer.type==='AssignmentExpression'||
+        outer.type==='ForOfStatement'||outer.type==='ForInStatement')&&
+        outer.left===inner||
+       outer.type==='UpdateExpression'&&outer.argument===inner||
+       outer.type==='UnaryExpression'&&outer.operator==='delete'&&
+         outer.argument===inner){
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Prove a single module-unique const table has no escapes, writes or dynamic
  * property reads. Import/reexport of this binding in another child is
  * examined separately by the conservative private-import identity scanner.
@@ -95,6 +122,10 @@ function isReadOnlyOwnedLiteral(ast,name,init){
           String(parent.property.value):null):
       parent.property.type==='Identifier'?parent.property.name:null;
     if(member===null||!keys.has(member)){
+      safe=false;
+      return;
+    }
+    if(insideAssignmentTarget(ancestors)){
       safe=false;
       return;
     }
