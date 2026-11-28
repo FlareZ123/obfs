@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const http=require('node:http');
 const os=require('node:os');
 const path=require('node:path');
-const {spawnSync}=require('node:child_process');
+const {spawn}=require('node:child_process');
 const {pathToFileURL}=require('node:url');
 const {createScoHandler,partitionScoAsyncModule,bindScoModuleExports}=
   require('../src');
@@ -178,11 +178,26 @@ async function startOrdinary(secret){
  */
 function runAttacker(origin,method,policyPath){
   const script=path.join(__dirname,'..','sims','sco-three-state-policy-attacker.js');
-  const child=spawnSync(process.execPath,[script,origin,method,policyPath],{
-    encoding:'utf8',timeout:30000,maxBuffer:1024*1024
+  return new Promise((resolve,reject)=>{
+    const child=spawn(process.execPath,[script,origin,method,policyPath],{
+      stdio:['ignore','pipe','pipe']
+    });
+    let stdout='';
+    let stderr='';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data',chunk=>{stdout+=chunk;});
+    child.stderr.on('data',chunk=>{stderr+=chunk;});
+    child.once('error',reject);
+    child.once('close',(code,signal)=>{
+      if(code!==0){
+        reject(new Error('Public attacker process failed: '+String(code)+' '+String(signal)+' '+stderr));
+        return;
+      }
+      try{resolve(JSON.parse(stdout.trim()));}
+      catch(error){reject(error);}
+    });
   });
-  assert.equal(child.status,0,child.stderr||child.error?.message);
-  return JSON.parse(child.stdout.trim());
 }
 
 /**
@@ -246,7 +261,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
 
       const sco=await startSco(secret,modelIndex,directory);
       try{
-        const attack=runAttacker(sco.origin,sco.method,policyPath);
+        const attack=await runAttacker(sco.origin,sco.method,policyPath);
         const finalState=verifyAttack(attack,secret,modelIndex,classes,sco.getState);
         receipts.push({model:modelIndex,transport:'generated-sco-http',
           queries:attack.queries,terminalClass:attack.terminalClass,finalState});
@@ -254,7 +269,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
 
       const ordinary=await startOrdinary(secret);
       try{
-        const attack=runAttacker(ordinary.origin,ordinary.method,policyPath);
+        const attack=await runAttacker(ordinary.origin,ordinary.method,policyPath);
         const finalState=verifyAttack(attack,secret,modelIndex,classes,ordinary.getState);
         receipts.push({model:modelIndex,transport:'matched-ordinary-rpc',
           queries:attack.queries,terminalClass:attack.terminalClass,finalState});
