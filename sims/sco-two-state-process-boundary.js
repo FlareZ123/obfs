@@ -2,6 +2,9 @@
 
 const assert=require('node:assert/strict');
 const {fork}=require('node:child_process');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
 const {randomBytes,randomInt}=require('node:crypto');
 const http=require('node:http');
 const {createPolicy,learnExpected,continuation,equivalent}=
@@ -335,6 +338,8 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
     {execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
   /** @type {import('node:child_process').ChildProcess|null} */
   let attacker=null;
+  /** @type {string|null} */
+  let publicRoot=null;
   try{
     const ready=await receive(server,'ready');
     const [deniedSco,deniedOrdinary,privatePath]=await Promise.all([
@@ -353,8 +358,24 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
     // Deliberately exclude the evaluator/server's environment, including
     // NODE_OPTIONS and any ambient service credentials. The sole authorized
     // bearer is delivered explicitly over the public-client IPC envelope.
-    attacker=fork(__filename,['--attacker'],{execArgv:[],env:{},
-      ...(isolatedUid?{uid:65534,gid:65534}:{}),
+    // GitHub's /home/runner checkout is not traversable by nobody. Publish
+    // only the already-distributed ATTACKER PROGRAM and public model-class
+    // learner under a 0755 temporary directory. This is distinct from the
+    // private source, table, server code generated in memory, or credentials.
+    let attackerSource=__filename;
+    if(isolatedUid){
+      publicRoot=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-public-attacker-'));
+      await fs.chmod(publicRoot,0o755);
+      const script=path.join(publicRoot,path.basename(__filename));
+      const learner=path.join(publicRoot,'sco-two-state-optimal-network-policy.js');
+      await fs.copyFile(__filename,script);
+      await fs.copyFile(path.join(__dirname,'sco-two-state-optimal-network-policy.js'),learner);
+      await fs.chmod(script,0o644);
+      await fs.chmod(learner,0o644);
+      attackerSource=script;
+    }
+    attacker=fork(attackerSource,['--attacker'],{execArgv:[],env:{},
+      ...(isolatedUid?{uid:65534,gid:65534,cwd:publicRoot??undefined}:{}),
       stdio:['ignore','ignore','pipe','ipc']});
     const attackerReady=receive(attacker,'attacker-result');
     attacker.send({kind:'start',scoOrigin:ready.scoOrigin,
@@ -405,6 +426,7 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
   }finally{
     if(attacker)attacker.kill();
     if(server.connected)server.send?.({kind:'stop'});
+    if(publicRoot)await fs.rm(publicRoot,{recursive:true,force:true});
     // Kill even if a child is wedged; the final settled exit is not used
     // as a separate proof of application behavior.
     setTimeout(()=>{if(server.exitCode===null)server.kill();},3000).unref();
