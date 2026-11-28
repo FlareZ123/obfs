@@ -13,11 +13,31 @@ const animatedXml=animated.replace('attributeName="onmouseover"','attributeName=
 /** @returns {Promise<void>} */
 async function main(){
   const preflight={direct:findInlineSvgSource(direct),benign:findInlineSvgSource(benign),animated:findInlineSvgSource(animated),animatedXml:findInlineSvgSource(animatedXml)};
+  // An HTML-inlined SVG uses a different source parser. The animation
+  // changes the effective link URL without any original javascript: href.
+  const htmlPrefix='<!doctype html><html><body><svg xmlns="http://www.w3.org/2000/svg" width="128" height="96">';
+  const htmlSuffix='</svg></body></html>';
+  const htmlDirect=htmlPrefix+'<a id="go" href="javascript:window._smilHref=51">'+
+    '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
+  const htmlAnimated=htmlPrefix+'<a id="go" href="#safe">'+
+    '<set attributeName="href" to="javascript:window._smilHref=51" begin="0s" dur="indefinite" fill="freeze"/>'+
+    '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
+  const htmlValues=htmlPrefix+'<a id="go" href="#safe">'+
+    '<animate attributeName="href" values="#safe;javascript:window._smilHref=51" begin="0s" dur="1s" fill="freeze" calcMode="discrete"/>'+
+    '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
+  const htmlRoutes=new Map([['/html-direct.html',htmlDirect],
+    ['/html-animated.html',htmlAnimated],['/html-values.html',htmlValues]]);
   const server=http.createServer((req,res)=>{
     if(['/direct.svg','/animated.svg','/animated-xml.svg','/benign.svg'].includes(req.url)){
       res.writeHead(200,{'content-type':'image/svg+xml; charset=utf-8',
         'x-content-type-options':'nosniff','cache-control':'no-store'});
       res.end(req.url==='/direct.svg'?direct:req.url==='/benign.svg'?benign:req.url==='/animated-xml.svg'?animatedXml:animated);return;
+    }
+    const published=htmlRoutes.get(req.url);
+    if(published!==undefined) {
+      res.writeHead(200,{'content-type':'text/html; charset=utf-8',
+        'x-content-type-options':'nosniff','cache-control':'no-store'});
+      res.end(published);return;
     }
     res.writeHead(404);res.end();
   });
@@ -54,38 +74,29 @@ async function main(){
     const suspect=await inspect('animated');
     const xmlSuspect=await inspect('animated-xml');
 
-    // An HTML-inlined SVG uses a different source parser. The animation
-    // changes the effective link URL without any original javascript: href.
-    const htmlPrefix='<!doctype html><html><body><svg xmlns="http://www.w3.org/2000/svg" width="128" height="96">';
-    const htmlSuffix='</svg></body></html>';
-    const htmlDirect=htmlPrefix+'<a id="go" href="javascript:window._smilHref=51">'+
-      '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
-    const htmlAnimated=htmlPrefix+'<a id="go" href="#safe">'+
-      '<set attributeName="href" to="javascript:window._smilHref=51" begin="0s" dur="indefinite" fill="freeze"/>'+
-      '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
-    const htmlValues=htmlPrefix+'<a id="go" href="#safe">'+
-      '<animate attributeName="href" values="#safe;javascript:window._smilHref=51" begin="0s" dur="1s" fill="freeze" calcMode="discrete"/>'+
-      '<rect width="100" height="80" fill="red"/></a>'+htmlSuffix;
     const htmlPreflight={direct:findInlineHtmlSource(htmlDirect),
       animated:findInlineHtmlSource(htmlAnimated),values:findInlineHtmlSource(htmlValues)};
     const htmlPage=await browser.newPage();
-    /** @param {string} html */
-    async function inspectHtml(html) {
-      await htmlPage.goto('about:blank');
-      await htmlPage.setContent(html);
+    /** @param {'direct'|'animated'|'values'} variant */
+    async function inspectHtml(variant) {
+      const response=await htmlPage.goto(origin+'/html-'+variant+'.html',{waitUntil:'load'});
+      assert.ok(response);
+      const headers=response.headers();
       await new Promise(resolve=>setTimeout(resolve,1300));
       const before=await htmlPage.evaluate(()=>{
         const anchor=document.getElementById('go');
         window._smilHref=0;
-        return {base:anchor.href.baseVal,animated:anchor.href.animVal};
+        return {base:anchor.href.baseVal,animated:anchor.href.animVal,
+          media:document.contentType};
       });
       await htmlPage.mouse.click(30,30);
       await new Promise(resolve=>setTimeout(resolve,150));
       const after=await htmlPage.evaluate(()=>window._smilHref);
-      return {before,after};
+      return {before,after,headers:{contentType:headers['content-type'],
+        nosniff:headers['x-content-type-options']}};
     }
-    const htmlBrowser={direct:await inspectHtml(htmlDirect),
-      animated:await inspectHtml(htmlAnimated),values:await inspectHtml(htmlValues)};
+    const htmlBrowser={direct:await inspectHtml('direct'),
+      animated:await inspectHtml('animated'),values:await inspectHtml('values')};
     console.log(JSON.stringify({preflight,control,animationControl,suspect,
       xmlSuspect,htmlPreflight,htmlBrowser,chrome:await browser.version()}));
 
@@ -100,6 +111,11 @@ async function main(){
     assert.match(htmlPreflight.direct,/embedded executable URL/);
     assert.equal(htmlPreflight.animated,null);
     assert.equal(htmlPreflight.values,null);
+    for(const observed of Object.values(htmlBrowser)) {
+      assert.equal(observed.before.media,'text/html','browser parsed actual HTML response');
+      assert.equal(observed.headers.contentType,'text/html; charset=utf-8');
+      assert.equal(observed.headers.nosniff,'nosniff');
+    }
     assert.equal(htmlBrowser.direct.after,51,'direct SVG link positive control');
     assert.equal(htmlBrowser.animated.before.animated,'javascript:window._smilHref=51');
     assert.equal(htmlBrowser.animated.after,51,'SMIL href must execute from HTML');
