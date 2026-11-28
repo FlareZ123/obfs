@@ -4095,27 +4095,41 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          node.callee.object.name==='Reflect' && method==='set' &&
          node.arguments[1]) {
         const key=knownKey(node.arguments[1]);
+        const value=node.arguments[2];
         if(key==='integrity' || key===null &&
-           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(node.arguments[2])))
+           (isScriptElementTarget(node.arguments[0])||looksLikeSriHash(value)))
           observed=true;
+        // Reflect.set invokes a live DOM HTML parser setter, unlike
+        // Object.defineProperty's creation of an own data descriptor.
+        const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') ||
+          key===null && (mayBeDomElement(node.arguments[0]) ||
+            explicitIntegrityMarkup(value));
+        if(htmlSink && mayParseIntegrityMarkup(value))observed=true;
       }
       if(node.callee.object.type==='Identifier' &&
          node.callee.object.name==='Object' && method==='assign') {
         const scriptTarget=isScriptElementTarget(node.arguments[0]);
+        // Object.assign performs [[Set]] on each key, invoking Element
+        // innerHTML/outerHTML and HTMLIFrameElement.srcdoc setters.
+        const domTarget=mayBeDomElement(node.arguments[0]);
         for(const item of node.arguments.slice(1)) {
           if(item.type!=='ObjectExpression'){
-            if(scriptTarget)observed=true;
+            if(scriptTarget||domTarget)observed=true;
             continue;
           }
           for(const prop of item.properties) {
             if(prop.type!=='Property'){
-              if(scriptTarget)observed=true;
+              if(scriptTarget||domTarget)observed=true;
               continue;
             }
             const key=prop.computed ? knownKey(prop.key) :
               prop.key.type==='Identifier'?prop.key.name:knownKey(prop.key);
             if(key==='integrity'||key===null&&
                (scriptTarget||looksLikeSriHash(prop.value)))observed=true;
+            const htmlSink=['innerHTML','outerHTML','srcdoc'].includes(key??'') &&
+              (domTarget||explicitIntegrityMarkup(prop.value)) ||
+              key===null && (domTarget||explicitIntegrityMarkup(prop.value));
+            if(htmlSink && mayParseIntegrityMarkup(prop.value))observed=true;
           }
         }
       }
