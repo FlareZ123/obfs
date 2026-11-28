@@ -649,6 +649,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const formConstructors=new Set(formNames);
   const encoderInstances=new Set();
   const formInstances=new Set();
+  // User Timing accepts DOMString names. A Function used as a mark name is
+  // converted to its exact source text and later exposed by PerformanceEntry.
+  // These are may-provenance sets: aliases only expand and may over-refuse.
+  const timingModules=new Set();
+  const timingReceivers=new Set(['performance']);
+  const timingMethods=new Set();
+  const timingNameMethods=new Set(['mark','measure','getEntriesByName',
+    'clearMarks','clearMeasures']);
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration'||
+       !['perf_hooks','node:perf_hooks'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier'&&
+         (spec.imported.name??spec.imported.value)==='performance')
+        timingReceivers.add(spec.local.name);
+      else if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+        timingModules.add(spec.local.name);
+    }
+  });
   // ECMA-402 calls can stringify functions and expose native source bytes.
   const intlNamespaces=new Set(['Intl']);
   /** @type {{name:string,constructors:Set<string>,instances:Set<string>}[]} */
@@ -915,6 +934,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingModule(node) {
+    return Boolean(node&&(node.type==='Identifier'&&timingModules.has(node.name) ||
+      node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+      node.callee.name==='require'&&
+      ['perf_hooks','node:perf_hooks'].includes(String(node.arguments[0]?.value??''))));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingReceiver(node) {
+    return Boolean(node&&(node.type==='Identifier'&&timingReceivers.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='performance'&&
+        (isGlobal(node.object)||isTimingModule(node.object))));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isTimingMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return timingMethods.has(node.name);
+    if(node.type!=='MemberExpression'||!isTimingReceiver(node.object))return false;
+    const name=memberName(node);
+    return timingNameMethods.has(name??'')||Boolean(node.computed&&name===null);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundTimingMethod(node) {
+    return Boolean(node&&node.type==='CallExpression'&&
+      node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind'&&
+      isTimingMethod(node.callee.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       intlNamespaces.has(node.name) ||
@@ -1008,6 +1054,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.left.type==='Identifier') {
         const name=node.type==='VariableDeclarator'?node.id.name:node.left.name;
         const value=node.type==='VariableDeclarator'?node.init:node.right;
+        if(isTimingModule(value))changed=add(timingModules,name)||changed;
+        if(isTimingReceiver(value))changed=add(timingReceivers,name)||changed;
+        if(isTimingMethod(value)||isBoundTimingMethod(value))
+          changed=add(timingMethods,name)||changed;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
@@ -1221,6 +1271,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(containsFunctionKeyEntries(value)) {
           changed=add(entryCollectionsWithFunctionKeys,name)||changed;
+        }
+      }
+      // Destructuring aliases the native performance receiver or a name-
+      // converting method without spelling the receiver at the call site.
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init&&(isTimingModule(node.init)||isTimingReceiver(node.init))) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key==='performance'&&isTimingModule(node.init))
+            changed=add(timingReceivers,property.value.name)||changed;
+          if(key!==null&&timingNameMethods.has(key)&&isTimingReceiver(node.init))
+            changed=add(timingMethods,property.value.name)||changed;
         }
       }
       // A known function-bearing iterable can pass the function to a
@@ -2606,6 +2670,40 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   /**
+   * A User Timing DOMString name can expose exact Function source via a
+   * returned PerformanceEntry or via subsequent lookup/clear operations.
+   * Native methods can be invoked directly, through call/apply/bind, or
+   * reflectively. Unknown argument arrays must be conservatively refused.
+   * @param {AstNode} node
+   * @returns {boolean}
+   */
+  function invokesTimingWithSourceName(node) {
+    if(node.type!=='CallExpression')return false;
+    const callee=node.callee;
+    /** @type {AstNode|null|undefined} */
+    let argument;
+    if(isTimingMethod(callee)) {
+      argument=node.arguments[0];
+    } else if(callee.type==='MemberExpression'&&
+              isTimingMethod(callee.object)) {
+      const method=memberName(callee);
+      if(method==='call'||method==='bind')argument=node.arguments[1];
+      else if(method==='apply') {
+        const array=node.arguments[1];
+        if(array?.type!=='ArrayExpression')return true;
+        argument=array.elements[0];
+      }
+    } else if(callee.type==='MemberExpression'&&
+              isReflectiveReceiver(callee.object)&&
+              memberName(callee)==='apply'&&
+              isTimingMethod(node.arguments[0])) {
+      const array=node.arguments[2];
+      if(array?.type!=='ArrayExpression')return true;
+      argument=array.elements[0];
+    }
+    return Boolean(argument&&!isDefinitelyPrimitive(argument));
+  }
+  /**
    * Return true when a runtime failure can escape the nearest local catch.
    * A catch surrounding a function declaration does not catch a later call
    * into that function, so function boundaries end this bounded proof.
@@ -2623,6 +2721,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return true;
   }
   walk(ast,(node,parent,key,ancestors)=>{
+    if(invokesTimingWithSourceName(node))observed=true;
     // An uncaught throw is itself a source-coordinate observer in Node: the
     // process diagnostic prints the throwing source line, caret and stack
     // column. Browser hosts can likewise surface uncaught error locations.
