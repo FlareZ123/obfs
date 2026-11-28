@@ -102,8 +102,10 @@ async function runBrowserEvidence(){
     const version=await browser.version();
     const page=await browser.newPage();
     await page.goto(origin+'/index.html',{waitUntil:'domcontentloaded',timeout:60000});
-    const cspProbe=await page.evaluate(async()=>
-      (await import('/csp-probe.mjs')).blocked);
+    const cspProbe=await page.evaluate(async()=>{
+      const probePath='/csp-probe.mjs';
+      return (await import(probePath)).blocked;
+    });
     assert.equal(cspProbe,true,'The strict CSP must actually block string evaluation');
     const result=await page.evaluate(async ()=>{
       /** @type {Record<string,(seed:number,records:{kind:string,payload:string}[],host:{emit:(value:unknown)=>void})=>string>} */
