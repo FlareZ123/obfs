@@ -25,6 +25,8 @@ function exposesPrivateFunctionText(ast){
   const definitelyLocalFunctions=new Set();
   /** @type {Set<string>} */
   const functionArrays=new Set();
+  /** @type {Set<string>} */
+  const sourceReceiverMethods=new Set();
 
   /**
    * @param {import('./ast').AstNode|null|undefined} node
@@ -63,6 +65,23 @@ function exposesPrivateFunctionText(ast){
     return node.property.type==='Identifier'?node.property.name:null;
   }
 
+  /**
+   * Statically recognized Function.prototype.toString or String.prototype
+   * method extracted into a local alias. Any ordinary String-prototype
+   * receiver method may implicitly coerce a function and reveal source
+   * characters, sometimes through a numeric return value.
+   * @param {import('./ast').AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isSourceReceiverMethod(node){
+    if(!node)return false;
+    if(node.type==='Identifier')return sourceReceiverMethods.has(node.name);
+    if(node.type!=='MemberExpression'||member(node.object)!=='prototype'||
+        node.object.object?.type!=='Identifier')return false;
+    if(node.object.object.name==='String')return true;
+    return node.object.object.name==='Function'&&member(node)==='toString';
+  }
+
   // A local declaration or a relative private import can denote an original
   // server-side function. Call-only uses do not disclose its source spelling.
   walk(ast,node=>{
@@ -99,6 +118,9 @@ function exposesPrivateFunctionText(ast){
         if(carriesFunctionArray(node.init)&&!functionArrays.has(node.id.name)){
           functionArrays.add(node.id.name);changed=true;
         }
+        if(isSourceReceiverMethod(node.init)&&!sourceReceiverMethods.has(node.id.name)){
+          sourceReceiverMethods.add(node.id.name);changed=true;
+        }
       }
       if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier'){
         if(carriesFunction(node.right)&&!functions.has(node.left.name)){
@@ -109,6 +131,9 @@ function exposesPrivateFunctionText(ast){
         }
         if(carriesFunctionArray(node.right)&&!functionArrays.has(node.left.name)){
           functionArrays.add(node.left.name);changed=true;
+        }
+        if(isSourceReceiverMethod(node.right)&&!sourceReceiverMethods.has(node.left.name)){
+          sourceReceiverMethods.add(node.left.name);changed=true;
         }
       }
     });
@@ -135,23 +160,19 @@ function exposesPrivateFunctionText(ast){
           carriesFunctionArray(node.callee.object)){
         exposed=true;return;
       }
-      // String.prototype.charCodeAt.call(fn,index), for example, can leak
-      // every UTF-16 code unit numerically through an authorized RPC even
-      // though no source text appears in an individual JSON response.
-      if(['call','apply'].includes(method??'')&&
-          member(node.callee.object?.object)==='prototype'&&
-          node.callee.object.object.object?.type==='Identifier'&&
-          node.callee.object.object.object.name==='String'&&
+      // Detached receiver methods, .call/.apply and .bind share the
+      // source-coercion hazard. Source can be reconstructed as numbers (e.g.
+      // charCodeAt.call(fn,i)) even if every RPC result appears nontextual.
+      if(['call','apply','bind'].includes(method??'')&&
+          isSourceReceiverMethod(node.callee.object)&&
           carriesFunction(node.arguments[0])){
         exposed=true;return;
       }
-      // Function.prototype.toString.call(fn), with literal or computed key.
-      if(['call','apply'].includes(method??'')&&
-          member(node.callee.object)==='toString'&&
-          member(node.callee.object.object)==='prototype'&&
-          node.callee.object.object.object?.type==='Identifier'&&
-          node.callee.object.object.object.name==='Function'&&
-          carriesFunction(node.arguments[0])){
+      if(node.callee.type==='MemberExpression'&&
+          node.callee.object?.type==='Identifier'&&
+          node.callee.object.name==='Reflect'&&method==='apply'&&
+          isSourceReceiverMethod(node.arguments[0])&&
+          carriesFunction(node.arguments[1])){
         exposed=true;return;
       }
     }
