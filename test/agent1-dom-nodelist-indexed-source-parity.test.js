@@ -26,7 +26,7 @@ function execute(code) {
   };
   /** @returns {(typeof element)[] & {item:(index:number)=>typeof element|null}} */
   function elements(){
-    return Object.assign([element],{item(index){return index===0?element:null;}});
+    return Object.assign([element],{item(/** @type {number} */ index){return index===0?element:null;}});
   }
   const document={
     querySelectorAll:elements,getElementsByName:elements,
