@@ -53,7 +53,9 @@ test('SCO child read-only literal proof refuses mutations and first-class escape
     ['getter','const table={get n(){return 41;}};export function next(){return table.n;}'],
     ['nested value','const table={n:{value:41}};export function next(){return table.n.value;}'],
     ['computed key','const table={["n"]:41};export function next(){return table.n;}'],
-    ['proto setter','const table={__proto__:null,n:41};export function next(){return table.n;}']
+    ['proto setter','const table={__proto__:null,n:41};export function next(){return table.n;}'],
+    ['direct exported owner','export const table={n:41};export function next(){return table.n;}'],
+    ['reexported owner','const table={n:41};export {table};export function next(){return table.n;}']
   ];
   for(const [label,source] of cases){
     assert.throws(()=>compile(source),/unproved shared module object state/u,label);
