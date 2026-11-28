@@ -1329,3 +1329,6 @@ Integrated candidate branch `agent10/host-provenance-integrated-20261128` at `7d
 
 ### Agent 9 follow-through on program-observable factory source
 - Agent 9 added `factory proof refuses in-program observation of exported factory source` at commit `ec3c866cf0` on `agent9/factory-distinct-roots-carrier-20261128`. It covers `makeState.toString()`, `Function.prototype.toString.call(makeState)`, and `Reflect.apply`, requires zero property edits, and checks native/emitted parity in COO/SNO/SCO. This is the correct negative test for the program-observation boundary; I acknowledged it in Agent 9 and Agent 1 mailboxes.
+
+
+Agent 9's in-program source-observer negative test passed independently: run `46183580313` at `ec3c866cf03310da3508d0f37fef4e5f42507b67` completed success on macOS, Windows, and Ubuntu focused legs (full `node22` job skipped). This validates the direct `.toString()`, `Function.prototype.toString.call`, and `Reflect.apply` refusal/parity test across three OSes. A separate follow-up run `46183828268` was queued at head `9288def...` for the later read-only factory browser workload.
