@@ -35,11 +35,31 @@ function application(iterations){
     {path:'entry.mjs',sourceType:'module',
       code:'import {watched} from "./watched.mjs";'+
         'import {unrelated} from "./independent.mjs";'+
-        'let digest=0;const start=performance.now();'+
-        'for(let i=0;i<'+iterations+';i++){digest=(digest+unrelated())|0;}'+
-        'const workMs=performance.now()-start;'+
-        'console.log(JSON.stringify({digest,source:watched.toString(),workMs}));'}
+        'export const answer={source:watched.toString(),value:unrelated()};'}
   ];
+}
+
+/**
+ * Generate a trusted host-side measurement adapter. It is deliberately not
+ * included in the compiled source group: a program's benchmark must not
+ * receive a synthetic unproved `performance` global as an implicit capability.
+ * The timed function is the same native ESM export in both directories, and
+ * the unchanged ESM entry still observes the watched function's source.
+ *
+ * @param {number} iterations
+ * @returns {string}
+ */
+function measurementAdapter(iterations) {
+  return [
+    'import {performance} from "node:perf_hooks";',
+    'import {answer} from "./entry.mjs";',
+    'import {unrelated} from "./independent.mjs";',
+    'let digest=0;',
+    'const start=performance.now();',
+    'for(let i=0;i<'+iterations+';i++){digest=(digest+unrelated())|0;}',
+    'const workMs=performance.now()-start;',
+    'console.log(JSON.stringify({digest,source:answer.source,workMs}));'
+  ].join('\\n');
 }
 
 /** @param {string} root @param {SourceFile[]} files @returns {Promise<void>} */
@@ -53,7 +73,7 @@ async function writeGraph(root,files){
  */
 function sample(root){
   const start=performance.now();
-  const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
+  const child=spawnSync(process.execPath,[path.join(root,'measure.mjs')],{
     encoding:'utf8',timeout:30000
   });
   const wallMs=performance.now()-start;
@@ -92,6 +112,9 @@ async function profile(iterations,pairs=9) {
     const emittedDir=path.join(root,'emitted');
     await writeGraph(originalDir,originals);
     await writeGraph(emittedDir,compiled.files);
+    const adapter=measurementAdapter(iterations);
+    await atomicWrite(path.join(originalDir,'measure.mjs'),adapter);
+    await atomicWrite(path.join(emittedDir,'measure.mjs'),adapter);
     /** @type {Sample[]} */
     const before=[];
     /** @type {Sample[]} */
