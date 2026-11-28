@@ -2507,6 +2507,11 @@ function collectDirectCarrierFactories(ast) {
 function hasNativeDocumentFactoryMutation(ast) {
   const factories=new Set(['createElement','createElementNS','createTextNode',
     'createComment','createDocumentFragment']);
+  // Element/ParentNode/ChildNode insertion methods are host-overridable.
+  // A replacement may stringify an onload/onclick function inside a genuine
+  // DOM Node, so the Node arm is no longer a source-proof for this realm.
+  const insertions=new Set(['append','prepend','replaceChildren','before',
+    'after','replaceWith']);
   const globals=new Set(['globalThis','window','self','global']);
   const docs=new Set(['document']);
   const docConstructors=new Set(['Document','HTMLDocument','XMLDocument']);
@@ -2594,7 +2599,7 @@ function hasNativeDocumentFactoryMutation(ast) {
       // Unknown receivers can be Document proxies, wrapper returns or host
       // aliases. A direct write to an exact factory spelling must veto the
       // local Node-brand proof even if alias provenance is incomplete.
-      if(factories.has(field??''))mutated=true;
+      if(factories.has(field??'')||insertions.has(field??''))mutated=true;
       if(isDocument(receiver)||isDocPrototype(receiver)) {
         if(field===null||factories.has(field)||field==='__proto__')mutated=true;
       }
@@ -2619,6 +2624,9 @@ function hasNativeDocumentFactoryMutation(ast) {
       const first=node.arguments[0];
       const name=node.arguments[1]&&
         (node.arguments[1].type==='Literal'?node.arguments[1].value:null);
+      if(['assign','defineProperty','defineProperties','set','deleteProperty',
+          'setPrototypeOf'].includes(method??'') &&
+          insertions.has(name??''))mutated=true;
       if(['assign','defineProperty','defineProperties','set','deleteProperty',
           'setPrototypeOf','preventExtensions'].includes(method??'') &&
         ((isDocument(first)||isDocPrototype(first)) &&
