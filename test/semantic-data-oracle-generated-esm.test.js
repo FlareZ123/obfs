@@ -128,7 +128,7 @@ async function execute(files){
 }
 
 test('96-owner generated real ESM exact-value plus positive/refusal differential',async()=>{
-  /** @type {Array<{seed:number,mode:string,properties:number,recovered:number,candidates:number}>} */
+  /** @type {Array<{seed:number,mode:string,properties:number,recovered:number,candidates:number,byShape:number[]}>} */
   const reports=[];
   for(const seed of [1,3,11,29]){
     const sample=generated(seed);
@@ -154,6 +154,26 @@ test('96-owner generated real ESM exact-value plus positive/refusal differential
         return {path:file.path,sourceType:/** @type {const} */('module'),
           code:/** @type {string} */(file.code)};
       });
+      // Report *which* consumer shapes actually qualify. Otherwise 24/48
+      // can conceal missed safe patterns or unexpectedly accepted reflection.
+      /** @type {Array<{kind:number,rewritten:boolean}>} */
+      const ownerYields=[];
+      for(let i=0;i<24;i++){
+        const file=delivered.find(item=>item.path==='owners/owner'+i+'.mjs');
+        assert.ok(file,'missing emitted owner '+i);
+        const leftPublic=file.code.includes('privateLeft'+i);
+        const rightPublic=file.code.includes('privateRight'+i);
+        assert.equal(leftPublic,rightPublic,
+          seed+'/'+mode+': owner '+i+' must rewrite both private fields or neither');
+        const rewritten=!leftPublic;
+        if(i%8>=4&&i%8<=6)
+          assert.equal(rewritten,false,
+            seed+'/'+mode+': key enumeration and JSON reflection owner must stay public');
+        ownerYields.push({kind:i%8,rewritten});
+      }
+      assert.equal(ownerYields.filter(item=>item.rewritten).length*2,
+        output.crossFile.properties,
+        seed+'/'+mode+': reported compiler field count must match actual owner spellings');
       const recovered=normalizeDistributedFiles(delivered);
       assert.ok(recovered.properties>=output.crossFile.properties,
         seed+'/'+mode+': public-token attacker must remove every generated private-key hash');
@@ -161,7 +181,11 @@ test('96-owner generated real ESM exact-value plus positive/refusal differential
       assert.deepEqual(cloned,native,
         seed+'/'+mode+': source-only relabel must functionally clone the protected output');
       reports.push({seed,mode,properties:output.crossFile.properties,
-        recovered:recovered.properties,candidates:sample.candidateFields});
+        recovered:recovered.properties,candidates:sample.candidateFields,
+        byShape:ownerYields.reduce((counts,item)=>{
+          if(item.rewritten)counts[item.kind]++;
+          return counts;
+        },/** @type {number[]} */([0,0,0,0,0,0,0,0]))});
     }
   }
   process.stdout.write('EXACT_GENERATED_ESM '+JSON.stringify(reports)+'\n');
