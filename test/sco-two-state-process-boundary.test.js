@@ -102,3 +102,8 @@ test('Linux privileged server denies signals from different-UID public client',
   assert.equal(result.wireCalls,result.traceLength);
     assert.ok(result.queries<=9);
   });
+
+test('wire observer catches semantic-invisible ordinary JSON response extension',async()=>{
+  await assert.rejects(()=>runProcessBoundary(false,true),
+    /Wire transcript mismatch after semantic parity/);
+});
