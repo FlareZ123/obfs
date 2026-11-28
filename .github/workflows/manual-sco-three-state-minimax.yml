@@ -1,0 +1,20 @@
+name: Manual SCO three-state exact minimax
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-minimax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install declared dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Solve exact three-state no-reset minimax value
+        run: node --max-old-space-size=4096 --test test/sco-three-state-minimax.test.js
+      - name: Strict JSDoc type safety
+        run: npx tsc -p jsconfig.sco-oracles.json

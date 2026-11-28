@@ -40,7 +40,9 @@
     "sims/sco-two-state-out-of-class-census.js",
     "test/sco-two-state-out-of-class-census.test.js",
     "sims/sco-three-state-minimax-lower-bound.js",
-    "test/sco-three-state-minimax-lower-bound.test.js"
+    "test/sco-three-state-minimax-lower-bound.test.js",
+    "sims/sco-three-state-minimax.js",
+    "test/sco-three-state-minimax.test.js"
   ],
   "exclude": [
     "node_modules"
