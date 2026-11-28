@@ -51,5 +51,7 @@ jobs:
         run: node test/agent4-v2-inert-lexical-document-browser.js
       - name: Node local Document source observer positive and hostile controls
         run: node --test test/agent4-v2-inert-lexical-document.test.js
+      - name: Paired runtime and whole-process budget for verified local Document record
+        run: node sims/agent4-v2-lexical-document-profile.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
