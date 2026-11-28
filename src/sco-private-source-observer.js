@@ -22,21 +22,29 @@ function exposesPrivateFunctionText(ast){
   /** @type {Set<string>} */
   const functions=new Set();
   /** @type {Set<string>} */
+  const definitelyLocalFunctions=new Set();
+  /** @type {Set<string>} */
   const functionArrays=new Set();
 
-  /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
-  function carriesFunction(node){
+  /**
+   * @param {import('./ast').AstNode|null|undefined} node
+   * @param {boolean} [localOnly] Require proof of a local function, not a
+   *   potentially primitive ESM import. This avoids rejecting ordinary
+   *   arithmetic such as a private imported numeric salt plus a string length.
+   * @returns {boolean}
+   */
+  function carriesFunction(node,localOnly=false){
     if(!node)return false;
-    if(node.type==='Identifier')return functions.has(node.name);
+    if(node.type==='Identifier')return (localOnly?definitelyLocalFunctions:functions).has(node.name);
     if(['ArrowFunctionExpression','FunctionExpression','ClassExpression'].includes(node.type))return true;
     if(node.type==='SequenceExpression'&&node.expressions.length){
-      return carriesFunction(node.expressions[node.expressions.length-1]);
+      return carriesFunction(node.expressions[node.expressions.length-1],localOnly);
     }
     if(node.type==='ConditionalExpression'){
-      return carriesFunction(node.consequent)||carriesFunction(node.alternate);
+      return carriesFunction(node.consequent,localOnly)||carriesFunction(node.alternate,localOnly);
     }
     if(node.type==='LogicalExpression'){
-      return carriesFunction(node.left)||carriesFunction(node.right);
+      return carriesFunction(node.left,localOnly)||carriesFunction(node.right,localOnly);
     }
     return false;
   }
@@ -59,10 +67,14 @@ function exposesPrivateFunctionText(ast){
   // server-side function. Call-only uses do not disclose its source spelling.
   walk(ast,node=>{
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration')&&
-        node.id?.type==='Identifier')functions.add(node.id.name);
+        node.id?.type==='Identifier'){
+      functions.add(node.id.name); definitelyLocalFunctions.add(node.id.name);
+    }
     if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
         node.init&&['FunctionExpression','ArrowFunctionExpression',
-          'ClassExpression'].includes(node.init.type))functions.add(node.id.name);
+          'ClassExpression'].includes(node.init.type)){
+      functions.add(node.id.name); definitelyLocalFunctions.add(node.id.name);
+    }
     if(node.type==='ImportDeclaration'&&typeof node.source?.value==='string'&&
         (node.source.value.startsWith('./')||node.source.value.startsWith('../'))){
       for(const spec of node.specifiers){
@@ -81,6 +93,9 @@ function exposesPrivateFunctionText(ast){
         if(carriesFunction(node.init)&&!functions.has(node.id.name)){
           functions.add(node.id.name);changed=true;
         }
+        if(carriesFunction(node.init,true)&&!definitelyLocalFunctions.has(node.id.name)){
+          definitelyLocalFunctions.add(node.id.name);changed=true;
+        }
         if(carriesFunctionArray(node.init)&&!functionArrays.has(node.id.name)){
           functionArrays.add(node.id.name);changed=true;
         }
@@ -88,6 +103,9 @@ function exposesPrivateFunctionText(ast){
       if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier'){
         if(carriesFunction(node.right)&&!functions.has(node.left.name)){
           functions.add(node.left.name);changed=true;
+        }
+        if(carriesFunction(node.right,true)&&!definitelyLocalFunctions.has(node.left.name)){
+          definitelyLocalFunctions.add(node.left.name);changed=true;
         }
         if(carriesFunctionArray(node.right)&&!functionArrays.has(node.left.name)){
           functionArrays.add(node.left.name);changed=true;
@@ -128,7 +146,7 @@ function exposesPrivateFunctionText(ast){
       exposed=true;return;
     }
     if(node.type==='BinaryExpression'&&node.operator==='+'&&
-        (carriesFunction(node.left)||carriesFunction(node.right))){
+        (carriesFunction(node.left,true)||carriesFunction(node.right,true))){
       exposed=true;
     }
   });
