@@ -220,7 +220,7 @@ test('three-module ESM allows private inert-sequence aliases without changing ex
         'const privateValue=alias.privateKey+alias.otherKey;'+
         'export const value=privateValue;'},
     {path:'middleware.mjs',sourceType:'module',
-      code:'import {value} from "./core.mjs";export const answer=value()+9;'},
+      code:'import {value} from "./core.mjs";export const answer=value+9;'},
     {path:'entry.mjs',sourceType:'module',
       code:'import {answer} from "./middleware.mjs";console.log(answer);'}
   ];
