@@ -112,6 +112,30 @@ const cases=[
     exposed:true
   },
   {
+    name:'Reflect.construct of local ordinary class remains eligible',
+    source:'class Ordinary{}const carrier={instance:Reflect.construct(Ordinary,[])};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
+    name:'ordinary class bind.call constructor remains eligible',
+    source:'class Ordinary{}const carrier={instance:new (Function.prototype.bind.call(Ordinary,null))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
+    name:'transparent Proxy of ordinary class remains eligible',
+    source:'class Ordinary{}const carrier={instance:new (new Proxy(Ordinary,{}))()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
+    name:'ordinary constructor bound alias remains eligible',
+    source:'class Ordinary{}const O=Ordinary.bind(null);const carrier={instance:new O()};'+
+      'const nativePrototype=Object.getPrototypeOf(carrier.instance);',
+    exposed:false
+  },
+  {
     name:'nested distinct branch retains WeakMap after other child rewrite',
     source:'const root={child:{instance:{}}};'+
       'const left=root.child;let right=root.child;'+
