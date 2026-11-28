@@ -496,3 +496,62 @@ test('selected SCO graph honors inherited nonenumerable read and operation deny 
     await close(server);
   }
 });
+
+test('selected graph batch routes require immutable compiler-owned inner preflight',{
+  timeout:15000
+},async()=>{
+  const code='export async function secret(value){return value;}'+
+    'export function local(){return 1;}';
+  const graph=partitionScoSelectedGraph([{
+    file:{path:'policy.mjs',code,sourceType:'module'},
+    options:{seed:'agent9-selected-mandatory-batch-policy',privateNames:['secret'],
+      batch:true,maxBatchCalls:2}
+  }]);
+  let effects=0;
+  const namespaces={'policy.mjs':{
+    secret:async(/** @type {string} */ value)=>{effects++;return value;}
+  }};
+  const method=graph.partitions['policy.mjs'].methodNames.secret;
+  const batch=graph.partitions['policy.mjs'].batchMethod;
+  assert.ok(batch);
+  assert.throws(()=>createScoSelectedGraphHandler(graph,namespaces,{
+    authorizeRpc:()=>true
+  }),/require authorizeOperation/u);
+  assert.throws(()=>createScoSelectedGraphHandler(graph,namespaces,
+    /** @type {any} */ ({
+      authorizeRpc:()=>true,authorizeOperation:()=>true,
+      batchPreflightRoutes:[]
+    })),/compiler-owned batch preflight/u);
+
+  /** @type {string[]} */
+  const reviewed=[];
+  const handler=createScoSelectedGraphHandler(graph,namespaces,{
+    authorizeRpc:()=>true,
+    authorizeOperation:(_req,name,args)=>{
+      reviewed.push(name);
+      return name===batch || name===method && args[0]!=='blocked';
+    }
+  });
+  const server=http.createServer(handler);
+  try{
+    const origin=await listen(server);
+    const request=(/** @type {unknown[]} */ args)=>fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:batch,args})
+    });
+    const denied=await request([[{method,args:['allowed']},
+      {method,args:['blocked']}]]);
+    assert.equal(denied.status,403);
+    assert.equal(effects,0,'no earlier child may run before all policy checks');
+    assert.deepEqual(reviewed,[batch,method,method]);
+    const allowed=await request([[{method,args:['first']},
+      {method,args:['second']}]]);
+    assert.equal(allowed.status,200);
+    assert.deepEqual(await allowed.json(),{ok:true,value:[
+      {ok:true,value:'first'},{ok:true,value:'second'}
+    ]});
+    assert.equal(effects,2);
+  }finally{
+    await close(server);
+  }
+});
