@@ -1,9 +1,11 @@
 'use strict';
 
+const {randomInt}=require('node:crypto');
+
 /** @typedef {(input:number)=>number} UIntOracle */
-/** @typedef {{bits:number,rankBound:number,maxOrbitCalls?:number}} BatchOptions */
+/** @typedef {{bits:number,rankBound:number,maxOrbitCalls?:number,completion?:'deterministic'|'sampled-residual',sample?:()=>number,maxSamples?:number}} BatchOptions */
 /** @typedef {{preimage:number,newOracleCalls:number,cycleScanned:boolean,cycleSteps:number}} BatchTargetReceipt */
-/** @typedef {{bits:number,rankBound:number,interpolantNullity:number,orbitCap:number,setupCalls:number,totalCalls:number,scannedCycles:number,cacheHits:number,targets:number,knownOutputs:number}} BatchStatistics */
+/** @typedef {{bits:number,rankBound:number,interpolantNullity:number,orbitCap:number,setupCalls:number,totalCalls:number,scannedCycles:number,cacheHits:number,targets:number,knownOutputs:number,completion:string,samplingCalls:number}} BatchStatistics */
 /**
  * @typedef {{
  *   invert:(target:number)=>BatchTargetReceipt,
@@ -95,6 +97,17 @@ function applyColumns(columns,input) {
  * the number of supplied targets. Neither U nor the coset labels need to be
  * known to the attacker; C is an analysis-side parameter.
  *
+ * A second, optional 'sampled-residual' completion uses residual vectors
+ * D(x)=F(x)^F(0)^Mx drawn from a uniformly random input oracle. Because
+ * F is bijective, their quotient classes are uniform and span the d missing
+ * dimensions after fewer than d+1.607 draws in expectation. Those d
+ * completion vectors lie in the true residual output span R, so the cycle
+ * dimension drops from r+d to r. With C target R-cosets, the uncapped
+ * random-sampling model has expected total query cost below
+ * n+1+d+1.607+C*2^r. A finite maxSamples cap reports failure explicitly;
+ * the statistical bound applies only to fresh uniform draws, not an
+ * attacker-supplied deterministic test sample sequence.
+ *
  * This is a chosen-oracle attacker, not an obfuscator or a proof of source
  * recovery. In particular, the cache must NOT be reused with nondeterministic,
  * stateful, nonce-dependent, or account-sensitive endpoints.
@@ -104,7 +117,9 @@ function applyColumns(columns,input) {
  * @returns {BatchInverter}
  */
 function prepareLowRankBatchInverter(oracle,options) {
-  const {bits,rankBound}=options;
+  const {bits,rankBound,completion='deterministic'}=options;
+  if(completion!=='deterministic'&&completion!=='sampled-residual')
+    throw new RangeError('Unknown affine completion strategy');
   if(!Number.isSafeInteger(bits)||bits<1||bits>32||
       !Number.isSafeInteger(rankBound)||rankBound<0||
       rankBound>Math.min(16,bits))
@@ -142,20 +157,43 @@ function prepareLowRankBatchInverter(oracle,options) {
   if(nullity>rankBound)
     throw new RangeError('Oracle interpolant exceeds rank promise');
   const completed=columns.slice();
-  for(const index of free) {
-    let filled=false;
-    for(let bit=0;bit<bits;bit++){
-      const direction=(1<<bit)>>>0;
-      if(extendBasis(pivots,direction,bits)) {
-        completed[index]=(completed[index]^direction)>>>0;
-        filled=true;
-        break;
-      }
+  let samplingCalls=0;
+  if(completion==='sampled-residual') {
+    const sample=options.sample??(()=>randomInt(range));
+    const maxSamples=options.maxSamples??(bits+64);
+    if(!Number.isSafeInteger(maxSamples)||maxSamples<0)
+      throw new RangeError('Invalid residual sampling cap');
+    /** @type {number[]} */
+    const directions=[];
+    while(directions.length<nullity) {
+      if(samplingCalls>=maxSamples)
+        throw new RangeError('Uniform residual-completion samples exhausted');
+      const input=sample();
+      if(!Number.isSafeInteger(input)||input<0||input>=range)
+        throw new RangeError('Sample outside n-bit domain');
+      const residual=(query(input)^constant^applyColumns(columns,input))>>>0;
+      samplingCalls++;
+      if(extendBasis(pivots,residual,bits))directions.push(residual);
     }
-    if(!filled)throw new TypeError('Failed to complete interpolant');
+    for(let i=0;i<free.length;i++)
+      completed[free[i]]=(completed[free[i]]^directions[i])>>>0;
+  } else {
+    for(const index of free) {
+      let filled=false;
+      for(let bit=0;bit<bits;bit++){
+        const direction=(1<<bit)>>>0;
+        if(extendBasis(pivots,direction,bits)) {
+          completed[index]=(completed[index]^direction)>>>0;
+          filled=true;
+          break;
+        }
+      }
+      if(!filled)throw new TypeError('Failed to complete interpolant');
+    }
   }
   const inverse=inverseColumns(completed);
-  const orbitBound=2**Math.min(bits,rankBound+nullity);
+  const orbitBound=2**Math.min(bits,rankBound+
+    (completion==='sampled-residual'?0:nullity));
   const maxOrbitCalls=options.maxOrbitCalls??Math.min(65536,orbitBound);
   if(!Number.isSafeInteger(maxOrbitCalls)||maxOrbitCalls<1||
       maxOrbitCalls>orbitBound)
@@ -197,7 +235,7 @@ function prepareLowRankBatchInverter(oracle,options) {
   function stats() {
     return {bits,rankBound,interpolantNullity:nullity,orbitCap:orbitBound,
       setupCalls,totalCalls:valueByInput.size,scannedCycles,cacheHits,targets,
-      knownOutputs:inputByValue.size};
+      knownOutputs:inputByValue.size,completion,samplingCalls};
   }
   return {invert,stats};
 }
