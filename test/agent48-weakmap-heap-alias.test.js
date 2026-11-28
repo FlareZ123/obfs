@@ -122,3 +122,6 @@ for(const [name,setup,access] of cases) {
     }
   });
 }
+
+// Run the unchanged 19-case frozen CFG matrix alongside these held-out cases.
+require('./agent3-weakmap-cfg-matrix.test.js');
