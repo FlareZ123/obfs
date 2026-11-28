@@ -531,8 +531,10 @@ later fulfillment with `true`, are denied immediately; any eventual
 rejection is observed rather than becoming an unhandled Node rejection.
 The filter never waits for asynchronous pre-admission work. Refused requests do not enter the
 principal resolver, occupy `maxPendingTotal` capacity or invoke the
-protected operation. The callback is captured once during handler
-construction. It deliberately runs before the body is parsed: an
+protected operation. They also skip the final `authorizeRpc` callback;
+applications requiring a denial audit must record it in the prefilter
+or an independent front-door logger. The callback is captured once
+during handler construction. It deliberately runs before the body is parsed: an
 unauthorized malformed JSON request may receive HTTP 403 instead of
 HTTP 400. The filter is only available when `runRpcIsolated` is set;
 it is opt-in and changes no default policy.
