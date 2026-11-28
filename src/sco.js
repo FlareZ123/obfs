@@ -604,7 +604,11 @@ function createScoHandler(sourceFiles,options={}) {
   if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const prepared = closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
+  // The group observer must veto *initialization-time* cross-file property
+  // rewrites too. A later per-GET source veto cannot restore a method or
+  // field already renamed before a function's native source is inspected.
+  const prepared = closedWorld&&!interfileSourceObserver ?
+    renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   // The server's admission and authorization configuration belongs to this
   // handler instance. Keep an owned startup snapshot so later mutations of a
