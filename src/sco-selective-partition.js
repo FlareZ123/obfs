@@ -10,6 +10,7 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity');
+const {assertNoSharedChildFunctionIdentity}=require('./sco-private-child-function-identity');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
@@ -1338,6 +1339,9 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     discovered.add(filename);
     const ast=parse(code,'module');
+    // A direct root call cannot prove its imported function is free of
+    // persistent own-property state in a shared Node module singleton.
+    assertNoSharedChildFunctionIdentity(filename,ast);
     // The source snapshot lets us apply the same bounded intrinsic-state
     // refusal used for directly partitioned functions to imported modules.
     const realmEffect=realmStateObservation(ast,true);
