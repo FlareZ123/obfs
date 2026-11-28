@@ -555,3 +555,141 @@ test('selected graph batch routes require immutable compiler-owned inner preflig
     await close(server);
   }
 });
+
+test('selected SCO batches refuse raw cross-module IDs, extra arity and policy-view mutation',{
+  timeout:15000
+},async()=>{
+  const source='export async function secret(value){return value;}'+
+    'export function local(){return 1;}';
+  const graph=partitionScoSelectedGraph(['alpha.mjs','beta.mjs'].map(name=>({
+    file:{path:name,code:source,sourceType:'module'},
+    options:{seed:'agent9-selected-crossroute-adversarial',privateNames:['secret'],
+      batch:true,maxBatchCalls:2}
+  })));
+  const alpha=graph.partitions['alpha.mjs'];
+  const beta=graph.partitions['beta.mjs'];
+  assert.ok(alpha.batchMethod);
+  assert.ok(beta.batchMethod);
+  assert.notEqual(alpha.batchMethod,beta.batchMethod);
+  const performed=[];
+  const namespaces={
+    'alpha.mjs':{secret:async(/** @type {string} */ value)=>{
+      performed.push('alpha:'+value);return value;
+    }},
+    'beta.mjs':{secret:async(/** @type {string} */ value)=>{
+      performed.push('beta:'+value);return value;
+    }}
+  };
+  const handler=createScoSelectedGraphHandler(graph,namespaces,{
+    authorizeRpc:()=>true,
+    authorizeOperation:(_request,name,args)=>{
+      if(name===alpha.batchMethod){
+        // An authorized outer policy can mutate its dedicated argument view;
+        // neither the inner preflight nor original execution may trust it.
+        const batch=/** @type {any[]} */ (args[0]);
+        if(Array.isArray(batch)&&batch[1]?.args){
+          batch[1].args[0]='allowed';
+        }
+      }
+      return name!==alpha.methodNames.secret || args[0]!=='blocked';
+    }
+  });
+  const server=http.createServer(handler);
+  try{
+    const origin=await listen(server);
+    const post=(/** @type {string} */ method,
+      /** @type {unknown[]} */ args)=>fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method,args})
+    });
+    const denied=await post(alpha.batchMethod,[[{
+      method:alpha.methodNames.secret,args:['first']
+    },{
+      method:alpha.methodNames.secret,args:['blocked']
+    }]]);
+    assert.equal(denied.status,403);
+    assert.deepEqual(performed,[],
+      'outer policy mutation must not change the separately parsed inner check');
+
+    const wrongArity=await post(alpha.batchMethod,[[{
+      method:alpha.methodNames.secret,args:['first']
+    }],null]);
+    assert.notEqual(wrongArity.status,200);
+    assert.deepEqual(performed,[],'extra outer arguments must never skip preflight');
+
+    const sibling=await post(alpha.batchMethod,[[{
+      method:beta.methodNames.secret,args:['cross-module']
+    }]]);
+    assert.notEqual(sibling.status,200);
+    assert.deepEqual(performed,[],'child method IDs cannot cross selected module boundaries');
+
+    const oversized=await post(alpha.batchMethod,[[{
+      method:alpha.methodNames.secret,args:['one']
+    },{
+      method:alpha.methodNames.secret,args:['two']
+    },{
+      method:alpha.methodNames.secret,args:['three']
+    }]]);
+    assert.notEqual(oversized.status,200);
+    assert.deepEqual(performed,[]);
+
+    const success=await post(beta.batchMethod,[[{
+      method:beta.methodNames.secret,args:['authorized']
+    }]]);
+    assert.equal(success.status,200);
+    assert.deepEqual(await success.json(),{
+      ok:true,value:[{ok:true,value:'authorized'}]
+    });
+    assert.deepEqual(performed,['beta:authorized']);
+  }finally{
+    await close(server);
+  }
+});
+
+test('selected SCO protected batches honor an inherited operation authorizer once',{
+  timeout:15000
+},async()=>{
+  const code='export async function secret(value){return value;}'+
+    'export function local(){return 7;}';
+  const graph=partitionScoSelectedGraph([{
+    file:{path:'inherited.mjs',sourceType:'module',code},
+    options:{seed:'agent9-selected-inherited-batch-auth',privateNames:['secret'],
+      batch:true,maxBatchCalls:2}
+  }]);
+  let getterReads=0,effects=0;
+  const inherited={};
+  Object.defineProperty(inherited,'authorizeOperation',{
+    enumerable:false,
+    get(){
+      getterReads++;
+      return (_request,method,/** @type {unknown[]} */ args)=>
+        method===graph.partitions['inherited.mjs'].batchMethod||
+        method===graph.partitions['inherited.mjs'].methodNames.secret&&
+        args[0]==='allowed';
+    }
+  });
+  const options=Object.assign(Object.create(inherited),{authorizeRpc:()=>true});
+  const server=http.createServer(createScoSelectedGraphHandler(graph,{
+    'inherited.mjs':{secret:async(/** @type {string} */ value)=>{
+      effects++;return value;
+    }}
+  },options));
+  assert.equal(getterReads,1,'inherited nonenumerable operation getter is snapshotted once');
+  try{
+    const origin=await listen(server);
+    const batch=graph.partitions['inherited.mjs'].batchMethod;
+    assert.ok(batch);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:batch,args:[[
+        {method:graph.partitions['inherited.mjs'].methodNames.secret,args:['allowed']},
+        {method:graph.partitions['inherited.mjs'].methodNames.secret,args:['blocked']}
+      ]]})
+    });
+    assert.equal(response.status,403);
+    assert.equal(effects,0);
+    assert.equal(getterReads,1,'no request-time policy getter re-read');
+  }finally{
+    await close(server);
+  }
+});
