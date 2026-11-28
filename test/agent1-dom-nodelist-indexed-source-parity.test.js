@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
+const {parse,observesFunctionSource}=require('../src/ast');
 
 /**
  * Emulates the native Web IDL DOMString conversion boundary exactly for a
@@ -82,4 +83,20 @@ for(const [name,receiver] of /** @type {const} */ ([
         ' bindings='+generated.metrics.bindings);
     });
   }
+}
+
+// The AST classifier is used upstream to authorize source-changing renames.
+// An indexed HTMLCollection/NodeList is a genuine native DOM target, so an
+// argument callable is text-coerced through the DOMString Web IDL boundary.
+for(const [name,receiver] of /** @type {const} */ ([
+  ['querySelectorAll indexed item','document.querySelectorAll("input")[0]'],
+  ['getElementsByName indexed item','document.getElementsByName("locked")[0]'],
+  ['querySelectorAll item method','document.querySelectorAll("input").item(0)']
+])) {
+  test('source-observer proof recognizes indexed native DOMString sink: '+name,()=>{
+    const code='function secretReader(){return 17;}const element='+receiver+';'+
+      'element.setAttribute("data-src",secretReader);';
+    assert.equal(observesFunctionSource(parse(code,'script')),true,
+      'A native element from an indexed DOM collection converts secretReader to source');
+  });
 }
