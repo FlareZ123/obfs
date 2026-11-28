@@ -2407,6 +2407,69 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
       }
     });
+    // Function/eval are dynamic-source executors: the same source string
+    // resolves globals against the browser before relocation and against
+    // Node after relocation. The audited static dependency path already
+    // forbids these capabilities; apply an equivalent fail-closed boundary
+    // to selected exports and helpers. Direct inherited constructors from
+    // functions and primitive containers can be dynamic-source executors,
+    // too. Do not classify ordinary own `{constructor:7}` field reads as
+    // inherited loader access.
+    const selectedCallableNames=new Set();
+    walk(body,node=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+        selectedCallableNames.add(node.id.name);
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init&&['FunctionExpression','ArrowFunctionExpression']
+           .includes(node.init.type))
+        selectedCallableNames.add(node.id.name);
+    });
+    /** @type {string|null} */
+    let dynamicSourceEvaluator=null;
+    walk(body,(node,parent,key)=>{
+      if(dynamicSourceEvaluator!==null)return;
+      if(node.type==='Identifier'&&['Function','eval'].includes(node.name)&&
+         !isStaticKey(parent,key)&&
+         !(parent?.type==='VariableDeclarator'&&key==='id')&&
+         !(parent?.type==='FunctionDeclaration'&&key==='id')&&
+         !(parent?.type==='FunctionExpression'&&key==='id')&&
+         !(parent?.type==='ClassDeclaration'&&key==='id')&&
+         !(parent?.type==='ClassExpression'&&key==='id')&&
+         !(parent?.type==='ImportSpecifier'&&key==='local')){
+        dynamicSourceEvaluator=node.name;
+      }
+      if(node.type!=='MemberExpression')return;
+      const member=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if((member==='Function'||member==='eval')&&
+         node.object.type==='Identifier'&&
+         ['globalThis','global','window','self'].includes(node.object.name)){
+        dynamicSourceEvaluator=member;
+        return;
+      }
+      if(member!=='constructor')return;
+      const receiver=node.object;
+      const ownLiteralConstructor=receiver.type==='ObjectExpression'&&
+        receiver.properties.some(property=>property.type==='Property'&&
+          !property.computed&&
+          (property.key.type==='Identifier'&&property.key.name==='constructor'||
+           staticString(property.key)==='constructor')&&
+          property.value?.type==='Literal');
+      const inheritedOrInvoked=(
+        ['FunctionExpression','ArrowFunctionExpression','ArrayExpression',
+          'Literal'].includes(receiver.type) ||
+        receiver.type==='ObjectExpression'&&!ownLiteralConstructor ||
+        receiver.type==='Identifier'&&selectedCallableNames.has(receiver.name) ||
+        (parent?.type==='CallExpression'||parent?.type==='NewExpression')&&
+          parent.callee===node
+      );
+      if(inheritedOrInvoked)dynamicSourceEvaluator='constructor';
+    });
+    if(dynamicSourceEvaluator!==null){
+      throw new TypeError(
+        'Private SCO export or helper uses unproved dynamic-source evaluator: '+
+        dynamicSourceEvaluator);
+    }
     if(usesUnprovedCrossRealmHostApi(body,explicitServerHostNames)){
       throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
     }
