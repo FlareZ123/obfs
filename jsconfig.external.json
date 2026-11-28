@@ -90,6 +90,8 @@
     "sims/sco-batch-json-parse-cost.js",
     "sims/sco-batch-wrapper-preflight-attack.js",
     "test/sco-batch-required-preflight.test.js",
+    "sims/low-rank-affine-matroid-target-inversion.js",
+    "test/low-rank-affine-matroid-target-inversion.test.js",
     "sims/jsimplifier-static-attacker.js",
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
