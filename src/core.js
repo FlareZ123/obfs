@@ -119,6 +119,17 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
  * @returns {Map<string,Set<string>>}
  */
 function collectVerifiedImportedNativeNodeFactories(files) {
+  // HTML and other opaque supplied assets can execute before an ESM module.
+  // We do not parse or verify their arbitrary script/event-handler semantics
+  // here. Admit only a single external module script template with no inline
+  // source, event attributes, extra tags, or unreviewed executable assets.
+  // An unknown asset must never become proof of an unmodified native realm.
+  const reviewedEntry=/^(?:<!doctype html>)?<script type="module" src="\\.\\/[A-Za-z0-9_.-]+\\.mjs"><\\/script>$/u;
+  for(const file of files)if(file.sourceType==='asset'){
+    const body=typeof file.code==='string'?file.code:
+      Buffer.isBuffer(file.code)?file.code.toString('utf8'):'';
+    if(!reviewedEntry.test(body))return new Map();
+  }
   const modules=new Map(files.filter(file=>
     file.sourceType==='module'&&typeof file.code==='string').map(file=>[
       file.path,parse(/** @type {string} */(file.code),'module')
