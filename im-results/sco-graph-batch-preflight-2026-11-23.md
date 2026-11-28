@@ -56,3 +56,8 @@ At that same immutable source pin, the [two-platform HMAC CPU diagnostic 4611969
 
 No new strong-security claim follows: hostile clients can intercept and relay authorized requests, and fine-grained calls with network/authentication latency may violate the 2.5× end-to-end bound despite the coarse HMAC passing. Keep the graph batch feature opt-in and tied to application-reviewed operation semantics and policy.
 
+
+### Full-suite separation at the reconciled source
+
+The separately dispatched [full two-platform Node/browser workflow 46119411817](https://github.com/FlareZ123/obfs/actions/runs/46119411817), pinned to the **pre-portability-patch** branch merge `712e5ba3c0d2e917d7736cb1a2dcef3bcc7bef34`, **failed on both Ubuntu and Windows**. The compact Node runner reported `# fail 11` for each OS, with source/bound-export parity, SNO host-before-require, and runtime session issues among its negative cases. These failures do **not** demonstrate a passing full branch acceptance, and are not silently declared all inherited without a direct source-matched main-control run. Focused graph, browser, CPU and JSDoc greens do not override this NO-GO result. Subsequent portability-only changes were validated in focused cases but did not receive an independent full-suite pass.
+
