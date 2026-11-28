@@ -48,6 +48,21 @@ async function runEvidence(){
     const originalPath=path.join(root,'reference.mjs');
     await fs.writeFile(originalPath,graphs.native[0].code,'utf8');
     const reference=await import(pathToFileURL(originalPath).href);
+    // Keep the original *complete* three-file graph as the heldout
+    // behavioral reference, including the opaque host callback trace.
+    const nativeDir=path.join(root,'original-graph');
+    await fs.mkdir(nativeDir,{recursive:true});
+    for(const file of graphs.native)
+      await fs.writeFile(path.join(nativeDir,file.path),file.code,'utf8');
+    const nativeApp=await import(pathToFileURL(path.join(nativeDir,'entry.mjs')).href);
+    const events=Array.from({length:17},(_,index)=>({
+      kind:['start','tick','pause','stop'][index%4],
+      payload:'data-'+index+(index%11===0?'終':'')+(index%13===0?'🧪':'')
+    }));
+    const nativeTrace=[];
+    const nativeOutput=nativeApp.runScenario(-817,events,{
+      emit(value){nativeTrace.push(value);}
+    });
     /** @type {Record<string,unknown>} */
     const variants={};
     for(const variant of TARGETS){
@@ -58,7 +73,8 @@ async function runEvidence(){
         sourceSha256:sha256(input),inputBytes:Buffer.byteLength(input),
         outputBytes:null,outputSha256:null,elapsedMs:null,
         exportedFunctions:0,compared:0,mismatches:0,firstMismatches:[],
-        executionParity:false,staticOriginalFormulaRecovered:'not measured',
+        executionParity:false,fullAppOutputParity:false,fullAppHostTraceParity:false,
+        staticOriginalFormulaRecovered:'not measured',
         artifactIsStandaloneFunctionClone:false,
         error:null
       };
@@ -93,6 +109,19 @@ async function runEvidence(){
         // Re-executability of public functions is a weak cloning signal; it
         // cannot show recovered source formulas or bypass of host locking.
         result.artifactIsStandaloneFunctionClone=result.executionParity;
+        const graphDir=path.join(root,variant+'-complete-graph');
+        await fs.mkdir(graphDir,{recursive:true});
+        for(const file of graphs[variant])
+          await fs.writeFile(path.join(graphDir,file.path),
+            file.path==='math.mjs'?code:file.code,'utf8');
+        const candidateApp=await import(pathToFileURL(path.join(graphDir,'entry.mjs')).href);
+        const candidateTrace=[];
+        const candidateOutput=candidateApp.runScenario(-817,events,{
+          emit(value){candidateTrace.push(value);}
+        });
+        result.fullAppOutputParity=candidateOutput===nativeOutput;
+        result.fullAppHostTraceParity=
+          JSON.stringify(candidateTrace)===JSON.stringify(nativeTrace);
       }catch(error){
         result.error=String(error&&error.stack||error).slice(0,2000);
       }
@@ -102,7 +131,7 @@ async function runEvidence(){
     return {scope:'frozen public math module only, two independent transformations',
       tool,sourceCommit:'a8a22f9aef6e7f0d487cebc23c87063376df55cb',
       protectedFunctions,variants,
-      interpretation:'Exact output parity is NOT original source reconstruction, anti-LLM evaluation, or a proof of tamper resistance. Existing static attack runs independently recover 3/3 arithmetic functions.'};
+      interpretation:'Exact output parity is NOT original source reconstruction, anti-LLM evaluation, or a proof of tamper resistance. Full application checks cover one fixed stateful trace, not the unknown-host/source-observer matrix. Existing static attack runs independently recover 3/3 arithmetic functions.'};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
@@ -114,7 +143,12 @@ if(require.main===module){
     if(process.env.OBFS_WEBCRACK_REPORT)
       await fs.writeFile(process.env.OBFS_WEBCRACK_REPORT,json,'utf8');
     process.stdout.write(json);
-    if(TARGETS.some(variant=>result.variants[variant].error))process.exitCode=2;
+    // Negative candidate performance is evidence, not a harness crash. A
+    // failed ordinary-minification control, however, invalidates the method.
+    const baseline=result.variants.minified;
+    if(baseline.error||!baseline.executionParity||
+       !baseline.fullAppOutputParity||!baseline.fullAppHostTraceParity)
+      process.exitCode=2;
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 module.exports={runEvidence,testInput,sha256};
