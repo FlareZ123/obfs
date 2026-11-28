@@ -31,8 +31,8 @@ const assetMediaTypes=new Map([
   ['.otf','font/otf']
 ]);
 const {isUtf8} = require('node:buffer');
-const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
-const {obfuscateFiles,safePath} = require('./core');
+const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource,hasWeakMapPrototypeExposure} = require('./ast');
+const {obfuscateFiles,safePath,mutatedFunctionCallProtocols} = require('./core');
 const {createPathInventory,registerFilePath,portableKeys} = require('./portable-paths');
 const {collectBindings}=require('./properties');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
@@ -578,16 +578,29 @@ function createScoHandler(sourceFiles,options={}) {
     collectVerifiedImportedCloneAliases(normalized) : new Map();
   const importedUrlStaticProof=normalized.length>1 ?
     collectVerifiedImportedUrlStaticAliases(normalized) : new Map();
+  // SCO serves files separately, but its source-spelling gate must account
+  // for all files sharing the client realm. In particular, a separate
+  // module can alter Function.prototype.call before a default parameter
+  // installs a WeakMap prototype source observer in a later module.
+  const sourceAsts=normalized.flatMap(file=>
+    file.sourceType==='asset'||typeof file.code!=='string'?[]:
+      [{file,ast:parse(file.code,file.sourceType)}]);
+  const untrustedCallProtocols=new Set();
+  for(const {ast} of sourceAsts)
+    for(const method of mutatedFunctionCallProtocols(ast))
+      untrustedCallProtocols.add(method);
+  const sharedWeakMapPrototypeExposure=sourceAsts.some(({ast})=>
+    hasWeakMapPrototypeExposure(ast,untrustedCallProtocols));
   // The original HTML asset carries immutable SRI hashes. Per-response
   // randomized literal spellings would invalidate the browser's integrity
   // check even if all JavaScript expression values remained unchanged.
   const interfileSourceObserver=hasPinnedLocalJavaScriptIntegrity(normalized,prefix) ||
-    normalized.some(file=>
-    file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
-      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
+    sourceAsts.some(({file,ast})=>
+      observesDistributedSource(ast,importedKeyProof.get(file.path)) ||
+      normalized.length>1 && observesFunctionSource(ast,
         importedKeyProof.get(file.path),importedCloneProof.get(file.path),
-        new Set(),new Set(),importedUrlStaticProof.get(file.path))));
+        new Set(),new Set(),importedUrlStaticProof.get(file.path),
+        new Set(),sharedWeakMapPrototypeExposure));
   if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
