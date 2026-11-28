@@ -161,7 +161,7 @@ async function startOrdinary(secret){
       'content-type':'application/json; charset=utf-8',
       'cache-control':'no-store'
     });
-    response.end(JSON.stringify({ok:true,result:output}));
+    response.end(JSON.stringify({ok:true,value:output}));
   });
   const origin=await listen(server);
   return {server,origin,method:'step',getState:()=>state};
