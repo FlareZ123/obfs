@@ -285,7 +285,7 @@ function bindScoSelectedGraphExports(graph,namespaces){
  *
  * @param {ScoSelectedGraph} graph
  * @param {Record<string,Record<string,unknown>>} namespaces
- * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} options
+ * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'|'batchPreflightRoutes'>} options
  * @returns {import('node:http').RequestListener}
  */
 function createScoSelectedGraphHandler(graph,namespaces,options){
@@ -293,6 +293,9 @@ function createScoSelectedGraphHandler(graph,namespaces,options){
      Object.hasOwn(options,'publicPaths')||
      Object.hasOwn(options,'remoteMethods')){
     throw new TypeError('Selected SCO graph handler requires authorized server options');
+  }
+  if(Object.hasOwn(options,'batchPreflightRoutes')){
+    throw new TypeError('Selected SCO graph handler requires compiler-owned batch preflight routes');
   }
   const stableOptions=snapshotSelectedOptions(options);
   const snapshot=generatedSnapshots.get(graph);
@@ -310,8 +313,19 @@ function createScoSelectedGraphHandler(graph,namespaces,options){
     }
   }
   const remoteMethods=bindScoSelectedGraphExports(trusted,namespaces);
+  // Derive mandatory inner-operation preflight from the sealed compiler graph.
+  // Caller metadata must never be able to omit a generated batch route.
+  const requiredBatchPreflights=trusted.exposedPaths.flatMap(name=>{
+    const batchMethod=trusted.partitions[name]?.batchMethod;
+    return typeof batchMethod==='string'?[batchMethod]:[];
+  });
+  if(requiredBatchPreflights.length&&typeof stableOptions.authorizeOperation!=='function'){
+    throw new TypeError('Selected SCO graph batch exports require authorizeOperation');
+  }
   return createScoHandler(trusted.clientFiles,{
-    ...stableOptions,publicPaths:[...trusted.exposedPaths],remoteMethods
+    ...stableOptions,
+    ...(requiredBatchPreflights.length?{batchPreflightRoutes:requiredBatchPreflights}:{}),
+    publicPaths:[...trusted.exposedPaths],remoteMethods
   });
 }
 
