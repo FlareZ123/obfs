@@ -25,6 +25,12 @@ jobs:
         run: node examples/application-challenge/sco-build.cjs --check --dump
       - name: Test source withholding, authorization, online relay, and paired costs
         run: node --test test/application-challenge-sco.test.js
+      - name: Verify exact arguments semantics of same-trust ordinary RPC control
+        run: node --test test/agent18-equaltrust-control-args.test.js
+      - name: Compare real six-module SCO with same-trust ordinary-minified client
+        run: node --test test/agent18-application-equal-trust-sco.test.js
+      - name: Strict JSDoc for same-trust application attacker probe
+        run: npx tsc --project jsconfig.agent18-application-equal-trust.json
       - name: Validate exact finite-sample paired slowdown inference
         run: node --test test/paired-budget-bound.test.js
       - name: Compare real fresh-process full-session client costs
@@ -44,3 +50,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-sco-browser.js
+      - name: Compare generated and minified equal-trust RPC clients in real Chromium
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent18-application-equal-trust-browser.cjs

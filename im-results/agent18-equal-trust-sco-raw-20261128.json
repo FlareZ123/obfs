@@ -1,0 +1,225 @@
+{
+  "sourceSha": "8e463e8cdfe02bc47ecdc27bf3993a6af07401b1",
+  "workflowRun": 46125878951,
+  "observation": "Raw process CPU observations have Windows 0ms quantization and therefore invalid CPU ratios; Linux 1-call ratios are valid but noisy.",
+  "jobs": {
+    "ubuntu-latest": {
+      "jobId": 140920245988,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "linux",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 17.122926000000007,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0.034,
+                0.009,
+                0.005,
+                0.01,
+                0.004,
+                0.007,
+                0.005,
+                0.007,
+                0.011
+              ],
+              "generated": [
+                2.393,
+                0.759,
+                0.753,
+                1.276,
+                0.775,
+                3.371,
+                0.733,
+                1.866,
+                2.735
+              ],
+              "ordinary": [
+                3.029,
+                0.803,
+                0.755,
+                0.893,
+                0.685,
+                0.746,
+                0.701,
+                0.754,
+                3.936
+              ]
+            },
+            "medianGeneratedOverNative": 150.6,
+            "medianOrdinaryOverNative": 107.71428571428571,
+            "medianGeneratedOverOrdinary": 1.0456490727532097,
+            "generatedBreaches": 9,
+            "ordinaryBreaches": 9
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                1.826,
+                2.059,
+                2.805,
+                1.894,
+                1.863,
+                1.916,
+                2.159,
+                1.851,
+                1.834
+              ],
+              "generated": [
+                2.639,
+                2.68,
+                18.691,
+                2.648,
+                2.99,
+                2.664,
+                3.069,
+                3.818,
+                2.745
+              ],
+              "ordinary": [
+                3.071,
+                2.611,
+                8.895,
+                7.325,
+                2.968,
+                4.047,
+                2.955,
+                2.956,
+                2.59
+              ]
+            },
+            "medianGeneratedOverNative": 1.445235487404162,
+            "medianOrdinaryOverNative": 1.596974608319827,
+            "medianGeneratedOverOrdinary": 1.026426656453466,
+            "generatedBreaches": 1,
+            "ordinaryBreaches": 2
+          }
+        },
+        "scope": "same private server; loopback HTTP; caller+server process CPU"
+      }
+    },
+    "windows-latest": {
+      "jobId": 140920245764,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "win32",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 29.906799999999976,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "ordinary": [
+                0,
+                0,
+                16,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": null,
+            "generatedBreaches": 0,
+            "ordinaryBreaches": 1
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                15
+              ],
+              "ordinary": [
+                0,
+                16,
+                62,
+                0,
+                0,
+                15,
+                16,
+                0,
+                0
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": null,
+            "generatedBreaches": 1,
+            "ordinaryBreaches": 4
+          }
+        },
+        "scope": "same private server; loopback HTTP; caller+server process CPU"
+      }
+    }
+  }
+}

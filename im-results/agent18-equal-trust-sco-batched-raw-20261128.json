@@ -1,0 +1,637 @@
+{
+  "sourceSha": "294bd243344ecbe2445eb44346c8cd731b17f575",
+  "workflowRun": 46126186524,
+  "measurement": "Post-initialization process CPU across same caller+server Node process; independently repeated per-request RPC not a single network batch; repeated counts differ and per-call CPU is normalized.",
+  "jobs": {
+    "ubuntu-latest": {
+      "jobId": 140921190735,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "linux",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "facadeFreeWireReplayHeldouts": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 15.903542999999999,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0.031,
+                0.009,
+                0.004,
+                0.036,
+                0.003,
+                0.007,
+                0.003,
+                0.006,
+                0.005
+              ],
+              "generated": [
+                1.004,
+                0.825,
+                3.73,
+                2.161,
+                0.717,
+                2.518,
+                0.75,
+                0.659,
+                0.831
+              ],
+              "ordinary": [
+                0.791,
+                0.723,
+                0.699,
+                2.788,
+                0.674,
+                0.744,
+                0.713,
+                0.974,
+                0.715
+              ]
+            },
+            "medianGeneratedOverNative": 166.2,
+            "medianOrdinaryOverNative": 143,
+            "medianGeneratedOverOrdinary": 1.1410788381742738,
+            "generatedBreaches": 9,
+            "ordinaryBreaches": 9
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                1.8,
+                6.006,
+                1.824,
+                2.064,
+                2.081,
+                2.048,
+                2.043,
+                1.821,
+                1.803
+              ],
+              "generated": [
+                2.605,
+                8.126,
+                2.881,
+                2.868,
+                3.241,
+                2.856,
+                3.654,
+                2.557,
+                2.576
+              ],
+              "ordinary": [
+                3.981,
+                20.78,
+                2.584,
+                3.829,
+                2.603,
+                2.848,
+                2.616,
+                2.555,
+                3.334
+              ]
+            },
+            "medianGeneratedOverNative": 1.4287298946200777,
+            "medianOrdinaryOverNative": 1.4166666666666667,
+            "medianGeneratedOverOrdinary": 1.0007827788649706,
+            "generatedBreaches": 0,
+            "ordinaryBreaches": 1
+          }
+        },
+        "batchedCpu": {
+          "light": {
+            "repetitions": {
+              "native": 32768,
+              "generated": 1024,
+              "ordinary": 1024
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                61.687,
+                67.17,
+                50.095,
+                61.761,
+                57.024,
+                60.382,
+                51.548
+              ],
+              "generated": [
+                970.571,
+                538.126,
+                448.812,
+                393.759,
+                371.372,
+                380.92,
+                368.679
+              ],
+              "ordinary": [
+                733.778,
+                746.092,
+                435.084,
+                393.735,
+                402.922,
+                384.837,
+                362.565
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                0.001882537841796875,
+                0.00204986572265625,
+                0.001528778076171875,
+                0.001884796142578125,
+                0.001740234375,
+                0.00184271240234375,
+                0.0015731201171875
+              ],
+              "generated": [
+                0.9478232421875,
+                0.525513671875,
+                0.43829296875,
+                0.3845302734375,
+                0.36266796875,
+                0.3719921875,
+                0.3600380859375
+              ],
+              "ordinary": [
+                0.716580078125,
+                0.72860546875,
+                0.42488671875,
+                0.3845068359375,
+                0.393478515625,
+                0.3758173828125,
+                0.3540673828125
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                0.0015152929382324203,
+                0.0018060901794433593,
+                0.0015128786621093765,
+                0.0017482257690429603,
+                0.0017350643615722527,
+                0.001642843505859387,
+                0.0015689839782714876
+              ],
+              "generated": [
+                0.691423712890625,
+                0.3918084521484375,
+                0.343395669921875,
+                0.3068332333984376,
+                0.2981197285156254,
+                0.30648560253906254,
+                0.30086873339843745
+              ],
+              "ordinary": [
+                0.5381363222656248,
+                0.504456896484375,
+                0.3265510478515625,
+                0.3035166035156247,
+                0.3159541250000002,
+                0.30893290722656275,
+                0.2995082841796872
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 228.86878249398617,
+            "medianOrdinaryOverNative": 226.10662177328845,
+            "medianGeneratedOverOrdinary": 1.0000609547030364,
+            "generatedStrictBreaches": 7,
+            "ordinaryStrictBreaches": 7
+          },
+          "heavy": {
+            "repetitions": {
+              "native": 128,
+              "generated": 128,
+              "ordinary": 128
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                242.738,
+                236.133,
+                248.817,
+                235.712,
+                234.355,
+                234.459,
+                235.018
+              ],
+              "generated": [
+                341.351,
+                298.31,
+                305.506,
+                297.161,
+                302.04,
+                307.567,
+                339.132
+              ],
+              "ordinary": [
+                297.061,
+                297.005,
+                313.738,
+                298.648,
+                296.819,
+                300.444,
+                336.198
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                1.896390625,
+                1.8447890625,
+                1.9438828125,
+                1.8415,
+                1.8308984375,
+                1.8317109375,
+                1.836078125
+              ],
+              "generated": [
+                2.6668046875,
+                2.330546875,
+                2.386765625,
+                2.3215703125,
+                2.3596875,
+                2.4028671875,
+                2.64946875
+              ],
+              "ordinary": [
+                2.3207890625,
+                2.3203515625,
+                2.451078125,
+                2.3331875,
+                2.3188984375,
+                2.34721875,
+                2.626546875
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                1.8565433437499976,
+                1.837570898437498,
+                1.8358322578125055,
+                1.8375393906249968,
+                1.829680835937495,
+                1.828554257812499,
+                1.8346634843749996
+              ],
+              "generated": [
+                2.410776585937505,
+                2.2877012187500014,
+                2.3006320781250054,
+                2.282923546874997,
+                2.3208463671874995,
+                2.304968875,
+                2.3995397265625087
+              ],
+              "ordinary": [
+                2.273065679687498,
+                2.2781123359375,
+                2.2982764296875047,
+                2.2921228046874944,
+                2.282606062500008,
+                2.3030563125000043,
+                2.362621851562494
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 1.2888139787928572,
+            "medianOrdinaryOverNative": 1.2665358110558769,
+            "medianGeneratedOverOrdinary": 1.0087270001606197,
+            "generatedStrictBreaches": 0,
+            "ordinaryStrictBreaches": 0
+          }
+        },
+        "cpuCaveat": "Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs",
+        "scope": "Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs"
+      }
+    },
+    "windows-latest": {
+      "jobId": 140921190947,
+      "profile": {
+        "node": "v22.23.5",
+        "os": "win32",
+        "originalPrivateModules": 5,
+        "distributedFacades": 1,
+        "originalPublicBytes": 515,
+        "ordinaryPublicBytes": 347,
+        "ordinaryMinifier": "esbuild",
+        "authorization": 403,
+        "heldoutOnlineRelays": 40,
+        "facadeFreeWireReplayHeldouts": 40,
+        "identicalAuthenticatedWire": {
+          "method": "mfe387dc51f595ae69e49de43",
+          "args": [
+            17,
+            400
+          ]
+        },
+        "initializationMs": 33.684600000000046,
+        "paired": {
+          "light": {
+            "rawMs": {
+              "native": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "ordinary": [
+                0,
+                16,
+                0,
+                0,
+                0,
+                0,
+                0,
+                16,
+                0
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": null,
+            "generatedBreaches": 0,
+            "ordinaryBreaches": 2
+          },
+          "heavy": {
+            "rawMs": {
+              "native": [
+                16,
+                15,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "generated": [
+                0,
+                0,
+                0,
+                16,
+                0,
+                0,
+                0,
+                0,
+                16
+              ],
+              "ordinary": [
+                0,
+                0,
+                0,
+                0,
+                16,
+                0,
+                15,
+                0,
+                0
+              ]
+            },
+            "medianGeneratedOverNative": null,
+            "medianOrdinaryOverNative": null,
+            "medianGeneratedOverOrdinary": null,
+            "generatedBreaches": 2,
+            "ordinaryBreaches": 2
+          }
+        },
+        "batchedCpu": {
+          "light": {
+            "repetitions": {
+              "native": 32768,
+              "generated": 1024,
+              "ordinary": 1024
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                94,
+                109,
+                78,
+                78,
+                94,
+                125,
+                94
+              ],
+              "generated": [
+                1516,
+                891,
+                969,
+                829,
+                718,
+                578,
+                797
+              ],
+              "ordinary": [
+                1202,
+                1047,
+                688,
+                749,
+                656,
+                735,
+                656
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                0.00286865234375,
+                0.003326416015625,
+                0.00238037109375,
+                0.00238037109375,
+                0.00286865234375,
+                0.003814697265625,
+                0.00286865234375
+              ],
+              "generated": [
+                1.48046875,
+                0.8701171875,
+                0.9462890625,
+                0.8095703125,
+                0.701171875,
+                0.564453125,
+                0.7783203125
+              ],
+              "ordinary": [
+                1.173828125,
+                1.0224609375,
+                0.671875,
+                0.7314453125,
+                0.640625,
+                0.7177734375,
+                0.640625
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                0.0025667694091796867,
+                0.002693087768554675,
+                0.002610437011718758,
+                0.002520285034179698,
+                0.0026230957031249946,
+                0.0025088806152343546,
+                0.0028436492919921563
+              ],
+              "generated": [
+                1.00659052734375,
+                0.6825512695312499,
+                0.6794529296874998,
+                0.6267337890624995,
+                0.6260403320312493,
+                0.56435390625,
+                0.5873150390624993
+              ],
+              "ordinary": [
+                0.8405729492187501,
+                0.7761488281249997,
+                0.6161877929687503,
+                0.62105029296875,
+                0.5810613281249992,
+                0.5858949218750009,
+                0.5815867187499997
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 271.3191489361702,
+            "medianOrdinaryOverNative": 282.2564102564103,
+            "medianGeneratedOverOrdinary": 1.1068090787716955,
+            "generatedStrictBreaches": 7,
+            "ordinaryStrictBreaches": 7
+          },
+          "heavy": {
+            "repetitions": {
+              "native": 128,
+              "generated": 128,
+              "ordinary": 128
+            },
+            "rawCpuMsTotal": {
+              "native": [
+                281,
+                282,
+                281,
+                281,
+                281,
+                281,
+                281
+              ],
+              "generated": [
+                359,
+                375,
+                453,
+                422,
+                344,
+                360,
+                360
+              ],
+              "ordinary": [
+                344,
+                359,
+                406,
+                360,
+                343,
+                344,
+                452
+              ]
+            },
+            "perCallCpuMs": {
+              "native": [
+                2.1953125,
+                2.203125,
+                2.1953125,
+                2.1953125,
+                2.1953125,
+                2.1953125,
+                2.1953125
+              ],
+              "generated": [
+                2.8046875,
+                2.9296875,
+                3.5390625,
+                3.296875,
+                2.6875,
+                2.8125,
+                2.8125
+              ],
+              "ordinary": [
+                2.6875,
+                2.8046875,
+                3.171875,
+                2.8125,
+                2.6796875,
+                2.6875,
+                3.53125
+              ]
+            },
+            "perCallWallMs": {
+              "native": [
+                2.2407304687500016,
+                2.178013281250003,
+                2.191949218750011,
+                2.1779328124999893,
+                2.1683132812500077,
+                2.1719695312499994,
+                2.198219531250004
+              ],
+              "generated": [
+                2.824190625,
+                2.8561656250000027,
+                2.9408570312499904,
+                2.8678578124999916,
+                2.867899218749997,
+                2.812519531250018,
+                2.8080414062499983
+              ],
+              "ordinary": [
+                2.7962648437500093,
+                2.8144921874999937,
+                2.8975835937499994,
+                2.806700781250001,
+                2.803392187500009,
+                2.7997398437499896,
+                2.808604687500008
+              ]
+            },
+            "validCpuPairs": 7,
+            "invalidCpuPairs": 0,
+            "medianGeneratedOverNative": 1.2811387900355873,
+            "medianOrdinaryOverNative": 1.2730496453900708,
+            "medianGeneratedOverOrdinary": 1.0445682451253482,
+            "generatedStrictBreaches": 0,
+            "ordinaryStrictBreaches": 0
+          }
+        },
+        "cpuCaveat": "Unbatched Windows CPU timers can quantize sub-16ms work to zero; compare only valid batched pairs",
+        "scope": "Same private server; loopback HTTP; caller+server process CPU after startup; independently repeated RPCs"
+      }
+    }
+  }
+}

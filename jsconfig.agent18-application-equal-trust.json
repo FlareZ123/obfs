@@ -1,0 +1,18 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "examples/application-challenge/sco-build.cjs",
+    "examples/application-challenge/sco-server.cjs",
+    "test/agent18-application-equal-trust-sco.test.js",
+    "sims/agent18-equaltrust-facade.cjs",
+    "sims/agent18-application-rpc-wire-relay.cjs",
+    "test/agent18-application-equal-trust-browser.cjs",
+    "test/agent18-equaltrust-control-args.test.js",
+    "sims/agent18-application-static-rpc-extractor.cjs",
+    "sims/agent18-application-static-rpc-relay.cjs"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
