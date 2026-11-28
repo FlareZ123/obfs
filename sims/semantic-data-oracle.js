@@ -5,6 +5,7 @@ const {types} = require('node:util');
 // A trusted host loads this helper before the subject. Snapshotting uses
 // captured original primordials, not mutable intrinsics the subject may patch.
 const SafeMap=Map;
+const SafeString=String;
 const realmObjectPrototype=Object.prototype;
 const realmArrayPrototype=Array.prototype;
 const SafeTypeError=TypeError;
@@ -201,7 +202,7 @@ function serializeDataSnapshot(snapshot) {
           length>200000)throw new SafeRangeError('invalid snapshot array length');
       let out='[';
       for(let i=0;i<length;i++){
-        const desc=ownDescriptor(value,String(i));
+        const desc=ownDescriptor(value,SafeString(i));
         if(!desc||!hasOwn(desc,'value'))throw new SafeTypeError('snapshot array contains hole or accessor');
         if(i)out+=',';
         out+=encode(desc.value,depth+1);
