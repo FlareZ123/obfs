@@ -120,4 +120,10 @@ test('SCO path inventory preserves unambiguous source graphs',()=>{
   assert.equal(selectedGraph('alpha.mjs','beta.mjs').exposedPaths.length,2);
   assert.deepEqual(selectiveGraph('PRIVATE/a.mjs','PRIVATE/b.mjs').clientFile.privateModulePaths,
     ['PRIVATE/a.mjs','PRIVATE/b.mjs']);
+  assert.deepEqual(partitionScoSelectedAsyncExports({
+    path:'entry.mjs',code:simple,sourceType:'module'
+  },{
+    seed:'positive-private-source-path-20261128',privateNames:['secret'],
+    additionalPrivateModulePaths:['private/dependency.mjs']
+  }).clientFile.privateModulePaths,['private/dependency.mjs']);
 });
