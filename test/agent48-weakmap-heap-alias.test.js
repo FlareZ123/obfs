@@ -90,7 +90,10 @@ const cases=[
 ['reflect-construct-weakmap','const carrier={instance:Reflect.construct(WeakMap,[])};','carrier.instance'],
 ['computed-reflect-construct-weakmap','const carrier={instance:Reflect["construct"](WeakMap,[])};','carrier.instance'],
 ['alias-reflect-construct-weakmap','const R=Reflect; const carrier={instance:R.construct(WeakMap,[])};','carrier.instance'],
-['global-reflect-construct-weakmap','const carrier={instance:globalThis.Reflect.construct(globalThis.WeakMap,[])};','carrier.instance']
+['global-reflect-construct-weakmap','const carrier={instance:globalThis.Reflect.construct(globalThis.WeakMap,[])};','carrier.instance'],
+['bound-weakmap-constructor','const carrier={instance:new (WeakMap.bind(null))()};','carrier.instance'],
+['aliased-bound-weakmap-constructor','const W=WeakMap.bind(null);const carrier={instance:new W()};','carrier.instance'],
+['reflect-get-weakmap-constructor','const carrier={instance:new (Reflect.get(globalThis,"WeakMap"))()};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
