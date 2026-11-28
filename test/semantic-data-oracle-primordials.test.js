@@ -1,0 +1,76 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const {types}=require('node:util');
+const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
+
+test('trusted oracle is invariant to subject-side mutable intrinsic replacement',()=>{
+  const shared={privateValue:-0};
+  const symbol=Symbol('genuine');
+  const graph=[NaN,-0,9007199254740993n,symbol,symbol,
+    Symbol.for('registry'),shared,shared];
+  graph.push(graph);
+  const baseline=snapshotDataGraph(graph);
+  /** @type {{target:object,key:PropertyKey,original:PropertyDescriptor}[]} */
+  const saved=[];
+  let unexpectedGetterCalls=0;
+  /**
+   * @param {object} target
+   * @param {PropertyKey} key
+   * @param {PropertyDescriptor} replacement
+   */
+  function patch(target,key,replacement){
+    const original=Object.getOwnPropertyDescriptor(target,key);
+    if(!original||!original.configurable)
+      throw new TypeError('expected configurable intrinsic '+String(key));
+    saved.push({target,key,original});
+    Object.defineProperty(target,key,{configurable:true,...replacement});
+  }
+  /** @type {ReturnType<typeof snapshotDataGraph>|undefined} */
+  let observed;
+  /** @type {unknown} */
+  let proxyError;
+  /** @type {unknown} */
+  let exoticError;
+  try {
+    patch(Number,'isNaN',{value:()=>false,writable:true});
+    patch(Object,'is',{value:()=>false,writable:true});
+    patch(Object,'getPrototypeOf',{value:()=>null,writable:true});
+    patch(Object,'isExtensible',{value:()=>false,writable:true});
+    patch(Object,'hasOwn',{value:()=>false,writable:true});
+    patch(Reflect,'ownKeys',{value:()=>[],writable:true});
+    patch(Reflect,'getOwnPropertyDescriptor',{value:()=>undefined,writable:true});
+    patch(Reflect,'apply',{value:()=>{throw Error('mutated apply');},writable:true});
+    patch(Symbol,'keyFor',{value:()=> 'spoofed',writable:true});
+    patch(Symbol.prototype,'description',{get(){unexpectedGetterCalls++;return 'spoof';}});
+    patch(BigInt.prototype,'toString',{value:()=> '0',writable:true});
+    patch(Map.prototype,'get',{value:()=>undefined,writable:true});
+    patch(Map.prototype,'set',{value:()=>undefined,writable:true});
+    patch(Map.prototype,'size',{get:()=>0});
+    patch(Array.prototype,'map',{value:()=>[],writable:true});
+    patch(types,'isProxy',{value:()=>false,writable:true});
+    patch(types,'isMap',{value:()=>false,writable:true});
+
+    observed=snapshotDataGraph(graph);
+    try{
+      snapshotDataGraph(new Proxy({}, {
+        ownKeys(){unexpectedGetterCalls++;return [];},
+        getPrototypeOf(){unexpectedGetterCalls++;return Object.prototype;}
+      }));
+    }catch(error){proxyError=error;}
+    try{snapshotDataGraph(new Map());}
+    catch(error){exoticError=error;}
+  }finally{
+    for(let i=saved.length-1;i>=0;i--){
+      const item=saved[i];
+      Object.defineProperty(item.target,item.key,item.original);
+    }
+  }
+  assert.deepEqual(observed,baseline,
+    'snapshot must not trust mutably replaced global intrinsics after loading');
+  assert.equal(unexpectedGetterCalls,0,
+    'neither user Symbol.description nor Proxy traps may execute');
+  assert.match(String(proxyError),/Proxy/);
+  assert.match(String(exoticError),/exotic/);
+});
