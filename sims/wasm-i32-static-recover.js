@@ -234,10 +234,11 @@ function symbolicDecode(bytes) {
           const test=stack.pop(),alternate=stack.pop(),consequent=stack.pop();
           if(!test||!alternate||!consequent)throw new TypeError('Invalid select operands');
           stack.push({type:'conditional',test,consequent,alternate});
-        } else if(opcode>=0x71&&opcode<=0x76) {
+        } else if(opcode===0x6a||opcode===0x6b||opcode>=0x71&&opcode<=0x76) {
           const right=stack.pop(),left=stack.pop();
           if(!left||!right)throw new TypeError('Invalid stack expression');
-          const operator=['&','|','^','<<','>>','>>>'][opcode-0x71];
+          const operator=opcode===0x6a?'+':opcode===0x6b?'-':
+            ['&','|','^','<<','>>','>>>'][opcode-0x71];
           stack.push({type:'binary',operator,left,right});
         } else throw new TypeError('Unsupported Wasm opcode '+opcode);
       }
