@@ -243,6 +243,13 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     }
     if(!changed)break;
   }
+  /** @param {string} target @returns {Set<string>} */
+  function allCallableOrigins(target) {
+    const origins=new Set();
+    for(const candidates of resolvedCallableOrigins.get(target)?.values()??[])
+      for(const origin of candidates)origins.add(origin);
+    return origins;
+  }
   /** @type {Set<string>} */
   const protectedPaths=new Set();
   for(const [filename,file] of modules) {
@@ -402,19 +409,29 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
       const origins=callableOriginSets.get(node.name)??new Set([origin]);
       for(const producer of origins)protectedPaths.add(producer);
     });
-    // A namespace import is not a direct callable Identifier, but a member
-    // read on that namespace may expose an actual function through a host.
-    // Direct namespace method calls preserve their local-call positive yield.
+    // A namespace member used as a value may expose its Function object.
+    // Dynamic keys conservatively protect every known callable export from
+    // that namespace; direct calls remain local and retain positive yield.
     walk(ast,(node,parent,key)=>{
       if(node.type!=='MemberExpression'||node.object.type!=='Identifier')return;
       const target=importedNamespaces.get(node.object.name);
-      const name=target?member(node):null;
-      const origins=name!==null&&target?
-        resolvedCallableOrigins.get(target)?.get(name):null;
-      if(!origins?.size)return;
+      if(!target)return;
       if(parent?.type==='CallExpression'&&key==='callee'&&
          parent.callee===node&&!parent.optional)return;
-      for(const producer of origins)protectedPaths.add(producer);
+      const name=member(node);
+      const origins=name!==null?
+        resolvedCallableOrigins.get(target)?.get(name):allCallableOrigins(target);
+      for(const producer of origins??[])protectedPaths.add(producer);
+    });
+    // Passing, aliasing, reflecting on, or otherwise publishing the namespace
+    // object can expose any callable export. The static member path above is
+    // the only reference shape treated more narrowly.
+    walk(ast,(node,parent,key)=>{
+      if(node.type!=='Identifier'||!importedNamespaces.has(node.name))return;
+      if(parent?.type==='ImportNamespaceSpecifier')return;
+      if(parent?.type==='MemberExpression'&&key==='object'&&parent.object===node)return;
+      const target=importedNamespaces.get(node.name);
+      for(const producer of allCallableOrigins(target))protectedPaths.add(producer);
     });
   }
   if(process.env.OBFS_FOCUSED_TEST==='test/agent25-esm-export-escape-heldout.test.js') {
