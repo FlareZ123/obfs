@@ -1474,14 +1474,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(coercers,property.value.name)||changed;
         }
       }
-      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
-         isCssNamespace(node.init)) {
-        for(const property of node.id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?staticString(property.key):
-            property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name===null || name==='escape')
-            changed=add(coercers,property.value.name)||changed;
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern') {
+        const nativeCss=isCssNamespace(node.init);
+        const importedCssKeys=node.init?.type==='Identifier'?
+          cssImportedObjectKeys.get(node.init.name):undefined;
+        if(nativeCss || importedCssKeys?.size) {
+          for(const property of node.id.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+            const name=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((nativeCss && (name===null||name==='escape'))||
+               (importedCssKeys?.size &&
+                (name===null||importedCssKeys.has(name))))
+              changed=add(coercers,property.value.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
