@@ -21,22 +21,18 @@ const mutationSource=[
 
 const storageSource=[
   'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
-  'if(!descriptor||typeof descriptor.value!=="function")throw new Error("Storage.setItem descriptor unavailable");',
   'const captured=new WeakMap();',
   'function inspect(){const privateLocal=29;return privateLocal;}',
   'function independent(){const independentLocal=7;return independentLocal;}',
   'export function sample(){',
   '  Object.defineProperty(Storage.prototype,"setItem",{',
   '    ...descriptor,',
-  '    value:function(_key,value){',
-  '      captured.set(this,value);',
-  '      return Reflect.apply(descriptor.value,this,[_key,"constant"]);',
-  '    }',
+  '    value:function(_key,value){captured.set(this,value);}',
   '  });',
-  '  localStorage.setItem("agent3-reflect-apply-weakmap-crossfile",inspect);',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\n');
+].join('\\n');
 
 const entrySource=[
   "import './mutate.mjs';",
