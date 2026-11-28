@@ -61,20 +61,15 @@ test('inert parser controls remain admissible',()=>{
     '<select><option value="alpha">Alpha</option><option>Beta</option></select>',
     '<!--<select><svg><script>not executable</script></svg></select>-->',
     '<div data-note="select">No scripts</div>',
-    '<script type="importmap">{"imports":{"sample":"./safe.mjs"},"note":"<select><svg><script>text</script></svg></select>"}</script>'
+    '<textarea><select><svg><script>not executable</script></svg></select></textarea>',
+    '<style>/* <select><svg><script>not executable</script></svg></select> */</style>',
+    '<script type="importmap">{"imports":{"sample":"./safe.mjs"}}</script><select><option>Safe</option></select>',
+    '<select><svg><a href="#safe"><set attributeName="href" to="#other" begin="0s"/></a></svg></select>'
   ];
   for(const html of safe){
-    // A JSON import map carrying unknown keys is intentionally rejected by
-    // the existing safe import-map contract; use a *valid* spec for controls.
-    if(html.includes('"note"'))continue;
     assert.equal(findInlineHtmlSource(doc(html)),null,html);
     assert.doesNotThrow(()=>audit(html),html);
   }
-  const safeMap='<script type="importmap">'+
-    '{"imports":{"<select><svg><script>text</script></svg></select>":"./safe.mjs"}}'+
-    '</script><select><option>Safe</option></select>';
-  assert.equal(findInlineHtmlSource(doc(safeMap)),null,'JSON import-map raw text');
-  assert.doesNotThrow(()=>audit(safeMap),'JSON import-map source-pinning control');
 });
 
 test('real HTTP Chrome executes source-bearing markup that parse5 7.3 erased',{
