@@ -1,6 +1,9 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/css-escape-function-source.test.js",
+    "test/css-escape-cross-file-source.test.js",
+    "test/css-escape-source-browser.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
