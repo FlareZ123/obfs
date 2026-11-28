@@ -79,6 +79,9 @@ test('private SCO verifier accepts genuine separately deployed ESM source files'
     await fs.writeFile(path.join(root,'private','main.mjs'),main);
     await fs.writeFile(path.join(root,'private','leaf.mjs'),approvedLeaf);
     await verifyScoPrivateSourceDigests(partition,root);
+    const imported=await import(pathToFileURL(path.join(root,'private','main.mjs')).href);
+    assert.equal(imported.probe(),'reviewed-child',
+      'A real distinct-file deployment resolves the approved relative ESM import');
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
