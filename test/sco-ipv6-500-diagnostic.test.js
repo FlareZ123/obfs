@@ -90,3 +90,40 @@ test('SCO HTTP rejects original source-observable IPv6 script without publishing
     await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
   }
 });
+
+test('diagnostic: distinguish source-observer boundaries across isolated browser expressions',()=>{
+  const {parse,observesFunctionSource,observesDistributedSource}=require('../src/ast');
+  const samples=[
+    ['local-scalar','const obfsWitness=41;'],
+    ['global-scalar','globalThis.__obfsWitness=41;'],
+    ['global-location','globalThis.__obfsWitness=location.hostname+"|42";'],
+    ['window-location','window.__obfsWitness=location.hostname+"|42";'],
+    ['document-title','document.title=location.hostname+"|42";'],
+    ['dom-first-element','document.body.firstElementChild.textContent=location.hostname+"|42";'],
+    ['dom-first-element-static','document.body.firstElementChild.textContent="ok";'],
+    ['dom-lookup','document.getElementById("out").textContent=location.hostname+"|42";'],
+    ['dom-lookup-static','document.getElementById("out").textContent="ok";'],
+    ['self-location','self.__obfsWitness=location.hostname;'],
+    ['global-computed','globalThis["__obfsWitness"]=location.hostname;'],
+    ['element-ref','const e=document.body.firstElementChild;e.textContent="ok";']
+  ];
+  /** @type {{name:string,sourceObserver:boolean,distributedObserver:boolean,success:boolean,error:string|null}[]} */
+  const outcome=[];
+  for(const [name,code] of samples){
+    const ast=parse(code,'script');
+    let success=false,error=null;
+    try {
+      obfuscateFiles([{...input,code}],{
+        mode:'sco',seed:'7'.repeat(48),allowedHosts:['[::1]'],properties:true,identifiers:true
+      });
+      success=true;
+    } catch(cause) {error=String(cause);}
+    outcome.push({
+      name,sourceObserver:observesFunctionSource(ast),
+      distributedObserver:observesDistributedSource(ast),success,error
+    });
+  }
+  console.log('IPV6_OBSERVER_MATRIX='+JSON.stringify(outcome));
+  assert.equal(outcome[0].success,true,'Minimal scalar source must remain obfuscatable');
+  assert.equal(outcome.find(row=>row.name==='dom-lookup')?.success,false);
+});
