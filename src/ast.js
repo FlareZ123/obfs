@@ -1712,6 +1712,14 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='ConditionalExpression') {
       visitCarrierExpression(node.test,environment,thisValue);
+      // A literal Boolean has only one reachable arm. Joining an impossible
+      // arm creates spurious may-alias/WeakMap capabilities and can force a
+      // source-reflection veto in an otherwise proven-ordinary program.
+      if(node.test.type==='Literal'&&typeof node.test.value==='boolean') {
+        visitCarrierExpression(node.test.value?node.consequent:node.alternate,
+          environment,thisValue);
+        return;
+      }
       const consequent=snapshotCarrierEnvironment(environment);
       const alternate=snapshotCarrierEnvironment(environment);
       visitCarrierExpression(node.consequent,consequent,thisValue);
@@ -1721,6 +1729,13 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='LogicalExpression') {
       visitCarrierExpression(node.left,environment,thisValue);
+      if(node.left.type==='Literal'&&typeof node.left.value==='boolean') {
+        const truth=node.left.value;
+        const runRight=node.operator==='&&'?truth:
+          node.operator==='||'?!truth:false; // ?? never runs for Boolean
+        if(runRight)visitCarrierExpression(node.right,environment,thisValue);
+        return;
+      }
       const skipped=snapshotCarrierEnvironment(environment);
       const executed=snapshotCarrierEnvironment(environment);
       visitCarrierExpression(node.right,executed,thisValue);
@@ -1835,6 +1850,14 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='IfStatement') {
       visitCarrierExpression(statement.test,environment,thisValue);
+      if(statement.test.type==='Literal'&&
+         typeof statement.test.value==='boolean') {
+        const reachable=statement.test.value?
+          statement.consequent:statement.alternate;
+        if(reachable)
+          visitCarrierStatement(reachable,environment,thisValue,throwCollector);
+        return;
+      }
       const consequent=snapshotCarrierEnvironment(environment);
       const alternate=snapshotCarrierEnvironment(environment);
       visitCarrierStatement(statement.consequent,consequent,thisValue,throwCollector);
