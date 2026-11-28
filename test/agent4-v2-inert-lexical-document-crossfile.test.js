@@ -67,21 +67,25 @@ for(const [name,entry] of Object.entries(entryBodies)){
     assert.equal(original.title.length>0,observed);
     const evidence=[];
     for(const mode of ['coo','sco','sno']){
-      const compiled=obfuscateFiles(sourceFiles,{
-        mode,seed:'agent4-lexical-document-graph-'+name+'-'+mode,
-        closedWorld:true,identifiers:true,properties:false,strings:false
-      });
-      const libraryOutput=compiled.files.find(file=>file.path==='library.mjs');
-      assert.ok(libraryOutput);
-      const emitted=execute(compiled.files.map(file=>({
-        path:file.path,sourceType:'module',code:String(file.code)
-      })));
-      assert.deepEqual(emitted,original,mode+' '+name+' crossfile native/emitted parity');
-      if(observed)assert.equal(libraryOutput.metrics.bindings,0,
-        'Imported function handed to the real Document must keep its original source');
-      else assert.ok(libraryOutput.metrics.bindings>0,
-        'Independent private ESM leaf should retain safe identifier protection');
-      evidence.push({mode,bindings:libraryOutput.metrics.bindings,parity:true});
+      for(const properties of [false,true]){
+        const compiled=obfuscateFiles(sourceFiles,{
+          mode,seed:'agent4-lexical-document-graph-'+name+'-'+mode+'-'+properties,
+          closedWorld:true,identifiers:true,properties,strings:false
+        });
+        const libraryOutput=compiled.files.find(file=>file.path==='library.mjs');
+        assert.ok(libraryOutput);
+        const emitted=execute(compiled.files.map(file=>({
+          path:file.path,sourceType:'module',code:String(file.code)
+        })));
+        assert.deepEqual(emitted,original,
+          mode+' properties='+properties+' '+name+' crossfile native/emitted parity');
+        if(observed)assert.equal(libraryOutput.metrics.bindings,0,
+          'Imported function handed to the real Document must keep its original source');
+        else assert.ok(libraryOutput.metrics.bindings>0,
+          'Independent private ESM leaf should retain safe identifier protection');
+        evidence.push({mode,properties,bindings:libraryOutput.metrics.bindings,
+          renamedProperties:libraryOutput.metrics.properties,parity:true});
+      }
     }
     console.log('LEXICAL_DOCUMENT_CROSSFILE '+
       JSON.stringify({name,observed,original,evidence}));
