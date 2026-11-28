@@ -2591,10 +2591,26 @@ function hasNativeDocumentFactoryMutation(ast) {
     if(target?.type==='MemberExpression') {
       const receiver=target.object;
       const field=key(target);
+      // Unknown receivers can be Document proxies, wrapper returns or host
+      // aliases. A direct write to an exact factory spelling must veto the
+      // local Node-brand proof even if alias provenance is incomplete.
+      if(factories.has(field??''))mutated=true;
       if(isDocument(receiver)||isDocPrototype(receiver)) {
         if(field===null||factories.has(field)||field==='__proto__')mutated=true;
       }
       if(isGlobal(receiver)&&(field===null||field==='document'))mutated=true;
+    }
+    // A detached Reflect.set/defineProperty or an application-defined
+    // writer can mutate a passed document without spelling its method name
+    // on the callee. Conservatively decline unknown direct calls given an
+    // ambient document/prototype and a possibly factory-named key.
+    if(node.type==='CallExpression'&&node.arguments.some(
+         (/** @type {AstNode} */ arg)=>isDocument(arg)||isDocPrototype(arg))) {
+      const mentionsFactory=node.arguments.some((/** @type {AstNode} */ arg)=>
+        arg?.type==='Literal'&&typeof arg.value==='string'&&
+        factories.has(arg.value));
+      if(mentionsFactory||node.callee.type==='Identifier')
+        mutated=true;
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
        node.callee.object.type==='Identifier'&&
