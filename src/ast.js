@@ -2094,7 +2094,7 @@ function hasWeakMapPrototypeExposure(ast) {
                   !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
                     x?.type==='SpreadElement'))
             argumentsToReplay=node.arguments[1].elements.map(
-              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void',start:0,end:0}));
           const receiver=evaluateCarrierValue(node.arguments[0],environment,thisValue);
           replayLocalFunctionEffects(owner,environment,receiver,false,
             argumentsToReplay);
@@ -2112,7 +2112,7 @@ function hasWeakMapPrototypeExposure(ast) {
                   !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
                     x?.type==='SpreadElement'))
             passed=node.arguments[1].elements.map(
-              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void',start:0,end:0}));
           // An inline callable has no mutable binding alias; still join both
           // execution and nonexecution for potentially overridden intrinsics.
           const receiver=node.callee.object.type==='ArrowFunctionExpression'?
@@ -2139,6 +2139,25 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(node.type==='NewExpression') {
+      // Evaluating an inline class expression precedes evaluating the new
+      // arguments. Static blocks/fields and ToPropertyKey for computed keys
+      // may install an observable WeakMap prototype source hook. Instance
+      // fields can then run before the explicit constructor's body.
+      if(node.callee.type==='ClassExpression') {
+        /** @param {AstNode|null|undefined} value @returns {boolean} */
+        const inertLiteral=value=>!value||value.type==='Literal'&&
+          (value.value===null||typeof value.value!=='object');
+        for(const element of node.callee.body?.body??[]) {
+          if(element.computed&&!inertLiteral(element.key))exposed=true;
+          if(element.type==='StaticBlock') {
+            if((element.body??[]).some(
+              (/** @type {AstNode} */ statement)=>statement.type!=='EmptyStatement'))
+              exposed=true;
+          } else if(element.type==='PropertyDefinition') {
+            if(!inertLiteral(element.value))exposed=true;
+          } else if(element.type!=='MethodDefinition')exposed=true;
+        }
+      }
       for(const argument of node.arguments??[]) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
