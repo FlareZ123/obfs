@@ -32,7 +32,8 @@ function graph(sample) {
     {path:'logic.mjs',sourceType:'module',
       code:'const owner={secretField:57};export function inspect(){return owner.secretField;}'},
     {path:'pure.mjs',sourceType:'module',
-      code:'const record={privateField:73};export const independent=record.privateField;'},
+      code:'const record={privateField:73};export const independent=73;'+
+        'export const locallyOwnedRecordValue=record.privateField;'},
     {path:'observer.mjs',sourceType:'module',
       code:[
         'import {inspect} from "./logic.mjs";',
