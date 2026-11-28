@@ -27,7 +27,8 @@ function store(file){return createScoWebAuthnSqliteStore(file);}
 /**
  * A fixture with a genuine independently generated ES256 public/private pair.
  * @param {ReturnType<typeof store>} state
- * @param {{lookupCredential?:import('../src/sco-webauthn-admission').ScoWebAuthnAdmissionOptions['lookupCredential']}} [overrides]
+ * @param {{lookupCredential?:import('../src/sco-webauthn-admission').ScoWebAuthnAdmissionOptions['lookupCredential'],
+ *   maxChallenges?:number}} [overrides]
  */
 function fixture(state,overrides={}){
   const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
@@ -35,7 +36,7 @@ function fixture(state,overrides={}){
   const current={signCount:0};
   const gate=createScoWebAuthnAdmission({
     rpId:'localhost',allowedOrigins:['http://localhost:8080'],
-    allowInsecureLocalhost:true,stateStore:state,
+    allowInsecureLocalhost:true,stateStore:state,maxChallenges:overrides.maxChallenges,
     lookupCredential:overrides.lookupCredential??((principal,id)=>
       principal==='accountA'&&id===credentialId?
         {publicKey,signCount:current.signCount}:null),
@@ -215,7 +216,7 @@ test('global SQLite challenge capacity and invalid path refuse across connection
   await withDatabase('cap.sqlite',async file=>{
     const a=store(file),b=store(file);
     try{
-      const one=fixture(a);
+      const one=fixture(a,{maxChallenges:1});
       const two=createScoWebAuthnAdmission({
         rpId:'localhost',allowedOrigins:['http://localhost:8080'],
         allowInsecureLocalhost:true,stateStore:b,maxChallenges:1,
@@ -245,6 +246,11 @@ test('SQLite rejects mismatched RP origin/session policy across worker instances
         allowInsecureLocalhost:true,requireUserVerification:false,stateStore:two,
         lookupCredential:()=>null,updateSignCount:()=>false
       }),/replica configuration/u,'Different UV requirement must refuse at startup');
+      assert.throws(()=>createScoWebAuthnAdmission({
+        rpId:'localhost',allowedOrigins:['http://localhost:8080'],
+        allowInsecureLocalhost:true,stateStore:two,maxChallenges:1,
+        lookupCredential:()=>null,updateSignCount:()=>false
+      }),/replica configuration/u,'Different challenge capacity must refuse at startup');
     }finally{one.close();two.close();}
   });
 });
