@@ -43,9 +43,15 @@ function originalFiles(scenario='windowproxy'){
       scenario==='computedSetter' ?
         "const selector=['inner','HTML'].join('');doc.head[selector]="+JSON.stringify(markup)+";" :
       scenario==='reflectSet' ?
-        'Reflect.set(doc.head,"innerHTML",'+JSON.stringify(markup)+');' :
+        [
+          "const runtimeHtml='<link id=\"sri-probe\" rel=\"modulepreload\" href=\"./leaf.mjs?integrity=1\" integrity=\"'+doc.body.dataset.pinValue+'\">';",
+          'Reflect.set(doc.head,"innerHTML",runtimeHtml);'
+        ].join('\n') :
       scenario==='objectAssign' ?
-        'Object.assign(doc.head,{innerHTML:'+JSON.stringify(markup)+'});' :
+        [
+          "const runtimeHtml='<link id=\"sri-probe\" rel=\"modulepreload\" href=\"./leaf.mjs?integrity=1\" integrity=\"'+doc.body.dataset.pinValue+'\">';",
+          'Object.assign(doc.head,{innerHTML:runtimeHtml});'
+        ].join('\n') :
         'doc.head.insertAdjacentHTML("beforeend",'+JSON.stringify(markup)+');';
   const entry=[
     "import {leaf} from './leaf.mjs';",
@@ -118,7 +124,7 @@ async function serve(){
     .update(String(original[0].code)).digest('base64');
   for(const [folder,group] of graphs){
     for(const file of group)files.set('/'+folder+'/'+file.path,String(file.code));
-    const bodyOpen=scenario==='hostData' ?
+    const bodyOpen=['hostData','reflectSet','objectAssign'].includes(scenario) ?
       '<body data-pin-key="integrity" data-pin-value="'+trustedPin+'">' :
       '<body>';
     files.set('/'+folder+'/index.html',
