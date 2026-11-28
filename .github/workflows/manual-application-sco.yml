@@ -25,6 +25,8 @@ jobs:
         run: node examples/application-challenge/sco-build.cjs --check --dump
       - name: Test source withholding, authorization, online relay, and paired costs
         run: node --test test/application-challenge-sco.test.js
+      - name: Verify exact arguments semantics of same-trust ordinary RPC control
+        run: node --test test/agent18-equaltrust-control-args.test.js
       - name: Compare real six-module SCO with same-trust ordinary-minified client
         run: node --test test/agent18-application-equal-trust-sco.test.js
       - name: Strict JSDoc for same-trust application attacker probe
