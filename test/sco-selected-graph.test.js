@@ -662,7 +662,8 @@ test('selected SCO protected batches honor an inherited operation authorizer onc
     enumerable:false,
     get(){
       getterReads++;
-      return (_request,method,/** @type {unknown[]} */ args)=>
+      return (/** @type {http.IncomingMessage} */ _request,
+        /** @type {string} */ method,/** @type {unknown[]} */ args)=>
         method===graph.partitions['inherited.mjs'].batchMethod||
         method===graph.partitions['inherited.mjs'].methodNames.secret&&
         args[0]==='allowed';
