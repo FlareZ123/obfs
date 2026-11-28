@@ -128,6 +128,15 @@ function createScoWebAuthnAdmission(options){
   const maxSessions=positiveInteger(options.maxSessions??4096,'maxSessions');
   const now=options.now??Date.now;
   if(typeof now!=='function')throw new TypeError('WebAuthn now must be a function');
+  // Shared admission state must not silently mix RP IDs, origin lists,
+  // user-verification policy or TTL/capacity rules across Node replicas.
+  // Caller-provided credential registries and clocks still need identical
+  // trusted application policy and a synchronized time model.
+  const configurationHash=createHash('sha256').update(JSON.stringify([
+    'obfs-sco-webauthn-admission-v1',rpId,[...origins].sort(),requireUV,
+    challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions
+  ])).digest('hex');
+  state.assertConfiguration?.(configurationHash);
   const rpHash=createHash('sha256').update(rpId,'utf8').digest();
   const suppliedState=options.stateStore??createScoWebAuthnMemoryStore();
   if(!suppliedState||typeof suppliedState.insertChallenge!=='function'||
@@ -146,7 +155,8 @@ function createScoWebAuthnAdmission(options){
     mintSession:suppliedState.mintSession.bind(suppliedState),
     authorizeSession:suppliedState.authorizeSession.bind(suppliedState),
     revokeSession:suppliedState.revokeSession.bind(suppliedState),
-    revokePrincipal:suppliedState.revokePrincipal.bind(suppliedState)
+    revokePrincipal:suppliedState.revokePrincipal.bind(suppliedState),
+    assertConfiguration:suppliedState.assertConfiguration?.bind(suppliedState)
   };
   let lastObservedTime=0;
   /** @returns {number} */
