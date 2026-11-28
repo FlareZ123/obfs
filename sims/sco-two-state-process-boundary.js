@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {fork}=require('node:child_process');
 const {randomBytes}=require('node:crypto');
 const http=require('node:http');
-const {createPolicy,learn,continuation,equivalent}=
+const {createPolicy,learnExpected,continuation,equivalent}=
   require('./sco-two-state-optimal-network-policy');
 
 /** @typedef {import('./sco-two-state-optimal-network-policy').Machine} Machine */
@@ -195,9 +195,9 @@ async function runAttacker(){
       assert.equal(policy.beliefs.length,4429);
       assert.equal(policy.ranks[0],9);
       bindFetch(scoOrigin);
-      const sco=await learn(scoApi,policy);
+      const sco=await learnExpected(scoApi,policy);
       bindFetch(ordinaryOrigin);
-      const ordinary=await learn(ordinaryApi,policy);
+      const ordinary=await learnExpected(ordinaryApi,policy);
       assert.deepEqual(ordinary.inputs,sco.inputs);
       assert.deepEqual(ordinary.outputs,sco.outputs);
       assert.ok(sco.queries<=9);
