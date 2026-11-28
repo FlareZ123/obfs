@@ -1995,26 +1995,26 @@ function hasWeakMapPrototypeExposure(ast) {
       const branches=[];
       let fallthroughEnvironment=snapshotCarrierEnvironment(environment);
       for(const branch of statement.cases??[]) {
-        const branchEnv=snapshotCarrierEnvironment(environment);
-        for(const [name,value] of fallthroughEnvironment) {
-          const base=environment.get(name)??carrierOther;
-          branchEnv.set(name,mergeCarrierValues(base,value));
-        }
+        // A switch case may be entered directly or by fallthrough. Preserve
+        // one shared heap-pair memo for *all* bindings at that predecessor
+        // join; independently merging each binding can sever a feasible
+        // container alias before a later WeakMap write.
+        /** @type {Map<string,CarrierValue>} */
+        const branchEnv=new Map();
+        joinCarrierEnvironments(branchEnv,environment,fallthroughEnvironment);
         for(const child of branch.consequent??[])
           visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
-      // Reuse one pair memo per predecessor when joining across different
-      // binding names, or post-switch aliases become unrelated heaps.
-      /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>[]} */
-      const joinPairs=branches.map(()=>new Map());
-      for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
-        let value=environment.get(name)??carrierOther;
-        for(let i=0;i<branches.length;i++)
-          value=mergeCarrierValues(value,branches[i].get(name)??carrierOther,joinPairs[i]);
-        environment.set(name,value);
+      let merged=snapshotCarrierEnvironment(environment);
+      for(const branch of branches) {
+        /** @type {Map<string,CarrierValue>} */
+        const joined=new Map();
+        joinCarrierEnvironments(joined,merged,branch);
+        merged=joined;
       }
+      for(const [name,value] of merged)environment.set(name,value);
     }
   }
 
