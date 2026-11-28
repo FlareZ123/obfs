@@ -108,3 +108,24 @@ test('wire observer catches semantic-invisible ordinary JSON response extension'
   await assert.rejects(()=>runProcessBoundary(false,true),
     /Wire transcript mismatch after semantic parity/);
 });
+
+test('predeclared 16 real SCO private tables cover all four optimal public-query depths',async()=>{
+  // The evaluator transmits each table index to the trusted server over a
+  // private IPC handshake. No index is passed to the public attacker.
+  const cases=[
+    [45,6],[48,6],[49,6],[60,6],
+    [0,7],[1,7],[2,7],[3,7],
+    [7,8],[13,8],[17,8],[22,8],
+    [10,9],[11,9],[16,9],[18,9]
+  ];
+  for(const [id,expectedQueries] of cases){
+    const result=await runProcessBoundary(false,false,id);
+    assert.equal(result.modelId,id);
+    assert.equal(result.queries,expectedQueries);
+    assert.equal(result.exact,true);
+    assert.equal(result.wireMatched,true);
+    assert.equal(result.wireCalls,result.queries+16);
+    assert.equal(result.unauthorizedSco,403);
+    assert.equal(result.unauthorizedOrdinary,403);
+  }
+});
