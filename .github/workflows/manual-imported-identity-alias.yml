@@ -49,3 +49,7 @@ jobs:
         run: node test/cross-file-property-mangle-control.js
       - name: Identity alias positive and unsafe refusal differentials
         run: node --test test/cross-file-identity-return.test.js test/cross-file-imported-identity-alias.test.js test/cross-file-imported-identity-fuzz.test.js
+      - name: Agent 6 multi-owner record native differential and strict refusal
+        run: node --test test/agent6-multi-slot-private-record-proof.test.js test/private-record-proof.test.js
+      - name: Agent 6 additional external JSDoc gate
+        run: npm run typecheck:external
