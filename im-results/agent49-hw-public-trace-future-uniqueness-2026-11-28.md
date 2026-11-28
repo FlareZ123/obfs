@@ -1,0 +1,71 @@
+# Solver-free, public-trace-only bounded Mealy future-uniqueness certificates (28 November 2026)
+
+**Status:** constructive finite-state finding with independent local replay and bounded exhaustive checks. Exact-head CI for the current implementation is underway. This is **not** a universal JavaScript-program reconstruction theorem, source-recovery result, environment-locking result, or evidence of satisfying the protected application's 2.5× runtime ceiling.
+
+## Research question and data provenance
+
+The earlier [36-target hW study](agent49-hw-loopback-probe-validation-2026-11-26.md), [GitHub Actions run 45815986225](https://github.com/FlareZ123/obfs/actions/runs/45815986225), source commit 719bb1f438e0b1645782d520f34f97dcae559d96, recorded public no-reset input/output traces of independently seeded 16–24-state deterministic binary Mealy machines via authorized SCO and ordinary-minified HTTP controls. The returned learned hypotheses reproduced future behavior in all 36 cases in both arms, but four selected full-state-space SMT audits returned UNKNOWN after timeouts.
+
+The present investigation asks whether the **public input/output trace alone** can prove that every deterministic candidate machine with at most K states reproducing that trace has the same *future behavior* from its post-trace state. The private target table and hidden target size are never read by the inference procedure; held-out tables are read only in a separate post-inference evaluator verification.
+
+**Original archived data:** artifact ID 15118288275, ZIP SHA-256 8397e7209dc8a23a35210568a5930ad1bbca70dba03e82bdeb4d727c2d0fdbf9, evaluator live-hw-matched-results.json SHA-256 8601afdfd58c58655170304e6f3503cb2c658f3adaf7a4cb942fdf23330cd83b.
+
+## Constructive mathematical certificate
+
+For a deterministic Mealy machine with states Q, transitions delta and outputs lambda, fix a no-reset public trace T of input/output pairs. Find one input word w of length d at most 12 that occurs in several contiguous windows with **k distinct aligned output words**. Each starting state produces exactly one output word for the same w, so any candidate consistent with T must have at least k states (the [trace-diversity lower bound](agent49-hw-trace-state-analytic-bound-2026-11-28.md)).
+
+For candidate machines with **at most k states**, this forces exactly k. Each of the k different responses to w uniquely labels a distinct state; the k response fingerprints cover every state, up to arbitrary renaming. Every trace-start position with input word w and response fingerprint v_i has the corresponding state i. These are independently checkable public witness positions.
+
+The following are forced deductions in every consistent k-state candidate, without speculation:
+
+1. At a known state i, an observed input a and output b force lambda(i,a)=b.
+2. If the next trace position's state j is known, delta(i,a)=j; conversely, once delta(i,a) is known, that next state position is known.
+3. If an already pinned state i produces output word v on an input word u in the public trace, another position with the same u but a different output word **cannot** be i. Exclude i from that position's set of possible states. If only one of the k states survives, the position is forced.
+
+Apply these monotone deductions until a fixed point. If all 2k transition entries and 2k output entries are forced and an independent replay of **every possible initial state** that matches the public trace ends in the same post-trace state, the table and its post-trace future behavior are uniquely determined **within the k-state candidate class**. The proof is a finite certificate with concrete fingerprint windows, forced table entries, and matching-start replays. Machines with fewer than k states are impossible by the lower bound. Thus **no candidate of at most k states can differ in future output behavior from this model**. No Z3 solver is required.
+
+If the procedure cannot force every entry or cannot prove the common post-state, it returns **incomplete**. This is neither a SAT witness nor proof that an implementation is secure. Machines with more than k states remain outside the certificate; arbitrary JavaScript source reconstruction remains outside the model.
+
+## Empirical observations on the original 36 public traces
+
+The deterministic certificate generator scanned input words up to 12 symbols and then separately compared the public-only reconstruction against the held-out evaluator table under the observed fingerprint-based state renaming:
+
+| Measure | Reproduced local result |
+| --- | ---: |
+| Archived 16–24-state no-reset public traces | 36 |
+| Public state lower bound equals true target size | 29/36 |
+| Fully forced transition/output table AND unique post-trace future | **23/36** |
+| Public certificate independently replayed | 23/23 |
+| Full transition/output table and post-state independently matched to hidden evaluator fixture | 23/23 |
+| Unresolved traces, not classified as ambiguous or secret | 13 |
+| Original four Z3 UNKNOWN target-sized audits now settled by this certificate | **3/4** |
+
+**Per target size:** 16 states: 4/4; 17: 1/4; 18: 4/4; 19: 2/4; 20: 2/4; 21: 2/4; 22: 2/4; 23: 3/4; 24: 3/4. Total 23/36.
+
+Three formerly UNKNOWN Z3 audits have full public-table certificates: 24-state target seeds 4192016255979584362 and 16373758958132047675, plus 23-state seed 17678319770404900897. The fourth 24-state seed 3493739885176087174 is **still incomplete**, despite its trace-diversity state bound reaching 24.
+
+An independent exact enumeration of **140,484** deterministic binary machines plus initial states with 1–3 states on a constructed three-state trace found exactly **six** trace-matching candidates and zero alternative future behaviors, corroborating the positive certificate in that finite case. Another randomized two-state test enumerated all **516** possible one- and two-state model/start combinations per selected trace. Tests also reject tampered certificates, invalid trace symbols and unobserved edge information. These exhaustive controls do not replace the general deterministic argument.
+
+The local full 36-case public inference plus independent evaluator cross-check ran in **16.29 seconds** wall time at 132,376 KB peak RSS on the local Python runtime. This is forensic analysis time; it says **nothing** about the protected JavaScript 2.5× compute budget.
+
+## Source and reproduction
+
+Experimental [draft PR #381](https://github.com/FlareZ123/obfs/pull/381), branch agent49/hw-cross-arm-probe-20261126, contains:
+
+- sims/agent49_hw_passive_reconstruction.py — solver-free certificate construction, public verifier and optional *post-inference* private fixture comparison.
+- sims/test_agent49_hw_passive_reconstruction.py — positive and negative tests, all 140,484 one-to-three-state candidate/start controls, further one-/two-state randomized controls.
+- sims/agent49_hw_trace_lower_bound.py — independently checkable lower-bound-only certificates.
+- .github/workflows/manual-agent2-hw-live-matched-control.yml — exact historical artifact download, current live experiments, selectable experimental solver formulations, and independent public-only certificate artifacts.
+
+To reproduce, download artifact 15118288275 from run 45815986225 into a directory named historical and run:
+
+    python sims/agent49_hw_passive_reconstruction.py --input historical/live-hw-matched-results.json --output hw-passive-reconstruction.json --max-depth 12 --check-fixture
+    python sims/test_agent49_hw_passive_reconstruction.py
+
+The optional --check-fixture flag does **not** contribute to public inference. It verifies the completed result against the evaluator-only original table afterward. Each successful result includes the public input/output fingerprint witness, the full forced state table, and replayable matching initial/post-state evidence.
+
+## Interpretive limitations and open work
+
+This is a bounded **negative result** for the intuition that a source-private SCO service necessarily prevents finite-state *functional-oracle reconstruction*: the attacker has unlimited legitimate authenticated queries and can collect a highly informative trace. It does not imply the original JavaScript source was recovered, universal authorized-domain locking was defeated, the service authentication was bypassed, nor that arbitrary SCO/COO/SNO programs are reconstructable. No comparison between forensic work and protected JavaScript's required 2.5× runtime is established. All current classification claims are conditional on exact deterministic Mealy semantics and candidate state count no greater than the trace-derived k.
+
+The 13 unresolved traces may have or lack future-divergent candidates; no conclusion is licensed. The next evidence standard is successful exact-head CI with archived raw outputs and independent peer review of the proof. **Release remains NO-GO** for the primary strong-obfuscator objective.
