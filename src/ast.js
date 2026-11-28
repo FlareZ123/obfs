@@ -1329,6 +1329,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
               if(isFunctionValue(property.value))addObjectFunctionKey(name,key);
               if(property.kind==='init'&&!property.method&&isTimingMethod(property.value))
                 addWebObjectKey(timingMethodObjectKeys,name,key);
+              if(property.kind==='init'&&!property.method&&isTimingReceiver(property.value))
+                addWebObjectKey(timingReceiverObjectKeys,name,key);
               if(property.kind==='init'&&!property.method)
                 addWebObjectExpression(name,key,property.value);
             }
@@ -1341,7 +1343,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
             boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
-            urlConstructorObjectKeys,timingMethodObjectKeys]) {
+            urlConstructorObjectKeys,timingMethodObjectKeys,timingReceiverObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1369,7 +1371,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // converting method without spelling the receiver at the call site.
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          node.init&&(isTimingModule(node.init)||isTimingReceiver(node.init)||
-            node.init.type==='Identifier'&&timingMethodObjectKeys.has(node.init.name))) {
+            node.init.type==='Identifier'&&(timingMethodObjectKeys.has(node.init.name)||
+              timingReceiverObjectKeys.has(node.init.name)))) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const key=property.computed?staticString(property.key):
@@ -1381,6 +1384,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(key!==null&&node.init.type==='Identifier'&&
              timingMethodObjectKeys.get(node.init.name)?.has(key))
             changed=add(timingMethods,property.value.name)||changed;
+          if(key!==null&&node.init.type==='Identifier'&&
+             timingReceiverObjectKeys.get(node.init.name)?.has(key))
+            changed=add(timingReceivers,property.value.name)||changed;
         }
       }
       // Function formal arguments can transport a native User Timing
@@ -1403,6 +1409,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             if(actual.type==='Identifier') {
               for(const key of timingMethodObjectKeys.get(actual.name)??[])
                 addWebObjectKey(timingMethodObjectKeys,name,key);
+              for(const key of timingReceiverObjectKeys.get(actual.name)??[])
+                addWebObjectKey(timingReceiverObjectKeys,name,key);
             }
             if(actual.type==='ObjectExpression') {
               for(const property of actual.properties) {
@@ -1411,6 +1419,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
                   property.key.type==='Identifier'?property.key.name:staticString(property.key);
                 if(key!==null&&isTimingMethod(property.value))
                   addWebObjectKey(timingMethodObjectKeys,name,key);
+                if(key!==null&&isTimingReceiver(property.value))
+                  addWebObjectKey(timingReceiverObjectKeys,name,key);
               }
             }
           }
@@ -1470,6 +1480,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           addWebObjectExpression(node.left.object.name,key,node.right);
           if(isTimingMethod(node.right))
             addWebObjectKey(timingMethodObjectKeys,node.left.object.name,key);
+          if(isTimingReceiver(node.right))
+            addWebObjectKey(timingReceiverObjectKeys,node.left.object.name,key);
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
@@ -1699,6 +1711,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(value.type==='Identifier') {
             for(const key of timingMethodObjectKeys.get(value.name)??[])
               addWebObjectKey(timingReturnedObjectKeys,name,key);
+            for(const key of timingReceiverObjectKeys.get(value.name)??[])
+              addWebObjectKey(timingReturnedReceiverObjectKeys,name,key);
           }
           if(value.type==='ObjectExpression') {
             for(const property of value.properties) {
@@ -1707,6 +1721,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
                 property.key.type==='Identifier'?property.key.name:staticString(property.key);
               if(key!==null&&isTimingMethod(property.value))
                 addWebObjectKey(timingReturnedObjectKeys,name,key);
+              if(key!==null&&isTimingReceiver(property.value))
+                addWebObjectKey(timingReturnedReceiverObjectKeys,name,key);
             }
           }
         }
