@@ -63,7 +63,7 @@ The extension is strongly connected and all its states are reachable. It retains
 
 ## Interpretation and limitations
 
-The live test establishes that the selected finite deterministic machine behaviors can be learned through the generated authenticated SCO facade at the same query cost as the ordinary minified RPC control. The behavior quotient allows an exact offline continuation prediction after shutdown.
+The live test establishes that the selected finite deterministic machine behaviors can be learned through the generated authenticated SCO facade at the same query cost as the ordinary minified RPC control. The behavior quotient allows an exact offline continuation prediction after shutdown. This is a behavioral clone, not private-source recovery: the private ESM module was never served to the attacker. SCO can therefore still provide source confidentiality by keeping execution server-side, but it cannot promise that a small deterministic API's semantics are unlearnable. Keep source confidentiality, behavior confidentiality, and integrity as separate claims.
 
 It does not establish that arbitrary JavaScript programs, arbitrary SCO services, COO, or SNO can be reconstructed in 24 calls. It does not establish general tamper resistance, URL-lock security, anti-instrumentation security, or the 2.5x hot-runtime budget. A production SCO service must not rely on a tiny deterministic finite-state RPC surface as a secrecy boundary when an authenticated attacker can make repeated requests.
 
