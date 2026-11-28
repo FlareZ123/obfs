@@ -5026,7 +5026,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * A uniquely bound, unexported local `document` can be an ordinary record
    * rather than the browser's Web IDL Document. Only certify a fresh
    * null-prototype or own-title-data literal record whose binding is only the LHS of
-   * standalone simple .title assignments. Unlike an ordinary {} object, it
+   * standalone simple .title/.cookie/.domain assignments. Unlike an ordinary {} object, it
    * cannot inherit an ambient title setter. Any escape, reflection, alias,
    * read, computed key, dynamic scope, or nested shadow fails closed.
    *
@@ -5067,7 +5067,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const init=binding.init;
     if(init?.type!=='ObjectExpression'||init.properties.length===0)return false;
     let nullPrototype=false;
-    let ownTitleData=false;
+    const ownedWritableDataKeys=new Set();
     // Check the *entire* record. A computed key or spread can execute a
     // user-defined coercion/getter before the binding is initialized, while
     // an accessor method can observe a later assignment. Only inert literal
@@ -5086,18 +5086,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(value!==null)return false;
         nullPrototype=true;
       }
-      if(name==='title')ownTitleData=true;
+      if(name!=='__proto__')ownedWritableDataKeys.add(name);
     }
-    // Either a null prototype prevents an inherited setter, or an own
-    // writable data property named title shadows even a hostile setter.
-    if(!nullPrototype&&!ownTitleData)return false;
+    // Each permitted setter must have an own writable data property or a
+    // null prototype. Different DOMString names can have distinct hostile
+    // inherited setters; a proof for .title does not prove .cookie or .domain.
+    if(!nullPrototype&&ownedWritableDataKeys.size===0)return false;
     let safe=true;
     walk(ast,(node,parent,key,ancestors)=>{
       if(!safe||node.type!=='Identifier'||node.name!=='document'||
          node===binding.id)return;
+      const assignmentKey=parent?.type==='MemberExpression'&&!parent.computed?
+        memberName(parent):null;
       if(node.start<binding.end||parent?.type!=='MemberExpression'||
          parent.object!==node||parent.computed||
-         memberName(parent)!=='title') {
+         !['title','cookie','domain'].includes(assignmentKey??'')||
+         !nullPrototype&&!ownedWritableDataKeys.has(assignmentKey??'')) {
         safe=false;return;
       }
       const assignment=ancestors[ancestors.length-2];
