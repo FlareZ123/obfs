@@ -246,6 +246,15 @@ const cases=[
 ['class-expression-static-method-self-construction','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static build(){new this();}static {this.build();}};','carrier.instance'],
 ['class-expression-static-escaped-self','const carrier={instance:{}};const Holder=class{x=(carrier.instance=new WeakMap());static {globalThis.HolderCtor=this;}};new globalThis.HolderCtor();','carrier.instance'],
 ['class-expression-static-inert-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {this.ready=1;}};','carrier.instance'],
+// Source-visible implicit static operations may execute an inherited class
+// getter/setter, Symbol.toPrimitive or Symbol.iterator; none is an explicit
+// new/call node in the class's own static body.
+['class-expression-inherited-static-getter','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire;}};','carrier.instance'],
+['class-expression-inherited-static-coercion','class Base{static [Symbol.toPrimitive](){new this();return "x";}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {\`${this}\`;}};','carrier.instance'],
+['class-expression-inherited-static-destructure','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {const {fire}=this;}};','carrier.instance'],
+['class-expression-inherited-static-iterator','class Base{static *[Symbol.iterator](){new this();yield 1;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {for(const v of this)break;}};','carrier.instance'],
+['class-expression-inherited-static-setter','class Base{static set fire(_v){new this();}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire=1;}};','carrier.instance'],
+['class-expression-static-pure-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {const ready=1;}};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
