@@ -39,6 +39,44 @@ async function check(utility,main,renamed) {
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 }
 
+/**
+ * Verify a named ESM factory returning a fresh plain object against native ESM.
+ * @param {string} factory
+ * @param {string} main
+ * @param {number} renamed
+ * @returns {Promise<void>}
+ */
+async function checkFactory(factory,main,renamed) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:factory},
+    {path:'main.mjs',sourceType:'module',code:main}
+  ];
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const result=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+      return result.stdout;
+    }
+    const baseline=await execute(files);
+    const output=obfuscateFiles(files,{
+      mode:'coo',seed:'cross-file-exported-factory-return',
+      closedWorld:true,strings:false,identifiers:false
+    });
+    assert.equal(output.crossFile.properties,renamed);
+    if(renamed>0) {
+      const state=output.files.find(file=>file.path==='state.mjs');
+      const entry=output.files.find(file=>file.path==='main.mjs');
+      assert.ok(state&&entry);
+      assert.doesNotMatch(String(state.code),/secretField|otherField/u);
+      assert.doesNotMatch(String(entry.code),/secretField|otherField/u);
+    }
+    assert.equal(await execute(output.files),baseline);
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+}
+
 const identity='export function identity(x){return x;}';
 
 test('cross-module identity-return preserves an object alias and renames own field',async()=>{
@@ -126,4 +164,15 @@ test('immutable exported block-body arrow identity forwards object alias',async(
 test('generator function expression is outside synchronous identity proof',async()=>{
   await check('export const identity=function*(x){return x;};',
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state).next().value;console.log(v.secretField);',0);
+});
+
+
+test('imported exported factory returns fresh objects whose fields are renamed across all callsites',async()=>{
+  await checkFactory(
+    'export function makeState(){return {secretField:17,otherField:5};}',
+    'import {makeState} from "./state.mjs";'+
+      'const first=makeState();const second=makeState();'+
+      'console.log(first.secretField+second.otherField);',
+    2
+  );
 });
