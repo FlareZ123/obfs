@@ -76,7 +76,7 @@ test('source-free direct private helper remains rewrite-eligible in all modes',(
 test('external DOMString/host coercion preserves exact source, not just return value',()=>{
   /** @type {string[]} */
   const mismatches=[];
-  for(const operation of operations){
+  for(const operation of operations.filter(item=>!item.id.startsWith('opaque-'))){
     const source=functionSource+operation.code+'\nmodule.exports=inspect();';
     const native=execute(source);
     assert.equal(native.result,17,operation.id);
@@ -98,4 +98,18 @@ test('external DOMString/host coercion preserves exact source, not just return v
   }
   assert.deepEqual(mismatches,[],
     'source-visible host coerctions must all preserve native function bytes');
+});
+
+test('opaque host functions remain outside the bounded native DOM provenance proof',()=>{
+  for(const operation of operations.filter(item=>item.id.startsWith('opaque-'))){
+    const source=functionSource+operation.code+'\nmodule.exports=inspect();';
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
+      operation.id+' unresolved host source observer');
+    const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],
+      {mode:'coo',seed:'agent7-opaque-host-boundary',properties:false,
+       strings:false,identifiers:true});
+    assert.ok(output.files[0].metrics.bindings>0,operation.id+' positive transform');
+    assert.notDeepEqual(execute(String(output.files[0].code)).captures,
+      execute(source).captures,operation.id+' remains an explicit source-parity risk');
+  }
 });
