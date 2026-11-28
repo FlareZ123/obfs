@@ -517,10 +517,11 @@ test('selected graph batch routes require immutable compiler-owned inner preflig
   assert.throws(()=>createScoSelectedGraphHandler(graph,namespaces,{
     authorizeRpc:()=>true
   }),/require authorizeOperation/u);
-  assert.throws(()=>createScoSelectedGraphHandler(graph,namespaces,{
-    authorizeRpc:()=>true,authorizeOperation:()=>true,
-    batchPreflightRoutes:[]
-  }),/compiler-owned batch preflight/u);
+  assert.throws(()=>createScoSelectedGraphHandler(graph,namespaces,
+    /** @type {any} */ ({
+      authorizeRpc:()=>true,authorizeOperation:()=>true,
+      batchPreflightRoutes:[]
+    })),/compiler-owned batch preflight/u);
 
   /** @type {string[]} */
   const reviewed=[];
