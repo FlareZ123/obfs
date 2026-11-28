@@ -4174,7 +4174,14 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    // Strict identity comparison reads a WindowProxy identity but cannot
+    // dereference it or observe the ESM response's bytes. Keep private
+    // rewrite yield for common top===self/opener!==null frame checks.
+    const pureWindowIdentity=parent?.type==='BinaryExpression' &&
+      (parent.operator==='==='||parent.operator==='!==') &&
+      (propertyKey==='left'||propertyKey==='right');
     if(node.type==='Identifier' && windowProxyRoots.has(node.name) &&
+       !pureWindowIdentity &&
        !(parent?.type==='Property' && propertyKey==='key' && !parent.computed) &&
        !(parent?.type==='MemberExpression' && propertyKey==='property' && !parent.computed) &&
        !((parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
