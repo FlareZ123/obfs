@@ -44,5 +44,12 @@ jobs:
           CHROMIUM_BIN: google-chrome
           RUN_NATIVE_DOM_COLLECTION_BROWSER: '1'
         run: node --test test/agent1-dom-nodelist-real-browser.test.js
+      - name: Real Chromium local lexical Document strict-CSP and inherited setter differential
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/agent4-v2-inert-lexical-document-browser.js
+      - name: Node local Document source observer positive and hostile controls
+        run: node --test test/agent4-v2-inert-lexical-document.test.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
