@@ -194,6 +194,11 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     // Node's legacy buffer.atob/btoa errors have different native messages
     // from browser Window atob/btoa, even for identical malformed input.
     'atob','btoa',
+    // TextEncoder.encodeInto converts non-string inputs in Chromium but
+    // Node 22 throws. Without whole-program source/destination typing we
+    // cannot move its constructor across the browser/server boundary.
+    // Treat first-class and aliased constructor values as host-sensitive.
+    'TextEncoder',
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
