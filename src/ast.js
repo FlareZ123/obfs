@@ -1776,6 +1776,30 @@ function hasWeakMapPrototypeExposure(ast) {
     }
   }
   /**
+   * Execute only a proven single receiver-slot setter forwarding its argument.
+   * An opaque setter remains unknown instead of assuming a direct write.
+   * @param {AstNode} setter
+   * @param {CarrierContainer} receiver
+   * @param {CarrierValue} assigned
+   * @returns {boolean}
+   */
+  function replayCarrierSetter(setter,receiver,assigned) {
+    const parameter=setter.params?.[0];
+    const statements=setter.body?.body;
+    if(parameter?.type!=='Identifier'||statements?.length!==1)return false;
+    const expression=statements[0]?.expression;
+    if(statements[0]?.type!=='ExpressionStatement'||
+       expression?.type!=='AssignmentExpression'||expression.operator!=='='||
+       expression.left?.type!=='MemberExpression'||
+       expression.left.object?.type!=='ThisExpression'||
+       expression.right?.type!=='Identifier'||
+       expression.right.name!==parameter.name)return false;
+    const slot=carrierStaticKey(expression.left.property,expression.left.computed);
+    if(slot===null)return false;
+    receiver.properties.set(slot,assigned);
+    return true;
+  }
+  /**
    * @param {AstNode|null|undefined} node
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} [thisValue=carrierOther]
@@ -1897,7 +1921,14 @@ function hasWeakMapPrototypeExposure(ast) {
         const key=memberKeyName;
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
-          else base.properties.set(key,assigned);
+          else if(base.setters.has(key)) {
+            const setter=base.setters.get(key);
+            if(!setter||!replayCarrierSetter(setter,base,assigned))
+              base.unknown=true;
+          } else if(base.getters.has(key)) {
+            // Getter-only properties cannot be overwritten by assignment;
+            // strict assignment throws and non-strict assignment is ignored.
+          } else base.properties.set(key,assigned);
         } else if(base.kind==='maybe'&&(
           carrierMayContainWeakMap(assigned)||['set','get','has','delete'].includes(key??'')
         )) {
