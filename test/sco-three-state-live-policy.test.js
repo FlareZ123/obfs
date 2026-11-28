@@ -9,7 +9,6 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawn}=require('node:child_process');
 const {transformSync}=require('esbuild');
-const {pathToFileURL}=require('node:url');
 const {createScoHandler,partitionScoAsyncModule,bindScoModuleExports}=
   require('../src');
 const {atomicWrite}=require('../src/atomic');
@@ -82,12 +81,11 @@ function close(server){
 /**
  * @param {{next:number[][],output:number[][]}} secret
  * @param {number} index
- * @param {string} directory
  * @returns {Promise<{server:http.Server,origin:string,method:string,
  *   getState:()=>number,publicSource:string,canary:string,
  *   privateModuleSha256:string,publicSourceSha256:string}>}
  */
-async function startSco(secret,index,directory){
+async function startSco(secret,index){
   const canary='private-three-state-canary-'+index;
   const source=[
     'const model='+JSON.stringify(secret)+';',
@@ -100,12 +98,12 @@ async function startSco(secret,index,directory){
     '}'
   ].join('\n');
   const privateModuleSha256=sha256(source);
-  const privatePath=path.join(directory,'private-'+index+'.mjs');
-  await atomicWrite(privatePath,source);
   const partition=partitionScoAsyncModule({
     path:'client.mjs',sourceType:'module',code:source
   },{seed:'agent11-three-state-live-'+index,serverOnlyInitialization:true});
-  const privateModule=await import(pathToFileURL(privatePath).href);
+  // Keep the private module in the server process; do not materialize its source on disk.
+  const privateModuleUrl='data:text/javascript;base64,'+Buffer.from(source).toString('base64');
+  const privateModule=await import(privateModuleUrl);
   /** @type {Record<string,(...args:any[])=>unknown|Promise<unknown>>} */
   const remoteMethods={...bindScoModuleExports(partition,privateModule)};
   const method=partition.methodNames.step;
@@ -217,7 +215,10 @@ async function startOrdinary(secret){
 function runAttacker(origin,method,policyPath){
   const script=path.join(__dirname,'..','sims','sco-three-state-policy-attacker.js');
   return new Promise((resolve,reject)=>{
+    // The child starts in the public-artifact directory, not the repository root.
+    // This is process separation, not an OS sandbox; see the report for the boundary.
     const child=spawn(process.execPath,[script,origin,method,policyPath],{
+      cwd:path.dirname(policyPath),
       stdio:['ignore','pipe','pipe']
     });
     let stdout='';
@@ -433,7 +434,7 @@ test('24-call policy identifies selected sources through process-separated SCO a
         );
       }
 
-      const sco=await startSco(secret,modelIndex,directory);
+      const sco=await startSco(secret,modelIndex);
       /** @type {Awaited<ReturnType<typeof runAttacker>>} */
       let scoAttack;
       try{
