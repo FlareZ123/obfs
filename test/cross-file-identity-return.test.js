@@ -373,3 +373,25 @@ async function checkFactoryGraph(factory,modules,renamed,mode='coo') {
     assert.equal(await execute(output.files),baseline);
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 }
+
+
+test('distinct factory results retain ownership through multi-slot records and tuples',async()=>{
+  const identityModule='export function identity(value){return value;}';
+  const recordMain='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const carrier={left:first,right:second};'+
+    'const left=carrier.left;const right=carrier.right;const carried=identity(left);'+
+    'console.log(carried.secretField+right.otherField);';
+  const tupleMain='import {makeState} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=makeState();const second=makeState();'+
+    'const carrier=[first,second];'+
+    'const left=carrier[0];const right=carrier[1];const carried=identity(left);'+
+    'console.log(carried.secretField+right.otherField);';
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  for(const mode of ['coo','sno','sco']) {
+    await checkFactory(factory,recordMain,2,mode,undefined,identityModule);
+    await checkFactory(factory,tupleMain,2,mode,undefined,identityModule);
+  }
+});
