@@ -1,10 +1,11 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {fork}=require('node:child_process');
+const {fork,spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const readline=require('node:readline');
 const {randomBytes,randomInt}=require('node:crypto');
 const http=require('node:http');
 const {createPolicy,learnExpected,continuation,equivalent}=
@@ -175,7 +176,13 @@ async function runServer(){
  * @returns {Promise<void>}
  */
 async function runAttacker(){
-  process.on('message',async data=>{
+  /** @param {ProcessMessage} result */
+  const reply=result=>{
+    if(typeof process.send==='function')process.send(result);
+    else process.stdout.write(JSON.stringify(result)+'\n');
+  };
+  /** @param {unknown} data */
+  const onStart=async data=>{
     if(!data||typeof data!=='object')return;
     const typed=/** @type {ProcessMessage} */(data);
     if(typed.kind!=='start')return;
@@ -267,16 +274,26 @@ async function runAttacker(){
         throw new Error('Wire transcript mismatch after semantic parity',{cause:error});
       }
       assert.equal(wires.sco.length,sco.queries+followup.length);
-      process.send?.({kind:'attacker-result',result:{sco,ordinary,followup,
+      reply({kind:'attacker-result',result:{sco,ordinary,followup,
         followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
         ordinaryPublicBytes:Buffer.byteLength(ordinarySource),
         attackerUid:process.getuid?.()??-1,signalPermissionDenied,
         wireCalls:wires.sco.length,wireMatched:true}});
     }catch(error){
-      process.send?.({kind:'attacker-error',message:String(error),
+      reply({kind:'attacker-error',message:String(error),
         stack:error instanceof Error?error.stack:''});
     }
-  });
+  };
+  process.on('message',onStart);
+  if(typeof process.send!=='function'){
+    // sudo strips Node's inherited IPC environment. Use newline-delimited
+    // JSON on stdin/stdout only for this public-client subprocess.
+    for await(const line of readline.createInterface({input:process.stdin})){
+      try{void onStart(JSON.parse(line));}catch(error){
+        reply({kind:'attacker-error',message:String(error)});
+      }
+    }
+  }
 }
 
 /** @typedef {{kind:string,[key:string]:any}} ProcessMessage */
@@ -331,8 +348,8 @@ function receive(child,expected,timeoutMs=45000){
 async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
   if(typeof tamperOrdinary!=='boolean')throw new TypeError('Expected boolean wire mutation');
   if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
-  if(isolatedUid&&(process.platform!=='linux'||process.getuid?.()!==0)){
-    throw new Error('Dedicated UID requires a privileged Linux test process');
+  if(isolatedUid&&process.platform!=='linux'){
+    throw new Error('Different-UID attacker requires Linux');
   }
   const server=fork(__filename,tamperOrdinary?['--server','--tamper-wire']:['--server'],
     {execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
@@ -374,12 +391,33 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
       await fs.chmod(learner,0o644);
       attackerSource=script;
     }
-    attacker=fork(attackerSource,['--attacker'],{execArgv:[],env:{},
-      ...(isolatedUid?{uid:65534,gid:65534,cwd:publicRoot??undefined}:{}),
-      stdio:['ignore','ignore','pipe','ipc']});
+    if(isolatedUid){
+      // The evaluator/server remain an ordinary runner user. Only the
+      // minimal public attacker script runs as nobody; avoid root-evaluating
+      // repository tests through sudo. IPC is newline JSON over pipes.
+      const client=spawn('sudo',['-n','-u','nobody',process.execPath,attackerSource,
+        '--attacker'],{cwd:publicRoot??undefined,env:{PATH:process.env.PATH??'/usr/bin:/bin'},
+        stdio:['pipe','pipe','pipe']});
+      attacker=client;
+      const output=client.stdout;
+      if(!output)throw new Error('Missing isolated attacker stdout');
+      readline.createInterface({input:output}).on('line',line=>{
+        try{client.emit('message',JSON.parse(line));}catch{
+          client.emit('message',{kind:'attacker-error',
+            message:'Isolated attacker returned invalid JSON'});
+        }
+      });
+    }else{
+      attacker=fork(attackerSource,['--attacker'],{execArgv:[],env:{},
+        stdio:['ignore','ignore','pipe','ipc']});
+    }
     const attackerReady=receive(attacker,'attacker-result');
-    attacker.send({kind:'start',scoOrigin:ready.scoOrigin,
-      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie,serverPid:server.pid});
+    const invocation={kind:'start',scoOrigin:ready.scoOrigin,
+      ordinaryOrigin:ready.ordinaryOrigin,cookie:ready.cookie,serverPid:server.pid};
+    if(isolatedUid){
+      if(!attacker.stdin)throw new Error('Missing isolated attacker stdin');
+      attacker.stdin.write(JSON.stringify(invocation)+'\n');
+    }else attacker.send(invocation);
     const attack=await attackerReady;
     const attackerPid=attacker.pid||-1;
     // End the adversarial process before obtaining evaluator-only truth.
