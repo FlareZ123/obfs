@@ -11,13 +11,13 @@ const {obfuscateFiles}=require('../src');
 /** @typedef {{path:string,code:string,sourceType:'module'}} File */
 const methods='export const escape=CSS.escape;';
 const observed=
-  'import {escape} from "./methods.mjs";'+
+  'import {escape as cssEscape} from "./methods.mjs";'+
   'export function sample(x){return x^17;}'+
-  'export const text=escape(sample);';
+  'export const text=cssEscape(sample);';
 const primitive=
-  'import {escape} from "./methods.mjs";'+
+  'import {escape as cssEscape} from "./methods.mjs";'+
   'export function sample(x){return x^17;}'+
-  'export const text=escape("ordinary");';
+  'export const text=cssEscape("ordinary");';
 
 /**
  * Simulate a browser CSS namespace injected outside ESM files. Using an
