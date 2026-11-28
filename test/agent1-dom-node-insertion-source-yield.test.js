@@ -54,6 +54,8 @@ test('real no-SRI dynamic script mount retains client string-obfuscation yield i
       identifiers:false,seed:'agent1-native-dom-node-insert-'+mode});
     assert.notEqual(emitted.files[0].code,code,
       'An ordinary unpinned native Node insertion must not globally disable protection in '+mode);
+    assert.ok(emitted.files[0].metrics.literals>0,
+      'Noncoercing Node argument must yield actual decoded string transformation '+mode);
   }
 });
 
@@ -169,6 +171,8 @@ test('inline factory arguments obey the same group-wide factory-mutation veto',(
       strings:true,properties:false,identifiers:false});
     assert.notEqual(safe.files[0].code,payload,
       'Unmodified direct native Node factory argument permits safe string yield '+mode);
+    assert.ok(safe.files[0].metrics.literals>0,
+      'Inline native Node fast path must encode a string literal '+mode);
     const unsafe=obfuscateFiles([
       {path:'client.js',sourceType:'script',code:payload},
       {path:'poison.js',sourceType:'script',code:poison},
