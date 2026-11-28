@@ -179,3 +179,31 @@ test('inline factory arguments obey the same group-wide factory-mutation veto',(
       'Inline factory call may itself return a callable after sibling mutation '+mode);
   }
 });
+
+
+test('sibling Element/DocumentFragment insertion method replacement invalidates Node-only source proof',()=>{
+  const code='globalThis.nativeAppendOutcome="append may observe a nested function from a real Node";';
+  const loader='const node=document.createElement("button");'+
+    'node.onclick=function privateCallback(){const secretLocal=71;return secretLocal;};'+
+    'document.head.append(node);';
+  const patches=[
+    'Element.prototype.append=function observe(node){return String(node.onclick);};',
+    'const p=Element.prototype;p.replaceChildren=function observe(node){return String(node.onclick);};',
+    'DocumentFragment.prototype.prepend=function observe(node){return String(node.onclick);};',
+    'const host=document.head;host.append=function observe(node){return String(node.onclick);};',
+    'Reflect.set(Element.prototype,"append",function observe(node){return String(node.onclick);});',
+    'Object.defineProperty(Element.prototype,"append",{value:function observe(node){return String(node.onclick);}});'
+  ];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    for(const patch of patches){
+      const output=obfuscateFiles([
+        {path:'client.js',sourceType:'script',code},
+        {path:'patch.js',sourceType:'script',code:patch},
+        {path:'entry.js',sourceType:'script',code:loader}
+      ],{mode,strings:true,properties:false,identifiers:false,
+        seed:'agent1-custom-DOM-insertion-method/'+mode+'/'+patch});
+      assert.equal(output.files[0].code,code,
+        mode+': source callable on native Node is observable after host method replacement: '+patch);
+    }
+  }
+});
