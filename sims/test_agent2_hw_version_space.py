@@ -358,6 +358,68 @@ class VersionSpaceAuditTests(unittest.TestCase):
         self.assertTrue(witness["candidate_strongly_connected_verified"])
         self.assertTrue(witness["future_counterexample"])
 
+    def test_ranked_product_future_witness_agrees_on_sat_and_unsat_controls(self):
+        cases = [
+            ({
+                "status": "completed", "state_count": 2, "seed": 2,
+                "fixture_table": {
+                    "transitions": [[1, 0], [0, 1]],
+                    "outputs": [["0", "0"], ["1", "1"]],
+                    "initial_state": 0,
+                },
+                "observed_trace": [["0", "0"], ["1", "1"], ["0", "1"]],
+                "target_post_trace_state": 0,
+            }, "sat"),
+            ({
+                "status": "completed", "state_count": 1, "seed": 0,
+                "fixture_table": {
+                    "transitions": [[0, 0]],
+                    "outputs": [["0", "1"]],
+                    "initial_state": 0,
+                },
+                "observed_trace": [["0", "0"], ["1", "1"]],
+                "target_post_trace_state": 0,
+            }, "unsat"),
+        ]
+        for row, expected in cases:
+            for encoding in ("word", "ranked-product"):
+                with self.subTest(states=row["state_count"], encoding=encoding):
+                    result = MODULE.audit_row(
+                        row, timeout_ms=5000,
+                        future_difference_encoding=encoding,
+                    )
+                    self.assertEqual(result["status"], expected)
+                    if expected == "sat":
+                        witness = result["witness"]
+                        self.assertTrue(witness["candidate_trace_verified"])
+                        self.assertTrue(witness["candidate_minimal_verified"])
+                        self.assertTrue(witness["candidate_strongly_connected_verified"])
+                        self.assertTrue(witness["future_counterexample"])
+
+    def test_ranked_product_with_trace_anchoring_and_symbolic_root(self):
+        row = {
+            "status": "completed", "state_count": 3, "seed": 64,
+            "fixture_table": {
+                "transitions": [[1, 0], [2, 1], [0, 2]],
+                "outputs": [["0", "0"], ["0", "0"], ["1", "1"]],
+                "initial_state": 1,
+            },
+            "observed_trace": [["0", bit] for bit in "010010010"],
+            "target_post_trace_state": 1,
+        }
+        result = MODULE.audit_row(
+            row, timeout_ms=5000, candidate_labeling="trace-anchor",
+            trace_lower_bound_depth=2,
+            future_difference_encoding="ranked-product",
+        )
+        self.assertEqual(result["status"], "sat")
+        witness = result["witness"]
+        self.assertEqual(witness["effective_candidate_labeling"], "trace-anchor")
+        self.assertEqual(witness["future_difference_encoding"], "ranked-product")
+        self.assertTrue(witness["candidate_trace_verified"])
+        self.assertTrue(witness["candidate_strongly_connected_verified"])
+        self.assertTrue(witness["future_counterexample"])
+
     def test_trace_bound_fails_closed_on_nonbinary_observations(self):
         for row in ([["2","0"]], [["0","X"]], [["0"]]):
             with self.subTest(row=row):
