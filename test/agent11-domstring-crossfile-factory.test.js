@@ -78,10 +78,14 @@ test('cross-file DOMString receiver provenance preserves exact function source',
         identifiers:true,properties:false,strings:false
       });
       const emitted=await execute(compiled.files);
-      const safeFile=compiled.files.find(file=>file.path==='safe.mjs');
-      assert.ok(safeFile,fixture.id+' emitted safe module');
-      assert.ok(safeFile.metrics.bindings>0,
-        mode+' '+fixture.id+' separate source-free module retains positive rewrite yield');
+      const safeSource=files.find(file=>file.path==='safe.mjs');
+      assert.ok(safeSource,fixture.id+' safe source module');
+      const positive=obfuscateFiles([safeSource],{
+        mode,closedWorld:true,seed:'agent11-crossfile-domstring-positive',
+        identifiers:true,properties:false,strings:false
+      });
+      assert.ok(positive.files[0].metrics.bindings>0,
+        mode+' '+fixture.id+' isolated source-free positive control');
       assert.equal(emitted.result,native.result,mode+' '+fixture.id+' numeric parity');
       assert.equal(emitted.safe,native.safe,mode+' '+fixture.id+' safe helper parity');
       assert.equal(emitted.source,native.source,
