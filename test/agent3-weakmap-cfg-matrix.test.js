@@ -1,0 +1,301 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {test}=require('node:test');
+const {obfuscateFiles}=require('../src');
+const {parse,hasWeakMapPrototypeExposure,observesFunctionSource}=require('../src/ast');
+
+// Existing candidate fixture, copied unchanged from test/agent1-weakmap-flow-residuals.test.js.
+const storageSource=[
+  'const descriptor=Object.getOwnPropertyDescriptor(Storage.prototype,"setItem");',
+  'const captured=new WeakMap();',
+  'function inspect(){const privateLocal=29;return privateLocal;}',
+  'function independent(){const independentLocal=7;return independentLocal;}',
+  'export function sample(){',
+  '  Object.defineProperty(Storage.prototype,"setItem",{',
+  '    ...descriptor,',
+  '    value:function(_key,value){captured.set(this,value);}',
+  '  });',
+  '  localStorage.setItem("storage-prototype-override",inspect);',
+  '  return {value:inspect(),independent:independent()};',
+  '}'
+].join('\n');
+
+const entrySource=[
+  "import './mutate.mjs';",
+  "export {sample} from './storage.mjs';"
+].join('\n');
+
+const runnerSource=[
+  'class Storage {',
+  '  constructor(){this.data=new Map();}',
+  '  setItem(key,value){this.data.set(String(key),String(value));}',
+  '}',
+  'globalThis.Storage=Storage;',
+  'globalThis.localStorage=new Storage();',
+  'let documentTitle="";',
+  'globalThis.document={};',
+  'Object.defineProperty(globalThis.document,"title",{',
+  '  get(){return documentTitle;},',
+  '  set(value){documentTitle=String(value);}',
+  '});',
+  "const {sample}=await import('./entry.mjs');",
+  'const result=sample();',
+  'process.stdout.write(JSON.stringify({result,capturedSource:document.title})+"\\n");'
+].join('\n');
+
+/** @typedef {{path:string,sourceType:'module',code:string}} Source */
+
+/**
+ * Execute the three-file ESM graph with a DOMString-compatible Document.title.
+ * @param {Source[]} files
+ * @returns {{result:{value:number,independent:number},capturedSource:string}}
+ */
+function run(files) {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-weakmap-subclass-prototype-'));
+  try {
+    for(const file of files)fs.writeFileSync(path.join(directory,file.path),file.code,'utf8');
+    fs.writeFileSync(path.join(directory,'runner.mjs'),runnerSource,'utf8');
+    const child=spawnSync(process.execPath,[path.join(directory,'runner.mjs')],{
+      cwd:directory,encoding:'utf8',timeout:15000
+    });
+    assert.equal(child.status,0,child.stderr||child.error?.message);
+    return JSON.parse(child.stdout);
+  } finally {
+    fs.rmSync(directory,{recursive:true,force:true});
+  }
+}
+
+
+/** @type {ReadonlyArray<readonly [string,string,string]>} */
+const cases=[
+['if-false-heap-write','const carrier={instance:new WeakMap()}; if(false) carrier.instance={};','carrier.instance'],
+['if-else-shared-heap','const carrier={}; if(true) carrier.instance=new WeakMap(); else carrier.instance={};','carrier.instance'],
+['if-false-binding-write','let carrier={instance:new WeakMap()}; if(false) carrier={};','carrier.instance'],
+['ternary-heap-write','const carrier={instance:new WeakMap()}; false ? (carrier.instance={}) : 0;','carrier.instance'],
+['short-circuit-heap-write','const carrier={instance:new WeakMap()}; false && (carrier.instance={});','carrier.instance'],
+['switch-no-matching-case','const carrier={instance:new WeakMap()}; switch(0){case 1:carrier.instance={};break;}','carrier.instance'],
+['try-catch-heap-write','const carrier={instance:new WeakMap()}; try {} catch {carrier.instance={};}','carrier.instance'],
+['loop-zero-iterations-heap','const carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier.instance={};','carrier.instance'],
+['loop-zero-iterations-binding','let carrier={instance:new WeakMap()}; for(let i=0;i<0;i++) carrier={};','carrier.instance'],
+['object-rest','const carrier={drop:0,instance:new WeakMap()}; const {drop,...rest}=carrier;','rest.instance'],
+['array-rest','const carrier=[0,new WeakMap()]; const [drop,...rest]=carrier;','rest[0]'],
+['class-static-outer-binding','let carrier={}; class Holder{static{carrier={instance:new WeakMap()};}}','carrier.instance'],
+['function-side-effect-outer','let carrier={}; function fill(){carrier={instance:new WeakMap()};} fill();','carrier.instance'],
+// A parameter initializer executes before the function body, even when the
+// body itself has no statements. Its captured-state write must be reflected
+// at the downstream WeakMap.prototype source-observation point.
+['default-parameter-captured-weakmap',
+ 'let carrier={};function fill(_ignored=(carrier={instance:new WeakMap()})){}fill();',
+ 'carrier.instance'],
+// Native-negative paired control: don't globally veto every default parameter
+// if it only constructs an ordinary class instance.
+['default-parameter-ordinary-yield',
+ 'class Ordinary{};let carrier={};function fill(_ignored=(carrier={instance:new Ordinary()})){}fill();',
+ 'carrier.instance'],
+// Formal-parameter evaluation happens after all arguments and before the
+// function body; missing and explicitly undefined arguments take the default.
+['default-parameter-explicit-undefined',
+ 'let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill(void 0);',
+ 'carrier.instance'],
+['default-parameter-nested-destructure',
+ 'let carrier={};function fill({x=(carrier={instance:new WeakMap()})}={}){}fill();',
+ 'carrier.instance'],
+// Computed destructuring keys execute as part of binding initialization.
+['default-parameter-computed-key',
+ "let carrier={};function fill({[(carrier={instance:new WeakMap()},'x')]:v}){}fill({x:1});",
+ 'carrier.instance'],
+['default-parameter-arrow',
+ 'let carrier={};const fill=(x=(carrier={instance:new WeakMap()}))=>{};fill();',
+ 'carrier.instance'],
+['default-parameter-object-method',
+ 'let carrier={};const obj={fill(x=(carrier={instance:new WeakMap()})) {}};obj.fill();',
+ 'carrier.instance'],
+['default-parameter-class-constructor',
+ 'let carrier={};class Holder{constructor(x=(carrier={instance:new WeakMap()})) {}}new Holder();',
+ 'carrier.instance'],
+['default-parameter-generator',
+ 'let carrier={};function* fill(x=(carrier={instance:new WeakMap()})){yield 0;}fill();',
+ 'carrier.instance'],
+['default-parameter-async',
+ 'let carrier={};async function fill(x=(carrier={instance:new WeakMap()})){}fill();',
+ 'carrier.instance'],
+// The literal argument means the WeakMap default cannot run; the native
+// instance is ordinary and unrelated identifier yield remains desirable.
+['default-parameter-provided-literal-yield',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill(123);',
+ 'carrier.instance'],
+['catch-predecessor-binding','let carrier={}; try{carrier={instance:new WeakMap()};throw 1;}catch{var result=carrier.instance;}','result'],
+['catch-predecessor-heap','const carrier={}; try{carrier.instance=new WeakMap();throw 1;}catch{var result=carrier.instance;}','result'],
+['block-outer-write','let carrier={}; {carrier={instance:new WeakMap()};}','carrier.instance'],
+['block-inner-shadow','const carrier={instance:new WeakMap()}; {const carrier={};}','carrier.instance'],
+['direct-property-overwrite','class Ordinary {} const carrier={instance:new WeakMap()}; carrier.instance=new Ordinary();','carrier.instance'],
+['direct-primitive','class Ordinary {} const carrier={instance:new Ordinary()};','carrier.instance'],
+// Follow-on reachability and alias-transfer adversaries. Native controls were
+// independently executed before compilation; all ten have WeakMap.prototype.
+['throw-dead-overwrite','let carrier={instance:{}};try{carrier.instance=new WeakMap();throw 1;carrier.instance={};}catch{}','carrier.instance'],
+['break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){carrier.instance=new WeakMap();break;carrier.instance={};}','carrier.instance'],
+['continue-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){carrier.instance=new WeakMap();continue;carrier.instance={};}','carrier.instance'],
+['return-dead-overwrite','let carrier={instance:{}};function fill(){carrier.instance=new WeakMap();return;carrier.instance={};} fill();','carrier.instance'],
+['aliased-local-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};} const alias=fill;alias();','carrier.instance'],
+['transitive-aliased-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};} const alias=fill;const alias2=alias;alias2();','carrier.instance'],
+['callback-helper','let carrier={};function fill(){carrier={instance:new WeakMap()};}[1].forEach(fill);','carrier.instance'],
+['getter-captured-write','let carrier={};const obj={get value(){carrier={instance:new WeakMap()};return 0;}};void obj.value;','carrier.instance'],
+['switch-case-break-write','let carrier={instance:{}};switch(0){case 0:carrier.instance=new WeakMap();break;case 1:carrier.instance={};}','carrier.instance'],
+['nested-branch-heap','let carrier={instance:{}};if(true){if(true){carrier.instance=new WeakMap();}else{carrier.instance={};}}else{carrier.instance={};}','carrier.instance'],
+// Eight native-negative controls: preserve at least some meaningful private
+// rewrite yield, not just all-or-nothing refusal on every control-flow shape.
+['if-true-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};if(true)carrier.instance=new Ordinary();','carrier.instance'],
+['if-false-else-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};if(false){}else carrier.instance=new Ordinary();','carrier.instance'],
+['ternary-true-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};true?(carrier.instance=new Ordinary()):0;','carrier.instance'],
+['logical-and-true-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};true&&(carrier.instance=new Ordinary());','carrier.instance'],
+['logical-nullish-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};null??(carrier.instance=new Ordinary());','carrier.instance'],
+['same-object-aliased-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};const alias=carrier;alias.instance=new Ordinary();','carrier.instance'],
+['direct-local-helper-definite-overwrite','class Ordinary{} const carrier={instance:new WeakMap()};function clear(){carrier.instance=new Ordinary();}clear();','carrier.instance'],
+['unread-getter-should-not-write','class Ordinary{} let carrier={instance:new Ordinary()};const unused={get value(){carrier={instance:new WeakMap()};return 0;}};','carrier.instance'],
+// Abrupt completion nested inside a block or known conditional must prevent
+// later unreachable writes from killing a live WeakMap provenance state.
+['if-true-return-dead-overwrite','let carrier={instance:{}};function fill(){if(true){carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['nested-block-return-dead-overwrite','let carrier={instance:{}};function fill(){{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['both-branches-return-dead-overwrite','let carrier={instance:{}};function fill(){if(Math.random()>0.5){carrier.instance=new WeakMap();return;}else{carrier.instance=new WeakMap();return;}carrier.instance={};}fill();','carrier.instance'],
+['if-true-throw-dead-overwrite','let carrier={instance:{}};try{if(true){carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
+['nested-block-throw-dead-overwrite','let carrier={instance:{}};try{{carrier.instance=new WeakMap();throw 1;}carrier.instance={};}catch{}','carrier.instance'],
+['both-branches-break-dead-overwrite','let carrier={instance:{}};for(let i=0;i<1;i++){if(i===0){carrier.instance=new WeakMap();break;}else{carrier.instance=new WeakMap();break;}carrier.instance={};}','carrier.instance'],
+// Agent 4 source-review falsifiers: a dynamic write can overlap a statically
+// known slot, and two bindings can retain a may-alias relation on only one
+// branch predecessor. Both native executions reach WeakMap.prototype.
+['dynamic-key-overlaps-known-slot','const carrier={slot:{}};const key=(()=>"slot")();carrier[key]=new WeakMap();','carrier.slot'],
+['branch-may-alias-after-join','const shared={slot:{}};let a=shared;let b=shared;if(Math.random()<0)b={slot:{}};a.slot=new WeakMap();','b.slot'],
+// Local call-effect falsifiers from Agent 4, each paired with a native-negative
+// control that must retain nonzero identifier rewrite yield.
+['parameterized-helper-side-effect','let carrier={};function fill(flag){if(flag)carrier={instance:new WeakMap()};}fill(true);','carrier.instance'],
+['parameterized-helper-negative','class Ordinary{};let carrier={instance:new Ordinary()};function fill(flag){if(flag)carrier={instance:new Ordinary()};}fill(true);','carrier.instance'],
+['object-method-side-effect','let carrier={};const helper={fill(){carrier={instance:new WeakMap()};}};helper.fill();','carrier.instance'],
+['object-method-negative','class Ordinary{};let carrier={instance:new Ordinary()};const helper={fill(){carrier={instance:new Ordinary()};}};helper.fill();','carrier.instance'],
+['inline-callback-side-effect','let carrier={};[0].forEach(()=>{carrier={instance:new WeakMap()};});','carrier.instance'],
+['inline-callback-negative','class Ordinary{};let carrier={instance:new Ordinary()};[0].forEach(()=>{carrier={instance:new Ordinary()};});','carrier.instance'],
+// A single fork for an entire destructuring pattern misses combinations
+// where one default executes but a later default is skipped. Native
+// three-module metamorphic tests confirm these exact source observations.
+['nested-partial-default-weakmap-then-ordinary-skipped',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({b:7});',
+ 'carrier.instance'],
+['nested-partial-default-ordinary-skipped-then-weakmap',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new Ordinary()}),b=(carrier={instance:new WeakMap()})}){}fill({a:7});',
+ 'carrier.instance'],
+['array-partial-default-weakmap-then-ordinary-skipped',
+ 'class Ordinary{};let carrier={};function fill([a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})]){}fill([undefined,7]);',
+ 'carrier.instance'],
+// Paired negative controls must not lose all private source-independent
+// identifier rewrite yield when both defaults are known to run or skip.
+['nested-both-default-run-ordinary-final',
+ 'class Ordinary{};let carrier={};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({});',
+ 'carrier.instance'],
+['nested-provided-literals-skip-both',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill({a=(carrier={instance:new WeakMap()}),b=(carrier={instance:new Ordinary()})}){}fill({a:1,b:2});',
+ 'carrier.instance'],
+// Follow-up adversarial matrix: all positive/negative expectations were
+// validated independently with separate native Node module executions and
+// binding-only function-source mutations; none is synthesized from the
+// compiler's abstract interpretation result.
+['extra-class-expression-constructor-default',
+ 'let carrier={};const Holder=class{constructor(x=(carrier={instance:new WeakMap()})) {}};new Holder();',
+ 'carrier.instance'],
+['extra-derived-class-constructor-default',
+ 'let carrier={};class Base{};class Holder extends Base{constructor(x=(carrier={instance:new WeakMap()})){super();}}new Holder();',
+ 'carrier.instance'],
+['extra-iife-parameter-default',
+ 'let carrier={};(function(x=(carrier={instance:new WeakMap()})){})();',
+ 'carrier.instance'],
+['extra-array-pattern-parameter-default',
+ 'let carrier={};function fill([x=(carrier={instance:new WeakMap()})]=[]){}fill();',
+ 'carrier.instance'],
+['extra-default-sequence-side-effect',
+ 'let carrier={};function fill(x=(carrier={instance:new WeakMap()},123)){}fill();',
+ 'carrier.instance'],
+['extra-default-helper-call-effect',
+ 'let carrier={};function assign(){carrier={instance:new WeakMap()};}function fill(x=assign()){}fill();',
+ 'carrier.instance'],
+['extra-default-true-conditional',
+ 'let carrier={};function fill(x=(true?(carrier={instance:new WeakMap()}):123)){}fill();',
+ 'carrier.instance'],
+['extra-computed-object-argument-key',
+ "let carrier={};function fill(o){}fill({[(carrier={instance:new WeakMap()},'x')]:1});",
+ 'carrier.instance'],
+['extra-computed-object-literal-key',
+ "let carrier={};const obj={[(carrier={instance:new WeakMap()},'x')]:1};",
+ 'carrier.instance'],
+['extra-getter-destructure-argument',
+ 'let carrier={};const obj={get x(){carrier={instance:new WeakMap()};return 4}};function fill({x}){}fill(obj);',
+ 'carrier.instance'],
+// Native negative side-effect controls must keep unrelated rewrite yield.
+['extra-provided-null-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill(null);',
+ 'carrier.instance'],
+['extra-false-logical-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false&&(carrier={instance:new WeakMap()}))){}fill();',
+ 'carrier.instance'],
+['extra-false-conditional-bypasses-default',
+ 'class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(false?(carrier={instance:new WeakMap()}):123)){}fill();',
+ 'carrier.instance']
+// Further native-confirmed callable/iterator/proxy parameter effects and corresponding negative-yield controls.
+['host-call-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null);",'carrier.instance'],
+['host-apply-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[]);",'carrier.instance'],
+['host-reflect-apply-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Reflect.apply(fill,null,[]);",'carrier.instance'],
+['host-bound-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const bound=fill.bind(null);bound();",'carrier.instance'],
+['host-function-call-call-default',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Function.prototype.call.call(fill,null);",'carrier.instance'],
+['iterator-generator-captured-write',"let carrier={};const iterable={*[Symbol.iterator](){carrier={instance:new WeakMap()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['iterator-method-captured-write',"let carrier={};const iterable={[Symbol.iterator](){carrier={instance:new WeakMap()};return [1][Symbol.iterator]();}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['destructure-proxy-get-captured-write',"let carrier={};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new WeakMap()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance'],
+['destructure-computed-getter-captured-write',"let carrier={};const obj={get x(){carrier={instance:new WeakMap()};return 1;}};function fill({['x']:x}){}fill(obj);",'carrier.instance'],
+['destructure-nested-proxy-get',"let carrier={};const obj=new Proxy({x:{y:1}},{get(o,k){if(k==='x')carrier={instance:new WeakMap()};return Reflect.get(o,k);}});function fill({x:{y}}){}fill(obj);",'carrier.instance'],
+['direct-class-expression-new-default',"let carrier={};new (class {constructor(x=(carrier={instance:new WeakMap()})) {}})();",'carrier.instance'],
+['direct-derived-class-expression-default',"let carrier={};class Base{};new (class extends Base {constructor(x=(carrier={instance:new WeakMap()})){super();}})();",'carrier.instance'],
+['host-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.call(null,23);",'carrier.instance'],
+['host-apply-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply(null,[3]);",'carrier.instance'],
+['iterator-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const iterable={*[Symbol.iterator](){carrier={instance:new Ordinary()};yield 1;}};function fill([x]){}fill(iterable);",'carrier.instance'],
+['destructure-proxy-ordinary-negative',"class Ordinary{};let carrier={instance:new Ordinary()};const obj=new Proxy({x:1},{get(o,k){if(k==='x')carrier={instance:new Ordinary()};return Reflect.get(o,k);}});function fill({x}){}fill(obj);",'carrier.instance']
+];
+const tail='\nconst nativeSet=nativePrototype.set;\n'+
+'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
+
+for(const [name,setup,access] of cases) {
+  test('CFG carrier semantic parity: '+name,()=>{
+    const nativeShared=Function('"use strict";\n'+setup+'\nreturn Object.getPrototypeOf('+access+')===WeakMap.prototype;')();
+    const mutateSource=setup+'\nconst nativePrototype=Object.getPrototypeOf('+access+');'+tail;
+    const mutationAst=parse(mutateSource,'module');
+    const group=hasWeakMapPrototypeExposure(mutationAst);
+    const local=observesFunctionSource(mutationAst);
+    const sourceFiles=[
+      {path:'entry.mjs',sourceType:'module',code:entrySource},
+      {path:'mutate.mjs',sourceType:'module',code:mutateSource},
+      {path:'storage.mjs',sourceType:'module',code:storageSource}
+    ];
+    const native=run(sourceFiles);
+    const evidence=[];
+    for(const mode of ['coo','sco','sno']) {
+      const compiled=obfuscateFiles(sourceFiles,{
+        mode,seed:'agent3-cfg-carrier-'+name+'-'+mode,
+        properties:false,identifiers:true,strings:false,closedWorld:true
+      });
+      const storage=compiled.files.find(file=>file.path==='storage.mjs');
+      assert.ok(storage);
+      const emitted=run(compiled.files.map(file=>({
+        path:file.path,sourceType:'module',code:String(file.code)
+      })));
+      evidence.push({mode,bindings:storage.metrics.bindings,
+        nativeSource:native.capturedSource,emittedSource:emitted.capturedSource,
+        parity:JSON.stringify(native)===JSON.stringify(emitted)});
+    }
+    console.log('CFG_CARRIER '+JSON.stringify({name,nativeShared,group,local,evidence}));
+    if(nativeShared) {
+      assert.ok(native.capturedSource.includes('privateLocal'),JSON.stringify(native));
+      assert.ok(evidence.every(row=>row.parity),JSON.stringify(evidence));
+    } else {
+      assert.ok(evidence.every(row=>row.parity&&row.bindings>0),JSON.stringify(evidence));
+    }
+  });
+}
