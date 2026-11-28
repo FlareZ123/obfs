@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/sco-webauthn-admission.test.js",
+    "test/sco-webauthn-durable-state.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
     "test/agent23-switch-discriminant-scope.test.js",
