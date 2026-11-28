@@ -447,3 +447,39 @@ test('valid signatures over unsupported authenticator extensions/flags are decli
   assert.equal((await h.admission.verifyAssertion(packet)).ok,false);
   assert.equal(h.updates,0);
 });
+
+test('credential registry authority IDs fence same-RP memory store across tenants',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const first=harness({stateStore:shared,credentialAuthorityId:'registry:tenant-A'});
+  assert.doesNotThrow(()=>harness({
+    stateStore:shared,credentialAuthorityId:'registry:tenant-A'
+  }), 'Replicas may explicitly select the same trusted credential authority');
+  assert.throws(()=>harness({
+    stateStore:shared,credentialAuthorityId:'registry:tenant-B'
+  }),/replica configuration/u,
+  'Different credential registries sharing RP/origin/UV must refuse shared bearer state');
+  assert.throws(()=>harness({stateStore:shared}),/replica configuration/u,
+    'An omitted registry ID must not accidentally equal an explicit one');
+
+  const issued=first.admission.issueChallenge('accountA','loginA');
+  const verified=await first.admission.verifyAssertion(assertion(first,issued));
+  assert.equal(verified.ok,true,'A correctly scoped real ES256 assertion still works');
+  if(verified.ok)assert.equal(first.admission.authorizeSession(verified.token,'accountA'),true);
+  const independent=harness({
+    stateStore:createScoWebAuthnMemoryStore(),
+    credentialAuthorityId:'registry:tenant-B'
+  });
+  const isolated=independent.admission.issueChallenge('accountA','loginA');
+  assert.equal((await independent.admission.verifyAssertion(assertion(independent,isolated))).ok,true,
+    'An independent registry can use its own store without a cross-tenant collision');
+});
+
+test('credential registry namespace rejects ambiguous and unbounded labels',()=>{
+  for(const value of ['', 'bad whitespace', 'bad\nline',
+    '\u212a', 'a'.repeat(129), 0, null]){
+    assert.throws(()=>harness({
+      credentialAuthorityId:/** @type {any} */(value)
+    }),/credentialAuthorityId/u,'Bad namespace label: '+String(value));
+  }
+  assert.doesNotThrow(()=>harness({credentialAuthorityId:'TENANT-8/keys:v2'}));
+});
