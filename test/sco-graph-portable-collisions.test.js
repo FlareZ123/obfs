@@ -10,12 +10,13 @@ const {
 
 const simple='export async function secret(value){return value+1;}'+
   'export function local(value){return value;}';
+const graphOnlyAsync='export async function secret(value){return value+1;}';
 
 /** @param {string} a @param {string} b */
 function privateGraph(a,b){
   return partitionScoAsyncGraph([
-    {path:a,code:simple},
-    {path:b,code:simple}
+    {path:a,code:graphOnlyAsync},
+    {path:b,code:graphOnlyAsync}
   ],{seed:'portable-private-graph-20261128',exposedPaths:[a]});
 }
 
