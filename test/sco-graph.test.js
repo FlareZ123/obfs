@@ -180,7 +180,7 @@ test('SCO private graph declines exact private function-source disclosure while 
   // an approved caller may invoke a source-producing export.
   const direct='export async function reveal(){return reveal.toString();}';
   const native=await import('data:text/javascript,'+encodeURIComponent(direct));
-  assert.match(await native.reveal(),/return reveal\\.toString\\(\\)/u);
+  assert.ok((await native.reveal()).includes('return reveal.toString()'));
   const exposed=[
     direct,
     'export async function reveal(){return Function.prototype.toString.call(reveal);}',
