@@ -65,8 +65,10 @@ function harness(overrides={}){
     },
     ...overrides
   });
+  /** @param {number} ms */
+  function advance(ms){now+=ms;}
   return {admission,privateKey,publicKey,credentialId,records,
-    clock:{/** @param {number} ms */ advance(ms){now+=ms;}},get updates(){return signCountUpdates;}};
+    clock:{advance},get updates(){return signCountUpdates;}};
 }
 
 test('ES256 assertion binds principal, ceremony, relying party, origin and UV',async()=>{
