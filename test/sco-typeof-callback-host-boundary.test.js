@@ -108,3 +108,35 @@ test('real Chromium reproduces the nested typeof callback host mismatch',{
     if(browser)await browser.close();
   }
 });
+
+/**
+ * A reviewed private static ESM dependency is also a relocated realm, not an
+ * exemption from the callback reachability obligation. Its module graph is
+ * declared explicitly, so a host-global read inside a getter is still unsafe.
+ */
+test('audited transitive private helper refuses nested typeof getter host reads',()=>{
+  const file={
+    path:'typeof-callback.mjs',sourceType:'module',
+    code:'import {read} from "./private/leaf.mjs";'+
+      'export async function protectedOp(){return read();}'+
+      'export function visible(){return 7;}'
+  };
+  /** @param {string} leaf */
+  function audited(leaf){
+    return partitionScoSelectedAsyncExports(file,{
+      seed:'typeof-callback-audited-private',
+      privateNames:['protectedOp'],
+      privateModuleImports:['./private/leaf.mjs'],
+      privateModuleSources:[{
+        path:'private/leaf.mjs',
+        code:'export function read(){'+leaf+'}'
+      }]
+    });
+  }
+  assert.throws(()=>audited(
+    'return typeof ({get value(){return externalBridge;}}).value;'
+  ),/unproved|host|realm|browser/i);
+  assert.deepEqual(audited(
+    'const externalBridge=7;return typeof ({get value(){return externalBridge;}}).value;'
+  ).privateNames,['protectedOp']);
+});
