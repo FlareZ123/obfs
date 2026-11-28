@@ -58,6 +58,19 @@ This **passes because the original HTML scanner is bypassed**, not because the p
 - Related opt-in MIME staging verification [draft PR #261](https://github.com/FlareZ123/obfs/pull/261) remains independent. It cannot attest unobserved hostile-host responses or global runtime environment locking.
 - No runtime obfuscation compute overhead is introduced by these input scanners. Strong static/dynamic source reconstruction resistance, anti-tamper success, authorization/environment locking, 2.5× global overhead, and complete 1:1 behavior remain **not established**; project release **NO-GO**.
 
+## Independent primary-objective dimensions
+
+| Dimension | What the measured evidence establishes | What it does **not** establish |
+| --- | --- | --- |
+| Static source reconstruction | The old untransformed HTML asset admitted a literal executable `javascript:` source string inside SMIL, while the candidate guard now rejects that asset through all three obfuscation modes | The protection of arbitrary emitted JS/VM/Wasm code against hostile static deobfuscators |
+| Dynamic analysis/extraction | Chrome 144 and CI Chrome 158 demonstrated an actual SMIL-created href and JavaScript click execution | Resistance of admitted protected JavaScript to DevTools, instrumentation, unlimited queries, or runtime dumping |
+| Modification/integrity | A prepublication source-audit policy can refuse this unreviewed executable HTML asset; companion PR #261 can validate declared staging bytes/MIME independently | An untrusted server cannot swap responses, an attacker cannot modify client code, or runtime integrity is enforceable |
+| Authorized environment locking | No new environment lock added | Actual browser/SNO/COO host authorization under hostile instrumentation |
+| Performance | The patch runs during source validation; no extra instructions/VM interpretation are added to emitted *application* code, and byte identity for benign assets passed in COO/SCO/SNO | A full measured 2.5× runtime budget across complex workloads or unchanged compiler throughput under adversarial giant markup |
+| Compatibility | Latest exact-head source guard 7/7 tests green on Ubuntu and Windows, including 3-mode publication refusal and benign asset retention | Complete 1:1 parity of all valid JS programs or acceptance of the wider project, still blocked by baseline compiler failures |
+
+The defensible combined claim is therefore **a narrowly verified source-admission vulnerability and correction proposal**, not a security-performance breakthrough for the obfuscator itself.
+
 ## Suggested next evidence
 
 Wait for exact-head browser and cross-OS focused workflow outcomes; if browser proof passes, record exact Chromium version and source receipt. Add explicit COO/SCO/SNO plus `createScoHandler` admission regression and safe-byte-preservation controls. Peer-review SVG foreign-element namespace/case handling; only then consider merge. Never present this narrow guard as an obfuscation-resistance advance.
