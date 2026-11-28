@@ -49,5 +49,10 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/agent1-dom-global-constructor-prototype-browser.js
+      - name: Real Chromium cross-file ESM native DOM Node factory parity
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/agent1-imported-native-node-factory-browser.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
