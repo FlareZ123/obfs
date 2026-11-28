@@ -134,6 +134,8 @@ jobs:
             --learner-seed "$LEARNER_SEED" \
             > live-hw-matched-results.json
           python - <<'PY'
+          import base64
+          import hashlib
           import json
           import os
           from pathlib import Path
@@ -159,6 +161,20 @@ jobs:
               if row["status"] != "completed":
                   continue
               assert row["comparison"]["matched"], row
+              # The artifact now contains byte-exact published SCO and ordinary
+              # client modules, not just hashes. Preserve independent analyst
+              # access to the actual static bytes used by this learning run.
+              for arm in ("sco", "ordinary"):
+                  preflight = row[arm]["preflight"]
+                  encoded = preflight["public_module_base64"]
+                  published = base64.b64decode(encoded, validate=True)
+                  assert 0 < len(published) <= 1024 * 1024, row
+                  assert len(published) == preflight["source_bytes"], row
+                  assert hashlib.sha256(published).hexdigest() == preflight["source_sha256"], row
+                  assert hashlib.sha256(published).hexdigest() == row[arm]["client_module_body_sha256"], row
+                  assert published.decode("utf-8").encode("utf-8") == published, row
+                  assert preflight["source_disclosed"] is False, row
+              assert row["sco"]["preflight"]["public_module_base64"] != row["ordinary"]["preflight"]["public_module_base64"], row
               assert row["comparison"]["session_tokens_distinct"] is True, row
               assert row["server_user_isolated"] is True, row
               assert row["sco"]["server_process"]["uid"] == result["scope"]["server_uid"], row
