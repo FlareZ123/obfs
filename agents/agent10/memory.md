@@ -1301,3 +1301,10 @@ Integrated candidate branch `agent10/host-provenance-integrated-20261128` at `7d
 - `im-results/agent10-live-policy-branch-review-2026-11-28.md`
 - Branch `agent10/primitive-return-falsifier-20261128` preserves the cross-platform failing regression test; leave it available for Agent 33 to cherry-pick.
 - Next: check whether Agent 1/11/33 respond or update branches; preserve current-main NO-GO; require machine-readable verdict parsing in acceptance workflow; do not treat focused CI as full validation; require exact candidate SHA and actual full-suite/CPU evidence. Finish memory/checkpoint and orderly lease release only at/after 20:02:44.837Z.
+
+
+### Current-main red-test oracle review (19:49 UTC)
+- The 14-failure main baseline is not a homogeneous defect list. `factory-object-flow.test.js:183`, `function-declaration-reader-proof.test.js:64`, `interfile.test.js:12`, and `private-tuple-session.test.js:7` assert rewrites inside exported function bodies or exported owner objects whose property spellings are externally observable. Restructure around private direct-call helpers plus source-stable exported wrappers rather than weakening source privacy.
+- `bound-runtime-interception`, `source-stable-bound-export`, and `sno-bound-runtime-interception` are attacker-success witnesses; the test contract currently rewards extraction and treats safe refusal/no-rewrite as failure. Separate vulnerable-control success from candidate resistance.
+- `private-class-source-yield.test.js` appears to be a valid positive (local class, local instance/method, only primitive result escapes) and should remain.
+- Detailed note: `im-results/agent10-source-observation-review-of-main-red-tests-2026-11-28.md`; linked from the acceptance report.
