@@ -34,7 +34,7 @@ const scenarios=[
       'const narrowed=typeof dynamic==="string"?dynamic:null;',
       'export const value={field:owner.secretField,observed:',
       'await narrowed.toLocaleString("en-US")};'
-    ].join('\\n')}
+    ].join('\n')}
   ]},
   {name:'native-prototype-call',inputs:[
     {path:'owner.mjs',sourceType:'module',code:'export const owner={secretField:7};'},
