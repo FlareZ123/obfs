@@ -31,7 +31,15 @@ const scenarios=[
   {name:'try-catch-return-before-clear',nativeShared:true,
     setup:'const carrier={instance:{}};function fill(){try{carrier.instance=new WeakMap();return;}catch(e){}finally{}carrier.instance={};}fill();'},
   {name:'switch-normal-break-yield',nativeShared:false,
-    setup:'class Ordinary{} const carrier={instance:new WeakMap()};switch(0){case 0:break;}carrier.instance=new Ordinary();'}
+    setup:'class Ordinary{} const carrier={instance:new WeakMap()};switch(0){case 0:break;}carrier.instance=new Ordinary();'},
+  {name:'object-literal-getter-cache',nativeShared:true,
+    setup:'const carrier={get instance(){return this.cache;}};carrier.cache=new WeakMap();'},
+  {name:'object-descriptor-getter-cache',nativeShared:true,
+    setup:'const carrier={};Object.defineProperty(carrier,"instance",{get(){return this.cache;}});carrier.cache=new WeakMap();'},
+  {name:'object-accessor-setter-cache',nativeShared:true,
+    setup:'const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new WeakMap();'},
+  {name:'object-accessor-setter-ordinary-yield',nativeShared:false,
+    setup:'class Ordinary{} const carrier={cache:{},get instance(){return this.cache;},set instance(v){this.cache=v;}};carrier.instance=new Ordinary();'}
 ];
 
 /**
