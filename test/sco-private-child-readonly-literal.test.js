@@ -29,7 +29,10 @@ test('SCO child read-only literal proof retains static primitive property reads'
     ['record numeric','const table={0:41};export function next(){return table[0]+1;}'],
     ['array indexes','const table=[40,2];export function next(){return table[0]+table[1];}'],
     ['array length','const table=[41];export function next(){return table.length+table[0];}'],
-    ['unused literal','const table={};export function next(){return 42;}']
+    ['unused literal','const table={};export function next(){return 42;}'],
+    ['string scalar','const table={n:"x"};export function next(){return table.n+"y";}'],
+    ['boolean scalar','const table={n:true};export function next(){return table.n?1:0;}'],
+    ['null scalar','const table={n:null};export function next(){return table.n===null;}']
   ];
   for(const [label,source] of cases){
     assert.doesNotThrow(()=>compile(source),label);
