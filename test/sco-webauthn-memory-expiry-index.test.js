@@ -151,53 +151,66 @@ test('6000 seeded shared-memory admission transitions preserve state and error p
 });
 
 /**
- * Isolated CPU sample for the store housekeeping path. This intentionally
- * excludes ECDSA, HTTP and total app work; it is not a 2.5x SCO budget proof.
+ * Isolated housekeeping receipt. Node process.cpuUsage can report zero for
+ * short Windows operations due coarse host scheduling resolution; pair it
+ * with high-resolution monotonic elapsed time rather than invent a CPU ratio.
+ * This excludes ES256, HTTP and protected application work. Not a 2.5x proof.
  * @param {ScoWebAuthnStateStore} store
  * @param {number} capacity
- * @returns {number} user+system CPU microseconds
+ * @returns {{cpuUs:number,wallUs:number}}
  */
-function sampleHousekeepingCpu(store,capacity){
+function sampleHousekeeping(store,capacity){
   store.assertConfiguration('c'.repeat(64));
   const now=1_900_000_000_000;
   const challenge=Buffer.alloc(32,0x42);
   let admitted=0;
-  const before=process.cpuUsage();
+  const beforeCpu=process.cpuUsage();
+  const beforeWall=process.hrtime.bigint();
   for(let i=0;i<capacity;i++){
     store.insertChallenge('nonce-'+i,'account','login',challenge,now+120_000,
       now,capacity);
     if(store.mintSession('token-'+i,'account',now+120_000,0,now,capacity)===true)
       admitted++;
   }
-  const elapsed=process.cpuUsage(before);
+  const elapsedWall=Number(process.hrtime.bigint()-beforeWall)/1000;
+  const elapsedCpu=process.cpuUsage(beforeCpu);
   assert.equal(admitted,capacity,'Both arms must perform the same positive work');
-  return elapsed.user+elapsed.system;
+  return {cpuUs:elapsedCpu.user+elapsedCpu.system,wallUs:elapsedWall};
 }
 
-test('CPU receipt: full-capacity admission housekeeping versus linear historical control',()=>{
-  /** @type {number[]} */
-  const linearUs=[];
-  /** @type {number[]} */
-  const orderedUs=[];
+test('paired CPU and monotonic wall receipt: 1536-row memory-store housekeeping',()=>{
+  /** @type {Array<{cpuUs:number,wallUs:number}>} */
+  const linear=[];
+  /** @type {Array<{cpuUs:number,wallUs:number}>} */
+  const ordered=[];
   for(let i=0;i<5;i++){
     // AB/BA alternating order and separate fresh stores for every sample.
     const arms=i%2===0?['linear','ordered']:['ordered','linear'];
     for(const arm of arms){
-      const sample=sampleHousekeepingCpu(arm==='linear'?originalStore():
+      const sample=sampleHousekeeping(arm==='linear'?originalStore():
         createScoWebAuthnMemoryStore(),1536);
-      if(arm==='linear')linearUs.push(sample);
-      else orderedUs.push(sample);
+      if(arm==='linear')linear.push(sample);
+      else ordered.push(sample);
     }
   }
   /** @param {number[]} x */
   const median=x=>[...x].sort((a,b)=>a-b)[2];
+  /** @param {Array<{cpuUs:number,wallUs:number}>} x @param {'cpuUs'|'wallUs'} field */
+  const samples=(x,field)=>x.map(row=>row[field]);
+  const baselineCpuMedian=median(samples(linear,'cpuUs'));
+  const orderedCpuMedian=median(samples(ordered,'cpuUs'));
+  const baselineWallMedian=median(samples(linear,'wallUs'));
+  const orderedWallMedian=median(samples(ordered,'wallUs'));
   console.log('SCO_WA_MEMORY_EXPIRY_CPU '+JSON.stringify({
-    workload:'1536 active challenges + 1536 active sessions, 5 alternating paired samples',
-    units:'process user+system microseconds, isolated housekeeping only',
-    baseline:linearUs,optimized:orderedUs,
-    baselineMedianUs:median(linearUs),optimizedMedianUs:median(orderedUs),
-    ratio:median(linearUs)/median(orderedUs)
+    workload:'1536 active challenges and 1536 active sessions, 5 alternating paired samples',
+    units:'CPU user+system microseconds, high-resolution wall microseconds',
+    baseline:linear,optimized:ordered,
+    baselineCpuMedianUs:baselineCpuMedian,optimizedCpuMedianUs:orderedCpuMedian,
+    cpuRatio:orderedCpuMedian>0?baselineCpuMedian/orderedCpuMedian:null,
+    baselineWallMedianUs:baselineWallMedian,optimizedWallMedianUs:orderedWallMedian,
+    wallRatio:orderedWallMedian>0?baselineWallMedian/orderedWallMedian:null,
+    note:'CPU ratio null denotes insufficient CPU timer resolution, not infinite speedup'
   }));
-  assert.equal(linearUs.length,5);
-  assert.equal(orderedUs.length,5);
+  assert.equal(linear.length,5);
+  assert.equal(ordered.length,5);
 });
