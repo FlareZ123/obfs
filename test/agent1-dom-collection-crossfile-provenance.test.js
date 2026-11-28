@@ -105,6 +105,19 @@ test('each graph with imported native DOM collections is source observable',()=>
   }
 });
 
+test('explicit host lock must reject native source-observing collection graphs',()=>{
+  for(const fixture of cases){
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      assert.throws(()=>obfuscateFiles(graph(fixture),{
+        mode,seed:'host-lock-collection-'+fixture.name+'-'+mode,
+        properties:true,identifiers:true,strings:false,closedWorld:true,
+        allowedHosts:['example.com']
+      }),/Host locking cannot preserve observable source bytes/,
+      fixture.name+' '+mode+' cannot safely claim a source-preserving host lock');
+    }
+  }
+});
+
 test('ordinary userland collection is not presumed a native DOMString source',()=>{
   const files=graph(cases[0]);
   files[0]={...files[0],code:'export const elements=[{setAttribute(){return 17}}];'};
