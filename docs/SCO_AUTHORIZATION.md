@@ -526,7 +526,10 @@ may be configured alongside `runRpcIsolated`. It must be a synchronous
 function returning literal `true` to let the request proceed to bounded
 body parsing and the isolation queue. Any other return value is denied
 with HTTP 403 and a generic `Forbidden` response; a thrown exception
-is collapsed to generic HTTP 500. Refused requests do not enter the
+is collapsed to generic HTTP 500. Promise/thenable returns, including a
+later fulfillment with `true`, are denied immediately; any eventual
+rejection is observed rather than becoming an unhandled Node rejection.
+The filter never waits for asynchronous pre-admission work. Refused requests do not enter the
 principal resolver, occupy `maxPendingTotal` capacity or invoke the
 protected operation. The callback is captured once during handler
 construction. It deliberately runs before the body is parsed: an
