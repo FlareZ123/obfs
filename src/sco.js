@@ -101,9 +101,21 @@ async function handleRpc(request,response,options) {
     // Optional cheap, synchronous denial-only gate. With isolation the
     // authoritative stateful policy still runs inside its critical section.
     // A true result is never authorization and cannot grant private work.
-    if(options.admitRpcEarly && options.admitRpcEarly(request)!==true) {
-      respondJson(response,403,{ok:false,error:'Forbidden'});
-      return;
+    if(options.admitRpcEarly) {
+      const admission=options.admitRpcEarly(request);
+      if(admission!==true) {
+        // A misconfigured async/thenable predicate is not a grant. Observe
+        // rejection without awaiting it: awaiting would allow an unbounded
+        // external lookup before the global queue reservation is acquired.
+        // Ignore invalid promises so they cannot crash the server later as
+        // unhandled rejections after this synchronous HTTP denial.
+        if(admission!==null &&
+           (typeof admission==='object'||typeof admission==='function')) {
+          void Promise.resolve(admission).catch(()=>{});
+        }
+        respondJson(response,403,{ok:false,error:'Forbidden'});
+        return;
+      }
     }
     // Authorization callbacks must return true explicitly: truthy objects,
     // strings and numeric values are insufficient proof of permission.
