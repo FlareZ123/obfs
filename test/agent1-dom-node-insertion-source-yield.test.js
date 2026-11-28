@@ -155,3 +155,27 @@ test('unlisted dynamic script load invalidates later native Node factory provena
     }
   }
 });
+
+
+test('inline factory arguments obey the same group-wide factory-mutation veto',()=>{
+  const payload='globalThis.inlineNodeParity="preserve source for mutable native factory";';
+  const inline='document.head.append(document.createElement("div"));';
+  const poison='document.createElement=function replacer(){return function originalSource(){return 19;};};';
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const safe=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:payload},
+      {path:'entry.js',sourceType:'script',code:inline}
+    ],{mode,seed:'agent1-inline-node-safe/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.notEqual(safe.files[0].code,payload,
+      'Unmodified direct native Node factory argument permits safe string yield '+mode);
+    const unsafe=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:payload},
+      {path:'poison.js',sourceType:'script',code:poison},
+      {path:'entry.js',sourceType:'script',code:inline}
+    ],{mode,seed:'agent1-inline-node-poison/'+mode,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(unsafe.files[0].code,payload,
+      'Inline factory call may itself return a callable after sibling mutation '+mode);
+  }
+});
