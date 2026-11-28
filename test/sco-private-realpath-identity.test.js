@@ -54,6 +54,24 @@ test('private SCO verifier refuses in-root symlink that changes Node ESM import 
   }
 });
 
+test('private SCO verifier rejects an in-root symlinked ancestor directory',{
+  timeout:15000,
+  skip:process.platform==='win32'?
+    'Windows hosted runner symlink privilege varies':false
+},async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-symlink-ancestor-'));
+  try{
+    await fs.mkdir(path.join(root,'source'),{recursive:true});
+    await fs.writeFile(path.join(root,'source','main.mjs'),main);
+    await fs.writeFile(path.join(root,'source','leaf.mjs'),approvedLeaf);
+    await fs.symlink(path.join(root,'source'),path.join(root,'private'),'dir');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source path contains symlink: private\/main\.mjs/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
 test('private SCO verifier accepts genuine separately deployed ESM source files',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-unsymlinked-'));
   try{
