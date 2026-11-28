@@ -54,6 +54,14 @@ The initial 11-case COO/SCO/SNO native subprocess suite and full strict JSDoc pa
 - Narrow proof, broader negatives and strict-CSP Chromium: `agent4/v2-null-document-provenance-20261128`; `test/agent4-v2-inert-lexical-document.test.js` and `test/agent4-v2-inert-lexical-document-browser.js`.
 - Expanded all-literal multi-field record grammar: `agent4/v2-literal-record-generalization-20261128`; test-only positive and hostile-prototype counterexamples, work in progress.
 
+## Multi-field literal-record refinement, first three-platform gate
+
+The isolated multi-field branch `agent4/v2-literal-record-generalization-20261128` at exact source `f9971c5c61e185cbfc2cdee545e89fb6fab5a09e` passed the focused `test/agent4-v2-inert-lexical-document.test.js` native/emitted/JSDoc [**46147308119**](https://github.com/FlareZ123/obfs/actions/runs/46147308119) on **Ubuntu, Windows and macOS**. This test includes four additional multi-field literal positive shapes and three negative shapes: getter, spread getter with actual source output, and nonliteral prototype initialization. It also retains original single-field, hostile inherited-title setter, reflective, global-alias, computed-key and TDZ controls. **Actual 2.5× runtime budget, crossfile source-veto and browser CSP checks are separate, queued tests, not established by this pass.**
+
+The baseline `agent4/v2-null-document-red-20261128`, source `5930c763b0497286248ba9d167287bcf636e04a3`, [46146589125](https://github.com/FlareZ123/obfs/actions/runs/46146589125) failed exactly two positive-yield assertions and passed ten controls on every OS without the proof, supporting the claim that the candidate adds actual transformation coverage rather than just test scaffolding. The narrow positive with early TDZ safeguard also passed [46146530841](https://github.com/FlareZ123/obfs/actions/runs/46146530841), source `131341f119e71914922d55b0c500f92e93307cb7`.
+
+**Independent Web IDL workflow caveat.** [46147311802](https://github.com/FlareZ123/obfs/actions/runs/46147311802) failed before executing our new browser step because a preexisting `test/agent1-dom-nodelist-real-browser.test.js` passed `CHROMIUM_BIN=google-chrome` as an unqualified Puppeteer `executablePath` (requires absolute path). Preceding native Web IDL, Blob, URL Chromium steps on the same Ubuntu runner passed. This is a **harness failure, not proof of functional parity or mismatch** for this branch; an isolated focused Chromium wrapper on the same test file was dispatched to avoid conflation.
+
 ## Reproduction and acceptance boundary
 
 From an exact branch checkout with Node 22 and installed dependencies:
