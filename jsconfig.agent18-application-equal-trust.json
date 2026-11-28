@@ -1,0 +1,12 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "examples/application-challenge/sco-build.cjs",
+    "examples/application-challenge/sco-server.cjs",
+    "test/agent18-application-equal-trust-sco.test.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
