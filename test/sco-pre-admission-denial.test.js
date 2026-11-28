@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createScoHandler}=require('../src/sco');
+const {partitionScoSelectedAsyncExports,createScoSelectedHandler}=require('../src');
 const {createScoKeyedIsolation}=require('../src/rpc-keyed-isolation');
 
 /** @returns {{promise:Promise<void>,resolve:()=>void}} */
@@ -275,4 +276,49 @@ test('SCO early denial preserves 403 while a legitimate principal occupies globa
     await Promise.allSettled([first]);
     await close(server);
   }
+});
+
+test('selected SCO handler retains inherited nonenumerable early-admission callback exactly once',async()=>{
+  const partition=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',
+    code:'export async function protectedCalc(x){return x+2;}'+
+      'export function publicCalc(x){return x*3;}'
+  },{seed:'sco-pre-admission-selected-entrypoint',privateNames:['protectedCalc']});
+  let getterReads=0,earlyCalls=0,finalCalls=0,executions=0;
+  const inherited=Object.create(null);
+  Object.defineProperty(inherited,'admitRpcEarly',{
+    enumerable:false,configurable:true,
+    get(){
+      getterReads++;
+      return (/** @type {import('node:http').IncomingMessage} */request)=>{
+        earlyCalls++;
+        return request.headers['x-fixture-credential']==='verified';
+      };
+    }
+  });
+  /** @type {Omit<import('../src/sco').ScoOptions,'publicPaths'|'remoteMethods'>} */
+  const options=Object.create(inherited);
+  options.authorizeRpc=()=>{finalCalls++;return true;};
+  options.runRpcIsolated=createScoKeyedIsolation(()=>'verified');
+  const handler=createScoSelectedHandler(partition,{
+    protectedCalc:async(/** @type {number} */x)=>{executions++;return x+2;},
+    publicCalc:(/** @type {number} */x)=>x*3
+  },options);
+  assert.equal(getterReads,1,'Selected options must capture inherited callback once');
+  const {server,url}=await start(handler);
+  try {
+    const body=JSON.stringify({
+      method:partition.methodNames.protectedCalc,args:[4]
+    });
+    assert.deepEqual(await rpc(url,'unauthenticated',body),{
+      status:403,body:{ok:false,error:'Forbidden'}
+    });
+    assert.deepEqual(await rpc(url,'verified',body),{
+      status:200,body:{ok:true,value:6}
+    });
+    assert.equal(getterReads,1);
+    assert.equal(earlyCalls,2);
+    assert.equal(finalCalls,1);
+    assert.equal(executions,1);
+  }finally{await close(server);}
 });
