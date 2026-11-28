@@ -431,24 +431,37 @@ live HTTP negative control and tested boundary are recorded in
 ### Portable module path inventory
 
 Both `partitionScoAsyncGraph` and `partitionScoSelectedGraph` now
-admit every public and private module against the **same portable file-tree
-collision policy** used by the underlying output writer. In addition to
-case-insensitive duplicate file paths, they refuse NFC-equivalent Unicode
-spellings, names that collide under either upper- or lowercase mapping,
-ambiguous ancestor-directory spellings, and a file used as a directory.
-The selected graph may list the **same exact path** in multiple audited
-dependencies; the compiler still verifies that repeated source digests
-agree. These checks precede any generated facade publication.
+admit every exposed and private module against the **same portable file-tree
+collision policy** used by the underlying output writer. The selected
+graph may list the **same exact path** in several audited dependencies;
+the compiler still verifies that repeated source digests agree.
 
-For example, a closed graph must not accept both `Private/api.mjs` and
-`private/secret.mjs`, or both `entry.mjs` and
-`entry.mjs/dependency.mjs`, even if Linux would permit the first pair
-as distinct directory trees. These are **conservative cross-platform
-admission checks**, not a complete proof of all physical filesystem
-aliases, symlink absence, or dynamic module resolution. The server still
-needs an independently reviewed deployment root and digest verification.
-See [the deterministic path-collision regressions](../test/sco-graph-portable-paths.test.js)
-and [the intermediate proof record](../im-results/sco-graph-portable-path-inventory-2026-11-28.md).
+The shared policy rejects NFC-equivalent Unicode spellings, duplicate
+filename spellings under both upper- and lowercase mappings, and aliases
+discovered through additional upper→lower or lower→upper Unicode casing
+passes. For example, Unicode full casefold maps `src/ϑ.mjs` and
+`src/ϴ.mjs` to the same theta spelling, and maps `src/ẞ.mjs` and
+`src/ss.mjs` together; those pairs are refused even when ordinary
+`toLowerCase()` and `toUpperCase()` each disagree. It also rejects
+ambiguous ancestor-directory spellings and a regular file simultaneously
+used as a directory. All these checks precede facade publication.
+
+The build-time `safePath` validator additionally rejects any
+Unicode `Default_Ignorable_Code_Point` in a filename, including U+200B
+(ZERO WIDTH SPACE), U+202E (RIGHT-TO-LEFT OVERRIDE), and U+FE0F
+(VARIATION SELECTOR-16). Linux ext4/f2fs casefolding may drop ignorable
+characters before filename lookup, including dangerous dot-like
+components. Refusal is intentionally conservative: even filenames that
+are harmless on a particular case-sensitive volume may be rejected.
+
+These checks are **not a complete proof** of every physical filesystem
+alias, Unicode-version casefold rule, symlink/hardlink absence, or
+undeclared dynamic module resolution. The server still needs an
+independently reviewed deployment root, digest verification, and
+application-level authorization. See [the deterministic path regressions](../test/sco-graph-portable-paths.test.js),
+[the source-pinned proof record](../im-results/sco-graph-portable-path-inventory-2026-11-28.md),
+and the Unicode Consortium's
+[full CaseFolding mappings](https://www.unicode.org/Public/UCD/latest/ucd/CaseFolding.txt).
 
 ### Dynamic evaluator limitation of the closed graph audit
 
