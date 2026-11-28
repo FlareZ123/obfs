@@ -44,11 +44,21 @@ async function main(){
   assert.equal(emitted.functions,1);
   const recovered=recoverPublicWasmExpression(emitted.code,['a','b']);
   const cloned='export function f(a,b){return '+recovered.expression+';}';
+  const subtractSource='export function f(a,b){return ((a-b)|0)^(a>>>5);}';
+  const subtractEmitted=lowerWasmI32Functions(subtractSource,'module',{
+    seed:'real-chromium-coerced-subtraction',names:['f']
+  });
+  assert.equal(subtractEmitted.functions,1);
+  const subtractRecovered=recoverPublicWasmExpression(subtractEmitted.code,['a','b']);
+  const subtractCloned='export function f(a,b){return '+subtractRecovered.expression+';}';
   const script=[
     'import {f as native} from "/native.mjs";',
     'import {f as wasm} from "/wasm.mjs";',
     'import {f as reconstructed} from "/clone.mjs";',
-    'let checked=0;',
+    'import {f as nativeSub} from "/native-sub.mjs";',
+    'import {f as wasmSub} from "/wasm-sub.mjs";',
+    'import {f as reconstructedSub} from "/clone-sub.mjs";',
+    'let checked=0,checkedSub=0;' ,
     'try {',
     ' for(let i=0;i<2000;i++){',
     '  const a=Math.imul(i^0x4c957f2d,1664525)|0;',
@@ -58,6 +68,11 @@ async function main(){
     '     !Object.is(reconstructed(a,b),expected))',
     '    throw Error("native/Wasm/clone mismatch "+i);',
     '  checked++;',
+    '  const expectedSub=nativeSub(a,b);',
+    '  if(!Object.is(wasmSub(a,b),expectedSub)||',
+    '     !Object.is(reconstructedSub(a,b),expectedSub))',
+    '    throw Error("subtraction native/Wasm/clone mismatch "+i);',
+    '  checkedSub++;',
     ' }',
     'const rows=Array.from({length:2048},(_,i)=>[',
     ' Math.imul(i^0x4c957f2d,1664525)|0,',
@@ -72,12 +87,21 @@ async function main(){
     '};}',
     'const work={native:makeWork(native),wasm:makeWork(wasm),',
     ' reconstructed:makeWork(reconstructed)};',
+    'const workSub={native:makeWork(nativeSub),wasm:makeWork(wasmSub),',
+    ' reconstructed:makeWork(reconstructedSub)};',
     'const names=["native","wasm","reconstructed"];',
     'const expected=work.native(120000);',
     'for(let warm=0;warm<6;warm++)for(const name of names){',
     ' if(work[name](120000)!==expected)throw Error("warm checksum mismatch "+name);',
     '}',
+    'const expectedSubWarm=workSub.native(120000);',
+    'for(let warm=0;warm<6;warm++)for(const name of names){',
+    ' if(workSub[name](120000)!==expectedSubWarm)',
+    '  throw Error("subtraction warm checksum mismatch "+name);',
+    '}',
     'const benchmarkExpected=work.native(180000);',
+    'const benchmarkExpectedSub=workSub.native(180000);',
+    'const measuresSub={native:[],wasm:[],reconstructed:[]};',
     'const measures={native:[],wasm:[],reconstructed:[]};',
     'const orders=[["native","wasm","reconstructed"],',
     ' ["reconstructed","wasm","native"],',
@@ -90,12 +114,20 @@ async function main(){
     '  if(result!==benchmarkExpected||!Number.isFinite(time)||time<=0)',
     '    throw Error("browser timing invalid "+name);',
     '  measures[name].push(time);',
+    '  const subStart=performance.now();',
+    '  const subResult=workSub[name](180000);',
+    '  const subTime=performance.now()-subStart;',
+    '  if(subResult!==benchmarkExpectedSub||!Number.isFinite(subTime)||subTime<=0)',
+    '    throw Error("browser subtraction timing invalid "+name);',
+    '  measuresSub[name].push(subTime);',
     ' }',
     '}',
     'const median=a=>[...a].sort((x,y)=>x-y)[Math.floor(a.length/2)];',
     'const browserRatio=median(measures.wasm)/median(measures.native);',
+    'const subtractionRatio=median(measuresSub.wasm)/median(measuresSub.native);',
     'document.getElementById("answer").textContent="pass:"+JSON.stringify({',
-    ' checked,measurements:measures,browserRatio,',
+    ' checked,checkedSub,measurements:measures,browserRatio,',
+    ' subtractMeasurements:measuresSub,subtractionRatio,',
     ' note:"paired selected hot function, not a universal budget" ',
     '});',
     '}catch(error){',
@@ -109,7 +141,10 @@ async function main(){
     ['/runner.mjs',{type:'text/javascript; charset=utf-8',body:script}],
     ['/native.mjs',{type:'text/javascript; charset=utf-8',body:source}],
     ['/wasm.mjs',{type:'text/javascript; charset=utf-8',body:emitted.code}],
-    ['/clone.mjs',{type:'text/javascript; charset=utf-8',body:cloned}]
+    ['/clone.mjs',{type:'text/javascript; charset=utf-8',body:cloned}],
+    ['/native-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractSource}],
+    ['/wasm-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractEmitted.code}],
+    ['/clone-sub.mjs',{type:'text/javascript; charset=utf-8',body:subtractCloned}]
   ]);
   const server=http.createServer((request,response)=>{
     const item=assets.get(request.url??'');
@@ -149,19 +184,28 @@ async function main(){
     const observed=await tab.$eval('#answer',element=>element.textContent??'');
     assert.ok(observed.startsWith('pass:'),observed);
     const details=/** @type {{
-      checked:number,browserRatio:number,
+      checked:number,checkedSub:number,browserRatio:number,subtractionRatio:number,
+      subtractMeasurements:{native:number[],wasm:number[],reconstructed:number[]},
       measurements:{native:number[],wasm:number[],reconstructed:number[]},
       note:string
     }} */(JSON.parse(observed.slice(5)));
     assert.equal(details.checked,2000);
+    assert.equal(details.checkedSub,2000);
+    assert.ok(Number.isFinite(details.subtractionRatio)&&details.subtractionRatio>0);
     assert.ok(Number.isFinite(details.browserRatio)&&details.browserRatio>0);
-    for(const samples of Object.values(details.measurements)){
+    for(const samples of [
+      ...Object.values(details.measurements),...Object.values(details.subtractMeasurements)]){
       assert.equal(samples.length,13);
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
     }
     console.log(JSON.stringify({browser:version,mode:'ESM',nativeWasmClone:3,
       identicalInputs:2000,wasmBytes:emitted.wasmBytes,
       hotRatio:details.browserRatio,measurements:details.measurements,
+      subtractionRatio:details.subtractionRatio,
+      subtractionBytes:subtractEmitted.wasmBytes,
+      subtractionMeasurements:details.subtractMeasurements,
+      subtractionBudget:pairedBudgetBound(details.subtractMeasurements.native,
+        details.subtractMeasurements.wasm),
       pairedBudget:pairedBudgetBound(details.measurements.native,details.measurements.wasm),
       scope:'selected Chromium warm function, not universal 2.5x or security'}));
   }finally{
