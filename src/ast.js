@@ -5104,10 +5104,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     walk(ast,(node,parent,key,ancestors)=>{
       if(!safe||node.type!=='Identifier'||node.name!=='document'||
          node===binding.id)return;
-      const assignmentKey=parent?.type==='MemberExpression'&&!parent.computed?
-        memberName(parent):null;
+      const assignmentKey=parent?.type==='MemberExpression'?
+        (parent.computed?staticString(parent.property):memberName(parent)):null;
+      // Computed strings composed only of literal strings/template segments
+      // are inert ToPropertyKey evaluations. Unknown keys can execute
+      // user-defined Symbol.toPrimitive/toString and therefore fail closed.
       if(node.start<binding.end||parent?.type!=='MemberExpression'||
-         parent.object!==node||parent.computed||
+         parent.object!==node||
          !['title','cookie','domain'].includes(assignmentKey??'')||
          !nullPrototype&&!ownedWritableDataKeys.has(assignmentKey??'')) {
         safe=false;return;
