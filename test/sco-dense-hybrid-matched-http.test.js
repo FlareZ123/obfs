@@ -36,7 +36,7 @@ test('server-only SCO partition preserves private helper graph without publishin
     seed:'dense-contract-positive',serverOnlyInitialization:true
   });
   assert.deepEqual(partition.names,['protectedDenseRivest']);
-  assert.match(partition.clientFile.code,/export async function protectedDenseRivest\\(/u);
+  assert.match(partition.clientFile.code,/export async function protectedDenseRivest\(/u);
   assert.doesNotMatch(partition.clientFile.code,/OBFS_PRIVATE_(?:I|O|C|IN_OFFSET|OUT_OFFSET)/u);
   assert.equal(partition.clientFile.path,'dense.mjs');
 });
