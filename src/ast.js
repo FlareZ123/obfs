@@ -1157,7 +1157,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean,origins:Set<number>,possibleAliases:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @typedef {{value:CarrierValue,environment:Map<string,CarrierValue>}} CarrierThrow */
   /** @type {CarrierValue} */
@@ -1166,9 +1166,13 @@ function hasWeakMapPrototypeExposure(ast) {
   const carrierMaybe={kind:'maybe'};
   /** @type {CarrierValue} */
   const carrierOther={kind:'other'};
+  let nextCarrierOrigin=0;
   /** @returns {CarrierContainer} */
   function carrierContainer() {
-    return {kind:'container',properties:new Map(),unknown:false};
+    return {
+      kind:'container',properties:new Map(),unknown:false,
+      origins:new Set([++nextCarrierOrigin]),possibleAliases:false
+    };
   }
   /**
    * Snapshot the abstract heap at a control-flow fork. A shallow Map copy
@@ -1189,6 +1193,8 @@ function hasWeakMapPrototypeExposure(ast) {
       const copy=carrierContainer();
       clones.set(value,copy);
       copy.unknown=value.unknown;
+      copy.possibleAliases=value.possibleAliases;
+      copy.origins=new Set(value.origins);
       for(const [key,nested] of value.properties)
         copy.properties.set(key,snapshot(nested));
       return copy;
@@ -1218,7 +1224,7 @@ function hasWeakMapPrototypeExposure(ast) {
   function carrierMayContainWeakMap(value,seen=new Set()) {
     if(value.kind==='weakmap'||value.kind==='maybe')return true;
     if(value.kind==='container') {
-      if(value.unknown)return true;
+      if(value.unknown||value.possibleAliases)return true;
       if(seen.has(value))return false;
       seen.add(value);
       for(const nested of value.properties.values()) {
@@ -1236,6 +1242,7 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function carrierLookupValue(container,key) {
     if(container.kind!=='container')return carrierOther;
+    if(container.possibleAliases)return carrierMaybe;
     if(key!==null) {
       if(container.properties.has(key))return container.properties.get(key)??carrierOther;
       return container.unknown?carrierMaybe:carrierOther;
@@ -1266,6 +1273,8 @@ function hasWeakMapPrototypeExposure(ast) {
       const merged=carrierContainer();
       byRight.set(right,merged);
       merged.unknown=left.unknown||right.unknown;
+      merged.possibleAliases=left.possibleAliases||right.possibleAliases;
+      merged.origins=new Set([...left.origins,...right.origins]);
       for(const [key,value] of left.properties)merged.properties.set(key,value);
       for(const [key,value] of right.properties) {
         merged.properties.set(key,merged.properties.has(key)?
@@ -1274,6 +1283,10 @@ function hasWeakMapPrototypeExposure(ast) {
       return merged;
     }
     if(left.kind==='weakmap'&&right.kind==='weakmap')return carrierWeakMap;
+    // A container may alias another heap location after a branch even when
+    // its current fields contain no WeakMap. Dropping it to 'other' would
+    // lose a future indirect write through a surviving alias.
+    if(left.kind==='container'||right.kind==='container')return carrierMaybe;
     if(left.kind==='other'&&right.kind==='other')return carrierOther;
     return carrierMayContainWeakMap(left)||carrierMayContainWeakMap(right)?
       carrierMaybe:carrierOther;
@@ -1285,65 +1298,53 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} right
    * @returns {void}
    */
+  /**
+   * Flag potential heap aliases represented by different abstract containers.
+   * Each allocation origin is stable through CFG snapshots. Two distinct
+   * result containers sharing one origin may refer to the same runtime object
+   * in at least one predecessor, but need not alias in every predecessor.
+   * Mark both uncertain rather than merging them into one strong-update heap;
+   * the latter can erase a genuine WeakMap belonging to the nonalias path.
+   * @param {Map<string,CarrierValue>} environment
+   * @returns {void}
+   */
+  function flagPossibleCarrierAliases(environment) {
+    /** @type {Map<number,CarrierContainer>} */
+    const byOrigin=new Map();
+    /** @type {Set<CarrierContainer>} */
+    const seen=new Set();
+    /** @param {CarrierValue} value @returns {void} */
+    function visit(value) {
+      if(value.kind!=='container'||seen.has(value))return;
+      seen.add(value);
+      for(const id of value.origins) {
+        const earlier=byOrigin.get(id);
+        if(earlier&&earlier!==value) {
+          earlier.possibleAliases=true;
+          value.possibleAliases=true;
+        } else if(!earlier)byOrigin.set(id,value);
+      }
+      for(const nested of value.properties.values())visit(nested);
+    }
+    for(const value of environment.values())visit(value);
+  }
+  /**
+   * Join alternative environments while preserving definite aliases, then
+   * flag overlapping allocation origins across otherwise distinct results.
+   * A possible alias must always remain a conservative source-provenance
+   * uncertainty after either variable is subsequently mutated.
+   * @param {Map<string,CarrierValue>} target
+   * @param {Map<string,CarrierValue>} left
+   * @param {Map<string,CarrierValue>} right
+   * @returns {void}
+   */
   function joinCarrierEnvironments(target,left,right) {
     /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
     const pairs=new Map();
-    const names=[...new Set([...left.keys(),...right.keys()])];
-    for(const name of names)
+    for(const name of new Set([...left.keys(),...right.keys()]))
       target.set(name,mergeCarrierValues(
         left.get(name)??carrierOther,right.get(name)??carrierOther,pairs));
-
-    // A per-name (left,right) memo does not preserve *disjunctive* aliases.
-    // Consider one path where a===b and another where a!==b. The two
-    // separately merged result objects must still may-alias: a later write
-    // through a may-alias can affect b. Coalesce root binding components that
-    // were the identical container on *either* predecessor. This can decline
-    // benign rewrites, but must not drop a feasible WeakMap prototype effect.
-    /** @type {Map<string,string>} */
-    const representatives=new Map(names.map(name=>[name,name]));
-    /** @param {string} name @returns {string} */
-    function find(name) {
-      const parent=representatives.get(name)??name;
-      if(parent===name)return name;
-      const root=find(parent);
-      representatives.set(name,root);
-      return root;
-    }
-    /** @param {string} first @param {string} second @returns {void} */
-    function unite(first,second) {
-      representatives.set(find(first),find(second));
-    }
-    for(const predecessor of [left,right]) {
-      /** @type {Map<CarrierContainer,string>} */
-      const seen=new Map();
-      for(const name of names) {
-        const value=predecessor.get(name);
-        if(value?.kind!=='container')continue;
-        const earlier=seen.get(value);
-        if(earlier!==undefined)unite(earlier,name);
-        else seen.set(value,name);
-      }
-    }
-    /** @type {Map<string,string[]>} */
-    const groups=new Map();
-    for(const name of names) {
-      const root=find(name);
-      const group=groups.get(root)??[];
-      group.push(name);
-      groups.set(root,group);
-    }
-    for(const group of groups.values()) {
-      if(group.length<2)continue;
-      let combined=target.get(group[0])??carrierOther;
-      /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
-      const sharedPairs=new Map();
-      for(const name of group.slice(1)) {
-        const value=target.get(name)??carrierOther;
-        if(combined!==value)
-          combined=mergeCarrierValues(combined,value,sharedPairs);
-      }
-      for(const name of group)target.set(name,combined);
-    }
+    flagPossibleCarrierAliases(target);
   }
   /**
    * Whether an accessor or method can yield a WeakMap carrier. Unknown
