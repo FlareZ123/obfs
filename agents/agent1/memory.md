@@ -2474,3 +2474,30 @@ Next: inspect queued CI/failure logs; if Node proof focused+browser green, reduc
 - Branch `agent1/v2-imported-native-dom-factory-proof-20261128` isolates the remaining `test/html-asset-disclosure` no-SRI positive failure for an imported `build()` returning a native Node. Added `collectVerifiedImportedNativeNodeFactories` in `src/core.js` and an optional source-audited import set to `observesFunctionSource` in `src/ast.js`. The proof now conservatively requires one pure immutable ESM exporter, exactly one relative import and first top-level zero-arg const call, no earlier executable host mutation; mutable or opaque calls fall back to source-preserving refusal. New Node corpus and real Chrome import browser test are in `test/agent1-imported-native-node-factory-source.test.js` and `test/agent1-imported-native-node-factory-browser.js`. Latest candidate work includes `c18f2b6` and `c5c19af`; focused CI and browser acceptance still unverified. The branch remains experimental, not a safe-host theorem.
 - Sent broadcast `communications/broadcast/20261128T1443Z_agent1-v2-dom-global-constructor-red-green-chromium.md` for exact source pins, Agent 4 DOM review, and Agent 10 acceptance routing.
 - Immediate next: when Actions API cooldown expires, inspect exact red/fixed imported-factory runs and full V2 suite. Repair any strict JSDoc, compiler, or Chromium failures without concealing negative controls. Publish reproducible im-results report, avoid promoting compatibility to strong security, and preserve release-blocked decision. No claim about 2.5x or stronger-than-minifier resistance from these focused source tests.
+
+
+## 28 November 2026 — invocation 16:32:05 UTC (Agent 1; lease still active)
+
+Claimed `agent1` in commit `TODO` with run ID `agent1-20261128-lease-TODO`. Original `claimed_at` is `2026-11-28T16:32:05.279Z`; do not refresh it. The 70-minute release threshold is 17:42:05.279Z.
+
+### Exported-factory proof review
+
+Reviewed Agent 9's candidate branch `agent9/pr412-exported-factory-return-20261128` (source pin `97c1d506ad6ecb8171b86241acf03ab91f6e9462`) after Agent 9 requested review. Found a concrete graph-closure gap: the global ambiguity walk in `src/cross-properties.js` rejects `ImportExpression` only when import attributes are present, while the new factory proof enumerates only static named importers. An in-group dynamic importer can call the exported factory and retain old property spellings after the factory literal and static consumer are rewritten.
+
+Created adversarial ESM parity witness on `agent1/agent9-factory-dynamic-import-review-20261128`:
+- red witness commit: `b97ebf4b157ab7802810b0252bb9a951182b041d`
+- run `46166558515`: **RED on macOS, Windows and Ubuntu**; native stdout `17\n17\n`, emitted stdout `17\nundefined\n`
+- first conservative guard commit: `ead2b9381bfd9dd4dce5e33cc6e129b04d5fe836` (cancelled before execution after refining the policy)
+- refined guard commit: `b4fdeacb1d607f9d40dbabfe9eeeebeb946fd9d9`
+- paired negative + safe `node:os` positive-control test commit: `71374a31c7a541cf8fd942849f47472a09c4f4f5`
+- focused validation run `46167560053` queued at this checkpoint.
+
+The refined guard rejects dynamic import edges that could load an in-group module or unlisted package, import attributes, `node:module`, and secondary-loader builtins, while preserving literal `node:` builtin imports such as `node:os`. It has not yet been validated green; do not claim it is fixed until run `46167560053` completes and its logs show both the negative parity case and positive-yield control.
+
+### Candidate status and coordination
+
+Agent 9's earlier candidate run `46164320853` was also red: two positive-yield assertions in `test/cross-file-identity-return.test.js` expected 2 rewrites but observed 0 (multi-slot record/tuple and multiple direct-importer cases). These are coverage gaps separate from the dynamic-import semantic mismatch. Agent 9 was notified in `communications/agent9/20261128T1646Z_agent1-exported-factory-dynamic-import-review.md` and `communications/agent9/20261128T1654Z_agent1-dynamic-import-red-and-patch-update.md`.
+
+Requested independent review from Agent 10 because its recent work also changes `src/cross-properties.js`; see `communications/agent10/20261128T1652Z_agent1-dynamic-import-factory-gap-review.md` and `communications/agent10/20261128T1655Z_agent1-dynamic-import-confirmation.md`.
+
+Next actions: inspect run `46167560053` (failed jobs only, short tails); if green, preserve the red/green proof in `im-results/` and hand the minimal patch/test to Agent 9 for rebasing and full candidate acceptance. If it fails, fix the exact observed failure. Do not merge Agent 9's factory proof while its two positive-yield failures or this semantic regression remain unresolved. Full release remains NO-GO for separate static reconstruction, runtime extraction, SCO relay and 2.5× performance evidence.
