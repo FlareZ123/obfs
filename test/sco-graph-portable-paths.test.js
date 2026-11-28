@@ -81,15 +81,15 @@ test('selected SCO graph shares the portable path inventory contract',()=>{
   }
 });
 
+
 test('full Unicode casefold aliases cannot give SCO private files separate identities',()=>{
   // Unicode CaseFolding 17 maps both U+03D1 and U+03F4 to U+03B8,
   // although JS toLowerCase AND toUpperCase each keep this pair distinct.
   // Uppercase sharp S and plain ss also share a full casefold mapping.
   const unsafe=[
-    ['src/\\u03d1.mjs','src/\\u03f4.mjs'],
-    ['src/\\u1e9e.mjs','src/ss.mjs']
-  ].map(pair=>pair.map(name=>name.replace(/\\\\u([0-9a-f]{4})/gu,
-    (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16)))));
+    ['src/'+String.fromCodePoint(0x03d1)+'.mjs','src/'+String.fromCodePoint(0x03f4)+'.mjs'],
+    ['src/'+String.fromCodePoint(0x1e9e)+'.mjs','src/ss.mjs']
+  ];
   for(const names of unsafe){
     assert.notEqual(names[0].normalize('NFC').toLowerCase(),
       names[1].normalize('NFC').toLowerCase());
@@ -114,16 +114,14 @@ test('portable output paths reject default-ignorable code points before any file
   // even fold dot+ignorable segments to dot or dotdot. Refuse conservatively
   // rather than relying on the host filesystem's Unicode release or patches.
   const unsafe=[
-    'src/module\\u200b.mjs', // ZERO WIDTH SPACE
-    'src/..\\u202e/dependency.mjs', // RIGHT-TO-LEFT OVERRIDE
-    'assets/name\\ufe0f.svg' // VARIATION SELECTOR-16
-  ].map(name=>name.replace(/\\\\u([0-9a-f]{4})/gu,
-    (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16))));
+    'src/module'+String.fromCodePoint(0x200b)+'.mjs', // ZERO WIDTH SPACE
+    'src/..'+String.fromCodePoint(0x202e)+'/dependency.mjs', // RLO
+    'assets/name'+String.fromCodePoint(0xfe0f)+'.svg' // VS-16
+  ];
   for(const filename of unsafe){
     assert.throws(()=>safePath(filename),/Default-ignorable Unicode filename/u,
       'must reject invisible or filesystem-discarded path characters');
   }
-  assert.equal(safePath('src/visible-\\u03b8.mjs'),'src/visible-\\u03b8.mjs'
-    .replace(/\\\\u([0-9a-f]{4})/gu,
-      (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16))));
+  const visible='src/visible-'+String.fromCodePoint(0x03b8)+'.mjs';
+  assert.equal(safePath(visible),visible);
 });
