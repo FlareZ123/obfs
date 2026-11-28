@@ -63,6 +63,7 @@ async function runEvidence(){
       'Mutation must evade lossy text-only output comparison');
     assert.equal(Object.is(mutation.round1(0),reference.round1(0)),false,
       'Exact typed source oracle must reject console-equivalent mutation');
+    /** @type {Record<string,boolean|number>} */
     const oracleMutationControl={textComparatorWouldMiss:true,
       exactTypedComparatorRejects:true};
     // Keep the original *complete* three-file graph as the heldout
