@@ -252,8 +252,71 @@ async function main(){
       assert.ok(actual.coldCompute['10000'][name].some(value=>value>0),
         'Synchronous 10000-event cold CPU was not measured: '+name);
     }
+    // Measure JavaScript CPU separately from performance.now wall time.
+    // ScriptDuration is the page's cumulative V8 execution time; network wait
+    // is excluded, while cold module evaluation and first application call count.
+    const cdp=await chromePage.createCDPSession();
+    await cdp.send('Performance.enable');
+    const metric=(metrics,name)=>{
+      const found=metrics.find(item=>item.name===name);
+      assert.ok(found,'Missing Chromium Performance metric: '+name);
+      return found.value;
+    };
+    const measureScriptCpu=async action=>{
+      const before=await cdp.send('Performance.getMetrics');
+      const result=await action();
+      const after=await cdp.send('Performance.getMetrics');
+      const scriptMs=(metric(after.metrics,'ScriptDuration')-
+        metric(before.metrics,'ScriptDuration'))*1000;
+      const taskMs=(metric(after.metrics,'TaskDuration')-
+        metric(before.metrics,'TaskDuration'))*1000;
+      assert.ok(Number.isFinite(scriptMs)&&scriptMs>0,
+        'Chromium ScriptDuration did not record positive JavaScript CPU');
+      assert.ok(Number.isFinite(taskMs)&&taskMs>=scriptMs,
+        'Chromium TaskDuration did not cover measured script CPU');
+      return {scriptMs,taskMs,result};
+    };
+    const cpuSamples={native:[],minified:[],published:[],reconstructed:[]};
+    const taskSamples={native:[],minified:[],published:[],reconstructed:[]};
+    const coldCpuSamples={native:[],minified:[],published:[],reconstructed:[]};
+    const coldTaskSamples={native:[],minified:[],published:[],reconstructed:[]};
+    const expectedWarm=expected.find(row=>row.events===10000);
+    assert.ok(expectedWarm,'Missing 10000-event held-out native oracle');
+    for(let trial=0;trial<12;trial++){
+      for(const name of orders[trial%orders.length]){
+        const measured=await measureScriptCpu(()=>chromePage.evaluate(
+          ({name,repeats})=>window.__runWarmCpu(name,repeats),
+          {name,repeats:20}
+        ));
+        assert.equal(measured.result.emitted,200000,
+          'Warm CPU run lost external callback events: '+name);
+        const outputHash=await chromePage.evaluate(()=>window.__hashLastCpuOutput());
+        assert.equal(outputHash,expectedWarm.outputSha256,
+          'Warm CPU run changed application output: '+name);
+        cpuSamples[name].push(measured.scriptMs);
+        taskSamples[name].push(measured.taskMs);
+      }
+    }
+    for(let trial=0;trial<12;trial++){
+      for(const name of orders[trial%orders.length]){
+        const trialId=12+trial;
+        const measured=await measureScriptCpu(()=>chromePage.evaluate(
+          ({name,trialId})=>window.__runColdCpu(name,10000,trialId),
+          {name,trialId}
+        ));
+        assert.equal(measured.result.emitted,10000,
+          'Cold CPU run lost external callback events: '+name+'/'+trialId);
+        const outputHash=await chromePage.evaluate(()=>window.__hashLastCpuOutput());
+        assert.equal(outputHash,expectedWarm.outputSha256,
+          'Cold CPU run changed application output: '+name+'/'+trialId);
+        coldCpuSamples[name].push(measured.scriptMs);
+        coldTaskSamples[name].push(measured.taskMs);
+      }
+    }
+    await cdp.send('Performance.disable');
+    await cdp.detach();
     // Two workloads x 12 trials x 4 variants x 3 distinct ESM module URLs.
-    assert.equal(coldModuleRequests,288,'All cold ESM graph dependencies must be fetched');
+    assert.equal(coldModuleRequests,432,'All cold ESM graph dependencies, including CPU samples, must be fetched');
     const coldFreshGraphs=Object.fromEntries(['1','10000'].map(count=>[
       count,{
         events:Number(count),trialsPerVariant:12,
@@ -266,7 +329,9 @@ async function main(){
         computeMinifiedVsNative:count==='10000'?pairedBudgetBound(
           actual.coldCompute[count].native,actual.coldCompute[count].minified):null,
         totalMs:actual.cold[count],importMs:actual.coldImport[count],
-        computeMs:actual.coldCompute[count]
+        computeMs:actual.coldCompute[count],
+        cpuMs:count==='10000'?coldCpuSamples:null,
+        taskMs:count==='10000'?coldTaskSamples:null
       }
     ]));
     const warmCooBudget=pairedBudgetBound(
@@ -275,21 +340,31 @@ async function main(){
       actual.coldCompute['10000'].native,actual.coldCompute['10000'].published);
     const coldTotalCooBudget=pairedBudgetBound(
       actual.cold['10000'].native,actual.cold['10000'].published);
+    const warmCpuCooBudget=pairedBudgetBound(cpuSamples.native,cpuSamples.published);
+    const coldCpuBudget=pairedBudgetBound(coldCpuSamples.native,coldCpuSamples.published);
     const browserEvidence={
       node:process.version,platform:process.platform,chromeVersion,sourceSha256,
       clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
       freshGraphHttpModuleRequests:coldModuleRequests,coldFreshGraphs,
-      minifiedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.minified),
-      publishedVsNative:warmCooBudget,
-      strictSampleBreaches:{
+      cpuMeasurement:'Chromium Performance.ScriptDuration deltas (V8 JavaScript CPU; network wait excluded)',
+      cpuSamples,taskSamples,
+      minifiedVsNativeWall:pairedBudgetBound(actual.samples.native,actual.samples.minified),
+      publishedVsNativeWall:warmCooBudget,
+      publishedVsNativeCpu:warmCpuCooBudget,
+      coldPublishedVsNativeCpu:coldCpuBudget,
+      strictWallSampleBreaches:{
         warmed10000Compute:warmCooBudget.samplePairs-warmCooBudget.observedPairsWithinBudget,
         cold10000Compute:coldCpuCooBudget.samplePairs-coldCpuCooBudget.observedPairsWithinBudget,
         cold10000Total:coldTotalCooBudget.samplePairs-coldTotalCooBudget.observedPairsWithinBudget
       },
-      publishedVsMinified:pairedBudgetBound(actual.samples.minified,actual.samples.published),
-      reconstructedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.reconstructed),
+      strictCpuSampleBreaches:{
+        warmed10000: warmCpuCooBudget.samplePairs-warmCpuCooBudget.observedPairsWithinBudget,
+        cold10000: coldCpuBudget.samplePairs-coldCpuBudget.observedPairsWithinBudget
+      },
+      publishedVsMinifiedWall:pairedBudgetBound(actual.samples.minified,actual.samples.published),
+      reconstructedVsNativeWall:pairedBudgetBound(actual.samples.native,actual.samples.reconstructed),
       samples:actual.samples
     };
     if(process.env.OBFS_FOUR_WAY_BROWSER_AUDIT_FILE)
