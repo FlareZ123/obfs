@@ -6,6 +6,24 @@ const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
 const svgNamespace='http://www.w3.org/2000/svg';
+const SMIL_ANIMATION_ELEMENTS=new Set(['animate','set','animatecolor','animatemotion','animatetransform']);
+
+/**
+ * SVG SMIL animation can synthesize an event-handler attribute even when the
+ * original XML/HTML contains no attribute whose *name* starts with "on".
+ * Namespace-qualified spellings are conservatively refused too; SVG event
+ * handler attributes are not a safe target for unreviewed opaque assets.
+ *
+ * @param {string} elementName
+ * @param {string|undefined} attributeName
+ * @returns {boolean}
+ */
+function smilTargetsExecutableAttribute(elementName,attributeName) {
+  if(!SMIL_ANIMATION_ELEMENTS.has(elementName.toLowerCase())||typeof attributeName!=='string')return false;
+  const target=attributeName.trim().toLowerCase().split(':').at(-1);
+  return !!target&&(/^on[a-z]/u.test(target)||target==='srcdoc');
+}
+
 
 /**
  * XHTML uses XML syntax and permits namespace-qualified HTML script elements.
@@ -43,6 +61,10 @@ function findInlineXhtmlSource(xml) {
     if(isExecutable&&name==='style'){styleDepth++;stylesheet='';}
     if(!isExecutable)return;
     const attributes=Object.values(tag.attributes);
+    if(tag.uri===svgNamespace&&smilTargetsExecutableAttribute(name,
+      attributes.find(attribute=>attribute.local.toLowerCase()==='attributename')?.value)) {
+      issue??='SVG animation targets executable attribute';
+    }
     /** @param {string} key @returns {string|undefined} */
     const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
     for(const attribute of attributes) {
@@ -253,6 +275,21 @@ function findInlineHtmlSource(html) {
   function visit(node) {
     if(issue)return;
     const attrs=node.attrs??[];
+    if(node.namespaceURI===svgNamespace&&SMIL_ANIMATION_ELEMENTS.has((node.tagName??'').toLowerCase())) {
+      if(smilTargetsExecutableAttribute(node.tagName??'',
+        attrs.find(attr=>attr.name.toLowerCase()==='attributename')?.value)) {
+        issue='SVG animation targets executable attribute';return;
+      }
+      // HTML parsing does not use the separate SVG/XML scanners. Animation
+      // values may synthesize javascript: URLs despite no original href.
+      for(const attr of attrs) {
+        const key=attr.name.toLowerCase();
+        if(['from','to','by','values'].includes(key)&&
+          (key==='values'?attr.value.split(';'):[attr.value]).some(isEmbeddedExecutableUrl)) {
+          issue='SVG animation embeds executable URL';return;
+        }
+      }
+    }
     for(const {name,value} of attrs) {
       const lower=name.toLowerCase();
       if(/^on[a-z]/u.test(lower)) {issue='inline event handler';return;}
@@ -662,4 +699,4 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   return false;
 }
 
-module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup,hasPinnedLocalJavaScriptIntegrity};
+module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup,hasPinnedLocalJavaScriptIntegrity,smilTargetsExecutableAttribute};
