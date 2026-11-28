@@ -21,6 +21,45 @@ const {walk}=require('./ast');
  * @param {import('./ast').AstNode} ast
  * @returns {void}
  */
+/**
+ * Identify mutable literal owners even when JavaScript expression syntax
+ * wraps the value. This is a refusal predicate, not a general value solver:
+ * unknown functions and dynamically resolved constructors are unproved.
+ *
+ * @param {import('./ast').AstNode|null|undefined} value
+ * @param {number} [depth]
+ * @returns {boolean}
+ */
+function carriesSharedLiteralObject(value,depth=0){
+  if(!value)return false;
+  if(depth>16)return true;
+  switch(value.type){
+    case 'ObjectExpression':
+    case 'ArrayExpression':
+      return true;
+    case 'Literal':
+      return value.regex!==undefined;
+    case 'NewExpression':
+      return value.callee.type==='Identifier'&&
+        ['Object','Array','RegExp','Map','Set','WeakMap','WeakSet','Date'].includes(value.callee.name);
+    case 'CallExpression':
+      return value.callee.type==='Identifier'&&
+        ['Object','Array','RegExp'].includes(value.callee.name);
+    case 'SequenceExpression':
+      return value.expressions.length>0&&
+        carriesSharedLiteralObject(value.expressions[value.expressions.length-1],depth+1);
+    case 'ConditionalExpression':
+    case 'LogicalExpression':
+      return carriesSharedLiteralObject(value.consequent??value.left,depth+1)||
+        carriesSharedLiteralObject(value.alternate??value.right,depth+1);
+    case 'AssignmentExpression':
+    case 'AwaitExpression':
+      return carriesSharedLiteralObject(value.right??value.argument,depth+1);
+    default:
+      return false;
+  }
+}
+
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
@@ -41,14 +80,10 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
     if(declaration.type==='VariableDeclaration'&&declaration.kind==='const'){
       for(const item of declaration.declarations){
         // A const binding freezes only the binding, not its record, array or
-        // RegExp object. These literal objects can accumulate per-client state
-        // through a retained closure even when all calls are syntactically
-        // direct. Keep dynamic/nonliteral initializers as separately
-        // unproved; this guard closes explicit object/array/regexp literals.
-        const value=item.init;
-        if(value&&(
-          value.type==='ObjectExpression'||value.type==='ArrayExpression'||
-          value.type==='Literal'&&value.regex!==undefined)){
+        // RegExp object. These values (and their identity-preserving syntax
+        // wrappers) may accumulate state across direct private calls.
+        // Unknown dynamic initializers remain outside this bounded proof.
+        if(carriesSharedLiteralObject(item.init)){
           throw new TypeError(
             'Selected SCO private dependency has unproved shared module object state: '+filename);
         }
