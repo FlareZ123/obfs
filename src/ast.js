@@ -619,11 +619,31 @@ function hasWeakMapPrototypeExposure(ast) {
   });
   /** @type {Set<string>} */
   const reassignedLocalFunctions=new Set();
+  /** @type {Set<string>} */
+  const functionProtocolOverrideTargets=new Set();
+  let globalFunctionProtocolOverride=false;
   walk(ast,node=>{
     if(node.type==='AssignmentExpression'&&node.left?.type==='Identifier')
       reassignedLocalFunctions.add(node.left.name);
     if(node.type==='UpdateExpression'&&node.argument?.type==='Identifier')
       reassignedLocalFunctions.add(node.argument.name);
+    const target=node.type==='AssignmentExpression'?node.left:
+      node.type==='UpdateExpression'?node.argument:null;
+    if(target?.type==='MemberExpression'&&
+       ['call','apply','bind'].includes(memberKey(target)??'')) {
+      if(target.object.type==='Identifier')
+        functionProtocolOverrideTargets.add(target.object.name);
+      else if(target.object.type==='MemberExpression'&&
+              memberKey(target.object)==='prototype')
+        globalFunctionProtocolOverride=true;
+    }
+    // Reflective own methods and wholesale prototype replacement can alter
+    // argument forwarding just as a syntactic fill.call=... assignment can.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       ['defineProperty','defineProperties','assign','setPrototypeOf'].includes(
+         memberKey(node.callee)??'')&&
+       node.arguments[0]?.type==='Identifier')
+      functionProtocolOverrideTargets.add(node.arguments[0].name);
   });
   // A top-level empty class without a mutable binding has a default
   // constructor that performs no user-code callbacks before returning.
@@ -2005,6 +2025,11 @@ function hasWeakMapPrototypeExposure(ast) {
            localFunctionNodes.has(owner)&&
            localBindingCounts.get(owner)===1&&
            !reassignedLocalFunctions.has(owner)&&!hasDirectEval) {
+          // A function can own call/apply/bind methods that ignore, mutate,
+          // or replace supplied arguments. The normal forwarding summary is
+          // unsound when source writes may override that protocol.
+          if(functionProtocolOverrideTargets.has(owner)||
+             globalFunctionProtocolOverride)exposed=true;
           /** @type {AstNode[]} */
           let argumentsToReplay=[];
           if(method==='call'||method==='bind')
