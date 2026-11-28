@@ -11,7 +11,7 @@ const named='export function build(){return document.createElement("script");}';
 const immutable='export const build=()=>document.createElement("script");';
 const imported='import {build as makeNode} from "./factory.mjs";';
 const normalBootstrap=imported+
-  'const script=makeNode();script.src="./client.js";document.head.append(script);'+
+  'const script=makeNode();document.head.append(script);'+
   'globalThis._seen=document.head.lastChild.textContent;globalThis._ready=true;';
 const functionDonor='export let build=()=>document.createElement("script");'+
   'build=()=>function inspected(){const secret="browser observable callable source";return secret;};';
@@ -113,9 +113,14 @@ async function main(){
     /** @param {string} route */
     async function load(route){
       const page=await /** @type {import('puppeteer-core').Browser} */(browser).newPage();
+      /** @type {string[]} */
+      const pageErrors=[];
+      page.on('pageerror',error=>pageErrors.push(String(error)));
       try {
         await page.goto('http://127.0.0.1:'+address.port+route,{waitUntil:'load'});
         await page.waitForFunction('globalThis._ready===true',{timeout:6500});
+        assert.deepEqual(pageErrors,[],
+          'Native/emitted script reexecution or observable browser error: '+route);
         return await page.evaluate(()=>{
           const state=/** @type {typeof globalThis & {
             _importedNativeValue?:string,_seen?:string
