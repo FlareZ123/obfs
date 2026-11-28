@@ -6481,7 +6481,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            'nonce','autocapitalize','autocomplete','contentEditable',
            'spellcheck','inputMode','accessKey','enterKeyHint'].includes(attribute))
         ||isNativeDocument(owner) &&
-          ['cookie','title','domain'].includes(attribute??'')
+          ['cookie','domain'].includes(attribute??'')
       ) || unsafeKey && (isNativeDomDataset(owner)||isNativeDomElement(owner)))
         observed=true;
     }
