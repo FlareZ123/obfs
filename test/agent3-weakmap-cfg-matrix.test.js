@@ -284,6 +284,17 @@ const cases=[
 ['member-key-reflect-get-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};Reflect.get(rec,key);','carrier.instance'],
 ['member-key-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};rec["x"]=2;','carrier.instance'],
 ['member-key-reflect-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};Reflect.get(rec,"x");','carrier.instance'],
+// Unique top-level const module bindings may be proved primitive across
+// computed object/class/member/Reflect keys despite hostile global prototypes.
+// Shadowed or object-valued identifiers must not receive this certificate.
+['primitive-module-const-object-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={[primitiveKey]:1};','carrier.instance'],
+['primitive-module-const-member-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};rec[primitiveKey];','carrier.instance'],
+['primitive-module-const-reflect-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};Reflect.get(rec,primitiveKey);','carrier.instance'],
+['primitive-module-const-in-key-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey="x";const rec={x:1};primitiveKey in rec;','carrier.instance'],
+['primitive-module-transitive-const-positive','class Ordinary{}const carrier={instance:new Ordinary()};const a="x";const b=a;const rec={[b]:1};','carrier.instance'],
+['primitive-module-numeric-const-positive','class Ordinary{}const carrier={instance:new Ordinary()};const primitiveKey=1+2;const rec={[primitiveKey]:1};','carrier.instance'],
+['primitive-module-shadowed-param-negative','const carrier={instance:{}};const primitiveKey="x";function use(primitiveKey){const rec={x:1};return rec[primitiveKey];}use({toString(){carrier.instance=new WeakMap();return "x";}});','carrier.instance'],
+['primitive-module-object-const-negative','const carrier={instance:{}};const primitiveKey={toString(){carrier.instance=new WeakMap();return "x";}};const rec={[primitiveKey]:1};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
