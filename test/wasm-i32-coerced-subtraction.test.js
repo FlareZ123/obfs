@@ -73,6 +73,25 @@ test('bitwise-coerced subtraction preserves typed native outputs and remains sta
     nativeWasmCloneComparisons:comparisons,seed:'0x67c9b5a1'}));
 });
 
+
+test('public i32.sub renderer distinguishes binary minus from a negative literal',()=>{
+  const source='function f(a,b){return ((a- -1)^(b- -2147483648))|0;}module.exports=f;';
+  const generated=lowerWasmI32Functions(source,'commonjs',{
+    names:['f'],seed:'subtracted-negative-literal-lexical-regression'
+  });
+  assert.equal(generated.functions,1);
+  const recovered=recoverPublicWasmExpression(generated.code,['a','b']);
+  assert.match(recovered.expression,/ - -1/u);
+  assert.match(recovered.expression,/ - -2147483648/u);
+  const native=load(source),wasm=load(generated.code);
+  const clone=load('function f(a,b){return '+
+    recovered.expression+';}module.exports=f;');
+  for(const a of boundary)for(const b of boundary) {
+    assert.ok(Object.is(wasm(a,b),native(a,b)));
+    assert.ok(Object.is(clone(a,b),native(a,b)));
+  }
+});
+
 test('raw subtraction, uncoerced branches and subtraction used as conditional test decline',()=>{
   const rejected=[
     'a-b','a?(b-c):d','(a-b)?c:d','((a-b)?c:d)|0',
