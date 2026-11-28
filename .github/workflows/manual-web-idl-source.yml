@@ -32,6 +32,8 @@ jobs:
         run: node test/agent19-user-timing-source-browser.js
       - name: Native User Timing structured-clone detail source and positive yield
         run: node --test test/agent19-user-timing-detail-source.test.js
+      - name: Static ESM native User Timing alias reexport and negative proofs
+        run: node --test test/agent19-timing-esm-provenance.test.js
       - name: Three-file imported native User Timing receiver source parity
         run: node --test test/agent19-user-timing-imported-receiver.test.js
       - name: Native timing imported-graph source cache isolation
