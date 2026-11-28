@@ -253,11 +253,11 @@ function generateLowRankPermutation(n,r,seed,shape){
  * Empirical trial: randomized hidden linear maps and both dense and sparse
  * rank-r bijections. The static bound is promise-conditional and does NOT
  * establish the statistical sampling success probability on its own.
- * @param {{width:number,rank:number,seeds:number,sampleCount:number,shape:'dense'|'sparse',targetsPerCase:number}} config
+ * @param {{width:number,rank:number,seeds:number,sampleCount:number,shape:'dense'|'sparse',targetsPerCase:number,initialBasis?:boolean}} config
  * @returns {{width:number,rank:number,seeds:number,shape:string,targets:number,failures:number,maxAdaptiveQueries:number,minBasis:number,distinctSampleInputs:number}}
  */
 function runTrials(config){
-  const {width:n,rank:r,seeds,sampleCount,shape,targetsPerCase}=config;
+  const {width:n,rank:r,seeds,sampleCount,shape,targetsPerCase,initialBasis=false}=config;
   const mask=wordMask(n);
   const seenInput=new Set();
   let targets=0,failures=0,maxAdaptiveQueries=0,minBasis=n;
@@ -271,6 +271,12 @@ function runTrials(config){
     /** @type {Pair[]} */
     const samples=[];
     const base=f(0);
+    if(initialBasis){
+      for(let i=0;i<n;i++){
+        const input=(2**i)>>>0;
+        samples.push({input,output:(f(input)^base)>>>0});
+      }
+    }
     for(let i=0;i<sampleCount;i++){
       const input=next()&mask;
       seenInput.add(input);
@@ -299,7 +305,9 @@ function main(){
     {width:5,rank:2,seeds:12,sampleCount:48,shape:'dense',targetsPerCase:32},
     {width:7,rank:3,seeds:12,sampleCount:64,shape:'sparse',targetsPerCase:64},
     {width:32,rank:2,seeds:12,sampleCount:592,shape:'dense',targetsPerCase:16},
-    {width:32,rank:3,seeds:12,sampleCount:592,shape:'sparse',targetsPerCase:16}
+    {width:32,rank:3,seeds:12,sampleCount:592,shape:'sparse',targetsPerCase:16},
+    {width:32,rank:2,seeds:12,sampleCount:166,shape:'dense',targetsPerCase:16,initialBasis:true},
+    {width:32,rank:3,seeds:12,sampleCount:232,shape:'sparse',targetsPerCase:16,initialBasis:true}
   ]);
   const results=cases.map(runTrials);
   assert.ok(results.every(x=>x.failures===0));

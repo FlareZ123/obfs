@@ -152,6 +152,18 @@ test('rank-r unknown-affine-perturbation inversion on 32-bit dense/sparse permut
   console.log('MATROID_RANK_R_REPRODUCER '+JSON.stringify(results));
 });
 
+test('rank-aware n plus O(nr) paired-basis sampling bound at 32 bits',()=>{
+  const cases=/** @type {Parameters<typeof runTrials>[0][]} */([
+    {width:32,rank:2,seeds:12,sampleCount:166,shape:'dense',targetsPerCase:16,initialBasis:true},
+    {width:32,rank:3,seeds:12,sampleCount:232,shape:'sparse',targetsPerCase:16,initialBasis:true}
+  ]);
+  const results=cases.map(runTrials);
+  assert.ok(results.every(x=>x.failures===0));
+  assert.ok(results.every(x=>x.maxAdaptiveQueries<=2**x.rank));
+  assert.equal(results.reduce((sum,x)=>sum+x.targets,0),384);
+  console.log('MATROID_RANK_AWARE_SAMPLES '+JSON.stringify(results));
+});
+
 test('explicit false-rank promise is rejected without returning a false preimage',()=>{
   const f=generateLowRankPermutation(7,3,0x196a05fd,'dense');
   const base=f(0);

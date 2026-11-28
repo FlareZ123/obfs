@@ -28,6 +28,61 @@ m = ceil(n^2/2 + 2*log2(n+1) + 4 + lambda)
 
 suffices. A polynomial-time linear-matroid-intersection algorithm extracts the common basis, so **`1 + m + 2^r` chosen oracle queries** suffice with probability at least `1 - 2^-lambda`. The `1` is for `F(0)`; the target is supplied, not itself counted as an oracle call. At `n=32`, `lambda=64`, the formula requires `m=591`; using the implemented conservative `m=592`, the total is at most **597** for `r=2` or **601** for `r=3`, with the stated ideal independent-uniform sampling guarantee. Runtime to compute matroid intersection is not included in query count; no protected application CPU measurement is implied.
 
+## Stronger rank-aware basis acquisition: `O(n*r)` extra oracle queries
+
+The generic `m=Theta(n^2+lambda)` sample bound above treats **any** permutation, even one with full-rank nonlinear residual. Under the rank-`r` promise with **invertible `A`**, a stronger bound exploits `n` initial fixed basis queries plus fewer independently uniform additional samples.
+
+Query `F(0)` and the `n` standard basis words `e_i`. Define the observed linear interpolant `M_0(e_i)=F(e_i) XOR F(0)`. Because `M_0 XOR A` has image in `W`,
+
+```
+rank(M_0) >= rank(A) - rank(M_0 XOR A) >= n-r.
+```
+
+Let `m` be the number of *further* independent uniform samples. If all `n+m` pairs lack a common rank-`n` independent set, matroid intersection gives fixed subspaces `U,T` of dimensions `a,b`, `a+b<=n-1`, containing each input/output fixed or random pair on one side of the union `U ∪ G^-1(T)`.
+
+Let `S={i:e_i∈U}` with `s=|S|<=a`, and `U_0=span{e_i:i∈S}`. For the other `n-s` basis probes, the images `G(e_i)` all belong to `T`. Their span `T_0` has rank `t>=n-s-r`, because the rank deficit of **any restriction** of the rank-at-least-`n-r` map `M_0` cannot exceed `r`. Then
+
+```
+0 <= a-s <= n-1-b-s <= n-1-t-s <= r-1,
+0 <= b-t <= n-1-a-t <= n-1-s-t <= r-1.
+```
+
+So `U` extends the fixed `U_0` by at most `r-1` dimensions, while `T` extends the fixed `T_0` by at most `r-1` dimensions. For each of the at most `2^n` possible `S`, the Gaussian-binomial bound yields at most
+
+```
+4*r*2^((r-1)*n)
+```
+
+possible extensions for each side. The total number of admissible **witness pairs** `(U,T)` covering the fixed basis is bounded by `16*r^2*2^((2r-1)*n)`. Each such union has size at most half the domain, so independent extra samples miss a common basis with probability at most
+
+```
+Pr(no paired basis after basis-plus-m samples)
+  <= 16*r^2 * 2^((2*r-1)*n-m).
+```
+
+Consequently, for `1<=r<=n` one may choose
+
+```
+m = ceil((2*r-1)*n + 2*log2(r) + 4 + lambda)
+```
+
+and obtain exact target recovery with probability `>=1-2^-lambda` within
+
+```
+1 + n + m + 2^r
+```
+
+chosen oracle calls. In particular, at `n=32` with `lambda=64`:
+
+| Residual rank | Fixed basis | Extra random samples | Adaptive inverse | Total queries |
+| --- | ---: | ---: | ---: | ---: |
+| `r=2` | 32 | 166 | 4 | **203** (includes `F(0)`) |
+| `r=3` | 32 | 232 | 8 | **273** (includes `F(0)`) |
+
+This is a **worst-case** bound over all promised permutations, including adversarially sparse residuals. The generic `Theta(n^2)` bound remains available for high `r` if smaller. At `r=0`, affine invertibility makes `M_0` immediately invertible and only `F(0)`, `F(e_i)` and one target evaluation are needed. At `r=1`, the existing stronger Agent 2 theorem yields `n+3` queries, so this rank-aware argument does not supersede it for that special case. The `O(nr)` here denotes oracle **samples**, not the local computational complexity of matroid intersection.
+
+There is also an intrinsic characterization: the promise is equivalent (for bijective `F`) to the existence of an unknown output quotient `V/W` of dimension at least `n-r` on which the induced map `pi_W ◦ F` is affine. The quotient's linear part is necessarily surjective and can be lifted to an invertible `A`; therefore a singular choice of `A` does not enlarge the promised class for permutations.
+
 ## Proof I — every paired basis produces an invertible affine interpolant with low-rank residual
 
 Let the common pairs be indexed by `i=1..n` and set `g_i=F(x_i) XOR F(0)`. Their input and output columns are each bases. Define `M` as the unique invertible linear map satisfying `M(x_i)=g_i`. Since
@@ -92,15 +147,16 @@ Pr(no paired rank-n basis) <= 16*(n+1)^2*2^(n^2/2 - m).
 ## Exact reproducible implementation and negative controls
 
 - `sims/low-rank-affine-matroid-target-inversion.js` — 32-bit JSDoc strict-typed integer linear algebra, binary-matroid exchange/augmenting-path maximum common independent-set solver, adaptive target inverter, and seeded dense/sparse affine-scrambled rank-2/rank-3 permutations.
-- `test/low-rank-affine-matroid-target-inversion.test.js` — exact brute-force common-rank comparison for **384** input subsets, **all 5,040** permutations fixing zero at width 3 (each must admit full paired rank 3), 4,608 exhaustive target inversions across all 576 width-3 rank-two fiber permutations, **two exact 32-bit sparse-branch examples attaining the `2^r` adaptive query bound**, 1,536 seeded target-recovery checks at widths 5, 7 and 32, and an invalid rank-bound refusal control.
+- `test/low-rank-affine-matroid-target-inversion.test.js` — exact brute-force common-rank comparison for **384** input subsets, **all 5,040** permutations fixing zero at width 3 (each must admit full paired rank 3), 4,608 exhaustive target inversions across all 576 width-3 rank-two fiber permutations, **two exact 32-bit sparse-branch examples attaining the `2^r` adaptive query bound**, 1,920 seeded target-recovery checks at widths 5, 7 and 32 (including 384 with the new rank-aware initial-basis sampler), and an invalid rank-bound refusal control.
 - The bit-vector grammar is unsigned `Number` words up to width 32 with `>>>0` normalizations; generated permutations are two invertible bit-linear maps surrounding a keyed top-bit permutation conditional on unchanged lower bits. For each case, output perturbations lie in a hidden subspace of rank `<=r`; sparse cases vary only at one trigger lower-bit value. Every small-width generated oracle is exhaustively tested for bijectivity before attack.
-- Initial local Node `v22.16.0` test: **6/6 suites pass**, all 6,144 exhaustive/seeded target preimages exact, plus two sparse query-tight target checks. Adaptive maxima are **4** for rank 2 and **8** for rank 3. The two sparse 32-bit witnesses hide all nonlinear effects in a single low-bit coset not visited by any of the 32 basis queries; they deliberately require **all** 4 or 8 adaptive calls. The exhaustive width-3 rank-two set has a maximum of 3 calls with its all-word sample. All selected paired bases had exact rank `n`; separate direct scripts tested 90 additional small-width rank-2 cases/3,360 targets. The local global TypeScript checker with `checkJs --strict` on the two files reported **zero errors**.
+- Initial local Node `v22.16.0` test: **7/7 suites pass**, all 6,528 exhaustive/seeded target preimages exact, plus two sparse query-tight target checks. Adaptive maxima are **4** for rank 2 and **8** for rank 3. The two sparse 32-bit witnesses hide all nonlinear effects in a single low-bit coset not visited by any of the 32 basis queries; they deliberately require **all** 4 or 8 adaptive calls. The exhaustive width-3 rank-two set has a maximum of 3 calls with its all-word sample. All selected paired bases had exact rank `n`; separate direct scripts tested 90 additional small-width rank-2 cases/3,360 targets. The local global TypeScript checker with `checkJs --strict` on the two files reported **zero errors**.
 
-**Important evidentiary limits:** The initial seeded harness uses xorshift32 (repeatable, not independent uniform cryptographic randomness), tests a structured low-rank subfamily rather than all possible `R`, and cannot empirically establish the union-bound probability. The mathematical claim is conditional on the promise that `F` is a permutation and that its unknown nonlinear residual takes values in one low-dimensional *output* subspace; unrestricted compatible permutations may have full residual rank. This inversion theorem provides **no** evidence for universal JavaScript obfuscator correctness, anti-instrumentation, domain locking, or a 2.5× compute bound. Do not promote the result to established `results/` before independent scrutiny.
+**Important evidentiary limits:** The initial and rank-aware seeded harnesses use xorshift32 (repeatable, not independent uniform cryptographic randomness), tests a structured low-rank subfamily rather than all possible `R`, and cannot empirically establish the union-bound probability. The mathematical claim is conditional on the promise that `F` is a permutation and that its unknown nonlinear residual takes values in one low-dimensional *output* subspace; unrestricted compatible permutations may have full residual rank. This inversion theorem provides **no** evidence for universal JavaScript obfuscator correctness, anti-instrumentation, domain locking, or a 2.5× compute bound. Do not promote the result to established `results/` before independent scrutiny.
 
 ## Requested adversarial review / open questions
 
 1. Independently verify the matroid-intersection sampling union bound and its constant factors; construct a permutation whose sampled paired-basis success approaches the bound or refute it.
-2. Verify the augmenting-path implementation by an independently written matroid-intersection oracle and check 32-bit corner cases at sign bit 31.
-3. Verify that an arbitrary rank-2 or rank-3 permutation of the promised form, including a cryptographically pseudorandom or extremely sparse `R`, cannot exceed the adaptive `2^r` phase even if the paired basis is adversarially chosen.
-4. Compare this oracle complexity against existing inverse-reconstruction results and whether this specific low-rank promise already has an established literature name; no novelty assertion is justified by the tests alone.
+2. Verify both the generic and rank-aware matroid-intersection sampling union bounds, including the restricted-submatrix nullity and the coarse Gaussian extension count. Test a genuinely independent-uniform randomness implementation rather than extrapolating from deterministic xorshift samples.
+3. Verify the augmenting-path implementation by an independently written matroid-intersection oracle and check 32-bit corner cases at sign bit 31.
+4. Verify that an arbitrary rank-2 or rank-3 permutation of the promised form, including a cryptographically pseudorandom or extremely sparse `R`, cannot exceed the adaptive `2^r` phase even if the paired basis is adversarially chosen.
+5. Compare this oracle complexity against existing inverse-reconstruction results and whether this specific low-rank promise already has an established literature name; no novelty assertion is justified by the tests alone.
