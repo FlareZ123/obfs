@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedCssEscapeMethods] Proven CSS.escape ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedCssEscapeMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -534,6 +535,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  /** @type {Map<string,Set<string>>} */
+  const cssImportedObjectKeys=new Map();
+  // Exact local ESM named/namespace imports of a native CSS.escape method.
+  // Dotted tokens name an imported namespace's exported member, not an
+  // arbitrary property of the real browser CSS namespace.
+  for(const name of importedCssEscapeMethods) {
+    const dot=name.indexOf('.');
+    if(dot<0) {coercers.add(name);continue;}
+    if(dot===0||dot===name.length-1)continue;
+    const receiver=name.slice(0,dot),method=name.slice(dot+1);
+    let methods=cssImportedObjectKeys.get(receiver);
+    if(!methods){methods=new Set();cssImportedObjectKeys.set(receiver,methods);}
+    methods.add(method);
+  }
   const nodeBufferNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
@@ -731,7 +746,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        memberName(node.callee)==='bind')return isCoercer(node.callee.object);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
-    return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
+    const cssImported=node.object.type==='Identifier'?
+      cssImportedObjectKeys.get(node.object.name):undefined;
+    return (name!==null&&Boolean(cssImported?.has(name)) ||
+      node.computed&&name===null&&Boolean(cssImported?.size)) ||
+      isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
       name==='for' && isSymbolConstructor(node.object) ||
       name==='escape' && isCssNamespace(node.object) ||
@@ -3472,7 +3491,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size)
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
