@@ -5022,7 +5022,60 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // native document factories and stable-looking aliases. Alias unions are
   // conservative: a later reassignment may cause refusal but never grant an
   // unproved source-changing rewrite.
-  const domDocumentNames=new Set(['document']);
+  /**
+   * A uniquely bound, unexported local `document` can be an ordinary record
+   * rather than the browser's Web IDL Document. Only certify a fresh
+   * null-prototype literal whose binding is used exclusively as the LHS of
+   * standalone simple .title assignments. Unlike an ordinary {} object, it
+   * cannot inherit an ambient title setter. Any escape, reflection, alias,
+   * read, computed key, dynamic scope, or nested shadow fails closed.
+   *
+   * This avoids treating inert record writes as implicit source-coercion
+   * sinks; it is not a general document-alias or dead-code proof.
+   * @returns {boolean}
+   */
+  function hasInertLexicalDocument() {
+    if(dynamicScope||bindingCounts.get('document')!==1)return false;
+    /** @type {AstNode|null} */
+    let binding=null;
+    for(const statement of ast.body??[]) {
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const candidate of statement.declarations??[]) {
+        if(candidate.id?.type==='Identifier'&&candidate.id.name==='document') {
+          if(binding)return false;
+          binding=candidate;
+        }
+      }
+    }
+    if(!binding)return false;
+    const init=binding.init;
+    if(init?.type!=='ObjectExpression'||init.properties.length!==1)return false;
+    const proto=init.properties[0];
+    if(proto.type!=='Property'||proto.computed||proto.method||
+       proto.shorthand||proto.kind!=='init'||proto.value?.type!=='Literal'||
+       proto.value.value!==null)return false;
+    const protoName=proto.key?.type==='Identifier'?proto.key.name:
+      proto.key?.type==='Literal'?proto.key.value:null;
+    if(protoName!=='__proto__')return false;
+    let safe=true;
+    walk(ast,(node,parent,key,ancestors)=>{
+      if(!safe||node.type!=='Identifier'||node.name!=='document'||
+         node===binding.id)return;
+      if(node.start<binding.end||parent?.type!=='MemberExpression'||
+         parent.object!==node||parent.computed||
+         memberName(parent)!=='title') {
+        safe=false;return;
+      }
+      const assignment=ancestors[ancestors.length-2];
+      const statement=ancestors[ancestors.length-3];
+      if(assignment?.type!=='AssignmentExpression'||
+         assignment.left!==parent||assignment.operator!=='='||
+         statement?.type!=='ExpressionStatement'||
+         statement.expression!==assignment)safe=false;
+    });
+    return safe;
+  }
+  const domDocumentNames=new Set(hasInertLexicalDocument()?[]:['document']);
   const domElementNames=new Set();
   const domCollectionNames=new Set();
   const domStyleNames=new Set();
