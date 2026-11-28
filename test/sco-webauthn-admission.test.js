@@ -226,6 +226,26 @@ test('signed topOrigin must refuse cross-frame ceremony when no iframe policy ex
   }
 });
 
+test('same-config independent credential registries must not cross-admit sessions',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const serviceA=harness({stateStore:shared});
+  const serviceB=harness({stateStore:shared});
+  // Identical RP/origin/UV/TTL fingerprints; separate trusted credential sets.
+  assert.notEqual(serviceA.credentialId,serviceB.credentialId);
+  assert.equal(serviceA.records.has(serviceB.credentialId),false);
+  const issued=serviceA.admission.issueChallenge('accountA','loginA');
+  const fromServiceB=assertion(serviceB,issued);
+  const secondVerifier=await serviceB.admission.verifyAssertion(fromServiceB);
+  assert.equal(secondVerifier.ok,true,'Other registry can validate its own key');
+  if(!secondVerifier.ok)return;
+  const admitted=serviceA.admission.authorizeSession(secondVerifier.token,'accountA');
+  console.log('WEBAUTHN_REGISTRY_TENANT_MIX '+JSON.stringify({
+    secondVerifierMinted:true,firstVerifierAccepted:admitted
+  }));
+  assert.equal(admitted,false,
+    'A different credential registry must not confer service A authorization');
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
