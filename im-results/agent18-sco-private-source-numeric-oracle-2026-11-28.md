@@ -86,6 +86,19 @@ Buffer conversions, and permitted numeric imported-salt arithmetic.
    [Actions 46124993497](https://github.com/FlareZ123/obfs/actions/runs/46124993497).
    Later expanded interprocedural changes require their own pinned gate.
 
+5. The **complete** `manual-validation.yml` on the donor branch
+   `ff82e19239b6c6e67b79b9652f32f690cc3348ff`,
+   [run 46125649325](https://github.com/FlareZ123/obfs/actions/runs/46125649325),
+   was **RED** on both platforms: 11/5407 tests failed. All 11 failing
+   test **names** matched the preceding exact main-branch baseline
+   `112a52c54fb8b531b30e897e6ccc738211d04890`,
+   [run 46123558940](https://github.com/FlareZ123/obfs/actions/runs/46123558940),
+   which failed 11/5404 tests, primarily source/proof positive-yield
+   requirements. The donor added three tests and introduced no new
+   named failures in that paired run. This **does not** mean full
+   acceptance is green; the unchanged eleven failure conditions remain
+   release blockers.
+
 To run the same focused checks:
 
 ```sh
