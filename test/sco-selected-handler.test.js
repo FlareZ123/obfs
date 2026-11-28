@@ -174,9 +174,9 @@ test('sealed selective publication excludes private sources missed by the bounde
   const dynamicEngine={
     path:'private/engine.mjs',
     code:[
-      'const k=["con","structor"].join("");const obj={};',
-      'const load=obj[k][k]("p","return import(p)");',
       'export async function deriveProof(v){',
+      '  const k=["con","structor"].join("");const obj={};',
+      '  const load=obj[k][k]("p","return import(p)");',
       '  return (await load("./deep/secret.mjs")).secretValue+v;',
       '}'
     ].join('\n')
