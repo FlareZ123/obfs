@@ -25,6 +25,15 @@ jobs:
         run: npm ls --all
       - name: Strict JSDoc for exact public-frontend and hostile relay evaluator
         run: npm run typecheck:external
+      - name: Exercise 24-call policy on generated SCO and matched ordinary minified control
+        run: node --test test/sco-three-state-live-policy.test.js
+      - name: Upload exact policy, transcripts, and post-shutdown held-out verification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-three-state-live-policy-${{ matrix.os }}
+          path: artifacts/sco-three-state-live-policy.json
+          if-no-files-found: warn
       - name: Compare one-trace authenticated relay against both served facades
         run: node sims/sco-batch-equal-trust-attacker.js
       - name: Exercise actual hostile Chromium under HttpOnly cookie and CSP
