@@ -78,7 +78,11 @@ const cases=[
   {name:'namespace-object-method-through-reexport',
     logic:'const owner={secretField:57};export const api={inspect(){return owner.secretField;}};',
     barrel:'export {api} from "./logic.mjs";',
-    importCode:'import * as ns from "./barrel.mjs";',fn:'ns.api.inspect',value:'ns.api.inspect()'}
+    importCode:'import * as ns from "./barrel.mjs";',fn:'ns.api.inspect',value:'ns.api.inspect()'},
+  {name:'namespace-export-all-as-reexport',logic:namedLogic,
+    barrel:'export * as api from "./logic.mjs";',
+    importCode:'import * as ns from "./barrel.mjs";',
+    fn:'ns.api.inspect',value:'ns.api.inspect()'}
 ];
 
 /** @param {Case} spec @returns {SourceFile[]} */
