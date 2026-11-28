@@ -106,11 +106,31 @@ function provenPrimitiveInitializer(value,depth=0){
 function assertNoSharedChildFunctionIdentity(filename,ast){
   /** @type {Set<string>} */
   const functions=new Set();
+  let unprovedClass=false;
   for(const statement of ast.body){
     const declaration=statement.type==='ExportNamedDeclaration'&&
       statement.declaration&&!statement.source?statement.declaration:
       statement.type==='ExportDefaultDeclaration'&&
       statement.declaration?statement.declaration:statement;
+    // A for/if/block/try at module scope can hoist var or modify a
+    // persistent object without a direct top-level VariableDeclaration.
+    // The selected-graph compiler already declines such initializers.
+    const allowedDeclaration=['FunctionDeclaration','ClassDeclaration',
+      'VariableDeclaration'].includes(declaration.type);
+    const allowedImportExport=statement.type==='ImportDeclaration'||
+      statement.type==='ExportAllDeclaration'||
+      statement.type==='ExportNamedDeclaration'&&!statement.declaration;
+    const allowedDirective=statement.type==='ExpressionStatement'&&
+      statement.expression.type==='Literal'&&
+      typeof statement.expression.value==='string';
+    const allowedDefaultPrimitive=statement.type==='ExportDefaultDeclaration'&&
+      provenPrimitiveInitializer(statement.declaration);
+    if(!(allowedDeclaration||allowedImportExport||allowedDirective||
+         allowedDefaultPrimitive||statement.type==='EmptyStatement')){
+      throw new TypeError(
+        'Selected SCO private dependency has unproved module top-level effects: '+filename);
+    }
+    if(declaration.type==='ClassDeclaration')unprovedClass=true;
     // Each independently loaded browser ESM graph allocates its own module
     // lexical cells. A server-resident child is instead instantiated once:
     // even an apparently direct function call can increment one shared
@@ -126,6 +146,7 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
         // RegExp object. These values (and their identity-preserving syntax
         // wrappers) may accumulate state across direct private calls.
         // Unknown dynamic initializers remain outside this bounded proof.
+        if(item.init?.type==='ClassExpression')unprovedClass=true;
         if(!item.init||provenPrimitiveInitializer(item.init)||
            item.init.type==='FunctionExpression'||
            item.init.type==='ArrowFunctionExpression'||
@@ -159,8 +180,7 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
       }
     }
   }
-  if(!functions.size)return;
-  walk(ast,(node,parent,key)=>{
+  if(functions.size)walk(ast,(node,parent,key)=>{
     if(node.type!=='Identifier'||!functions.has(node.name))return;
     if((parent?.type==='FunctionDeclaration'||
         parent?.type==='FunctionExpression'||
@@ -175,6 +195,13 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
     throw new TypeError(
       'Selected SCO private dependency escapes a shared function identity: '+filename);
   });
+  // A class object is a mutable identity whose constructor/prototype/static
+  // paths can persist across clients even without lexical self-reference.
+  // Retain direct-call function coverage but decline unproved class owners.
+  if(unprovedClass){
+    throw new TypeError(
+      'Selected SCO private dependency has unproved shared class identity: '+filename);
+  }
 }
 
 module.exports={assertNoSharedChildFunctionIdentity};
