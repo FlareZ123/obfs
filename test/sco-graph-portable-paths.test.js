@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {partitionScoAsyncGraph}=require('../src');
+const {partitionScoAsyncGraph,partitionScoSelectedGraph}=require('../src');
 
 /**
  * Build a private graph whose exports are intentionally simple, so any
@@ -45,5 +45,37 @@ test('SCO graph refuses filesystem-aliasing module paths before source publicati
     assert.throws(()=>graphFor([...names].reverse()),
       /Duplicate private graph path:|Ambiguous directory spelling:|File conflicts with directory:/u,
       'must reject aliases in reverse file order: '+JSON.stringify(names));
+  }
+});
+
+/**
+ * @param {string[]} names
+ * @returns {import('../src/sco-selected-graph').ScoSelectedGraph}
+ */
+function selectedGraphFor(names){
+  const source='export async function secret(value){return value+1;}'+
+    'export function local(value){return value;}';
+  return partitionScoSelectedGraph(names.map(path=>({
+    file:{path,code:source,sourceType:'module'},
+    options:{privateNames:['secret'],seed:'agent31-portable-selected-graph'}
+  })));
+}
+
+test('selected SCO graph shares the portable path inventory contract',()=>{
+  assert.equal(selectedGraphFor(['src/a.mjs','src/b.mjs']).clientFiles.length,2);
+  const unsafe=[
+    ['src/\\u00e9.mjs','src/e\\u0301.mjs'],
+    ['src/\\u03c2.mjs','src/\\u03c3.mjs'],
+    ['Private/api.mjs','private/secret.mjs'],
+    ['entry.mjs','entry.mjs/dependency.mjs']
+  ].map(pair=>pair.map(name=>name.replace(/\\u([0-9a-f]{4})/gu,
+    (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16)))));
+  for(const names of unsafe){
+    assert.throws(()=>selectedGraphFor(names),
+      /Case-colliding selected SCO module path:|Ambiguous directory spelling:|File conflicts with directory:/u,
+      'must reject selected graph alias: '+JSON.stringify(names));
+    assert.throws(()=>selectedGraphFor([...names].reverse()),
+      /Case-colliding selected SCO module path:|Ambiguous directory spelling:|File conflicts with directory:/u,
+      'must reject selected graph alias in reverse order: '+JSON.stringify(names));
   }
 });
