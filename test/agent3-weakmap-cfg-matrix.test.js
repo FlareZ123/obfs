@@ -255,6 +255,14 @@ const cases=[
 ['class-expression-inherited-static-iterator','class Base{static *[Symbol.iterator](){new this();yield 1;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {for(const v of this)break;}};','carrier.instance'],
 ['class-expression-inherited-static-setter','class Base{static set fire(_v){new this();}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire=1;}};','carrier.instance'],
 ['class-expression-static-pure-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {const ready=1;}};','carrier.instance'],
+// A super property access invokes inherited accessors with the derived
+// constructor as receiver. The static statement has no explicit this/new/call.
+['class-expression-super-getter','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {super.fire;}};','carrier.instance'],
+['class-expression-super-setter','class Base{static set fire(_v){new this();}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {super.fire=1;}};','carrier.instance'],
+['class-expression-super-computed-getter','class Base{static get fire(){new this();return 0;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {super["fire"];}};','carrier.instance'],
+// Class-name lexical self-reference is available during a class-expression
+// static block even though the surrounding const binding has not initialized.
+['class-expression-named-inner-static-getter','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static get load(){new Inner();return 0;}static {this.load;}};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
