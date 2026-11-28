@@ -13,6 +13,12 @@ const {parse,observesFunctionSource}=require('../src/ast');
 
 const source='const state={secretField:41};'+
   'export function inspect(){return state.secretField;}';
+// Independent positive control: the published wrapper has no private-field
+// spelling in its own source, so the inner directly invoked helper can be
+// renamed in the absence of an imported source-observer call.
+const wrappedSource='const state={secretField:41};'+
+  'function privateInspect(){return state.secretField;}'+
+  'export function inspect(){return privateInspect();}';
 const importLine='import {inspect} from "./state.mjs";';
 const entries={
   direct:importLine+'console.log(JSON.stringify({value:inspect()}));',
@@ -53,7 +59,7 @@ async function execute(files) {
  */
 function graph(kind) {
   return [
-    {path:'state.mjs',sourceType:'module',code:source},
+    {path:'state.mjs',sourceType:'module',code:kind==='direct'?wrappedSource:source},
     {path:'entry.mjs',sourceType:'module',code:entries[kind]}
   ];
 }
