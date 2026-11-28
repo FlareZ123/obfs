@@ -1152,6 +1152,31 @@ function hasWeakMapPrototypeExposure(ast) {
     return {kind:'container',properties:new Map(),unknown:false};
   }
   /**
+   * Snapshot the abstract heap at a control-flow fork. A shallow Map copy
+   * leaves both paths sharing mutable CarrierContainer.properties; a write
+   * along an unexecuted path can then erase a live WeakMap carrier. Preserve
+   * alias sharing within each snapshot and terminate on cyclic containers.
+   * @param {Map<string,CarrierValue>} environment
+   * @returns {Map<string,CarrierValue>}
+   */
+  function snapshotCarrierEnvironment(environment) {
+    /** @type {Map<CarrierContainer,CarrierContainer>} */
+    const clones=new Map();
+    /** @param {CarrierValue} value @returns {CarrierValue} */
+    function snapshot(value) {
+      if(value.kind!=='container')return value;
+      const existing=clones.get(value);
+      if(existing)return existing;
+      const copy=carrierContainer();
+      clones.set(value,copy);
+      copy.unknown=value.unknown;
+      for(const [key,nested] of value.properties)
+        copy.properties.set(key,snapshot(nested));
+      return copy;
+    }
+    return new Map([...environment].map(([name,value])=>[name,snapshot(value)]));
+  }
+  /**
    * @param {AstNode} property
    * @param {boolean} computed
    * @returns {string|null}
@@ -1386,8 +1411,21 @@ function hasWeakMapPrototypeExposure(ast) {
     if(pattern.type==='ObjectPattern') {
       for(const property of pattern.properties??[]) {
         if(property.type==='RestElement') {
-          bindCarrierPattern(property.argument,
-            value.kind==='container'&&value.unknown?carrierMaybe:carrierOther,environment);
+          if(value.kind==='container') {
+            const rest=carrierContainer();
+            rest.unknown=value.unknown;
+            const omitted=new Set();
+            for(const picked of pattern.properties??[]) {
+              if(picked.type!=='Property')continue;
+              const key=carrierStaticKey(picked.key,picked.computed);
+              if(key===null)rest.unknown=true;
+              else omitted.add(key);
+            }
+            for(const [key,nested] of value.properties)
+              if(!omitted.has(key))rest.properties.set(key,nested);
+            bindCarrierPattern(property.argument,rest,environment);
+          } else bindCarrierPattern(property.argument,
+            value.kind==='maybe'?carrierMaybe:carrierOther,environment);
           continue;
         }
         if(property.type!=='Property')continue;
@@ -1403,6 +1441,22 @@ function hasWeakMapPrototypeExposure(ast) {
       for(let index=0;index<(pattern.elements??[]).length;index++) {
         const element=pattern.elements[index];
         if(!element)continue;
+        if(element.type==='RestElement') {
+          if(value.kind==='container') {
+            const rest=carrierContainer();
+            rest.unknown=value.unknown;
+            for(const [key,nested] of value.properties) {
+              const inputIndex=Number(key);
+              if(Number.isInteger(inputIndex)&&inputIndex>=index)
+                rest.properties.set(String(inputIndex-index),nested);
+              else if(!Number.isInteger(inputIndex)||inputIndex<0)
+                rest.unknown=true;
+            }
+            bindCarrierPattern(element.argument,rest,environment);
+          } else bindCarrierPattern(element.argument,
+            value.kind==='maybe'?carrierMaybe:carrierOther,environment);
+          continue;
+        }
         const nested=value.kind==='container'?
           value.properties.get(String(index))??(value.unknown?carrierMaybe:carrierOther):
           value.kind==='maybe'?carrierMaybe:carrierOther;
@@ -1522,6 +1576,27 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       return;
     }
+    if(node.type==='ConditionalExpression') {
+      visitCarrierExpression(node.test,environment,thisValue);
+      const consequent=snapshotCarrierEnvironment(environment);
+      const alternate=snapshotCarrierEnvironment(environment);
+      visitCarrierExpression(node.consequent,consequent,thisValue);
+      visitCarrierExpression(node.alternate,alternate,thisValue);
+      for(const name of new Set([...consequent.keys(),...alternate.keys()]))
+        environment.set(name,mergeCarrierValues(
+          consequent.get(name)??carrierOther,alternate.get(name)??carrierOther));
+      return;
+    }
+    if(node.type==='LogicalExpression') {
+      visitCarrierExpression(node.left,environment,thisValue);
+      const skipped=snapshotCarrierEnvironment(environment);
+      const executed=snapshotCarrierEnvironment(environment);
+      visitCarrierExpression(node.right,executed,thisValue);
+      for(const name of new Set([...skipped.keys(),...executed.keys()]))
+        environment.set(name,mergeCarrierValues(
+          skipped.get(name)??carrierOther,executed.get(name)??carrierOther));
+      return;
+    }
     if(node.type==='ObjectExpression') {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
@@ -1630,7 +1705,8 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='IfStatement') {
       visitCarrierExpression(statement.test,environment,thisValue);
-      const consequent=new Map(environment),alternate=new Map(environment);
+      const consequent=snapshotCarrierEnvironment(environment);
+      const alternate=snapshotCarrierEnvironment(environment);
       visitCarrierStatement(statement.consequent,consequent,thisValue,throwCollector);
       if(statement.alternate)
         visitCarrierStatement(statement.alternate,alternate,thisValue,throwCollector);
@@ -1661,8 +1737,9 @@ function hasWeakMapPrototypeExposure(ast) {
             weakMapContainerOwners.add(statement.id.name);
           }
         } else if(element.type==='StaticBlock') {
-          const staticEnvironment=new Map(environment);
-          visitCarrierStatement(element,staticEnvironment,staticValue,throwCollector);
+          // Static blocks execute during class evaluation; their writes to
+          // existing outer bindings are visible after the declaration.
+          visitCarrierStatement(element,environment,staticValue,throwCollector);
         } else if(element.type==='MethodDefinition'&&element.value?.body) {
           // Class methods close over the lexical environment at the class
           // declaration site. Preserve it for the later interprocedural pass.
@@ -1692,11 +1769,13 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='TryStatement') {
-      const tryEnvironment=new Map(environment);
+      const tryEnvironment=snapshotCarrierEnvironment(environment);
       /** @type {CarrierValue[]} */
       const thrownValues=[];
       visitCarrierStatement(statement.block,tryEnvironment,thisValue,thrownValues);
-      const catchEnvironment=new Map(environment);
+      // At a throw, writes made before the exceptional edge may reach catch.
+      // Using the pre-try state alone incorrectly discards such carriers.
+      const catchEnvironment=snapshotCarrierEnvironment(tryEnvironment);
       if(statement.handler) {
         const caughtValue=thrownValues.length?
           thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
@@ -1726,7 +1805,8 @@ function hasWeakMapPrototypeExposure(ast) {
        statement.type==='DoWhileStatement') {
       // Loops can mutate an arbitrary number of container slots. Preserve
       // statically known values but mark any touched container as unknown.
-      const loopEnv=new Map(environment);
+      const noIteration=snapshotCarrierEnvironment(environment);
+      const loopEnv=snapshotCarrierEnvironment(environment);
       const loopScopedNames=new Map();
       for(const value of loopEnv.values())if(value.kind==='container')value.unknown=true;
       if(statement.init) {
@@ -1760,16 +1840,19 @@ function hasWeakMapPrototypeExposure(ast) {
       if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
       if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
-      for(const [name,value] of loopEnv)
-        if(!loopScopedNames.has(name))environment.set(name,value);
+      for(const name of new Set([...noIteration.keys(),...loopEnv.keys()])) {
+        if(loopScopedNames.has(name))continue;
+        environment.set(name,mergeCarrierValues(
+          noIteration.get(name)??carrierOther,loopEnv.get(name)??carrierOther));
+      }
       return;
     }
     if(statement.type==='SwitchStatement') {
       visitCarrierExpression(statement.discriminant,environment,thisValue);
       const branches=[];
-      let fallthroughEnvironment=new Map(environment);
+      let fallthroughEnvironment=snapshotCarrierEnvironment(environment);
       for(const branch of statement.cases??[]) {
-        const branchEnv=new Map(environment);
+        const branchEnv=snapshotCarrierEnvironment(environment);
         for(const [name,value] of fallthroughEnvironment) {
           const base=environment.get(name)??carrierOther;
           branchEnv.set(name,mergeCarrierValues(base,value));
