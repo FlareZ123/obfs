@@ -2544,7 +2544,10 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // Preserve independently certified primitive source-islands while
+    // prohibiting local renames in any now-source-observed callable producer.
+    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+        !esmDomSourceProducers.has(filename) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
