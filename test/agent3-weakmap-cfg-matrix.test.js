@@ -264,7 +264,13 @@ const cases=[
 ['own-call-drops-forwarded-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.call=function(){fill();};fill.call(null,23);",'carrier.instance'],
 ['own-apply-drops-forwarded-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.apply=function(){fill();};fill.apply(null,[23]);",'carrier.instance'],
 ['own-bind-drops-prebound-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}fill.bind=function(){return fill;};const bound=fill.bind(null,23);bound();",'carrier.instance'],
-['define-property-call-drops-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Object.defineProperty(fill,'call',{value:function(){fill();}});fill.call(null,23);",'carrier.instance']
+['define-property-call-drops-argument',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}Object.defineProperty(fill,'call',{value:function(){fill();}});fill.call(null,23);",'carrier.instance'],
+// A syntactically inline callable is still invoked through the inherited
+// call/apply protocol; localFunctionNodes has no identifier to index.
+['inline-arrow-call-default',"let carrier={};((x=(carrier={instance:new WeakMap()}))=>{}).call(null);",'carrier.instance'],
+['inline-function-apply-default',"let carrier={};(function(x=(carrier={instance:new WeakMap()})){}).apply(null,[]);",'carrier.instance'],
+['inline-function-bind-default',"let carrier={};const bound=(function(x=(carrier={instance:new WeakMap()})){}).bind(null);bound();",'carrier.instance'],
+['inline-arrow-call-provided-negative',"class Ordinary{};let carrier={instance:new Ordinary()};((x=(carrier={instance:new WeakMap()}))=>{}).call(null,23);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
