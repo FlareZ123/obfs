@@ -2878,6 +2878,11 @@ function renameCrossFileProperties(files,seed) {
   // This deliberately excludes aliases, namespace/reexport paths, cycles,
   // optional calls, escapes, reflection and non-literal object construction.
   if(acyclicImports) {
+    // Renaming these keys can alter implicit coercion/thenable behavior or
+    // integer-key enumeration order without an explicit MemberExpression.
+    const implicitFactoryKeys=new Set([
+      '__proto__','constructor','prototype','then','toString','valueOf','toJSON'
+    ]);
     for(const [exporterName,exporter] of modules) {
       /** @type {{name:string,binding:AstNode,literal:AstNode,props:AstNode[],names:string[]}[]} */
       const factories=[];
@@ -2938,9 +2943,11 @@ function renameCrossFileProperties(files,seed) {
             (value.value===null||
              ['string','number','boolean','bigint'].includes(typeof value.value))&&
             (typeof value.value!=='number'||Number.isFinite(value.value));
+          const integerLike=propertyName!==null&&
+            /^(0|[1-9][0-9]*)$/.test(propertyName)&&propertyName.length<=10;
           if(prop.type!=='Property'||prop.method||prop.shorthand||
              prop.kind!=='init'||prop.computed||propertyName===null||
-             ['__proto__','constructor','prototype'].includes(propertyName)||
+             implicitFactoryKeys.has(propertyName)||integerLike||
              seen.has(propertyName)||!primitive) {
             safe=false;
             break;
