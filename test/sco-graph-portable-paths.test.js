@@ -3,6 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {partitionScoAsyncGraph,partitionScoSelectedGraph}=require('../src');
+const {safePath,createPathInventory,registerFilePath}=require('../src/portable-paths');
 
 /**
  * Build a private graph whose exports are intentionally simple, so any
@@ -78,4 +79,51 @@ test('selected SCO graph shares the portable path inventory contract',()=>{
       /Case-colliding selected SCO module path:|Ambiguous directory spelling:|File conflicts with directory:/u,
       'must reject selected graph alias in reverse order: '+JSON.stringify(names));
   }
+});
+
+test('full Unicode casefold aliases cannot give SCO private files separate identities',()=>{
+  // Unicode CaseFolding 17 maps both U+03D1 and U+03F4 to U+03B8,
+  // although JS toLowerCase AND toUpperCase each keep this pair distinct.
+  // Uppercase sharp S and plain ss also share a full casefold mapping.
+  const unsafe=[
+    ['src/\\u03d1.mjs','src/\\u03f4.mjs'],
+    ['src/\\u1e9e.mjs','src/ss.mjs']
+  ].map(pair=>pair.map(name=>name.replace(/\\\\u([0-9a-f]{4})/gu,
+    (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16)))));
+  for(const names of unsafe){
+    assert.notEqual(names[0].normalize('NFC').toLowerCase(),
+      names[1].normalize('NFC').toLowerCase());
+    assert.notEqual(names[0].normalize('NFC').toUpperCase(),
+      names[1].normalize('NFC').toUpperCase());
+    for(const pair of [names,[...names].reverse()]){
+      const inventory=createPathInventory();
+      registerFilePath(inventory,safePath(pair[0]));
+      assert.throws(()=>registerFilePath(inventory,safePath(pair[1])),
+        /Duplicate file /u,
+        'portable tree must refuse a full-casefold alias '+JSON.stringify(pair));
+      assert.throws(()=>graphFor(pair),/Duplicate private graph path:/u,
+        'whole graph must refuse a full-casefold alias '+JSON.stringify(pair));
+      assert.throws(()=>selectedGraphFor(pair),/Case-colliding selected SCO module path:/u,
+        'selected graph must refuse a full-casefold alias '+JSON.stringify(pair));
+    }
+  }
+});
+
+test('portable output paths reject default-ignorable code points before any filesystem operation',()=>{
+  // Current Linux ext4/f2fs casefold normalization can discard these and
+  // even fold dot+ignorable segments to dot or dotdot. Refuse conservatively
+  // rather than relying on the host filesystem's Unicode release or patches.
+  const unsafe=[
+    'src/module\\u200b.mjs', // ZERO WIDTH SPACE
+    'src/..\\u202e/dependency.mjs', // RIGHT-TO-LEFT OVERRIDE
+    'assets/name\\ufe0f.svg' // VARIATION SELECTOR-16
+  ].map(name=>name.replace(/\\\\u([0-9a-f]{4})/gu,
+    (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16))));
+  for(const filename of unsafe){
+    assert.throws(()=>safePath(filename),/Default-ignorable Unicode filename/u,
+      'must reject invisible or filesystem-discarded path characters');
+  }
+  assert.equal(safePath('src/visible-\\u03b8.mjs'),'src/visible-\\u03b8.mjs'
+    .replace(/\\\\u([0-9a-f]{4})/gu,
+      (whole,hex)=>String.fromCharCode(Number.parseInt(hex,16))));
 });
