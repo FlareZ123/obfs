@@ -93,6 +93,7 @@ const cases=[
 ['global-reflect-construct-weakmap','const carrier={instance:globalThis.Reflect.construct(globalThis.WeakMap,[])};','carrier.instance'],
 ['bound-weakmap-constructor','const carrier={instance:new (WeakMap.bind(null))()};','carrier.instance'],
 ['aliased-bound-weakmap-constructor','const W=WeakMap.bind(null);const carrier={instance:new W()};','carrier.instance'],
+['zero-argument-bound-weakmap','const carrier={instance:new (WeakMap.bind())()};','carrier.instance'],
 ['reflect-get-weakmap-constructor','const carrier={instance:new (Reflect.get(globalThis,"WeakMap"))()};','carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
