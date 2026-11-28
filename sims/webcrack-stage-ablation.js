@@ -26,7 +26,7 @@ async function run(){
   assert.equal(protectedFunctions,3);
   /** @type {Record<string,{sourceSha256:string,inputBytes:number,stages:Record<string,{sha256:string,bytes:number,sandboxCalls:number,equalsInput:boolean,equalsBoth:boolean}>}>} */
   const variants={};
-  for(const variant of ['minified','published']){
+  for(const variant of /** @type {const} */(['minified','published'])){
     const math=graphs[variant].find(file=>file.path==='math.mjs');
     assert.ok(math);
     /** @type {Record<string,{sha256:string,bytes:number,sandboxCalls:number,equalsInput:boolean,equalsBoth:boolean}>} */
