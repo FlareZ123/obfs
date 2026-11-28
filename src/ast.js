@@ -1934,15 +1934,14 @@ function hasWeakMapPrototypeExposure(ast) {
           argument??undefined);
         bindCarrierPattern(parameter,value,invoked);
       }
-      // Generator/async parameter binding is synchronous at invocation.
-      // The body may be suspended or deferred and is not safely replayable
-      // as a direct synchronous state transition.
-      if(!local.async&&!local.generator) {
-        if(local.body.type==='BlockStatement')
-          visitCarrierStatement(local.body,invoked,boundThis);
-        else // Concise arrow expressions also run after formal defaults.
-          visitCarrierExpression(local.body,invoked,boundThis);
-      }
+      // Async functions run until their first await before returning, and
+      // generator bodies may run when an iterator is subsequently advanced.
+      // Include body effects as a MAY transition, never a definite write for
+      // async/generator callables. The join below preserves nonexecution.
+      if(local.body.type==='BlockStatement')
+        visitCarrierStatement(local.body,invoked,boundThis);
+      else // Concise arrow expressions also run after formal defaults.
+        visitCarrierExpression(local.body,invoked,boundThis);
     } finally {
       activeLocalCallEffects.delete(local);
     }
