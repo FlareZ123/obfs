@@ -798,6 +798,39 @@ function collectImportedBoundDomParserMethods(files,parseFile=parseModule) {
           names.add(spec.local.name);
       }
     }
+    // A top-level await import("literal") yields the module namespace.
+    // Preserve this exact source-provenance edge for unique immutable const
+    // destructuring and namespace bindings, without guessing dynamic paths.
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        const expression=entry.init?.type==='AwaitExpression'?
+          entry.init.argument:null;
+        if(expression?.type!=='ImportExpression'||
+           expression.source.type!=='Literal'||
+           typeof expression.source.value!=='string'||
+           /[?#%\\]/u.test(expression.source.value))continue;
+        const origin=resolveImport(filename,expression.source.value);
+        const exports=origin?exportedByFile.get(origin):null;
+        if(!exports)continue;
+        if(entry.id.type==='Identifier'&&
+           module.bindings.get(entry.id.name)===1){
+          for(const name of exports)names.add(entry.id.name+'.'+name);
+        }else if(entry.id.type==='ObjectPattern'){
+          for(const property of entry.id.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier'||
+               module.bindings.get(property.value.name)!==1)continue;
+            const name=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:
+                staticString(property.key);
+            if(name!==null&&exports.has(name))names.add(property.value.name);
+          }
+        }
+      }
+    }
     imported.set(filename,names);
   }
   return imported;
