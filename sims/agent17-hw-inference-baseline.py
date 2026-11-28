@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare a published resetless hW learner with the exact <=3-state minimax result.
+"""Compare published resetless hW inference with the exact <=3-state minimax result.
 
 The learner sees only a step(input)->output SUL. The SUL's pre/post hooks are
 no-ops: they count lifecycle calls but never reset the hidden state. The hW
@@ -129,8 +129,8 @@ def generate_machine(state_count: int, seed: int) -> Machine:
 
 
 def build_cases() -> list[tuple[str, Machine]]:
-    # This is the explicit 3-state witness used to falsify an unconditional
-    # 2-state clone certificate in the SCO process-boundary research.
+    # Explicit three-state witness used to falsify an unconditional 2-state
+    # clone certificate in the SCO process-boundary research.
     table52 = Machine(
         transitions=((2, 1), (0, 0), (0, 0)),
         outputs=((0, 0), (1, 0), (0, 0)),
@@ -188,7 +188,7 @@ def run_one(
     name: str,
     machine: Machine,
     oracle_seed: int,
-    oracle_steps: int = 256,
+    oracle_steps: int,
     max_steps: int = 20_000,
 ) -> dict[str, object]:
     private = {"state": 0}
@@ -205,15 +205,53 @@ def run_one(
         num_testing_steps=oracle_steps,
         reset_testing_counter=True,
     )
-    hypothesis, info = run_hW(
-        [0, 1],
-        sul,
-        oracle,
-        automaton_type="mealy",
-        query_for_initial_state=False,
-        return_data=True,
-        print_level=0,
-    )
+
+    try:
+        hypothesis, info = run_hW(
+            [0, 1],
+            sul,
+            oracle,
+            automaton_type="mealy",
+            query_for_initial_state=False,
+            return_data=True,
+            print_level=0,
+        )
+    except StepBudgetExceeded as exc:
+        return {
+            "case": name,
+            "state_count": machine.state_count,
+            "machine_sha256": machine.digest,
+            "oracle_seed": oracle_seed,
+            "oracle_steps_per_round": oracle_steps,
+            "status": "step_budget_exceeded",
+            "error": str(exc),
+            "step_calls": sul.calls,
+            "pre_calls": sul.pre_calls,
+            "post_calls": sul.post_calls,
+        }
+    except TypeError as exc:
+        # AALpy's bootstrap indexes the first counterexample. If the bounded
+        # random walk cannot find one, it returns None and this is the specific
+        # expected failure mode; preserve it as a measured bootstrap miss.
+        if (
+            "NoneType" in str(exc)
+            and "not subscriptable" in str(exc)
+            and sul.pre_calls == 1
+            and sul.post_calls == 0
+        ):
+            return {
+                "case": name,
+                "state_count": machine.state_count,
+                "machine_sha256": machine.digest,
+                "oracle_seed": oracle_seed,
+                "oracle_steps_per_round": oracle_steps,
+                "status": "bootstrap_no_counterexample",
+                "error": str(exc),
+                "step_calls": sul.calls,
+                "pre_calls": sul.pre_calls,
+                "post_calls": sul.post_calls,
+            }
+        raise
 
     if sul.pre_calls != 1 or sul.post_calls != 1:
         raise AssertionError(
@@ -230,6 +268,7 @@ def run_one(
         "machine_sha256": machine.digest,
         "oracle_seed": oracle_seed,
         "oracle_steps_per_round": oracle_steps,
+        "status": "exact" if exact else "false_convergence",
         "step_calls": sul.calls,
         "pre_calls": sul.pre_calls,
         "post_calls": sul.post_calls,
@@ -243,6 +282,47 @@ def run_one(
     }
 
 
+def summarize_budget(records: list[dict[str, object]], budget: int) -> dict[str, object]:
+    rows = [row for row in records if row["oracle_steps_per_round"] == budget]
+    successful = [row for row in rows if row["status"] in ("exact", "false_convergence")]
+    exact = [row for row in successful if row["status"] == "exact"]
+    three_state = [row for row in rows if int(row["state_count"]) <= 3]
+    three_state_successful = [
+        row for row in three_state if row["status"] in ("exact", "false_convergence")
+    ]
+    calls = [int(row["step_calls"]) for row in rows]
+    return {
+        "oracle_steps_per_round": budget,
+        "runs": len(rows),
+        "exact_runs": len(exact),
+        "false_convergence_runs": sum(
+            row["status"] == "false_convergence" for row in successful
+        ),
+        "bootstrap_no_counterexample": sum(
+            row["status"] == "bootstrap_no_counterexample" for row in rows
+        ),
+        "step_budget_exceeded": sum(
+            row["status"] == "step_budget_exceeded" for row in rows
+        ),
+        "median_step_calls": statistics.median(calls),
+        "max_step_calls": max(calls),
+        "at_most_three_state_runs": len(three_state),
+        "at_most_three_state_exact_runs": sum(
+            row["status"] == "exact" for row in three_state_successful
+        ),
+        "at_most_three_state_median_step_calls": (
+            statistics.median(int(row["step_calls"]) for row in three_state_successful)
+            if three_state_successful
+            else None
+        ),
+        "at_most_three_state_max_step_calls": (
+            max(int(row["step_calls"]) for row in three_state_successful)
+            if three_state_successful
+            else None
+        ),
+    }
+
+
 def main() -> None:
     package_version = version("aalpy")
     if package_version != "2.0.0":
@@ -250,39 +330,29 @@ def main() -> None:
 
     cases = build_cases()
     oracle_seeds = (7, 19)
+    oracle_budgets = (32, 64, 128, 256)
     records = [
-        run_one(name, machine, oracle_seed)
+        run_one(name, machine, oracle_seed, oracle_steps)
+        for oracle_steps in oracle_budgets
         for name, machine in cases
         for oracle_seed in oracle_seeds
     ]
 
-    table52 = [row for row in records if row["case"] == "table52-three-state"]
-    if not all(row["exact_from_current_state"] for row in table52):
-        raise AssertionError(f"pinned table-52 witness was not exactly learned: {table52}")
+    high_budget = [row for row in records if row["oracle_steps_per_round"] == 256]
+    table52 = [row for row in high_budget if row["case"] == "table52-three-state"]
+    if not all(row["status"] == "exact" for row in table52):
+        raise AssertionError(f"pinned table-52 witness was not exactly learned at 256: {table52}")
 
-    three_state = [row for row in records if row["state_count"] <= 3]
-    exact_count = sum(bool(row["exact_from_current_state"]) for row in records)
-    calls = [int(row["step_calls"]) for row in records]
-    three_state_calls = [int(row["step_calls"]) for row in three_state]
+    summaries = [summarize_budget(records, budget) for budget in oracle_budgets]
     summary = {
         "aalpy_version": package_version,
         "cases": len(cases),
         "runs": len(records),
-        "exact_runs": exact_count,
-        "false_convergence_runs": len(records) - exact_count,
-        "all_runs_no_reset": all(
-            row["pre_calls"] == 1 and row["post_calls"] == 1 for row in records
-        ),
-        "median_step_calls": statistics.median(calls),
-        "max_step_calls": max(calls),
-        "at_most_three_state_runs": len(three_state),
-        "at_most_three_state_exact_runs": sum(
-            bool(row["exact_from_current_state"]) for row in three_state
-        ),
-        "at_most_three_state_median_step_calls": statistics.median(three_state_calls),
-        "at_most_three_state_max_step_calls": max(three_state_calls),
+        "oracle_budgets": list(oracle_budgets),
+        "oracle_seeds": list(oracle_seeds),
+        "all_256_step_table52_runs_exact": all(row["status"] == "exact" for row in table52),
         "exact_three_state_minimax_bound_for_comparison": 24,
-        "oracle": "RandomhWOracle; 256 random steps per equivalence round; fixed seeds 7 and 19",
+        "budget_summaries": summaries,
         "warning": (
             "hW termination is heuristic because the random-walk oracle is not an exact "
             "equivalence oracle; exact_from_current_state is an evaluator-only product check"
