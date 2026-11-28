@@ -130,6 +130,8 @@ jobs:
             sims/agent2-hw-no-reset-benchmark.py \
             sims/agent2-hw-version-space-audit.py \
             sims/agent49_hw_trace_lower_bound.py \
+            sims/agent49_hw_passive_reconstruction.py \
+            sims/test_agent49_hw_passive_reconstruction.py \
             sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Verify cross-UID process isolation
         run: python sims/agent49-process-isolation-probe.py
@@ -142,6 +144,7 @@ jobs:
           python sims/test_agent2_hw_no_reset_evaluator.py
           python sims/test_agent49_hw_public_module_archive.py
           python sims/test_agent2_hw_version_space.py
+          python sims/test_agent49_hw_passive_reconstruction.py
           python sims/agent49-hw-version-space-small-exhaustive-crosscheck.py
       - name: Run paired live HTTP hW benchmark
         env:
@@ -315,6 +318,12 @@ jobs:
             --input live-hw-matched-results.json \
             --output hw-trace-state-certificate.json \
             --max-depth 12 --check-fixture
+      - name: Attempt solver-free full future reconstruction from public trace
+        run: |
+          python sims/agent49_hw_passive_reconstruction.py \
+            --input live-hw-matched-results.json \
+            --output hw-passive-reconstruction.json \
+            --max-depth 12 --check-fixture
       - name: Audit bounded full Mealy version space from evaluator-only live traces
         env:
           CANDIDATE_LABELING: ${{ inputs.version_space_candidate_labeling || 'predecessor' }}
@@ -356,6 +365,7 @@ jobs:
             agent49-cross-arm-probe-result.json
             hw-version-space-audit.json
             hw-trace-state-certificate.json
+            hw-passive-reconstruction.json
 
   historical-audit:
     if: ${{ inputs.historical_audit_run_id > 0 }}
@@ -406,6 +416,12 @@ jobs:
             --input historical/live-hw-matched-results.json \
             --output hw-trace-state-certificate.json \
             --max-depth 12 --check-fixture
+      - name: Check complete public-trace machine certificates against historical fixture
+        run: |
+          python sims/agent49_hw_passive_reconstruction.py \
+            --input historical/live-hw-matched-results.json \
+            --output hw-passive-reconstruction.json \
+            --max-depth 12 --check-fixture
       - name: Audit archived same-trace exact Z3 space with selected solver options
         run: |
           python sims/agent2-hw-version-space-audit.py \
@@ -444,4 +460,5 @@ jobs:
           path: |
             hw-audit-manifest.json
             hw-trace-state-certificate.json
+            hw-passive-reconstruction.json
             hw-version-space-audit.json
