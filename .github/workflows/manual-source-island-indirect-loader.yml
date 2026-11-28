@@ -25,7 +25,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/agent5-source-island-windowproxy-sri-browser.js
+        run: node sims/agent5-source-island-windowproxy-sri-browser.js --expect-guarded
       - name: WindowProxy / parser-inserted SRI source-island admission falsifier
         run: node --test test/agent5-source-island-windowproxy-sri.test.js
       - name: Verify source-island native/generated regression and positive control
