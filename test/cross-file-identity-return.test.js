@@ -462,3 +462,22 @@ test('factory proof tracks arithmetic compound writes through distinct record an
   for(const mode of ['coo','sno','sco'])
     await checkFactory(factory,main,2,mode,undefined,identityModule);
 });
+
+
+test('factory proof refuses nonliteral simple and logical compound writes',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const writes=[
+    ['simple nonliteral assignment','first.secretField=n;'],
+    ['logical and assignment','first.secretField&&=n;'],
+    ['logical or assignment','first.secretField||=n;'],
+    ['nullish assignment','first.secretField??=n;']
+  ];
+  for(const [label,write] of writes){
+    const main='import {makeState} from "./state.mjs";'+
+      'const first=makeState();'+
+      'function update(n){'+write+'return first.secretField;}'+
+      'console.log('+JSON.stringify(label)+',update(7));';
+    for(const mode of ['coo','sno','sco'])
+      await checkFactory(factory,main,0,mode);
+  }
+});
