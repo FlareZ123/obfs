@@ -147,7 +147,8 @@ function createScoWebAuthnAdmission(options){
      typeof suppliedState.mintSession!=='function'||
      typeof suppliedState.authorizeSession!=='function'||
      typeof suppliedState.revokeSession!=='function'||
-     typeof suppliedState.revokePrincipal!=='function')
+     typeof suppliedState.revokePrincipal!=='function'||
+     typeof suppliedState.assertConfiguration!=='function')
     throw new TypeError('Invalid SCO WebAuthn admission state store');
   // Snapshot the configured authority callbacks at construction.
   const state={
@@ -158,10 +159,10 @@ function createScoWebAuthnAdmission(options){
     authorizeSession:suppliedState.authorizeSession.bind(suppliedState),
     revokeSession:suppliedState.revokeSession.bind(suppliedState),
     revokePrincipal:suppliedState.revokePrincipal.bind(suppliedState),
-    assertConfiguration:suppliedState.assertConfiguration?.bind(suppliedState)
+    assertConfiguration:suppliedState.assertConfiguration.bind(suppliedState)
   };
   // No policy fingerprint is consulted before the complete state adapter exists.
-  state.assertConfiguration?.(configurationHash);
+  state.assertConfiguration(configurationHash);
   let lastObservedTime=0;
   /** @returns {number} */
   function clock(){
