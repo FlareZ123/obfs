@@ -164,7 +164,7 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
     callableModuleAsts.set(filename,parse(/** @type {string} */ (source.code),'module'));
   /** @type {Map<string,Map<string,Set<string>>>} */
   const resolvedCallableOrigins=new Map();
-  for(const filename of modules) {
+  for(const filename of modules.keys()) {
     const exports=new Map();
     for(const name of directCallableExports.get(filename)??[])
       exports.set(name,new Set([filename]));
