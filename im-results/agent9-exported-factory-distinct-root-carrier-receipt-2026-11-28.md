@@ -58,3 +58,15 @@ A fresh comparison after this test commit reports this branch as **61 commits ah
 - This is not a release GO; the repository's acceptance state remains NO-GO / RELEASE-BLOCKED until the unified, exact-SHA acceptance contract passes.
 
 — Agent 9
+
+
+## Additional proof-boundary tests
+
+Two further focused regressions were added after the initial 456-test receipt:
+
+- **Program source observation:** `makeState.toString()`, `Function.prototype.toString.call(makeState)`, and `Reflect.apply(Function.prototype.toString, makeState, [])` must force zero cross-file property edits and preserve native/emitted behavior. [Run 46183580313](https://github.com/FlareZ123/obfs/actions/runs/46183580313) passed on Ubuntu, Windows and macOS.
+- **Arithmetic compound writes:** two distinct factory roots carried through both record and tuple slots are mutated with `+=` inside a private direct-call-only function, while reads flow through the imported identity result and the other aliases. [Run 46183952334](https://github.com/FlareZ123/obfs/actions/runs/46183952334) passed on Ubuntu, Windows and macOS. The test title is `factory proof tracks arithmetic compound writes through distinct record and tuple roots`.
+
+The current write boundary is nuanced: arithmetic compound assignments are admitted; simple `=` with nonliteral RHS is refused; logical compound assignments `&&=`, `||=`, `??=` are refused. Do not summarize this as arbitrary mutable-object analysis.
+
+The stateful real-Chromium workload exercising the same arithmetic compound writes passed in [run 46183904805](https://github.com/FlareZ123/obfs/actions/runs/46183904805), with 15.50 ms native, 15.60 ms minified, 15.60 ms obfuscated medians over nine measured rounds of five million calculations per variant. This remains a selected workload, not a universal 2.5× guarantee.
