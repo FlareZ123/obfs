@@ -236,6 +236,21 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
     for(const file of transformed.files)
       assets.set('/emitted-'+i+'/'+file.path,file.code);
   }
+  /** @type {ModuleFile[]} */
+  const safe=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:41,otherField:13};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'console.log(JSON.stringify([state.secretField,state.otherField]));'}
+  ];
+  const safeOutput=obfuscateFiles(safe,{
+    mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
+    seed:'agent8-host-carrier-browser-nonvacuous-positive'
+  });
+  assert.equal(safeOutput.crossFile.properties,2,
+    'Browser comparison must include actually rewritten safe exported fields');
+  for(const file of safe)assets.set('/safe-native/'+file.path,file.code);
+  for(const file of safeOutput.files)assets.set('/safe-emitted/'+file.path,file.code);
   const strictCsp="default-src 'none'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'";
   let requests=0;
   const server=http.createServer((req,res)=>{
@@ -280,7 +295,14 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
         const emitted=JSON.stringify(/** @type {any} */(globalThis).__hostCarrierResult);
         rows.push({index:i,native,emitted});
       }
-      return {blocked,rows};
+      const logs=[];
+      const originalLog=console.log;
+      try{
+        console.log=(...values)=>logs.push(values.map(String).join(' '));
+        await import('/safe-native/entry.mjs');
+        await import('/safe-emitted/entry.mjs');
+      }finally {console.log=originalLog;}
+      return {blocked,rows,logs};
     },selected.length);
     assert.equal(report.blocked,true,
       'The browser probe must establish strict CSP without unsafe-eval');
@@ -293,10 +315,12 @@ test('real Chromium ESM preserves external own-key trace under strict CSP',{
         trace:[{keys:['otherField','secretField'],secret:41,other:13,own:true,descriptor:41}]
       },'The browser host-callback probe must be nonvacuous');
     }
-    assert.equal(requests,selected.length*2*3,
-      'Every original and emitted module must load over real HTTP');
+    assert.deepEqual(report.logs,['[41,13]','[41,13]'],
+      'The browser must preserve output with two actual renamed fields');
+    assert.equal(requests,selected.length*2*3+4,
+      'Every original and emitted module including positive control must load over HTTP');
     process.stdout.write('HOST_CARRIER_BROWSER '+
-      JSON.stringify({cases:selected.length,servedModules:requests,strictCsp,evalBlocked:true,
+      JSON.stringify({cases:selected.length,servedModules:requests,positiveProperties:2,strictCsp,evalBlocked:true,
         chrome:await browser.version()})+'\n');
   } finally {
     try{if(browser)await browser.close();}
