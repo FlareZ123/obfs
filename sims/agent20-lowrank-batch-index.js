@@ -107,6 +107,14 @@ function applyColumns(columns,input) {
  * n+1+d+1.607+C*2^r. A finite maxSamples cap reports failure explicitly;
  * the statistical bound applies only to fresh uniform draws, not an
  * attacker-supplied deterministic test sample sequence.
+ * For a truly fixed permutation, interpolant columns M(e_i) are pairwise
+ * distinct nonzero vectors, giving rank(M)>=ceil(log2(n+1)). The default
+ * n+64 independent uniform sampling cap therefore has exact worst-case
+ * failure probability at most 2^-67 for n=1..32 (sharp at n=3); for n=32
+ * and rankBound<=16 it is strictly below 2^-80. These are *sampling*
+ * bounds, not guarantees against a false rank promise, stateful oracles,
+ * attacker-controlled randomness, or process failures. The exact matrix
+ * counting and all 3-bit permutation checks live in the companion tests.
  *
  * This is a chosen-oracle attacker, not an obfuscator or a proof of source
  * recovery. In particular, the cache must NOT be reused with nondeterministic,
