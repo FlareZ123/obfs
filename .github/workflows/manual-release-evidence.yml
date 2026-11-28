@@ -7,6 +7,37 @@ permissions:
   contents: read
 
 jobs:
+  # One source-pinned acceptance dispatch: reuse the established correctness,
+  # matched-minifier, and per-mode CPU/equal-trust workflows instead of asking
+  # reviewers to assemble unrelated runs by hand.
+  full-validation:
+    name: Full two-OS Node, Chromium, JSDoc and runtime-budget validation
+    uses: ./.github/workflows/manual-validation.yml
+
+  matched-minifier:
+    name: Matched COO/SNO minifier, independent attacker and COO CPU measurement
+    uses: ./.github/workflows/manual-minified-control.yml
+
+  sco-equal-trust:
+    name: Actual SCO facade versus equal-trust minified private API
+    uses: ./.github/workflows/manual-sco-batch-equal-trust.yml
+
+  sco-cpu:
+    name: SCO client/server CPU boundary and fresh-client cost
+    uses: ./.github/workflows/manual-sco-batch-cpu.yml
+
+  sno-cpu:
+    name: SNO post-READY resident CPU and strict budget
+    uses: ./.github/workflows/manual-sno-resident-budget.yml
+
+  application-challenge:
+    name: Actual COO/SNO multi-file challenge and owner attack
+    uses: ./.github/workflows/manual-application-challenge.yml
+
+  application-sco:
+    name: Actual SCO HTTP/Chromium application and source withholding
+    uses: ./.github/workflows/manual-application-sco.yml
+
   adversarial-applications:
     strategy:
       fail-fast: false
@@ -37,3 +68,51 @@ jobs:
           name: release-evidence-${{ runner.os }}
           path: release-evidence-${{ runner.os }}.json
           if-no-files-found: error
+
+  acceptance-decision:
+    name: Fail-closed candidate acceptance decision
+    if: always()
+    needs:
+      - full-validation
+      - matched-minifier
+      - sco-equal-trust
+      - sco-cpu
+      - sno-cpu
+      - application-challenge
+      - application-sco
+      - adversarial-applications
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the exact dispatched source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Exercise decision CLI with positive and negative controls
+        run: node --test test/acceptance-decision.test.js
+      - name: Download source-pinned evidence receipts
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-evidence-*
+          path: release-evidence
+          merge-multiple: true
+      - name: Evaluate machine-readable evidence and fail closed
+        if: always()
+        env:
+          OBFS_ACCEPTANCE_EXPECTED_SHA: ${{ github.sha }}
+          OBFS_ACCEPTANCE_EVIDENCE_DIR: release-evidence
+          OBFS_ACCEPTANCE_DECISION_FILE: acceptance-decision.json
+          OBFS_ACCEPTANCE_JOB_RESULTS: >-
+            {"full-validation":"${{ needs.full-validation.result }}","matched-minifier":"${{ needs.matched-minifier.result }}","sco-equal-trust":"${{ needs.sco-equal-trust.result }}","sco-cpu":"${{ needs.sco-cpu.result }}","sno-cpu":"${{ needs.sno-cpu.result }}","application-challenge":"${{ needs.application-challenge.result }}","application-sco":"${{ needs.application-sco.result }}","adversarial-applications":"${{ needs.adversarial-applications.result }}"}
+        run: node sims/acceptance-decision.js
+      - name: Retain machine-readable acceptance decision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-decision
+          path: acceptance-decision.json
+          if-no-files-found: ignore

@@ -32,6 +32,37 @@ on:
         type: number
         default: 192
 
+  workflow_call:
+    inputs:
+      focused_test:
+        required: false
+        type: string
+        default: ''
+      alias_proof_ab:
+        required: false
+        type: boolean
+        default: false
+      alias_owners:
+        required: false
+        type: number
+        default: 384
+      repeat_aliases:
+        required: false
+        type: boolean
+        default: false
+      rich_aliases:
+        required: false
+        type: boolean
+        default: false
+      dependency_aliases:
+        required: false
+        type: boolean
+        default: false
+      dependency_depth:
+        required: false
+        type: number
+        default: 192
+
 permissions:
   contents: read
 

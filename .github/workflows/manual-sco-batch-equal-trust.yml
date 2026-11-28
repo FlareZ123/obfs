@@ -3,6 +3,8 @@ name: Manual SCO generated versus equal-trust minified batch relay
 on:
   workflow_dispatch:
 
+  workflow_call:
+
 permissions:
   contents: read
 

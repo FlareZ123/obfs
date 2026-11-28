@@ -3,6 +3,8 @@ name: Manual SCO trusted-graph batch CPU comparison
 on:
   workflow_dispatch:
 
+  workflow_call:
+
 permissions:
   contents: read
 
