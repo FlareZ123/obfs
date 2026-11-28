@@ -94,6 +94,25 @@ test('SCO rejects named default function-expression own-state through reexport',
   assert.doesNotThrow(()=>standalone(bridge,'export default ()=>42;'));
 });
 
+test('SCO refuses aliased function metadata that loses primitive provenance',()=>{
+  const unsafe=[
+    'export function run(){const fn=()=>1;const name=fn.name;return name.toString().length;}',
+    'export function run(){const fn=()=>1;const name=fn.name;return name.length;}',
+    'export function run(){const fn=()=>1;const length=fn.length;return length.toString();}',
+    'export function run(){const fn=()=>1;const length=fn.name.length;return length.toString();}',
+    'export function run(){const fn=()=>1;return consume(fn.name);}'
+  ];
+  for(const source of unsafe){
+    assert.throws(()=>standalone(source,leaf),
+      /realm-local prototype|escapes a shared function identity/u,source);
+    assert.throws(()=>graph(source,leaf),
+      /realm-local prototype|escapes a shared function identity/u,source);
+  }
+  const safe='export function run(){const fn=()=>1;return fn.name.length;}';
+  assert.doesNotThrow(()=>standalone(safe,leaf));
+  assert.doesNotThrow(()=>graph(safe,leaf));
+});
+
 test('native independent ESM trees isolate named default function-expression state',
   {timeout:15000},async()=>{
     const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-default-expression-'));
