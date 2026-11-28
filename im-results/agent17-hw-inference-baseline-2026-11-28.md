@@ -52,6 +52,8 @@ All 64 runs completed without exhausting the 20,000-step SUL cap. At the 64-, 12
 
 The false convergence at the 32-step budget is reproducible: generated-n3-seed5, oracle seed 7, 51 calls, learned hypothesis size 2 for a 3-state target. The evaluator found shortest distinguishing input [1, 1, 1]. This is direct evidence that the random-walk stopping rule can underfit even within the three-state class.
 
+The false-convergence target is reproducible from generator N=3, seed=5 (accepted generation attempt 5): transitions ((1,1),(1,2),(1,0)); outputs ((1,1),(0,0),(1,0)); machine SHA-256 0fbc9d2c893a8d0a3807b5146fdb700feca90b5a189166a3255467680330d45f. The false run uses oracle seed7 and its shortest distinguishing input is [1,1,1].
+
 The pinned table-52 witness was exactly reconstructed at all four budgets and both random seeds. At 256 steps per round, its runs took 385 and 387 calls. The 3-, 4-, and 5-state generated cases were all exactly reconstructed at budgets 64 and above.
 
 For the eight three-state runs at the 64-step budget, hW used 139.5 median and 195 maximum calls. The specialized exact policy guarantees at most 24 calls under its known at-most-three-state prior. The sample's raw query-count ratio is therefore about 5.8x at the median and 8.1x at the maximum. This is not a universal speedup theorem: the exact policy has stronger prior knowledge, while hW is a general unknown-state-count learner with a heuristic equivalence oracle.
