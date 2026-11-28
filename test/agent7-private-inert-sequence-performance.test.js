@@ -69,7 +69,7 @@ test('steady-state inert-comma private key rewriting remains within sampled 2.5x
     process.stdout.write('INERT_SEQUENCE_PERF '+JSON.stringify({
       mode,seed:'performance-inert-owner/'+mode,
       samples:ratios.length,ratios,median:m,rewrites:emitted.metrics.properties
-    })+'\\n');
+    })+'\n');
     assert.ok(m<=2.5,
       mode+' 7-pair median slowdown '+m.toFixed(3)+
       ' exceeds sampled 2.5x budget; ratios='+JSON.stringify(ratios));
