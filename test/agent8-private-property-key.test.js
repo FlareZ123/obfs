@@ -164,3 +164,42 @@ test('property-key CLI validates argument and prohibits SCO silent no-op',()=>{
   assert.notEqual(rejected.status,0);
   assert.match(rejected.stderr,/SCO already randomizes/u);
 });
+
+
+test('SNO CLI env-held secret key retains deterministic integrity-launcher output and tamper detection',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-keyed-sno-cli-'));
+  try{
+    const input=path.join(root,'input'),outA=path.join(root,'a'),outB=path.join(root,'b');
+    await fs.mkdir(input);
+    await atomicWrite(path.join(input,'entry.cjs'),
+      'const record={secretField:41,otherField:13,sessionMark:7};'+
+      'module.exports=[record.secretField,record.otherField,record.sessionMark];');
+    const envName='OBFS_AGENT8_TEST_SNO_SECRET';
+    const key=randomBytes(32).toString('hex');
+    for(const output of [outA,outB]){
+      const compiled=run(path.join(__dirname,'../bin/sno.js'),[
+        '--root',input,'--entry','entry.cjs','--out',output,
+        '--seed',PUBLIC_SEED,'--property-key-env',envName
+      ],{[envName]:key});
+      assert.equal(compiled.status,0,compiled.stderr);
+      assert.ok(!compiled.stdout.includes(key)&&!compiled.stderr.includes(key));
+      const runner=spawnSync(process.execPath,['-e',
+        'console.log(JSON.stringify(require('+JSON.stringify(path.join(output,'sno-entry.cjs'))+')));'
+      ],{encoding:'utf8',timeout:12000});
+      assert.equal(runner.status,0,runner.stderr);
+      assert.equal(runner.stdout,'[41,13,7]\n');
+    }
+    const a=await fs.readFile(path.join(outA,'entry.cjs'),'utf8');
+    const b=await fs.readFile(path.join(outB,'entry.cjs'),'utf8');
+    assert.equal(a,b,'Identical trusted keys must yield identical SNO source output');
+    assert.match(a,/_p[a-f0-9]{10}/u,
+      'SNO CLI must perform an actual local property transformation');
+    const launcherA=await fs.readFile(path.join(outA,'sno-entry.cjs'),'utf8');
+    const launcherB=await fs.readFile(path.join(outB,'sno-entry.cjs'),'utf8');
+    assert.equal(launcherA,launcherB,'Keyed SNO launcher digests must be reproducible');
+    await atomicWrite(path.join(outA,'entry.cjs'),'module.exports=0;');
+    const tampered=run(path.join(outA,'sno-entry.cjs'),[]);
+    assert.notEqual(tampered.status,0);
+    assert.match(tampered.stderr,/Integrity check failed/u);
+  }finally {await fs.rm(root,{recursive:true,force:true});}
+});
