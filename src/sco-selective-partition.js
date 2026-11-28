@@ -4,7 +4,7 @@ const {parse,walk,staticString}=require('./ast');
 const {isBuiltin}=require('node:module');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
-const {safePath}=require('./core');
+const {safePath,createPathInventory,registerFilePath}=require('./portable-paths');
 const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
@@ -1314,17 +1314,18 @@ function isCanonicalPrivateModulePath(sourcePath,specifier){
 function collectPrivateStaticImportClosure(directPaths,sources) {
   /** @type {Map<string,string>} */
   const sourceByPath=new Map();
-  const caseNames=new Set();
+  const paths=createPathInventory();
   for(const source of sources) {
     if(!source || typeof source.path!=='string' || typeof source.code!=='string') {
       throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
     }
     const name=safePath(source.path);
-    const caseName=name.toLowerCase();
-    if(!/\.mjs$/u.test(name) || caseNames.has(caseName)) {
+    if(!/\.mjs$/u.test(name)){
       throw new TypeError('SCO privateModuleSources requires distinct .mjs paths');
     }
-    caseNames.add(caseName);
+    // The static closure may be deployed to different filesystems. Refuse
+    // aliases of leaf files, their ancestors and file/directory overlaps.
+    registerFilePath(paths,name,'SCO privateModuleSources requires distinct .mjs paths: ');
     sourceByPath.set(name,source.code);
   }
   const discovered=new Set();
