@@ -65,6 +65,32 @@ test('SCO standalone child refuses private top-level array and RegExp state',()=
   }
 });
 
+test('SCO standalone child rejects wrapped record literals and known state constructors',()=>{
+  const initializers=[
+    '(0,{count:0})',
+    'true?{count:0}:null',
+    'false?null:{count:0}',
+    'null??{count:0}',
+    '0||{count:0}',
+    'new Map()',
+    'new Set()',
+    'RegExp("a","g")',
+    'new RegExp("a","g")'
+  ];
+  for(const initializer of initializers){
+    const source='const state='+initializer+';'+
+      'export function next(){return 7;}';
+    assert.throws(()=>compile(source),/unproved shared module object state/u,
+      initializer);
+  }
+});
+
+test('SCO standalone child retains primitive sequence and conditional constants',()=>{
+  assert.doesNotThrow(()=>compile(
+    'const offset=(0, true?41:0);export function next(){return offset+1;}'
+  ));
+});
+
 test('SCO standalone child retains constant primitive top-level data',()=>{
   assert.doesNotThrow(()=>compile(
     'const offset=41;export function next(){return offset+1;}'
