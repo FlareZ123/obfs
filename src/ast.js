@@ -5044,8 +5044,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     let binding=null;
     /** @type {AstNode|null} */
     let declarationStatement=null;
-    if((ast.body??[]).some((/** @type {AstNode} */ statement)=>
-      statement.type==='ImportDeclaration'))return false;
+    // Import dependencies may evaluate first (including in ESM cycles).
+    // A side-effect-only module with no exports publishes no callable or
+    // record that a dependency can invoke before our first local statement.
+    // If any export exists, retain the conservative cycle/TDZ refusal.
+    const hasStaticImports=(ast.body??[]).some(
+      (/** @type {AstNode} */ statement)=>statement.type==='ImportDeclaration');
+    if(hasStaticImports&&(ast.body??[]).some((/** @type {AstNode} */ statement)=>
+      ['ExportNamedDeclaration','ExportDefaultDeclaration','ExportAllDeclaration'].
+        includes(statement.type)))return false;
     for(const statement of ast.body??[]) {
       if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
       for(const candidate of statement.declarations??[]) {
@@ -5061,7 +5068,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // a hoisted function can otherwise reach the binding in its TDZ and
     // expose its original identifier through a caught ReferenceError.
     const firstExecutable=(ast.body??[]).find((/** @type {AstNode} */ statement)=>
-      statement.type!=='ExpressionStatement'||typeof statement.directive!=='string');
+      statement.type!=='ImportDeclaration'&&
+      (statement.type!=='ExpressionStatement'||typeof statement.directive!=='string'));
     if(firstExecutable!==declarationStatement||
        declarationStatement.declarations.length!==1)return false;
     const init=binding.init;
