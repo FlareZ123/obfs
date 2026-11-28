@@ -526,17 +526,38 @@ function hasWeakMapPrototypeExposure(ast) {
    * @type {Map<string,AstNode>}
    */
   const localClassConstructors=new Map();
+  /** @type {Map<string,AstNode>} */
+  const derivedClassBases=new Map();
+  /**
+   * Record explicitly declared constructors. A direct new expression is
+   * stable only after the existing unique-binding/reassignment checks.
+   * @param {string} className
+   * @param {AstNode} classNode
+   * @returns {void}
+   */
+  function trackLocalClassConstructor(className,classNode) {
+    const constructor=(classNode.body?.body??[]).find(
+      (/** @type {AstNode} */ element)=>element.type==='MethodDefinition'&&
+        element.kind==='constructor'&&
+        element.value?.body?.type==='BlockStatement');
+    if(!constructor?.value)return;
+    localClassConstructors.set(className,constructor.value);
+    if(classNode.superClass)derivedClassBases.set(className,classNode.superClass);
+  }
   for(const statement of ast.body??[]) {
     const declaration=statement.type==='ExportNamedDeclaration'||
       statement.type==='ExportDefaultDeclaration'?
       statement.declaration:statement;
-    if(declaration?.type!=='ClassDeclaration'||
-       declaration.id?.type!=='Identifier'||declaration.superClass)continue;
-    const constructor=(declaration.body.body??[]).find(
-      (/** @type {AstNode} */ element)=>element.type==='MethodDefinition'&&
-        element.kind==='constructor'&&
-        element.value?.body?.type==='BlockStatement');
-    if(constructor)localClassConstructors.set(declaration.id.name,constructor.value);
+    if(declaration?.type==='ClassDeclaration'&&
+       declaration.id?.type==='Identifier') {
+      trackLocalClassConstructor(declaration.id.name,declaration);
+    } else if(declaration?.type==='VariableDeclaration'&&
+              declaration.kind==='const') {
+      for(const item of declaration.declarations??[]) {
+        if(item.id?.type==='Identifier'&&item.init?.type==='ClassExpression')
+          trackLocalClassConstructor(item.id.name,item.init);
+      }
+    }
   }
   for(const statement of ast.body??[]) {
     const declaration=statement.type==='ExportNamedDeclaration'?
@@ -1960,6 +1981,15 @@ function hasWeakMapPrototypeExposure(ast) {
           replayLocalFunctionEffects(argument.name,environment,thisValue);
       }
       visitCarrierExpression(node.callee,environment,thisValue);
+      if(node.callee.type==='FunctionExpression'||
+         node.callee.type==='ArrowFunctionExpression') {
+        // Direct inline invocation cannot be rebound to another callable.
+        // Its parameter initializers execute before its body and must affect
+        // captured state like a stable local function call.
+        replayCarrierFunctionNode(node.callee,environment,
+          node.callee.type==='ArrowFunctionExpression'?thisValue:carrierOther,
+          true,node.arguments??[],true);
+      }
       if(node.callee.type==='Identifier')
         replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
           node.arguments??[]);
@@ -1991,9 +2021,12 @@ function hasWeakMapPrototypeExposure(ast) {
         const localConstructor=localClassConstructors.get(className);
         if(localConstructor&&localBindingCounts.get(className)===1&&
            !reassignedLocalFunctions.has(className)&&!hasDirectEval) {
-          // A stable direct new expression synchronously binds constructor
-          // parameters before executing the constructor body. The captured
-          // outer-carrier effects must join back into this call site.
+          // Unknown superclass constructors may run arbitrary code through
+          // super(). Preserve the formal default effects, and conservatively
+          // refuse source-changing rewrites if base behavior is unproved.
+          const base=derivedClassBases.get(className);
+          if(base&&!(base.type==='Identifier'&&pureEmptyClassNames.has(base.name)))
+            exposed=true;
           replayCarrierFunctionNode(localConstructor,environment,carrierOther,
             true,node.arguments??[],true);
         }
@@ -2028,6 +2061,11 @@ function hasWeakMapPrototypeExposure(ast) {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
         else if(property.type==='Property') {
+          // Computed own-property keys run before evaluating their values.
+          // Ignoring key expressions loses captured writes (including a
+          // newly observable global WeakMap.prototype source hook).
+          if(property.computed)
+            visitCarrierExpression(property.key,environment,thisValue);
           visitCarrierExpression(property.value,environment,thisValue);
           // A source-visible getter can be invoked by any later property
           // read or reflection. Union its captured outer-binding effects with
