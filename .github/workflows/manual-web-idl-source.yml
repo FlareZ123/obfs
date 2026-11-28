@@ -34,6 +34,8 @@ jobs:
         run: node --test test/agent19-user-timing-detail-source.test.js
       - name: Three-file imported native User Timing receiver source parity
         run: node --test test/agent19-user-timing-imported-receiver.test.js
+      - name: Native timing imported-graph source cache isolation
+        run: node --test test/agent19-timing-graph-cache-isolation.test.js
       - name: HTTP-served SCO native User Timing source and positive yield
         run: node --test test/agent19-user-timing-sco-http.test.js
       - name: Native User Timing interprocedural receiver and method source closure
