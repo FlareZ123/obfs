@@ -262,16 +262,17 @@ function createScoWebAuthnAdmission(options){
     const token=randomBytes(32).toString('base64url');
     const expiresAt=clock()+sessionTtlMs;
     if(!Number.isSafeInteger(expiresAt))return denied;
-    if(!state.mintSession(token,principal,expiresAt,pending.version,clock(),maxSessions))return denied;
+    // A Promise or truthy adapter result is not an atomic committed grant.
+    if(state.mintSession(token,principal,expiresAt,pending.version,clock(),maxSessions)!==true)return denied;
     return {ok:true,token,expiresAt};
   }
   /** @param {string} token @param {string} principal @returns {boolean} */
   function authorizeSession(token,principal){
     if(typeof token!=='string'||typeof principal!=='string')return false;
-    return state.authorizeSession(token,principal,clock());
+    return state.authorizeSession(token,principal,clock())===true;
   }
   /** @param {string} token @returns {boolean} */
-  function revokeSession(token){return state.revokeSession(token);}
+  function revokeSession(token){return state.revokeSession(token)===true;}
   /** @param {string} principal @returns {void} */
   function revokePrincipal(principal){state.revokePrincipal(principal);}
   return {issueChallenge,verifyAssertion,authorizeSession,revokeSession,revokePrincipal};
