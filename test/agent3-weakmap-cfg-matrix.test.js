@@ -287,7 +287,14 @@ const cases=[
 ['repeated-call-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.call(null,23);fill.call(null,42);",'carrier.instance'],
 ['repeated-apply-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.apply(null,[23]);fill.apply(null,[42]);",'carrier.instance'],
 // A same-spelled inert object field is not a reference to the callable.
-['unrelated-property-spelling-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}const inert={fill:19};fill.call(null,23);",'carrier.instance']
+['unrelated-property-spelling-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}const inert={fill:19};fill.call(null,23);",'carrier.instance'],
+// Async bodies execute synchronously through their first await; generators
+// can run later when the returned iterator's next method is called. Both
+// reachable bodies belong in the conservative may-effect summary.
+['async-body-before-await-weakmap',"let carrier={};async function fill(){carrier={instance:new WeakMap()};}fill();",'carrier.instance'],
+['generator-body-next-weakmap',"let carrier={};function* fill(){carrier={instance:new WeakMap()};yield 1;}const it=fill();it.next();",'carrier.instance'],
+['async-body-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};async function fill(){carrier={instance:new Ordinary()};}fill();",'carrier.instance'],
+['generator-body-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function* fill(){carrier={instance:new Ordinary()};yield 1;}const it=fill();it.next();",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
