@@ -42,21 +42,23 @@ function decide(documents,jobs=successfulJobs()){
 /**
  * Execute the actual CLI in an isolated working directory.
  * @param {Array<Record<string,any>>} documents
- * @param {{malformed?:boolean,jobs?:Record<string,string>}} [options]
+ * @param {{malformed?:boolean,missingDirectory?:boolean,jobs?:Record<string,string>}} [options]
  * @returns {Promise<{status:number|null,stdout:string,stderr:string,decision:any}>}
  */
 async function runCli(documents,options={}){
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-acceptance-'));
   const evidenceDirectory=path.join(directory,'release-evidence');
   const decisionPath=path.join(directory,'acceptance-decision.json');
-  await fs.mkdir(evidenceDirectory);
-  for(const document of documents){
-    await fs.writeFile(
-      path.join(evidenceDirectory,'release-evidence-'+document.platform+'.json'),
-      JSON.stringify(document)
-    );
+  if(!options.missingDirectory){
+    await fs.mkdir(evidenceDirectory);
+    for(const document of documents){
+      await fs.writeFile(
+        path.join(evidenceDirectory,'release-evidence-'+document.platform+'.json'),
+        JSON.stringify(document)
+      );
+    }
   }
-  if(options.malformed){
+  if(options.malformed&&!options.missingDirectory){
     await fs.writeFile(
       path.join(evidenceDirectory,'release-evidence-malformed.json'),
       '{ malformed'
@@ -213,13 +215,25 @@ test('the CLI rejects missing platform data at process level',async()=>{
   assert.equal(result.decision.verdict,'RESEARCH-INCONCLUSIVE');
 });
 
-test('the CLI rejects malformed JSON artifacts at process level',async()=>{
+test('the CLI rejects malformed JSON while retaining its artifact hash and candidate SHA',async()=>{
   const result=await runCli([
     passingDocument('linux'),passingDocument('win32')
   ],{malformed:true});
   assert.equal(result.status,1);
-  assert.match(result.stderr,/SyntaxError/u);
-  assert.equal(result.decision,null);
+  assert.equal(result.decision.verdict,'RESEARCH-INCONCLUSIVE');
+  assert.equal(result.decision.candidateSha,candidateSha);
+  /** @type {Array<{name:string,sha256:string,platform:string}>} */
+  const hashes=result.decision.artifactHashes;
+  assert.equal(hashes.length,3);
+  assert.ok(hashes.some(item=>item.platform==='unknown'));
+});
+
+test('the CLI records a missing evidence directory and fails closed',async()=>{
+  const result=await runCli([],{missingDirectory:true});
+  assert.equal(result.status,1);
+  assert.equal(result.decision.verdict,'RESEARCH-INCONCLUSIVE');
+  assert.equal(result.decision.candidateSha,candidateSha);
+  assert.deepEqual(result.decision.artifactHashes,[]);
 });
 
 test('green child jobs cannot override an explicit blocked evidence verdict',()=>{

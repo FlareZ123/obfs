@@ -337,19 +337,39 @@ async function main(){
     'acceptance-decision.json';
   const rawJobs=process.env.OBFS_ACCEPTANCE_JOB_RESULTS||'{}';
   const jobResults=JSON.parse(rawJobs);
-  const entries=await fs.readdir(directory,{withFileTypes:true});
+  let entries=[];
+  try{
+    entries=await fs.readdir(directory,{withFileTypes:true});
+  }catch(error){
+    if(!isRecord(error)||error.code!=='ENOENT')throw error;
+  }
   const files=entries.filter(entry=>entry.isFile()&&entry.name.endsWith('.json'))
     .map(entry=>entry.name).sort();
   const documents=[];
   /** @type {Array<{name:string,sha256:string,platform:string}>} */
   const artifactHashes=[];
   for(const name of files){
-    const raw=await fs.readFile(path.join(directory,name));
-    const document=JSON.parse(raw.toString('utf8'));
+    let raw;
+    try{
+      raw=await fs.readFile(path.join(directory,name));
+    }catch{
+      documents.push(null);
+      artifactHashes.push({name,sha256:'',platform:'unknown'});
+      continue;
+    }
+    const sha256=crypto.createHash('sha256').update(raw).digest('hex');
+    let document;
+    try{
+      document=JSON.parse(raw.toString('utf8'));
+    }catch{
+      documents.push(null);
+      artifactHashes.push({name,sha256,platform:'unknown'});
+      continue;
+    }
     documents.push(document);
     artifactHashes.push({
       name,
-      sha256:crypto.createHash('sha256').update(raw).digest('hex'),
+      sha256,
       platform:isRecord(document)&&typeof document.platform==='string'?
         document.platform:'unknown'
     });
