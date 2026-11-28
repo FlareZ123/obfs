@@ -1811,10 +1811,13 @@ function hasWeakMapPrototypeExposure(ast) {
       return primitiveComputedKeyWithoutEffects(key.test,depth+1)&&
         primitiveComputedKeyWithoutEffects(key.consequent,depth+1)&&
         primitiveComputedKeyWithoutEffects(key.alternate,depth+1);
-    if(key.type==='SequenceExpression')
-      return (/** @type {AstNode[]} */(key.expressions??[])).length>0&&
-        (/** @type {AstNode[]} */(key.expressions??[])).every(part=>
-          primitiveComputedKeyWithoutEffects(part,depth+1));
+    if(key.type==='SequenceExpression') {
+      // Earlier expression effects are transferred by the carrier visitor.
+      // ToPropertyKey sees the final expression's value, not the prefix.
+      const parts=/** @type {AstNode[]} */(key.expressions??[]);
+      return parts.length>0&&
+        primitiveComputedKeyWithoutEffects(parts.at(-1),depth+1);
+    }
     return false;
   }
   /** @type {Set<string>} */
