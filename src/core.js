@@ -121,7 +121,11 @@ function hasImportedDomStringSourceSink(files) {
   const modules=new Map(files.filter(file=>file.sourceType==='module'&&
     typeof file.code==='string').map(file=>[file.path,parse(/** @type {string} */(file.code),'module')]));
   if(modules.size<2)return false;
-  /** @type {Map<string,{receivers:Set<string>,factories:Set<string>,namespaces:Map<string,Set<string>>}>} */
+  /** @type {Map<string,{
+   *   receivers:Set<string>,factories:Set<string>,
+   *   collections:Set<string>,collectionFactories:Set<string>,
+   *   namespaces:Map<string,Set<string>>
+   * }>} */
   const exported=new Map();
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function property(node) {
@@ -139,12 +143,48 @@ function hasImportedDomStringSourceSink(files) {
   for(const [filename,ast] of modules) {
     const locals=new Set();
     const factories=new Set();
+    const collectionLocals=new Set();
+    const collectionFactories=new Set();
+    /**
+     * Only native document/element collection producers are admitted.
+     * An arbitrary userland Array or similarly named method is not a
+     * source-observing Web IDL receiver.
+     * @param {import('./ast').AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function isDomCollection(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return collectionLocals.has(node.name);
+      if(node.type==='MemberExpression'){
+        const name=property(node);
+        return isDocument(node.object)&&
+          ['forms','images','links','anchors','scripts','embeds','all'].includes(name??'') ||
+          isDom(node.object)&&['children','childNodes'].includes(name??'');
+      }
+      if(node.type==='CallExpression'){
+        if(node.callee.type==='Identifier')
+          return collectionFactories.has(node.callee.name);
+        if(node.callee.type==='MemberExpression'){
+          const name=property(node.callee);
+          const methods=['querySelectorAll','getElementsByName','getElementsByClassName',
+            'getElementsByTagName','getElementsByTagNameNS'];
+          return isDocument(node.callee.object)&&methods.includes(name??'') ||
+            isDom(node.callee.object)&&methods.filter(m=>m!=='getElementsByName').
+              includes(name??'');
+        }
+      }
+      return false;
+    }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isDom(node) {
       if(!node)return false;
       if(node.type==='Identifier')return locals.has(node.name);
       if(node.type==='MemberExpression') {
         const name=property(node);
+        // A computed collection index yields a native DOM element. Unknown
+        // indexes can affect source; known metadata such as .length cannot.
+        if(node.computed&&isDomCollection(node.object)&&
+           (name===null||/^(0|[1-9][0-9]*)$/u.test(name)))return true;
         return isDocument(node.object)&&
           ['body','head','documentElement','activeElement'].includes(name??'')||
           locals.has(node.object?.name)&&
@@ -154,9 +194,11 @@ function hasImportedDomStringSourceSink(files) {
         if(node.callee.type==='Identifier')return factories.has(node.callee.name);
         if(node.callee.type==='MemberExpression'){
           const method=property(node.callee);
-          return isDocument(node.callee.object)&&[
-            'getElementById','querySelector','createElement','createElementNS'
-          ].includes(method??'') ||
+          return isDomCollection(node.callee.object)&&
+            ['item','namedItem'].includes(method??'') ||
+            isDocument(node.callee.object)&&[
+              'getElementById','querySelector','createElement','createElementNS'
+            ].includes(method??'') ||
             isDom(node.callee.object)&&['querySelector','closest','cloneNode'].
               includes(method??'');
         }
@@ -174,37 +216,70 @@ function hasImportedDomStringSourceSink(files) {
       });
       return found;
     }
+    /** @param {import('./ast').AstNode} fn @returns {boolean} */
+    function producesCollection(fn) {
+      if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].
+          includes(fn.type))return false;
+      if(fn.body?.type!=='BlockStatement')return isDomCollection(fn.body);
+      let found=false;
+      walk(fn.body,node=>{
+        if(node.type==='ReturnStatement'&&isDomCollection(node.argument))found=true;
+      });
+      return found;
+    }
     let changed;
     do {
       changed=false;
       walk(ast,node=>{
-        if(node.type==='FunctionDeclaration'&&node.id?.name&&
-           producesDom(node)&&!factories.has(node.id.name)){
-          factories.add(node.id.name);changed=true;
+        if(node.type==='FunctionDeclaration'&&node.id?.name){
+          if(producesDom(node)&&!factories.has(node.id.name)){
+            factories.add(node.id.name);changed=true;
+          }
+          if(producesCollection(node)&&!collectionFactories.has(node.id.name)){
+            collectionFactories.add(node.id.name);changed=true;
+          }
         }
         if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init)return;
         const name=node.id.name;
         if(isDom(node.init)&&!locals.has(name)){locals.add(name);changed=true;}
+        if(isDomCollection(node.init)&&!collectionLocals.has(name)){
+          collectionLocals.add(name);changed=true;
+        }
         if(producesDom(node.init)&&!factories.has(name)){
           factories.add(name);changed=true;
         }
-        if(node.init.type==='Identifier'&&factories.has(node.init.name)&&
-           !factories.has(name)){factories.add(name);changed=true;}
+        if(producesCollection(node.init)&&!collectionFactories.has(name)){
+          collectionFactories.add(name);changed=true;
+        }
+        if(node.init.type==='Identifier'){
+          if(factories.has(node.init.name)&&!factories.has(name)){
+            factories.add(name);changed=true;
+          }
+          if(collectionFactories.has(node.init.name)&&!collectionFactories.has(name)){
+            collectionFactories.add(name);changed=true;
+          }
+        }
       });
     }while(changed);
     const receivers=new Set();
     const exportedFactories=new Set();
+    const exportedCollections=new Set();
+    const exportedCollectionFactories=new Set();
     /** @param {string} local @param {string} external */
     function expose(local,external) {
       if(locals.has(local))receivers.add(external);
       if(factories.has(local))exportedFactories.add(external);
+      if(collectionLocals.has(local))exportedCollections.add(external);
+      if(collectionFactories.has(local))exportedCollectionFactories.add(external);
     }
     for(const node of ast.body??[]) {
       if(node.type==='ExportDefaultDeclaration') {
         const value=node.declaration;
         if(value?.type==='Identifier')expose(value.name,'default');
         else if(isDom(value))receivers.add('default');
+        else if(isDomCollection(value))exportedCollections.add('default');
         else if(producesDom(value))exportedFactories.add('default');
+        else if(producesCollection(value))exportedCollectionFactories.add('default');
         continue;
       }
       if(node.type!=='ExportNamedDeclaration')continue;
@@ -222,7 +297,12 @@ function hasImportedDomStringSourceSink(files) {
         if(typeof local==='string'&&typeof name==='string')expose(local,name);
       }
     }
-    exported.set(filename,{receivers,factories:exportedFactories,namespaces:new Map()});
+    exported.set(filename,{
+      receivers,factories:exportedFactories,
+      collections:exportedCollections,
+      collectionFactories:exportedCollectionFactories,
+      namespaces:new Map()
+    });
   }
   // A direct DOM element import can traverse ESM barrel files. The first
   // inventory above proves only direct declarations, so close its published
