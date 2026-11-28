@@ -2500,7 +2500,13 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // The reviewed ESM source-observer island proof licenses only local
+    // property-key rewriting. A global function/source observer still blocks
+    // identifiers, strings and all cross-file rewriting. A module that itself
+    // produces DOM-observable source bytes cannot use this exception.
+    const canRenameIslandKeys=sourceObserverIslands.has(filename)&&
+      !esmDomSourceProducers.has(filename);
+    if ((!fileSourceObserver || canRenameIslandKeys) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
