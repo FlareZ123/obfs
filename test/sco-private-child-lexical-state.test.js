@@ -91,6 +91,32 @@ test('SCO standalone child retains primitive sequence and conditional constants'
   ));
 });
 
+test('SCO standalone child refuses dynamically allocated private module state',()=>{
+  /** @type {[string,string][]} */
+  const cases=[
+    ['function factory','function make(){return {count:0};}'+
+      'const state=make();export function next(){return ++state.count;}'],
+    ['arrow factory','const make=()=>({count:0});'+
+      'const state=make();export function next(){return ++state.count;}'],
+    ['IIFE factory','const state=(()=>({count:0}))();'+
+      'export function next(){return ++state.count;}'],
+    ['Promise owner','const state=Promise.resolve({count:0});'+
+      'export async function next(){const object=await state;return ++object.count;}'],
+    ['typed array','const state=new Uint8Array(1);'+
+      'export function next(){return ++state[0];}']
+  ];
+  for(const [label,source] of cases){
+    assert.throws(()=>compile(source),/unproved module initializer state/u,label);
+  }
+});
+
+test('SCO child admission retains primitive-only initializer expression grammar',()=>{
+  const safe='const offset=(0, true?41:0);'+
+    'const extra=+1;const text=`x`;export function next(){'+
+    'return offset+extra+(text==="x"?0:100);}';
+  assert.doesNotThrow(()=>compile(safe));
+});
+
 test('SCO standalone child retains constant primitive top-level data',()=>{
   assert.doesNotThrow(()=>compile(
     'const offset=41;export function next(){return offset+1;}'
