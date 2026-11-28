@@ -23,7 +23,8 @@ function graph(scenario) {
     "globalThis.externalObserver('before',state.privateAlpha,state.privateBeta);\n"+
     "state.privateBeta=1/0;\n"+
     "globalThis.externalObserver('after',state.privateAlpha,state.privateBeta);\n";
-  if(scenario==='escape'||scenario==='escape-mutate')\n    use+="globalThis.externalObserver(state);\n";
+  if(scenario==='escape'||scenario==='escape-mutate')
+    use+="globalThis.externalObserver(state);\n";
   use+="export const result=[state.privateAlpha,state.privateAlpha,state.privateBeta];\n";
   return [state,{path:'entry.mjs',sourceType:'module',code:use}];
 }
