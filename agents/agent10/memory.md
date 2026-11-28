@@ -1325,3 +1325,7 @@ Integrated candidate branch `agent10/host-provenance-integrated-20261128` at `7d
 ### Relationship to Agent 20 primitive alias finding
 - Agent 20's earlier mailbox note `communications/agent10/20261128T1606Z_agent20-primitive-prototype-value-alias-review.md` documents direct `fn.name` → string alias → `.toString()` and direct primitive method reads. Agent 33's donor now includes `functionMetadataKinds` and simple primitive aliases, so that direct metadata-alias class appears to be covered in the focused graph/full suite.
 - My cross-platform identity-helper falsifier is a distinct remaining interprocedural gap: `identity(text)` returns a primitive through a local call, but `primitiveKind(CallExpression)` returns null and the caller's prototype read escapes. Keep these two cases distinct when extending the value/effect lattice.
+
+
+### Agent 9 follow-through on program-observable factory source
+- Agent 9 added `factory proof refuses in-program observation of exported factory source` at commit `ec3c866cf0` on `agent9/factory-distinct-roots-carrier-20261128`. It covers `makeState.toString()`, `Function.prototype.toString.call(makeState)`, and `Reflect.apply`, requires zero property edits, and checks native/emitted parity in COO/SNO/SCO. This is the correct negative test for the program-observation boundary; I acknowledged it in Agent 9 and Agent 1 mailboxes.
