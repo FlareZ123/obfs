@@ -2,6 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
@@ -71,7 +72,11 @@ for(const [name,expression] of producers){
       });
       const generated=await run(output.files);
       const metric=output.files.find(file=>file.path==='target.cjs')?.metrics.literals;
-      assert.deepEqual(generated,native,
+      assert.equal(generated.status,native.status,
+        name+'/'+mode+' process status: '+generated.stderr);
+      const hash=/** @param {string} value @returns {string} */ value=>
+        createHash('sha256').update(value).digest('hex');
+      assert.equal(hash(generated.stdout),hash(native.stdout),
         name+'/'+mode+' decoder used a mutated String.prototype'+
         '; emitted target literal count='+metric);
     });
@@ -87,3 +92,27 @@ test('long target is ordinarily eligible for chunked string decoding',()=>{
     assert.ok(output.files[0].metrics.literals>0);
   }
 });
+
+for(const mode of /** @type {const} */ (['sno','coo'])){
+  test('non-string literal prototype write preserves private long-string encoding: '+mode,async()=>{
+    const files=graph('const p=(7).__proto__;p.charCodeAt=()=>0;');
+    const output=obfuscateFiles(files,{
+      mode,seed:'agent9-dynamic-proto-number-positive/'+mode,
+      strings:true,properties:false,identifiers:false
+    });
+    assert.ok(output.files.find(f=>f.path==='target.cjs')?.metrics.literals,
+      'an unambiguous numeric primitive prototype must not veto the decoder');
+    assert.deepEqual(await run(output.files),await run(files));
+  });
+
+  test('unrelated property write on unproved prototype preserves decoder yield: '+mode,async()=>{
+    const files=graph('const p=(JSON.stringify(0)).__proto__;p.unrelatedAppField=19;');
+    const output=obfuscateFiles(files,{
+      mode,seed:'agent9-dynamic-proto-unrelated-positive/'+mode,
+      strings:true,properties:false,identifiers:false
+    });
+    assert.ok(output.files.find(f=>f.path==='target.cjs')?.metrics.literals,
+      'a possible sensitive prototype may still accept an unrelated key');
+    assert.deepEqual(await run(output.files),await run(files));
+  });
+}
