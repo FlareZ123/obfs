@@ -1190,13 +1190,20 @@ function hasWeakMapPrototypeExposure(ast) {
       return String(property.value);
     return null;
   }
-  /** @param {CarrierValue} value @returns {boolean} */
-  function carrierMayContainWeakMap(value) {
+  /**
+   * Recursion-safe carrier membership, including containers with self-aliases.
+   * @param {CarrierValue} value
+   * @param {Set<CarrierContainer>} [seen=new Set()]
+   * @returns {boolean}
+   */
+  function carrierMayContainWeakMap(value,seen=new Set()) {
     if(value.kind==='weakmap'||value.kind==='maybe')return true;
     if(value.kind==='container') {
       if(value.unknown)return true;
+      if(seen.has(value))return false;
+      seen.add(value);
       for(const nested of value.properties.values()) {
-        if(carrierMayContainWeakMap(nested))return true;
+        if(carrierMayContainWeakMap(nested,seen))return true;
       }
     }
     return false;
@@ -1220,15 +1227,30 @@ function hasWeakMapPrototypeExposure(ast) {
     if(container.unknown)value=mergeCarrierValues(value,carrierMaybe);
     return value;
   }
-  /** @param {CarrierValue} left @param {CarrierValue} right @returns {CarrierValue} */
-  function mergeCarrierValues(left,right) {
+  /**
+   * Join may-values with a pair memo. Both cyclic graphs and aliases shared
+   * across environment bindings must survive a CFG join as one abstract heap.
+   * @param {CarrierValue} left
+   * @param {CarrierValue} right
+   * @param {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} [pairs=new Map()]
+   * @returns {CarrierValue}
+   */
+  function mergeCarrierValues(left,right,pairs=new Map()) {
     if(left.kind==='container'&&right.kind==='container') {
+      let byRight=pairs.get(left);
+      if(!byRight) {
+        byRight=new Map();
+        pairs.set(left,byRight);
+      }
+      const already=byRight.get(right);
+      if(already)return already;
       const merged=carrierContainer();
+      byRight.set(right,merged);
       merged.unknown=left.unknown||right.unknown;
       for(const [key,value] of left.properties)merged.properties.set(key,value);
       for(const [key,value] of right.properties) {
         merged.properties.set(key,merged.properties.has(key)?
-          mergeCarrierValues(merged.properties.get(key)??carrierOther,value):value);
+          mergeCarrierValues(merged.properties.get(key)??carrierOther,value,pairs):value);
       }
       return merged;
     }
@@ -1236,6 +1258,20 @@ function hasWeakMapPrototypeExposure(ast) {
     if(left.kind==='other'&&right.kind==='other')return carrierOther;
     return carrierMayContainWeakMap(left)||carrierMayContainWeakMap(right)?
       carrierMaybe:carrierOther;
+  }
+  /**
+   * Join two alternative environments with one alias-sharing graph memo.
+   * @param {Map<string,CarrierValue>} target
+   * @param {Map<string,CarrierValue>} left
+   * @param {Map<string,CarrierValue>} right
+   * @returns {void}
+   */
+  function joinCarrierEnvironments(target,left,right) {
+    /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
+    const pairs=new Map();
+    for(const name of new Set([...left.keys(),...right.keys()]))
+      target.set(name,mergeCarrierValues(
+        left.get(name)??carrierOther,right.get(name)??carrierOther,pairs));
   }
   /**
    * Whether an accessor or method can yield a WeakMap carrier. Unknown
@@ -1582,9 +1618,7 @@ function hasWeakMapPrototypeExposure(ast) {
       const alternate=snapshotCarrierEnvironment(environment);
       visitCarrierExpression(node.consequent,consequent,thisValue);
       visitCarrierExpression(node.alternate,alternate,thisValue);
-      for(const name of new Set([...consequent.keys(),...alternate.keys()]))
-        environment.set(name,mergeCarrierValues(
-          consequent.get(name)??carrierOther,alternate.get(name)??carrierOther));
+      joinCarrierEnvironments(environment,consequent,alternate);
       return;
     }
     if(node.type==='LogicalExpression') {
@@ -1592,9 +1626,7 @@ function hasWeakMapPrototypeExposure(ast) {
       const skipped=snapshotCarrierEnvironment(environment);
       const executed=snapshotCarrierEnvironment(environment);
       visitCarrierExpression(node.right,executed,thisValue);
-      for(const name of new Set([...skipped.keys(),...executed.keys()]))
-        environment.set(name,mergeCarrierValues(
-          skipped.get(name)??carrierOther,executed.get(name)??carrierOther));
+      joinCarrierEnvironments(environment,skipped,executed);
       return;
     }
     if(node.type==='ObjectExpression') {
@@ -1710,10 +1742,7 @@ function hasWeakMapPrototypeExposure(ast) {
       visitCarrierStatement(statement.consequent,consequent,thisValue,throwCollector);
       if(statement.alternate)
         visitCarrierStatement(statement.alternate,alternate,thisValue,throwCollector);
-      for(const name of new Set([...consequent.keys(),...alternate.keys()])) {
-        environment.set(name,mergeCarrierValues(
-          consequent.get(name)??carrierOther,alternate.get(name)??carrierOther));
-      }
+      joinCarrierEnvironments(environment,consequent,alternate);
       return;
     }
     if(statement.type==='LabeledStatement') {
@@ -1840,11 +1869,9 @@ function hasWeakMapPrototypeExposure(ast) {
       if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
       if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
-      for(const name of new Set([...noIteration.keys(),...loopEnv.keys()])) {
-        if(loopScopedNames.has(name))continue;
-        environment.set(name,mergeCarrierValues(
-          noIteration.get(name)??carrierOther,loopEnv.get(name)??carrierOther));
-      }
+      // The lexical loop locals are not part of the post-loop environment.
+      for(const name of loopScopedNames.keys())loopEnv.delete(name);
+      joinCarrierEnvironments(environment,noIteration,loopEnv);
       return;
     }
     if(statement.type==='SwitchStatement') {
