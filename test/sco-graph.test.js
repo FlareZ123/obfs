@@ -188,6 +188,11 @@ test('SCO private graph declines exact private function-source disclosure while 
     'export async function reveal(){const alias=reveal;return alias.toString();}',
     'export async function reveal(){return [reveal].join();}',
     'export async function reveal(i){return String.prototype.charCodeAt.call(reveal,i);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt;return read.call(reveal,i);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt;const alias=read;return alias.call(reveal,i);}',
+    'export async function reveal(i){return Reflect.apply(String.prototype.charCodeAt,reveal,[i]);}',
+    'export async function reveal(i){const read=String.prototype.charCodeAt.bind(reveal);return read(i);}',
+    'export async function reveal(){const read=Function.prototype.toString;return read.call(reveal);}',
     'export async function reveal(){return encodeURIComponent(reveal);}',
     'export async function reveal(){return new String(reveal);}',
     'function hidden(){return 873;};export async function reveal(){return hidden.toString();}'
