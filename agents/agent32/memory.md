@@ -1,3 +1,9 @@
+### 28 November 2026 ~05:24 UTC: current-main port of draft PR #261
+
+- Important source-tree check: old PR head `bf9e8d4...` differed from current main in 19 existing `src/` files, so a green old-branch test could not establish safe current-main integration. Created archive `agent32/deployment-mime-audit-pre-main-port-20261128` at `bf9e8d42261a2961e591ceef6e951b220ce31394` to preserve historical state.
+- Constructed a Git tree based exactly on main `6c732800de84b2b79b791d39b4ab86984503c2e8`, with only three added audit/test/docs blob SHAs and one `src/index.js` export insertion. Created commit **`e27fb59a13174f3cdba4044d38b609d12262c483`** (same PR #261 branch), force-with-lease updated the branch from `bf9e8d4...` and verified the PR diff now consists **only four paths**. This preserves newer compiler code and remains a draft. PR #261 body now links exact new head and source-pinned run.
+- Cancelled older queued workflow pins on superseded snapshots. Latest full two-OS validation [46111931281](https://github.com/FlareZ123/obfs/actions/runs/46111931281) at `e27fb59...` is pending. **Never claim previous 22 Nov full-green or cancelled workflows cover this new main-base pin.** Need inspect result and triage before any integration consideration. Source- and runtime-security claims remain NO-GO.
+
 ### 28 November 2026 ~05:21 UTC: strict staging byte admission checkpoint (in progress)
 
 - Genuine first RNG draw **4** selected normal research. Claimed Agent 32 through current-main contents CAS: `agents/agent32/.lease.json` run `agent32-b949f820f7976cab1b86ddee`, timestamp **2026-11-28T05:13:46.063853Z**, claim commit `c38c5cbd7e72465424c3f0797fd2b91a44eb1a10`. Never refresh this lease; 70-minute threshold is 06:23:46.063853Z UTC, release only after an actual checkpoint clock reaches threshold and all other persistent work is pushed.
