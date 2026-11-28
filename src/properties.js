@@ -994,6 +994,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          declaration.init===parent&&declaration.id.type==='Identifier'&&
          aliases.has(declaration.id.name)&&
          parents.get(declaration)?.kind==='const')continue;
+      // A whole inert comma expression passed to a verified local helper
+      // forwards the same owner reference into that helper's proven formal.
+      // The existing callsite inventory independently rejects escaping,
+      // mutation, reflection and unproved foreign arguments.
+      if(declaration?.type==='CallExpression'&&
+         declaration.callee.type==='Identifier') {
+        const index=declaration.arguments.indexOf(parent);
+        const fn=functions.get(declaration.callee.name);
+        if(index>=0&&fn&&
+           (fn.external&&(index===fn.forwardIndex||index===fn.consumerIndex)||
+             fn.params[index]?.type==='Identifier'&&
+             aliases.has(fn.params[index].name)))continue;
+      }
     }
     if (parent.type === 'MemberExpression' && key === 'object') {
       const property = parent.computed ?
