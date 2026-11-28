@@ -19,7 +19,7 @@ const {flattenStatementFlow} = require('./statement-flow');
 const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
-const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
+const {hasPinnedLocalJavaScriptIntegrity,hasUnreviewedHtmlExecutableScripts}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
@@ -3036,8 +3036,8 @@ function obfuscateFiles(files, options = {}) {
   // Unordered classic scripts may replace ambient document Node factories.
   // An isolated "const node=document.createElement(...)" proof is invalid
   // if another supplied file can change the function before it executes.
-  const sharedDocumentFactoryMutation=sourceObserverFiles.some(({ast})=>
-    hasNativeDocumentFactoryMutation(ast));
+  const sharedDocumentFactoryMutation=hasUnreviewedHtmlExecutableScripts(prepared)||
+    sourceObserverFiles.some(({ast})=>hasNativeDocumentFactoryMutation(ast));
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
   const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
