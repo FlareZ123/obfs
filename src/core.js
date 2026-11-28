@@ -252,6 +252,11 @@ function hasImportedDomStringSourceSink(files) {
     for(const [filename,ast] of modules) {
       const own=exported.get(filename);
       if(!own)continue;
+      // Capture the proven record outside nested callbacks; lexical narrowing
+      // of a map lookup does not survive function boundaries in strict JSDoc.
+      const ownReceivers=own.receivers;
+      const ownFactories=own.factories;
+      const ownNamespaces=own.namespaces;
       /** @type {Set<string>} */
       const receivedElements=new Set();
       /** @type {Set<string>} */
@@ -306,21 +311,21 @@ function hasImportedDomStringSourceSink(files) {
       }while(aliasChanged);
       /** @param {string} external @param {boolean} receiver @param {boolean} factory */
       function add(external,receiver,factory) {
-        if(receiver&&!own.receivers.has(external)) {
-          own.receivers.add(external);propagated=true;
+        if(receiver&&!ownReceivers.has(external)) {
+          ownReceivers.add(external);propagated=true;
         }
-        if(factory&&!own.factories.has(external)) {
-          own.factories.add(external);propagated=true;
+        if(factory&&!ownFactories.has(external)) {
+          ownFactories.add(external);propagated=true;
         }
       }
       /** @param {string} external @param {Iterable<string>} targets */
       function addNamespace(external,targets){
-        const current=own.namespaces.get(external)??new Set();
+        const current=ownNamespaces.get(external)??new Set();
         let added=false;
         for(const target of targets)if(!current.has(target)){
           current.add(target);added=true;
         }
-        if(added){own.namespaces.set(external,current);propagated=true;}
+        if(added){ownNamespaces.set(external,current);propagated=true;}
       }
       for(const node of ast.body??[]) {
         if(node.type==='ExportAllDeclaration') {
