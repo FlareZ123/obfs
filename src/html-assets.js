@@ -278,16 +278,30 @@ function findSelectTokenDisclosure(html) {
   /** @type {string|null} */
   let issue=null;
   let selects=0;
+  let styleDepth=0;
+  let stylesheet='';
+  const observeStyle=(/** @type {import('parse5').Token.CharacterToken} */ token)=>{
+    if(styleDepth>0&&!issue)stylesheet+=token.chars;
+  };
+  const inspectStyle=()=>{
+    if(hasCssSourceMapDirective(stylesheet))issue??='inline CSS source-map directive';
+    if(hasCssDataImport(stylesheet))issue??='embedded stylesheet data import';
+    stylesheet='';
+  };
   const noop=()=>{};
   const handler={
-    onComment:noop,onDoctype:noop,onEof:noop,onCharacter:noop,
-    onNullCharacter:noop,onWhitespaceCharacter:noop,
+    onComment:noop,onDoctype:noop,onEof:noop,onCharacter:observeStyle,
+    onNullCharacter:observeStyle,onWhitespaceCharacter:observeStyle,
     /** @param {import('parse5').Token.TagToken} token */
     onStartTag(token) {
       // In contrast to the stand-alone tokenizer's DATA default, script
       // contents are raw text. Avoid inventing tags in a safe import-map
       // JSON string while scanning a later real SELECT.
       if(token.tagName==='script')tokenizer.state=TokenizerMode.SCRIPT_DATA;
+      if(selects&&token.tagName==='style'){
+        tokenizer.state=TokenizerMode.RAWTEXT;
+        styleDepth++;
+      }
       if(!selects&&['textarea','title'].includes(token.tagName))
         tokenizer.state=TokenizerMode.RCDATA;
       if(!selects&&['style','xmp','iframe','noembed','noframes'].includes(token.tagName))
@@ -297,7 +311,20 @@ function findSelectTokenDisclosure(html) {
       if(!selects||issue)return;
       const name=token.tagName;
       const attrs=token.attrs??[];
+      /** @param {string} key @returns {string|undefined} */
+      const attr=key=>attrs.find(item=>item.name===key)?.value;
       if(name==='script') {issue='inline script source in select context';return;}
+      if(name==='base'&&attrs.some(item=>item.name==='href')) {
+        issue='URL base in select context';return;
+      }
+      if(name==='link'&&/(?:^|\s)stylesheet(?:\s|$)/iu.test(attr('rel')??'') &&
+         attr('href')&&isDataUrl(/** @type {string} */(attr('href')))) {
+        issue='embedded stylesheet data URL';return;
+      }
+      if(name==='meta'&&attr('http-equiv')?.trim().toLowerCase()==='refresh' &&
+         attr('content')&&isEmbeddedRefreshUrl(/** @type {string} */(attr('content')))) {
+        issue='embedded executable refresh URL';return;
+      }
       if(SMIL_ANIMATION_ELEMENTS.has(name) &&
          smilTargetsExecutableAttribute(name,
            attrs.find(attr=>attr.name==='attributename')?.value)) {
@@ -319,11 +346,16 @@ function findSelectTokenDisclosure(html) {
     },
     /** @param {import('parse5').Token.TagToken} token */
     onEndTag(token) {
+      if(token.tagName==='style'&&styleDepth>0){
+        styleDepth--;
+        if(styleDepth===0)inspectStyle();
+      }
       if(token.tagName==='select'&&selects>0)selects--;
     }
   };
   const tokenizer=new Tokenizer({},handler);
   tokenizer.write(html,true);
+  if(styleDepth>0)inspectStyle();
   return issue;
 }
 
