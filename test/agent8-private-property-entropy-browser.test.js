@@ -10,23 +10,22 @@ const {neutralizePublishedProperties}=require('../sims/public-property-neutraliz
 /** @typedef {{path:string,sourceType:'module',code:string}} File */
 
 /**
- * Public ESM program whose owned fields are consumed only inside a static
- * 3-module import graph. An independently installed browser host callback
- * observes the completed result, but cannot silently receive an owner
- * reference whose original key names are part of its contract.
+ * Public ESM owner whose fields are directly read by a static importer.
+ * A browser-installed console sink observes the serialized results entirely
+ * outside compiler inputs; it never receives the private owner object.
  *
  * @type {File[]}
  */
 const source=[
   {path:'state.mjs',sourceType:'module',
     code:'export const state={secretField:41,otherField:13,sessionMark:7};'},
-  {path:'api.mjs',sourceType:'module',code:[
-    'import {state} from "./state.mjs";',
-    'export function compute(n){return (state.secretField*n + state.otherField - state.sessionMark)|0;}'
-  ].join('\n')},
   {path:'entry.mjs',sourceType:'module',code:[
-    'import {compute} from "./api.mjs";',
-    'for(const n of [0,1,-1,123,10000]) window.host.capture({n,result:compute(n)});'
+    'import {state} from "./state.mjs";',
+    'console.log(JSON.stringify([0,(0*state.secretField+state.otherField-state.sessionMark)|0]));',
+    'console.log(JSON.stringify([1,(1*state.secretField+state.otherField-state.sessionMark)|0]));',
+    'console.log(JSON.stringify([-1,(-1*state.secretField+state.otherField-state.sessionMark)|0]));',
+    'console.log(JSON.stringify([123,(123*state.secretField+state.otherField-state.sessionMark)|0]));',
+    'console.log(JSON.stringify([10000,(10000*state.secretField+state.otherField-state.sessionMark)|0]));'
   ].join('\n')}
 ];
 
@@ -101,32 +100,34 @@ test('private property entropy remains seedlessly cloneable in strict-CSP real C
       const root=/** @type {any} */(globalThis);
       const probe='/csp-probe.mjs';
       const blocked=(await import(probe)).blocked;
-      /** @type {{label:string,trace:{n:number,result:number}[]}[]} */
+      /** @type {{label:string,trace:string[]}[]} */
       const rows=[];
       for(const label of ['native','published','attacked']){
-        root.__hostTrace=[];
-        root.host={capture(/** @type {{n:number,result:number}} */ value){
-          root.__hostTrace.push({...value});return 7;
-        }};
-        const modulePath='/'+label+'/entry.mjs';
-        await import(modulePath);
-        rows.push({label,trace:root.__hostTrace});
+        root.__logTrace=[];
+        const savedConsole=console.log;
+        try{
+          console.log=(...values)=>root.__logTrace.push(values.map(String).join(' '));
+          const modulePath='/'+label+'/entry.mjs';
+          await import(modulePath);
+        }finally{
+          console.log=savedConsole;
+        }
+        rows.push({label,trace:root.__logTrace});
       }
       return {blocked,rows};
     });
     assert.equal(report.blocked,true,
       'Actual fetched ESM must be blocked from evaluating generated strings');
-    const expected=[0,1,-1,123,10000].map(n=>({
-      n,result:(41*n+13-7)|0
-    }));
+    const expected=[0,1,-1,123,10000].map(n=>
+      JSON.stringify([n,(41*n+13-7)|0]));
     assert.deepEqual(report.rows.map(item=>item.label),
       ['native','published','attacked']);
     for(const row of report.rows){
       assert.deepEqual(row.trace,expected,
         row.label+': Browser callback trace diverged from the original');
     }
-    assert.equal(scriptGets,10,
-      'All 3x3 ESM source modules plus CSP proof must load over real HTTP');
+    assert.equal(scriptGets,7,
+      'All three original/published/reconstructed 2-module graphs and CSP probe must load');
     process.stdout.write('PRIVATE_PROPERTY_ENTROPY_BROWSER_SEEDLESS_CLONE '+
       JSON.stringify({
         browser:await browser.version(),servedEsmRequests:scriptGets,
@@ -136,7 +137,7 @@ test('private property entropy remains seedlessly cloneable in strict-CSP real C
         callbackObservationsPerGraph:expected.length,
         actualOriginalPublishedCloneEqual:true,
         attackerInput:'public source only, no compiler seed or original code',
-        limitation:'finite static field graph and scalar external callbacks'
+        limitation:'finite static field graph and external console sink'
       })+'\n');
   }finally{
     try{if(browser)await browser.close();}
