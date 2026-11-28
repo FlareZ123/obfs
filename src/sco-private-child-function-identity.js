@@ -4,19 +4,23 @@ const {walk}=require('./ast');
 const {isReadOnlyOwnedLiteral}=require('./sco-private-child-readonly-literal');
 
 /**
- * Conservative own-function-state admission for each server-private ESM child.
+ * Conservative per-client module-state admission for each server-private
+ * ESM child, used by both standalone selective SCO and selected graph builds.
  *
- * Browser clients ordinarily instantiate independent module function objects,
- * whereas SCO relocates a child module to one long-lived Node instance. A
- * shared function can carry user-visible own properties (or be handed to a
- * reflective consumer) even when callers invoke it only as `next()`.
+ * Browser clients ordinarily instantiate independent module function objects
+ * and lexical cells; SCO relocates a child to one long-lived Node instance.
+ * A direct `next()` can still mutate an exported function's own fields, a
+ * module-level let/var, a const-owned record/array or a RegExp's lastIndex.
  *
- * Review module-level function declarations and const function expressions
- * by their lexical names. Permit direct calls and declaration names; decline
- * every other unproved reference, including computed reads, self-mutation,
- * aliases, reflection, exports as a value and higher-order carriers. Shadowed
- * identifiers are intentionally overapproximated rather than treated as safe.
- * This is syntactic admission, not proof that other module state is immutable.
+ * Decline top-level mutable cells and known shared literal/constructor owners.
+ * The deliberate positive exception is an unexported literal scalar table
+ * proved to have only static own-property reads, no mutation or escape.
+ * For named functions and classes, allow declaration names and direct calls
+ * but refuse unproved value references, reflection and member-state access.
+ * Shadowed identifiers are overapproximated rather than assumed safe.
+ * This is a bounded syntactic gate, NOT a cross-realm semantic proof for
+ * dynamic initializers, higher-order code, external hosts or private sources
+ * not provided for auditing.
  *
  * @param {string} filename
  * @param {import('./ast').AstNode} ast
