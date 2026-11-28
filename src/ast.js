@@ -68,6 +68,8 @@ function walk(root, visit) {
  */
 function hasWeakMapPrototypeExposure(ast) {
   const globalNames=new Set(['globalThis','window','self','global']);
+  /** @type {Set<string>} */
+  const provenPrimitiveModuleKeys=new Set();
   /** @type {Map<string,string|null>} */
   const staticStringAliases=new Map();
   walk(ast,(node,parent)=>{
@@ -596,6 +598,25 @@ function hasWeakMapPrototypeExposure(ast) {
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
   });
+  // A unique top-level module const is a declarative lexical binding. If
+  // initialized by an effect-free primitive expression it cannot later turn
+  // into an object with a ToPropertyKey hook; reject shadowed names, direct
+  // eval and non-module source before considering this precision exception.
+  if(ast.sourceType==='module'&&!hasDirectEval) {
+    for(const statement of ast.body??[]) {
+      const declaration=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:statement;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')
+        continue;
+      for(const binding of declaration.declarations??[]) {
+        if(binding.id?.type!=='Identifier'||
+           localBindingCounts.get(binding.id.name)!==1||
+           reassignedLocalFunctions.has(binding.id.name))continue;
+        if(primitiveComputedKeyWithoutEffects(binding.init))
+          provenPrimitiveModuleKeys.add(binding.id.name);
+      }
+    }
+  }
   /** @type {WeakSet<AstNode>} */
   const unobservedGetterInitializers=new WeakSet();
   if(ast.sourceType==='module'&&!hasDirectEval) {
@@ -1789,6 +1810,7 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function primitiveComputedKeyWithoutEffects(key,depth=0) {
     if(!key||depth>16)return false;
+    if(key.type==='Identifier')return provenPrimitiveModuleKeys.has(key.name);
     if(key.type==='Literal')
       return key.regex===undefined&&
         (key.value===null||['string','number','boolean','bigint'].includes(typeof key.value));
