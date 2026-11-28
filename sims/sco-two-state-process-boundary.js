@@ -8,7 +8,7 @@ const path=require('node:path');
 const readline=require('node:readline');
 const {randomBytes,randomInt}=require('node:crypto');
 const http=require('node:http');
-const {createPolicy,sameFutureBehavior}=
+const {enumerateModels,sameFutureBehavior}=
   require('./sco-two-state-optimal-network-policy');
 const {decodeThreeState}=
   require('./sco-two-state-out-of-class-census');
@@ -59,7 +59,7 @@ async function runServer(){
   });
   /** @type {Machine} */
   const machine=modelId<260
-    ?createPolicy().models[modelId]
+    ?enumerateModels()[modelId]
     :decodeThreeState(modelId-260);
   const canary='private-'+randomBytes(24).toString('hex');
   const cookie='session='+randomBytes(24).toString('hex');
@@ -342,7 +342,7 @@ async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false,modelId
     const snapshot=await snapshotReady;
     assert.ok(Number.isInteger(snapshot.modelId)&&snapshot.modelId>=0&&snapshot.modelId<46916);
     const expectedMachine=snapshot.modelId<260
-      ?createPolicy().models[snapshot.modelId]
+      ?enumerateModels()[snapshot.modelId]
       :decodeThreeState(snapshot.modelId-260);
     assert.deepEqual(snapshot.machine,expectedMachine);
     /** @type {import('./sco-two-state-optimal-network-policy').Learned} */
