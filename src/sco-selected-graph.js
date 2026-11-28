@@ -6,7 +6,6 @@ const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {parse}=require('./ast');
 const {assertNoSharedChildFunctionIdentity}=require('./sco-private-child-function-identity');
-const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity');
 const {bindScoModuleExports}=require('./sco-partition');
 const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
 
@@ -184,10 +183,9 @@ function partitionScoSelectedGraph(units){
         }
         stableSources.push({path:privatePath,code});
       }
+      // The standalone partitioner now audits imported identities throughout
+      // this exact static closure. Avoid a second child-only parse here.
       assertImmutablePrivateModuleTopLevels(stableSources);
-      for(const source of stableSources){
-        assertNoPrivateImportMemberState(source.path,source.code);
-      }
       options.privateModuleSources=stableSources;
     }
     // The shared selective partitioner audits this unit's declared imports;
