@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const {prepareLowRankBatchInverter}=require('../sims/agent20-lowrank-batch-index');
 
 /**
  * Exact rank-deficiency fraction for m independent, uniform samples from
@@ -83,4 +84,25 @@ test('user-specified short finite cap can have material failure probability',()=
   assert.deepEqual(failureFraction(4,3),{bad:4096n,total:4096n});
   assert.throws(()=>failureFraction(33,80),RangeError);
   assert.throws(()=>failureFraction(4,129),RangeError);
+});
+
+test('default cryptographic sampler completes 256 independent singular-oracle trials',()=>{
+  // The transposition (3 4) is an 8-point permutation, yet its affine
+  // interpolant has columns [1,2,3] (nullity d=1) and its exact residual
+  // image span is {0,7} (rank r=1). Four of eight uniform inputs yield
+  // a new quotient direction; no scripted sampler is supplied.
+  const values=[0,1,2,4,3,5,6,7];
+  for(let trial=0;trial<256;trial++) {
+    const inverter=prepareLowRankBatchInverter(x=>values[x],{
+      bits:3,rankBound:1,completion:'sampled-residual'
+    });
+    const stat=inverter.stats();
+    assert.equal(stat.interpolantNullity,1);
+    assert.equal(stat.completion,'sampled-residual');
+    assert.ok(stat.samplingCalls>=1&&stat.samplingCalls<=67);
+    assert.equal(stat.orbitCap,2);
+    for(let y=0;y<8;y++)
+      assert.equal(values[inverter.invert(y).preimage],y);
+    assert.equal(inverter.stats().totalCalls,8);
+  }
 });
