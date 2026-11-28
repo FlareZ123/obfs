@@ -2344,7 +2344,8 @@ function obfuscateFiles(files, options = {}) {
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
-    const fileSourceObserver=remoteSourceObserver||esmDomSourceProducers.has(filename);
+    const fileSourceObserver=(remoteSourceObserver&&!sourceObserverIslands.has(filename))||
+      esmDomSourceProducers.has(filename);
     if (sourceType === 'asset') {
       return {path:filename,code:file.code,sourceType,metrics:{literals:0,objects:0,properties:0,bindings:0}};
     }
