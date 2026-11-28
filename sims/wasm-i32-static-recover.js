@@ -264,7 +264,10 @@ function printExpression(expr,parameters) {
     printExpression(expr.test,parameters)+'?'+
     printExpression(expr.consequent,parameters)+':'+
     printExpression(expr.alternate,parameters)+')';
-  const binary='('+printExpression(expr.left,parameters)+expr.operator+
+  // Without whitespace, binary subtraction of a negative literal prints
+  // `a--1`, which JavaScript tokenizes as postfix decrement then a number.
+  const operator=expr.operator==='-'?' - ':expr.operator;
+  const binary='('+printExpression(expr.left,parameters)+operator+
     printExpression(expr.right,parameters)+')';
   // The binary is a signed i32 value. Native JS addition/subtraction need an explicit
   // wrap to reconstruct its exact Wasm modular semantics, even under another
