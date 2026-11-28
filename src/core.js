@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {isBuiltin}=require('node:module');
-const {randomBytes, createHash} = require('node:crypto');
+const {randomBytes, createHash, createHmac} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
@@ -28,7 +28,7 @@ const {canonicalAllowedHosts}=require('./hosts');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalEntropyPropertyNames?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalEntropyPropertyNames?:boolean,experimentalPrivatePropertyKey?:string,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -1919,14 +1919,27 @@ function obfuscateFiles(files, options = {}) {
   const allowedHosts=suppliedHosts===undefined ? undefined :
     canonicalAllowedHosts(suppliedHosts);
   const seed = options.seed ?? randomBytes(24).toString('hex');
-  // Optional independent CSPRNG entropy for *property spellings only*. A
-  // public/reproducible build seed otherwise lets a dictionary attacker
-  // invert short hashed field names using emitted paths and ESM export names.
-  // Never publish this private seed in the output or the return metadata.
-  // The opt-in deliberately sacrifices identical rebuild bytes; it does not
-  // purport to protect the program against public-code functional cloning.
+  // A public/reproducible build seed lets a dictionary attacker invert
+  // original property names using emitted ESM paths, exports and candidate
+  // words. Keep property spelling entropy separate from that public seed.
+  // The optional 256-bit hex key enables reproducibility *if it is secret*;
+  // a fresh CSPRNG salt trades reproducibility for zero key management.
+  // Do not return either private value or embed it in generated code.
   const privatePropertyEntropy=options.experimentalEntropyPropertyNames===true;
-  const propertySeed=privatePropertyEntropy?randomBytes(24).toString('hex'):seed;
+  const suppliedPropertyKey=options.experimentalPrivatePropertyKey;
+  if(suppliedPropertyKey!==undefined &&
+     (typeof suppliedPropertyKey!=='string' ||
+      !/^[a-fA-F0-9]{64}$/u.test(suppliedPropertyKey))) {
+    throw new TypeError('experimentalPrivatePropertyKey requires exactly 32 bytes as 64 hex characters');
+  }
+  if(privatePropertyEntropy && suppliedPropertyKey!==undefined) {
+    throw new TypeError('Choose either fresh private property entropy or a reproducible private property key');
+  }
+  const hasPrivatePropertySeed=privatePropertyEntropy||suppliedPropertyKey!==undefined;
+  const propertySeed=privatePropertyEntropy ? randomBytes(24).toString('hex') :
+    suppliedPropertyKey!==undefined ?
+      createHmac('sha256',Buffer.from(suppliedPropertyKey,'hex'))
+        .update('obfs-private-properties-v1\0'+seed).digest('hex') : seed;
   const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
   const prepared = files.map(file => {
@@ -2096,7 +2109,7 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const propertySalt=privatePropertyEntropy ?
+    const propertySalt=hasPrivatePropertySeed ?
       createHash('sha256').update(`${propertySeed}/${filename}`).digest('hex') : salt;
     const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
