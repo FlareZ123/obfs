@@ -9,7 +9,7 @@ const {randomBytes}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
-const {transformSync}=require('esbuild');
+const {ordinaryFacade}=require('../sims/agent18-equaltrust-facade.cjs');
 const {build,ROOT,EXPOSED}=require('../examples/application-challenge/sco-build.cjs');
 const {startServer}=require('../examples/application-challenge/sco-server.cjs');
 
@@ -23,29 +23,6 @@ function median(observations){
 
 /** @param {unknown} value @returns {unknown} */
 function wire(value){return JSON.parse(JSON.stringify(value));}
-
-/**
- * Equal-trust control: conventional esbuild-minified RPC facade that serves
- * the exact same original private five-module application from the same
- * authenticated server and exposes the same operation identity/arguments.
- * The control never publishes the protected implementation either.
- *
- * @param {string} method
- * @returns {string}
- */
-function ordinaryFacade(method){
-  const source=[
-    'export async function evaluateRemote(seed,count){',
-    'const response=await fetch("/obfs/rpc",{method:"POST",credentials:"same-origin",cache:"no-store",',
-    'headers:{"content-type":"application/json"},body:JSON.stringify({method:'+
-      JSON.stringify(method)+',args:[seed,count]})});',
-    'const result=await response.json();',
-    'if(!response.ok||result.ok!==true)throw Error("Remote operation failed");',
-    'return result.value;',
-    '}'
-  ].join('');
-  return transformSync(source,{format:'esm',minify:true,target:'es2022'}).code;
-}
 
 /**
  * Use caller+server **process CPU** in one Node process. This boundary is
