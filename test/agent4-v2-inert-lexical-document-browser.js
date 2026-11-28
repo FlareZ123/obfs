@@ -19,6 +19,14 @@ const cases=[
     source:'const document={__proto__:null};'+preface+
       'document.title=protectedFn;export function sample(){return protectedFn(41);}',
     observed:false,expectedHit:false},
+  {name:'multi-field-null-prototype-local-document',
+    source:'const document={__proto__:null,title:"",value:17,flag:true};'+preface+
+      'document.title=protectedFn;export function sample(){return protectedFn(41);}',
+    observed:false,expectedHit:false},
+  {name:'multi-field-own-title-under-hostile-setter',
+    source:'const document={title:"",value:17,flag:true};'+preface+
+      'document.title=protectedFn;export function sample(){return protectedFn(41);}',
+    observed:false,expectedHit:false},
   {name:'local-record-and-real-host-document',
     source:'const document={title:"ready"};'+preface+
       'document.title=protectedFn;globalThis.document.title=protectedFn;'+
