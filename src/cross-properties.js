@@ -2386,7 +2386,12 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         ['number','string','boolean','bigint'].includes(typeof value.value);
       if(value.type==='TemplateLiteral')return true;
       if(value.type==='Identifier')return maybePrimitives.has(value.name);
-      if(value.type==='UnaryExpression')return true;
+      // A result computed by numeric/bitwise/comparison operators, an
+      // update, or an await may be a boxed primitive at the next property
+      // access. Omitting these forms lets a hostile inherited method reenter
+      // another module and observe protected own-key spellings.
+      if(['UnaryExpression','BinaryExpression','UpdateExpression',
+          'AwaitExpression'].includes(value.type))return true;
       if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
          (['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name)||
           primitiveReturningFunctions.has(value.callee.name)))
