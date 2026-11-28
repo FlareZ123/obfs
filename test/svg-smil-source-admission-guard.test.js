@@ -64,6 +64,17 @@ test('HTML-inline SVG scanner rejects SMIL event target without rejecting benign
   assert.doesNotThrow(()=>audit('page.html',safe));
 });
 
+test('HTML parser also screens SMIL URL value lists that synthesize later href',()=>{
+  const dangerous='<!doctype html><html><body><svg><a>'+
+    '<animate attributeName="href" values="#safe;javascript:window.sourceObserver=23" '+
+    'begin="0s" dur="indefinite"></animate></a></svg></body></html>';
+  assert.match(findInlineHtmlSource(dangerous),/SVG animation embeds executable URL/);
+  assert.throws(()=>audit('page.html',dangerous),/SVG animation embeds executable URL/);
+  const safe=dangerous.replace('javascript:window.sourceObserver=23','/trusted.js');
+  assert.equal(findInlineHtmlSource(safe),null);
+  assert.doesNotThrow(()=>audit('page.html',safe));
+});
+
 test('XHTML namespace-aware scanner refuses SVG SMIL target while retaining inert animation',()=>{
   assert.throws(()=>audit('page.xhtml',xhtml),
     /HTML asset contains SVG animation targets executable attribute/);
