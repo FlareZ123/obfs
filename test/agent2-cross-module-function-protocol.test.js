@@ -248,8 +248,17 @@ for(const sourceType of /** @type {const} */(['module','script'])) {
   test('SCO HTTP publication honors sibling function protocol writes / '+sourceType,
     async()=>{
       const files=sourceType==='module'?corpus(true):scriptCorpus(true);
+      // Both lexical names and private object keys are embedded in the
+      // native function source. SCO must refuse the *startup* cross-file
+      // property pass, not merely its per-GET identifier pass.
+      const storage=files.find(file=>file.path.startsWith('storage.'));
+      assert.ok(storage);
+      storage.code=storage.code.replace(
+        'const privateLocal=29;return privateLocal;',
+        'const privateLocal={secretField:29};return privateLocal.secretField;');
       const native=sourceType==='module'?run(files):runScripts(files);
       assert.ok(native.capturedSource.includes('privateLocal'));
+      assert.ok(native.capturedSource.includes('secretField'));
       const served=await publishScoFiles(files);
       const actual=sourceType==='module'?run(served):runScripts(served);
       console.log('AGENT2_SCO_HTTP_PROTO '+JSON.stringify({
