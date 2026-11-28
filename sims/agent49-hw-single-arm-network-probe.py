@@ -14,6 +14,10 @@ from urllib.parse import urlsplit
 
 from agent2_hw_process_isolation import process_security_state
 
+# The probe contacts every discoverable local TCP listener, including unrelated
+# services. Bound reads from services that mimic SCO headers.
+MAX_PUBLIC_MODULE_BYTES = 1024 * 1024
+
 
 def _connect_host_v4(address_hex: str) -> str | None:
     """Decode a connectable local IPv4 bind address from /proc/net/tcp."""
@@ -81,17 +85,36 @@ def public_module(host: str, port: int):
     try:
         connection.request("GET", "/obfs/client.mjs", headers={"Cache-Control": "no-store"})
         response = connection.getresponse()
-        body = response.read()
         cookie_header = response.getheader("Set-Cookie")
         method_name = response.getheader("X-SCO-Method")
+        # Ignore unrelated endpoints before reading any body at all.
         if response.status != 200 or not cookie_header or not method_name:
             return None
         cookie = cookie_header.split(";", 1)[0]
         if not cookie.startswith("session="):
             return None
-        return {
+        metadata = {
             "cookie_sha256": hashlib.sha256(cookie.encode()).hexdigest(),
             "method_name": method_name,
+        }
+        # Content-Length is only a preliminary shortcut. An endpoint may omit
+        # or lie about it; always limit the actual read to MAX + 1 bytes.
+        declared = response.length
+        if declared is not None and declared > MAX_PUBLIC_MODULE_BYTES:
+            return {
+                **metadata, "module_sha256": None, "module_bytes": declared,
+                "module_oversized": True,
+            }
+        body = response.read(MAX_PUBLIC_MODULE_BYTES + 1)
+        if len(body) > MAX_PUBLIC_MODULE_BYTES:
+            return {
+                **metadata, "module_sha256": None, "module_bytes": len(body),
+                "module_oversized": True,
+            }
+        if declared is not None and len(body) != declared:
+            return None
+        return {
+            **metadata,
             "module_sha256": hashlib.sha256(body).hexdigest(),
             "module_bytes": len(body),
         }
@@ -122,6 +145,8 @@ def main():
     candidate = public_module(candidate_host, candidate_port)
     if candidate is None:
         raise RuntimeError("active service did not issue a usable public module")
+    if candidate.get("module_oversized"):
+        raise RuntimeError("active SCO module exceeds bounded local-probe read limit")
 
     visible_endpoints = local_tcp_listeners()
     if candidate_endpoint not in visible_endpoints:
