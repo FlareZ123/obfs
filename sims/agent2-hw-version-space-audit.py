@@ -288,12 +288,20 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int,
     for left, right in separation_pairs:
         solver.add(trace_states[left] != trace_states[right])
 
-    # State names are arbitrary, so fix the candidate initial state to 0.
-    solver.add(trace_states[0] == 0)
+    # Fix all k state names directly to distinct public-trace witnesses
+    # when their trace-output diversity proves that k distinct states occur.
+    # This relabeling is sound because arbitrary candidate state labels have
+    # no observable meaning. Unlike predecessor/BFS modes, root below is
+    # the symbolic trace initial state, not necessarily candidate state 0.
+    if trace_anchored:
+        for index, witness in enumerate(
+            trace_lower_bound_certificate["output_witnesses"]
+        ):
+            solver.add(trace_states[witness["start_index"]] == index)
+    else:
+        solver.add(trace_states[0] == 0)
 
-    if candidate_labeling not in ("predecessor", "bfs"):
-        raise ValueError(f"unsupported candidate_labeling: {candidate_labeling}")
-    if candidate_labeling == "bfs":
+    if effective_labeling == "bfs":
         # Every root-reachable deterministic machine has a relabeling in
         # first-discovery BFS order (process state rows and 0,1 edges).
         # Every state s is discovered before its row is read. Each next
