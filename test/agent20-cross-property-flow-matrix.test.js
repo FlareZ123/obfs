@@ -21,6 +21,18 @@ const {obfuscateFiles}=require('../src');
 function graph(seed,shape) {
   const left=(Math.imul(seed+11,0x9e3779b9)>>>0);
   const right=(Math.imul(seed+19,0x85ebca6b)>>>0);
+  if(shape==='identity-import')return [
+    {path:'owner.mjs',sourceType:'module',
+      code:'export const record={secretField:'+left+',auxiliaryField:'+right+'};'},
+    {path:'relay.mjs',sourceType:'module',
+      code:'export function identity(value){return value;}'},
+    {path:'entry.mjs',sourceType:'module',code:[
+      "import {record} from './owner.mjs';",
+      "import {identity} from './relay.mjs';",
+      'const returned=identity(record);',
+      'console.log(JSON.stringify([returned.secretField,returned.auxiliaryField]));'
+    ].join('\n')}
+  ];
   // Use a source-pinned 1-field positive record graph from the established
   // closed-world reader proof; an exported two-field object printed through
   // process.stdout is not itself an admitted positive-yield contract.
@@ -52,12 +64,6 @@ function graph(seed,shape) {
   if(shape==='repeated-alias'){
     statements.push('const first=record;const second=first;');
     statements.push('const outcome=[second.secretField,record.auxiliaryField];');
-  }else if(shape==='identity-import'){
-    files.push({path:'relay.mjs',sourceType:'module',
-      code:'export function identity(value){return value;}'});
-    statements.push("import {identity} from './relay.mjs';");
-    statements.push('const returned=identity(record);');
-    statements.push('const outcome=[returned.secretField,record.auxiliaryField];');
   }else if(shape==='returned-owner'){
     files.push({path:'relay.mjs',sourceType:'module',code:[
       "import {record} from './owner.mjs';",
@@ -148,7 +154,9 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
   ];
   const seeds=[0,1,7,65537];
   /** @type {Record<string,number>} */
-  const positive={coo:0,sno:0,sco:0};
+  const directYield={coo:0,sno:0,sco:0};
+  /** @type {Record<string,number>} */
+  const forwardedYield={coo:0,sno:0,sco:0};
   let comparisons=0;
   for(const shape of shapes){
     for(const seed of seeds){
@@ -165,7 +173,8 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
         const changed=await execute(compiled.files,withHost);
         assert.equal(changed,native,mode+' '+shape+' '+seed+
           ' real ESM output mismatch');
-        if(shape==='direct')positive[mode]+=compiled.crossFile.properties;
+        if(shape==='direct')directYield[mode]+=compiled.crossFile.properties;
+        if(shape==='identity-import')forwardedYield[mode]+=compiled.crossFile.properties;
         if(shape==='external-observer')assert.equal(compiled.crossFile.properties,0,
           'Opaque host callback can reflect private owner keys');
         comparisons++;
@@ -174,7 +183,10 @@ test('cross-file ESM owner alias/return/reflection matrix preserves real Node se
   }
   // A safety-only no-op compiler trivially passes parity checks. Require
   // nonzero private-field renaming separately from adversarial refusals.
-  for(const mode of modes)
-    assert.ok(positive[mode]>0,mode+' failed to rewrite any positive owner field');
+  for(const mode of modes){
+    assert.ok(directYield[mode]>0,mode+' failed to rewrite a positive direct field');
+    assert.ok(forwardedYield[mode]>0,
+      mode+' failed to rewrite an imported identity-return field');
+  }
   assert.equal(comparisons,modes.length*shapes.length*seeds.length);
 });
