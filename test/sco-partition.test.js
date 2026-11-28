@@ -265,3 +265,31 @@ test('SCO bindScoModuleExports captures each accessor-backed server export once'
   assert.equal(await methods[partition.methodNames.protectedValue](1),2);
   assert.equal(await methods[partition.methodNames.protectedValue](10),11);
 });
+
+test('direct SCO partition rejects proven private function-text RPC results but retains scalar codecs',async()=>{
+  const privateCanary='export async function reveal(){return reveal.toString();}';
+  const original=await import('data:text/javascript,'+encodeURIComponent(privateCanary));
+  assert.ok((await original.reveal()).includes('return reveal.toString()'));
+  for(const code of [
+    privateCanary,
+    'export async function leak(){return String(leak);}',
+    'export async function leak(){const alias=leak;return alias.toString();}',
+    'export async function leak(){return Function.prototype.toString.call(leak);}',
+    'export async function leak(){return [leak].join();}'
+  ]){
+    assert.throws(()=>partitionScoAsyncModule({
+      path:'private.mjs',sourceType:'module',code
+    },{seed:'direct-source-privacy-control'}),/private function source/u,code);
+  }
+  for(const code of [
+    'export async function score(x){return x*11+3;}',
+    'export async function render(x){return x.toString(16);}',
+    'export async function safe(){return "HELLO".toString();}'
+  ]){
+    const partition=partitionScoAsyncModule({
+      path:'private.mjs',sourceType:'module',code
+    },{seed:'direct-source-privacy-control'});
+    assert.equal(partition.clientFile.path,'private.mjs');
+    assert.ok(!partition.clientFile.code.includes('HELLO'));
+  }
+});
