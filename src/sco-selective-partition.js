@@ -194,6 +194,10 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
     // Node's legacy buffer.atob/btoa errors have different native messages
     // from browser Window atob/btoa, even for identical malformed input.
     'atob','btoa',
+    // Node and browser structuredClone differ in DataCloneError messages and
+    // selected WebIDL object cloning. Relocation cannot prove host parity
+    // for arbitrary sources, including first-class cloned callable values.
+    'structuredClone',
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
     'setTimeout','clearTimeout','setInterval','clearInterval',
