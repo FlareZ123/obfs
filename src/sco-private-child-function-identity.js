@@ -223,11 +223,18 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
             (consumer.computed?staticString(consumer.property):
              consumer.property.type==='Identifier'?consumer.property.name:null):null;
         const nestedLength=property==='name'&&consumerProperty==='length';
+        const upper=ancestors.length>2?ancestors[ancestors.length-3]:null;
+        // `fn.name.length` is a primitive number. A subsequent prototype
+        // lookup or method call is not part of this cross-realm proof.
+        const noNestedPrototype=!(nestedLength&&upper&&(
+          upper.type==='MemberExpression'&&upper.object===consumer||
+          (upper.type==='CallExpression'||upper.type==='NewExpression')&&
+            upper.callee===consumer));
         const noOpaqueInvocation=!(consumer&&(
           (consumer.type==='CallExpression'||consumer.type==='NewExpression')&&
             consumer.callee===parent||
           consumer.type==='TaggedTemplateExpression'&&consumer.tag===parent));
-        if(noOpaqueInvocation&&
+        if(noOpaqueInvocation&&noNestedPrototype&&
            (!consumer||consumer.type!=='MemberExpression'||nestedLength)){
           return;
         }
