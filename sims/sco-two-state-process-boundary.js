@@ -89,20 +89,21 @@ async function runServer(){
   }));
   const plainSource=[
     'export async function step(symbol){',
-    'const response=await fetch("/step",{method:"POST",credentials:"same-origin",',
+    'const response=await fetch("/obfs/rpc",{method:"POST",credentials:"same-origin",',
     'cache:"no-store",headers:{"content-type":"application/json"},',
-    'body:JSON.stringify({symbol})});',
-    'if(!response.ok)throw new Error("Denied "+response.status);',
-    'return (await response.json()).value;',
+    'body:JSON.stringify({method:'+JSON.stringify(targetMethod)+',args:[symbol]})});',
+    'const payload=await response.json();',
+    'if(!response.ok||!payload||payload.ok!==true)throw Error("Remote operation failed");',
+    'return payload.value;',
     '}'
   ].join('');
   const plainClient=(await transform(plainSource,{format:'esm',minify:true})).code;
   const ordinaryServer=http.createServer((request,response)=>{
-    if(request.method==='GET'&&request.url==='/client.mjs'){
+    if(request.method==='GET'&&request.url==='/obfs/client.mjs'){
       response.writeHead(200,{'content-type':'text/javascript'});
       response.end(plainClient);return;
     }
-    if(request.method!=='POST'||request.url!=='/step'){
+    if(request.method!=='POST'||request.url!=='/obfs/rpc'){
       response.writeHead(404);response.end();return;
     }
     if(request.headers.cookie!==cookie){
@@ -114,15 +115,16 @@ async function runServer(){
     request.on('end',()=>{
       try{
         const payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        if(payload?.symbol!==0&&payload?.symbol!==1){
+        if(payload?.method!==targetMethod||!Array.isArray(payload?.args)||
+            payload.args.length!==1||(payload.args[0]!==0&&payload.args[0]!==1)){
           response.writeHead(400);response.end();return;
         }
-        const symbol=payload.symbol;
+        const symbol=payload.args[0];
         const output=machine.output[ordinaryState][symbol];
         ordinaryState=machine.next[ordinaryState][symbol];
         ordinaryTrace.push({input:symbol,output});
         response.writeHead(200,{'content-type':'application/json'});
-        response.end(JSON.stringify({value:output}));
+        response.end(JSON.stringify({ok:true,value:output}));
       }catch{
         response.writeHead(400);response.end();
       }
@@ -172,7 +174,7 @@ async function runAttacker(){
       const [scoSource,ordinarySource]=await Promise.all([
         nativeFetch(scoOrigin+'/obfs/client.mjs').then(r=>{
           assert.equal(r.status,200);return r.text();}),
-        nativeFetch(ordinaryOrigin+'/client.mjs').then(r=>{
+        nativeFetch(ordinaryOrigin+'/obfs/client.mjs').then(r=>{
           assert.equal(r.status,200);return r.text();})
       ]);
       assert.equal(scoSource.includes('privateTable'),false);
@@ -289,8 +291,9 @@ async function runProcessBoundary(isolatedUid=false){
       fetch(ready.scoOrigin+'/obfs/rpc',{method:'POST',
         headers:{'content-type':'application/json'},
         body:JSON.stringify({method:ready.methodId,args:[0]})}),
-      fetch(ready.ordinaryOrigin+'/step',{method:'POST',
-        headers:{'content-type':'application/json'},body:'{}'}),
+      fetch(ready.ordinaryOrigin+'/obfs/rpc',{method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({method:ready.methodId,args:[0]})}),
       fetch(ready.scoOrigin+'/obfs/private/actual.mjs')
     ]);
     assert.equal(deniedSco.status,403);
