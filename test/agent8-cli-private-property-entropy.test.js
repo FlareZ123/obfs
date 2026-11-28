@@ -94,12 +94,13 @@ test('SNO CLI private field names vary while single-entry launcher verifies both
 });
 
 test('SCO CLI must refuse a silent no-op private entropy flag',()=>{
-  const parsed=readArgs(['--random-property-names']);
+  const mandatory=['--root','.','--entry','entry.mjs'];
+  const parsed=readArgs([...mandatory,'--random-property-names']);
   assert.equal(parsed.experimentalEntropyPropertyNames,true);
-  assert.equal(readArgs([]).experimentalEntropyPropertyNames,false,
+  assert.equal(readArgs(mandatory).experimentalEntropyPropertyNames,false,
     'Existing default build behavior is unchanged');
   const result=run(path.join(__dirname,'../bin/sco.js'),[
-    '--random-property-names'
+    ...mandatory,'--random-property-names'
   ]);
   assert.notEqual(result.status,0);
   assert.match(result.stderr,/SCO already randomizes each HTTP response/u);
