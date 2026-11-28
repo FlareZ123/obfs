@@ -463,7 +463,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
- * @param {string[]} [additionalRootNames] Other local names proven to denote the same immutable imported ESM binding.
+ * @param {string[]} [additionalRootNames] Other local names proven to denote the same object or a shape-equivalent private owner.
  * @param {boolean} [allowExportedClosureReaders] Admit the narrow closed-world zero-argument exported closure-reader proof.
  * @param {boolean} [allowBoundFunctionTargets] Admit a private target used only by native bind when the complete graph passes its mutation gate.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
@@ -624,7 +624,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
-  for(const decl of tupleDeclarations.get(rootName)??[]){
+  const tupleCarrierDeclarations=new Set([...rootNames].flatMap(name=>tupleDeclarations.get(name)??[]));
+  for(const decl of tupleCarrierDeclarations){
     if(decl.id.type!=='Identifier'||decl.id.name===rootName||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
@@ -676,7 +677,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateOwnerRecords=new Map();
   /** @type {Set<AstNode>} */
   const privateRecordLiteralValues=new Set();
-  for(const decl of recordDeclarations.get(rootName)??[]){
+  const recordCarrierDeclarations=new Set([...rootNames].flatMap(name=>recordDeclarations.get(name)??[]));
+  for(const decl of recordCarrierDeclarations){
     if(decl.id.type!=='Identifier'||decl.id.name===rootName||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
