@@ -1480,7 +1480,11 @@ function hasWeakMapPrototypeExposure(ast) {
         value.properties.set(propertyKey,getterMayReturnWeakMap?
           carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
         if(property.kind==='get')value.getters.set(propertyKey,property.value);
-        else if(property.kind!=='set')value.getters.delete(propertyKey);
+        else if(property.kind==='set')value.setters.set(propertyKey,property.value);
+        else {
+          value.getters.delete(propertyKey);
+          value.setters.delete(propertyKey);
+        }
       }
       return value;
     }
@@ -1731,6 +1735,9 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
+    const setter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='set');
+    if(setter)target.setters.set(key,setter.value);
     if(getter) {
       target.getters.set(key,getter.value);
       target.properties.set(key,functionMayReturnWeakMap(getter.value)?
@@ -1741,6 +1748,7 @@ function hasWeakMapPrototypeExposure(ast) {
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='value');
     if(value) {
       target.getters.delete(key);
+      target.setters.delete(key);
       target.properties.set(key,evaluateCarrierValue(value.value,environment,thisValue));
     }
   }
@@ -2330,9 +2338,17 @@ function hasWeakMapPrototypeExposure(ast) {
               functionMayReturnWeakMap(element.value)?carrierMaybe:carrierOther);
           }
         } else if(element.type==='MethodDefinition'&&element.static&&
+                  element.kind==='set') {
+          const setterKey=carrierStaticKey(element.key,element.computed);
+          if(setterKey===null)staticValue.unknown=true;
+          else staticValue.setters.set(setterKey,element.value);
+        } else if(element.type==='MethodDefinition'&&element.static&&
                   element.kind==='method') {
           const methodKey=carrierStaticKey(element.key,element.computed);
-          if(methodKey!==null)staticValue.getters.delete(methodKey);
+          if(methodKey!==null) {
+            staticValue.getters.delete(methodKey);
+            staticValue.setters.delete(methodKey);
+          }
         }
       }
       // Static initialization phase, preserving the order between static
@@ -2347,6 +2363,7 @@ function hasWeakMapPrototypeExposure(ast) {
           if(fieldKey===null)staticValue.unknown=true;
           else {
             staticValue.getters.delete(fieldKey);
+            staticValue.setters.delete(fieldKey);
             staticValue.properties.set(fieldKey,fieldValue);
           }
           // An initializer may throw after effects but before following
