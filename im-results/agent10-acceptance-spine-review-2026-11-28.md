@@ -115,3 +115,6 @@ The step `node sims/four-way-cross-runtime-verdict.js` exited zero and the job c
 The unfiltered `manual-validation.yml` run [46181044016](https://github.com/FlareZ123/obfs/actions/runs/46181044016) on current main `773e6234...` has completed failure on both Ubuntu and Windows with 14 behavioral-suite failures. Typecheck, specialized TS projects, benchmark command, and browser integration steps completed without errors. The detailed baseline and exact failed-test comparison are recorded in `im-results/agent10-primitive-realm-full-suite-review-2026-11-28.md`.
 
 This makes the acceptance disposition unambiguous: current main is not a passing candidate baseline, independently of the acceptance-spine branch's fail-open status predicate. Do not dispatch or describe the new spine as a successful acceptance run until the baseline behavioral failures are resolved and the final gate reads actual evidence verdicts.
+
+
+The same main-baseline run also records a single-use function-factory microbenchmark at `3.138x` (baseline 0.61 ms, obfuscated 1.90 ms), causing the `benchmark-private-positive` test to exit nonzero. This is an observed breach of the 2.5x runtime budget, although it is a single wall-time sample and needs repeated CPU-bound confirmation before treating it as a stable population estimate.
