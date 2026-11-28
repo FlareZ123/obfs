@@ -3,6 +3,7 @@
   "include": [
     "test/dom-parser-function-source.test.js",
     "test/dom-parser-cross-file-source.test.js",
+    "test/dom-parser-imported-method-source.test.js",
     "test/dom-parser-source-browser.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
