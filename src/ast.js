@@ -2670,28 +2670,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   /**
-   * A User Timing DOMString name can expose exact Function source via a
-   * returned PerformanceEntry or via subsequent lookup/clear operations.
-   * Native methods can be invoked directly, through call/apply/bind, or
-   * reflectively. Unknown argument arrays must be conservatively refused.
+   * User Timing exposes source both through DOMString name coercion and
+   * through structured-clone failures of options.detail. Node also reports
+   * exact source spellings in invalid measure start/end mark references.
+   * Include the first two arguments of native methods, but retain literal
+   * and proven primitive options as eligible. Unknown apply arrays can hide
+   * source-bearing arguments and must conservatively refuse.
    * @param {AstNode} node
    * @returns {boolean}
    */
   function invokesTimingWithSourceName(node) {
     if(node.type!=='CallExpression')return false;
     const callee=node.callee;
-    /** @type {AstNode|null|undefined} */
-    let argument;
+    /** @type {(AstNode|null|undefined)[]|null} */
+    let inputs=null;
     if(isTimingMethod(callee)) {
-      argument=node.arguments[0];
+      inputs=node.arguments;
     } else if(callee.type==='MemberExpression'&&
               isTimingMethod(callee.object)) {
       const method=memberName(callee);
-      if(method==='call'||method==='bind')argument=node.arguments[1];
+      if(method==='call'||method==='bind')inputs=node.arguments.slice(1);
       else if(method==='apply') {
         const array=node.arguments[1];
         if(array?.type!=='ArrayExpression')return true;
-        argument=array.elements[0];
+        inputs=array.elements;
       }
     } else if(callee.type==='MemberExpression'&&
               isReflectiveReceiver(callee.object)&&
@@ -2699,9 +2701,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
               isTimingMethod(node.arguments[0])) {
       const array=node.arguments[2];
       if(array?.type!=='ArrayExpression')return true;
-      argument=array.elements[0];
+      inputs=array.elements;
     }
-    return Boolean(argument&&!isDefinitelyPrimitive(argument));
+    if(!inputs)return false;
+    return Boolean(inputs[0]&&!isDefinitelyPrimitive(inputs[0]) ||
+      inputs[1]&&mayCoerceSourceWithinWebRecord(inputs[1]));
   }
   /**
    * Return true when a runtime failure can escape the nearest local catch.
