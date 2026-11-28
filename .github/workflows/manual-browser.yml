@@ -118,6 +118,14 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/resource-timing-observer-browser.js
+      - name: Verify imported bound DOMParser static and literal-dynamic Chromium parity
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dom-parser-imported-browser.js
+      - name: Verify DOMParser function-source observer and primitive Wasm parity in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dom-parser-source-browser.js
       - name: Native-versus-COO function-source clone errors in Chromium
         env:
           CHROMIUM_BIN: google-chrome
