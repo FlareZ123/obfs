@@ -14,6 +14,17 @@ The inherited-protocol call form `fill.call(null)` is a `CallExpression` with **
 - Focused GitHub Actions run **46132219487**, exact source pin `09a3ad9d`, **FAILED identically on Ubuntu, Windows and macOS**. Five semantic mismatches: `host-call-default`, `host-apply-default`, `host-bound-default`, `direct-class-expression-new-default`, `direct-derived-class-expression-default`; each preserves numeric value but changes the captured callable source. Two distinct *yield-only* failures: `iterator-ordinary-negative` and `destructure-proxy-ordinary-negative` produce behaviorally equal output and zero renaming. These should not be conflated with the five incorrect-output cases. Logs: https://github.com/FlareZ123/obfs/actions/runs/46132219487.
 - Earlier unpatched 96-case branch `agent2/formal-param-host-call-iterator-falsifiers-20261128`, CI **46092252938** produced the same seven-case split on the same three operating systems.
 
+## Exact corpus distribution (frozen 96-case donor)
+
+Parsed the complete `CFG_CARRIER` JSON lines from the Ubuntu job of the source-pinned [46132219487](https://github.com/FlareZ123/obfs/actions/runs/46132219487), rather than counting just red TAP outcomes. Out of 96 individually executed native cases, **72** had a native WeakMap prototype source path and **24** did not. Treating the compiler's `group || local` source-observer predicate as a classification **only on these concrete executions** gives the following empirical confusion matrix:
+
+| Exact native path | Refusal detected | Refusal not detected |
+|---|---:|---:|
+| WeakMap prototype source path executed (72) | **67** | **5** (actual source parity red) |
+| No WeakMap prototype source path executed (24) | **2** (zero-yield under this test) | **22** |
+
+All five misses correspond exactly to the call-protocol and inline-class constructor cases above; the two refusals on the ordinary native path are `iterator-ordinary-negative` and `destructure-proxy-ordinary-negative`. The 2:5 error counts are not a static-analysis proof of false positives/negatives for all possible host environments: a single native execution of an opaque iterator or Proxy is not sufficient to establish whole-program property-renaming safety. The instrumented source values distinguish runtime parity from numeric parity and isolate candidate work from the separate frozen protection-yield gate.
+
 ## Candidate, not a verified fix
 
 Research branch `agent2/host-call-own-property-donor-falsifier-20261128`, currently `fdc9e28f099dc052232ca03afb05d609dfc8734f`, carries a **120-case** matrix plus bounded source changes. Its compiler records indirect calls, supplies the receiver's actual abstract value, joins effects through an identically cloned lexical heap, handles inline class constructors and concise arrows, conservatively recognizes own `.call/.apply/.bind` method overrides/aliases, and includes possible async/generator body effects. The test added own protocol overrides that intentionally *drop* supplied arguments, transitive and mutable aliases, object-field function escape, `this` receiver writes, repeated safe protocol calls, ordinary negative-yield controls, and asynchronous body effects. Do not claim it passes; exact run `46133186759` is queued as of 10:01 UTC.
