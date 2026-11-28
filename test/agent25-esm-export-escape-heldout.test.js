@@ -11,7 +11,7 @@ const {obfuscateFiles}=require('../src');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 /** @typedef {{source:string,value:number,independent:number}} Observation */
-/** @typedef {{name:string,logic:string,barrel?:string,importCode:string,fn:string,value:string}} Case */
+/** @typedef {{name:string,logic:string,barrel?:string,barrel2?:string,entryPrelude?:string,importCode:string,fn:string,value:string}} Case */
 
 const namedLogic='const owner={secretField:57};export function inspect(){return owner.secretField;}';
 /** @type {Case[]} */
@@ -49,7 +49,23 @@ const cases=[
     importCode:'import {factory} from "./logic.mjs";',fn:'factory()',value:'factory()()'},
   {name:'object-method-export',
     logic:'const owner={secretField:57};export const api={inspect(){return owner.secretField;}};',
-    importCode:'import {api} from "./logic.mjs";',fn:'api.inspect',value:'api.inspect()'}
+    importCode:'import {api} from "./logic.mjs";',fn:'api.inspect',value:'api.inspect()'},
+  {name:'two-hop-reexport',logic:namedLogic,
+    barrel:'export {inspect} from "./logic.mjs";',
+    barrel2:'export {inspect as api} from "./barrel.mjs";',
+    importCode:'import {api} from "./barrel2.mjs";',fn:'api',value:'api()'},
+  {name:'namespace-through-reexport',logic:namedLogic,
+    barrel:'export {inspect} from "./logic.mjs";',
+    importCode:'import * as ns from "./barrel.mjs";',fn:'ns.inspect',value:'ns.inspect()'},
+  {name:'dynamic-namespace-property-escape',logic:namedLogic,
+    importCode:'import * as ns from "./logic.mjs";',entryPrelude:'const key="inspect";',
+    fn:'ns[key]',value:'ns.inspect()'},
+  {name:'namespace-alias-escape',logic:namedLogic,
+    importCode:'import * as ns from "./logic.mjs";',entryPrelude:'const api=ns;',
+    fn:'api.inspect',value:'api.inspect()'},
+  {name:'namespace-reflection-escape',logic:namedLogic,
+    importCode:'import * as ns from "./logic.mjs";',
+    fn:'Object.values(ns)[0]',value:'ns.inspect()'}
 ];
 
 /** @param {Case} spec @returns {SourceFile[]} */
@@ -61,8 +77,10 @@ function graph(spec){
       code:'const record={independentPrivate:73};export const independent=record.independentPrivate;'}
   ];
   if(spec.barrel)files.push({path:'barrel.mjs',sourceType:'module',code:spec.barrel});
+  if(spec.barrel2)files.push({path:'barrel2.mjs',sourceType:'module',code:spec.barrel2});
   files.push({path:'entry.mjs',sourceType:'module',code:[
     spec.importCode,
+    spec.entryPrelude??'',
     'import {independent} from "./pure.mjs";',
     'const node=document.createElement("div");',
     'node.id='+spec.fn+';',
