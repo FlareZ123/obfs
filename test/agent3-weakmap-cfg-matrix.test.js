@@ -255,6 +255,15 @@ const cases=[
 ['class-expression-inherited-static-iterator','class Base{static *[Symbol.iterator](){new this();yield 1;}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {for(const v of this)break;}};','carrier.instance'],
 ['class-expression-inherited-static-setter','class Base{static set fire(_v){new this();}}const carrier={instance:{}};const Holder=class extends Base{x=(carrier.instance=new WeakMap());static {this.fire=1;}};','carrier.instance'],
 ['class-expression-static-pure-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class{x=(carrier.instance=new WeakMap());static {const ready=1;}};','carrier.instance'],
+// A nested inert-looking method may run under *implicit* coercion or
+// overloaded operators, even when the static block contains no explicit call.
+['class-static-template-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};\`\${hook}\`;}};','carrier.instance'],
+['class-static-binary-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};hook+1;}};','carrier.instance'],
+['class-static-unary-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};+hook;}};','carrier.instance'],
+['class-static-computed-key-coercion','const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={toString(){new Inner();return "x";}};const rec={[hook]:0};}};','carrier.instance'],
+['class-static-instanceof-hook','const has=Symbol.hasInstance;const carrier={instance:{}};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook=class{static [has](_v){new Inner();return false;}};({}) instanceof hook;}};','carrier.instance'],
+// ToBoolean on an object and typeof do not invoke user coercion hooks.
+['class-static-boolean-test-positive','class Ordinary{}const carrier={instance:new Ordinary()};const Holder=class Inner{x=(carrier.instance=new WeakMap());static {const hook={valueOf(){new Inner();return 1;}};if(hook){const x=1;}}};','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
