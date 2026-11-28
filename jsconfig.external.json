@@ -10,6 +10,7 @@
     "test/semantic-data-oracle-generated-esm.test.js",
     "test/semantic-data-oracle-primordials.test.js",
     "test/semantic-data-oracle-serialization.test.js",
+    "test/semantic-data-oracle-integration.test.js",
     "test/semantic-data-oracle.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
     "test/lexical-class-esm-live-binding.test.js",
