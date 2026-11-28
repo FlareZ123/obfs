@@ -24,7 +24,16 @@ export async function probe(index) {
 `String.prototype.charCodeAt` coerces its receiver through `ToString`; on
 a function object this reveals the original function's source spelling.
 A legitimate caller can enumerate indices and reconstruct the entire
-function body using `String.fromCharCode(...)`. Individual RPC responses
+function body using `String.fromCharCode(...)`. The attacker **does not
+need to know the function's original source length**: an index beyond
+the end yields `NaN`, serialized as JSON `null`, which is a stop
+signal distinguishable from every valid UTF-16 code unit. The live
+test now walks indices until this numeric-to-`null` boundary without
+using the original source length as an attacker parameter, then
+compares the reconstructed bytes to the privileged original only
+as a post hoc assertion. The length-blind extension has a separate
+pending targeted CI pin at commit `b41e2a38e8d628af6341d3c0fa0eecd9fea6352c`.
+Individual RPC responses
 are only numbers, so a generic ban on string-valued RPC results is
 insufficient. The application in this witness deliberately exposes the
 oracle; the issue is mistakenly treating source non-publication as proof
