@@ -8,7 +8,7 @@ const {parse,walk,applyEdits}=require('../src/ast');
 /** @typedef {{files:PublishedModule[],recovered:Map<string,RecoveredProperty>,lookups:number,targets:number}} Recovery */
 
 /**
- * Source-only, public-seed dictionary attack against the named ESM owner
+ * Source-only, public-seed dictionary attack against named/default ESM owner
  * scheme used by src/cross-properties.js. The attacker knows no original
  * source, input byte offsets, source spelling, or original fixture graph.
  *
@@ -42,30 +42,41 @@ function recoverNamedEsmPropertySpellings(delivered,options) {
     if(typeof file.path!=='string'||file.sourceType!=='module'||typeof file.code!=='string')
       throw new TypeError('Dictionary attacker expects text ESM output');
     const ast=parse(file.code,'module');
+    /** @type {{owner:string,object:import('../src/ast').AstNode}[]} */
+    const owners=[];
     for(const statement of ast.body) {
-      if(statement.type!=='ExportNamedDeclaration'||statement.source||
-         statement.declaration?.type!=='VariableDeclaration'||
-         statement.declaration.kind!=='const')continue;
-      for(const binding of statement.declaration.declarations) {
-        if(binding.id.type!=='Identifier'||binding.init?.type!=='ObjectExpression')continue;
-        const owner=binding.id.name;
-        const hashed=new Set();
-        for(const prop of binding.init.properties) {
-          if(prop.type!=='Property'||prop.key.type!=='Literal'||
-             typeof prop.key.value!=='string'||!/^_p[a-f0-9]{12}$/u.test(prop.key.value))continue;
-          hashed.add(prop.key.value);
-          targets.add(prop.key.value);
+      if(statement.type==='ExportNamedDeclaration'&&!statement.source&&
+         statement.declaration?.type==='VariableDeclaration'&&
+         statement.declaration.kind==='const') {
+        for(const binding of statement.declaration.declarations) {
+          if(binding.id.type==='Identifier'&&binding.init?.type==='ObjectExpression')
+            owners.push({owner:binding.id.name,object:binding.init});
         }
-        if(!hashed.size)continue;
-        for(const original of dictionary) {
-          lookups++;
-          const token='_p'+createHash('sha256').update(
-            options.seed+'/'+file.path+'/'+owner+'/'+original).digest('hex').slice(0,12);
-          if(!hashed.has(token))continue;
-          const prior=recovered.get(token);
-          if(prior && prior.original!==original)throw new Error('Ambiguous truncated hash token');
-          recovered.set(token,{exporter:file.path,exportName:owner,original});
-        }
+      }
+      // An anonymous default owner has the literal public export name
+      // 'default'. Its hash key path is identical except for that name.
+      if(statement.type==='ExportDefaultDeclaration'&&
+         statement.declaration.type==='ObjectExpression') {
+        owners.push({owner:'default',object:statement.declaration});
+      }
+    }
+    for(const {owner,object} of owners) {
+      const hashed=new Set();
+      for(const prop of object.properties) {
+        if(prop.type!=='Property'||prop.key.type!=='Literal'||
+           typeof prop.key.value!=='string'||!/^_p[a-f0-9]{12}$/u.test(prop.key.value))continue;
+        hashed.add(prop.key.value);
+        targets.add(prop.key.value);
+      }
+      if(!hashed.size)continue;
+      for(const original of dictionary) {
+        lookups++;
+        const token='_p'+createHash('sha256').update(
+          options.seed+'/'+file.path+'/'+owner+'/'+original).digest('hex').slice(0,12);
+        if(!hashed.has(token))continue;
+        const prior=recovered.get(token);
+        if(prior && prior.original!==original)throw new Error('Ambiguous truncated hash token');
+        recovered.set(token,{exporter:file.path,exportName:owner,original});
       }
     }
   }
