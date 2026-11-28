@@ -193,10 +193,8 @@ function computeThreeStateMinimax(){
   }
 
   const root=Uint16Array.from(rootIds);
-  const lowerStart=Date.now();
   const canWin23=canWin(root,23);
   const statesAfterBudget23={visited,cacheHits};
-  const upperStart=Date.now();
   const canWin24=canWin(root,24);
   const statesAfterBudget24={visited,cacheHits};
   assert.equal(canWin23,false);
@@ -257,14 +255,17 @@ function computeThreeStateMinimax(){
   let totalObservedQueries=0;
   for(let model=0;model<MODEL_COUNT;model++){
     let state=0;
+    /** @type {number} */
     let nodeId=rootPolicyNode;
     let queries=0;
     while(nodeId>=0){
-      const node=policy[nodeId];
-      const input=node.input;
+      /** @type {PolicyNode} */
+      const policyNode=policy[nodeId];
+      const input=policyNode.input;
       const observed=corpus.output[state][input][model];
       state=corpus.next[state][input][model];
-      const childCode=node.children[observed];
+      /** @type {number} */
+      const childCode=policyNode.children[observed];
       queries++;
       if(childCode<=-2){
         assert.equal(quotient.classes[3*model+state],-childCode-2);
@@ -287,8 +288,6 @@ function computeThreeStateMinimax(){
     histogram
   };
   // Keep timing out of the result: CI speed is runner-dependent.
-  void lowerStart;
-  void upperStart;
   return {
     modelCount:MODEL_COUNT,
     behaviorClasses:count,
