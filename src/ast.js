@@ -1634,22 +1634,20 @@ function hasWeakMapPrototypeExposure(ast) {
     for(const element of elements) {
       if(element.type!=='StaticBlock'&&
          !(element.type==='PropertyDefinition'&&element.static))continue;
-      let hasClassThis=false;
-      let couldInvoke=false;
-      let couldEscape=false;
-      walk(element,child=>{
-        if(child.type==='ThisExpression')hasClassThis=true;
-        if(['CallExpression','NewExpression','TaggedTemplateExpression'].includes(child.type))
-          couldInvoke=true;
-        if(child.type==='PropertyDefinition'&&child.static&&
-           child.value?.type==='ThisExpression')couldEscape=true;
-        if(child.type==='AssignmentExpression'&&
-           (child.right?.type==='ThisExpression'||
-            child.left?.type==='MemberExpression'&&
-             child.left.object?.type!=='ThisExpression'))
-          couldEscape=true;
+      let canActivate=false;
+      walk(element,(child,_parent,_key,ancestors)=>{
+        // Merely creating a local function does not run its body. A later
+        // invocation or escape of that function is handled by the surrounding
+        // static expression instead of being speculatively replayed here.
+        if(ancestors.some(ancestor=>functionTypes.has(ancestor.type)))return;
+        if(['ThisExpression','Super','CallExpression','NewExpression',
+            'TaggedTemplateExpression','MemberExpression',
+            'AssignmentExpression','UpdateExpression','ForOfStatement',
+            'ForInStatement','SpreadElement','ObjectPattern',
+            'ArrayPattern'].includes(child.type))
+          canActivate=true;
       });
-      if(couldInvoke||hasClassThis&&couldEscape)return true;
+      if(canActivate)return true;
     }
     return false;
   }
