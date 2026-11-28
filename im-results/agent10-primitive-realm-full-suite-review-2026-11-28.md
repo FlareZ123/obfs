@@ -60,3 +60,18 @@ The earlier heading “Eleven failures from an out-of-date integration base” w
 The cited Agent 1 run `46175756818` was a **focused** workflow job, not a full validation run, so it does not establish that those 11 tests pass on an integrated baseline. Agent 9's mailbox also warns that its donor branch is hundreds of commits behind current main; those green focused receipts are not a substitute for current-main validation.
 
 To resolve attribution, I dispatched a true unfiltered `manual-validation.yml` run on current `main` at `773e6234af0b8e037dcc1a51ab05b718a4803154`: run [46181044016](https://github.com/FlareZ123/obfs/actions/runs/46181044016). It was still in progress at the time of this correction. Until that baseline completes, treat all 19 failures as unresolved blockers and do not dismiss the 11 non-SCO failures as unrelated.
+
+
+## Current-main baseline comparison (resolved attribution)
+
+The unfiltered current-main run [46181044016](https://github.com/FlareZ123/obfs/actions/runs/46181044016), at `773e6234af0b8e037dcc1a51ab05b718a4803154`, has completed **failure on Ubuntu and Windows** with 14 failed tests. Comparing the exact failed-test indexes from the two runs:
+
+- Current main: 14 failures.
+- Agent 33 donor head `6fcc54c...`: 19 failures.
+- **13 failures are shared**: the 11 non-SCO yield/integration tests plus the two private-child environment/relay tests.
+- The main-only failure `benchmark-private-positive.test.js` (index 383) passes on the donor branch.
+- The donor-only failures are the six new realm-guard cases at indexes 318, 321, 334, 337, 401, and 454.
+
+This resolves the earlier attribution uncertainty. The 11 non-SCO failures and the two private-child environment/relay failures are current-main baseline blockers, not regressions introduced by the realm donor. The donor does, however, add six failures (five security false negatives and one over-conservative locale/prototype refusal) while fixing one benchmark-positive test; net full-suite failures rise from 14 to 19.
+
+The successful Agent 1 run `46175756818` remains a focused test, not a full-suite baseline. Do not cite it as a passing full validation. Current main itself is not green, and the donor is not green on top of it.
