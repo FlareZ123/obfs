@@ -84,7 +84,7 @@ function provenPrimitiveInitializer(value,depth=0){
         provenPrimitiveInitializer(value.alternate,depth+1);
     case 'SequenceExpression':
       return value.expressions.length>0&&
-        value.expressions.every(item=>provenPrimitiveInitializer(item,depth+1));
+        value.expressions.every((/** @type {import('./ast').AstNode} */ item)=>provenPrimitiveInitializer(item,depth+1));
     default:
       return false;
   }
