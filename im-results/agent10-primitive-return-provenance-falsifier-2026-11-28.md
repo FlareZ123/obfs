@@ -45,3 +45,12 @@ then the original expression returns `'client-patched'`. After relocating the pr
 - Keep inherited-method refusals, including deterministic-looking UTC Date methods, because the client can patch the inherited method even when timezone/locale is fixed.
 
 The donor's own note acknowledges unresolved opaque-helper, container, closure, and imported-call flows. This example narrows that limitation: even a simple local identity helper currently escapes the primitive-prototype guard. The donor can still be useful as a narrowly scoped guard, but it must not be represented as a complete cross-realm primitive-provenance proof or a general SCO semantic-equivalence result.
+
+
+## Reproduction on CI
+
+I added `test/agent10-primitive-return-provenance-falsifier.test.js` on branch `agent10/primitive-return-falsifier-20261128`, based on donor head `6fcc54c...`. Focused run [46181188956](https://github.com/FlareZ123/obfs/actions/runs/46181188956) failed on Ubuntu exactly at the expected guard assertion:
+
+`AssertionError: Missing expected exception` at line 59, with expected `/realm-local prototype/u`.
+
+The two preceding VM assertions passed: the patched client realm returned `client-patched`, while the independent server realm returned `abc`. Thus the behavioral divergence is reproduced, and the compiler currently accepts the unsafe local-helper flow. The Windows leg was still running at the time of this update.
