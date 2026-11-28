@@ -136,7 +136,6 @@ function createScoWebAuthnAdmission(options){
     'obfs-sco-webauthn-admission-v1',rpId,[...origins].sort(),requireUV,
     challengeTtlMs,sessionTtlMs,maxChallenges,maxSessions
   ])).digest('hex');
-  state.assertConfiguration?.(configurationHash);
   const rpHash=createHash('sha256').update(rpId,'utf8').digest();
   const suppliedState=options.stateStore??createScoWebAuthnMemoryStore();
   if(!suppliedState||typeof suppliedState.insertChallenge!=='function'||
@@ -158,6 +157,8 @@ function createScoWebAuthnAdmission(options){
     revokePrincipal:suppliedState.revokePrincipal.bind(suppliedState),
     assertConfiguration:suppliedState.assertConfiguration?.bind(suppliedState)
   };
+  // No policy fingerprint is consulted before the complete state adapter exists.
+  state.assertConfiguration?.(configurationHash);
   let lastObservedTime=0;
   /** @returns {number} */
   function clock(){
