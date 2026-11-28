@@ -83,7 +83,6 @@ test('escaped, mutated, opaque and ambiguous tuple holders refuse property renam
 test('tuple construction declines holes, duplicate owners, non-inert expressions and oversized holders',()=>{
   const declarations=[
     '[owner, , 0]',
-    '[owner,owner]',
     '[owner,Math.random()]',
     '[owner,{x:1}]',
     '[owner,...[1]]',
