@@ -28,14 +28,23 @@ test('native User Timing name prevents explicit selected-Wasm function replaceme
   const native=await evaluate(original);
   assert.equal(native.value,14);
   assert.match(native.text,/inspect/);
-  const lower=lowerWasmI32Functions(original,'module',{
+  // The raw lowerer intentionally refuses an observed source. To establish
+  // that the selected function is *otherwise* eligible and would change
+  // observable text if this guard were bypassed, lower an identical function
+  // in a primitive-name program, then reattach the observer post lowering.
+  const benign=original.replace('performance.mark(inspect).name','"benign mark"');
+  assert.equal(observesFunctionSource(parse(benign,'module')),false);
+  const lower=lowerWasmI32Functions(benign,'module',{
     names:['inspect'],seed:'user-timing-native-wasm-counterfactual'
   });
-  assert.equal(lower.functions,1,'Selected i32 function must be lowerable');
-  const counterfactual=await evaluate(lower.code);
+  assert.equal(lower.functions,1,'Selected i32 function must be otherwise lowerable');
+  const counterfactualCode=lower.code.replace('"benign mark"','performance.mark(inspect).name');
+  assert.notEqual(counterfactualCode,lower.code,
+    'Counterfactual must reattach the actual native source observer');
+  const counterfactual=await evaluate(counterfactualCode);
   assert.equal(counterfactual.value,native.value);
   assert.notEqual(counterfactual.text,native.text,
-    'Selected Wasm function source is visibly different through Performance.mark');
+    'Source-changing Wasm must be refused when a native mark observes the callable');
 
   assert.equal(observesFunctionSource(parse(original,'module')),true,
     'Native User Timing must be recognized as a source observer');
