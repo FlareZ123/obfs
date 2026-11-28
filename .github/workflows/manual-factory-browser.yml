@@ -2,6 +2,12 @@ name: Manual exported-factory multi-root Chromium validation
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch or commit containing the exported-factory proof and browser test"
+        required: true
+        default: "agent9/factory-distinct-roots-carrier-20261128"
+        type: string
 
 permissions:
   contents: read
@@ -9,12 +15,18 @@ permissions:
 jobs:
   chromium:
     concurrency:
-      group: obfs-agent9-factory-browser-${{ github.sha }}
+      group: obfs-agent9-factory-browser-${{ inputs.source_ref }}
       cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Record exact tested source revision
+        run: |
+          git rev-parse HEAD
+          test -f test/agent9-factory-multiroot-browser.js
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.4'
