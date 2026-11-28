@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import itertools
 import unittest
 from pathlib import Path
 
@@ -186,6 +187,91 @@ class VersionSpaceAuditTests(unittest.TestCase):
         self.assertEqual(post, 0)
         self.assertTrue(MODULE.is_strongly_connected(new_transitions))
         self.assertTrue(MODULE.is_minimal_mealy(new_transitions, new_outputs))
+
+    def test_bfs_canonical_relabeling_is_complete_through_four_states(self):
+        """Exhaustively check transition-only BFS canonical representative."""
+        counts = {}
+        for n in range(1, 5):
+            reachable_count = canonical_count = 0
+            for edges in itertools.product(range(n), repeat=2 * n):
+                table = [list(edges[2 * state:2 * state + 2])
+                         for state in range(n)]
+
+                def bfs_relabel(t):
+                    discovered = [0]
+                    indexes = {0: 0}
+                    for state in discovered:
+                        for nxt in t[state]:
+                            if nxt not in indexes:
+                                indexes[nxt] = len(discovered)
+                                discovered.append(nxt)
+                    if len(discovered) != n:
+                        return None
+                    return [[indexes[t[old][0]], indexes[t[old][1]]]
+                            for old in discovered]
+
+                def is_bfs_canonical(t):
+                    max_seen = 0
+                    for state in range(n):
+                        if state > max_seen:
+                            return False
+                        for nxt in t[state]:
+                            if nxt > max_seen + 1:
+                                return False
+                            max_seen = max(max_seen, nxt)
+                    return max_seen == n - 1
+
+                normalized = bfs_relabel(table)
+                if normalized is not None:
+                    reachable_count += 1
+                    self.assertTrue(is_bfs_canonical(normalized))
+                if is_bfs_canonical(table):
+                    canonical_count += 1
+                    self.assertIsNotNone(normalized)
+            counts[n] = reachable_count, canonical_count
+        self.assertEqual(counts, {
+            1: (1, 1), 2: (12, 12),
+            3: (432, 216), 4: (31488, 5248),
+        })
+
+    def test_bfs_solver_preserves_known_sat_and_unsat_decisions(self):
+        cases = [
+            ({
+                "status": "completed", "state_count": 2, "seed": 2,
+                "fixture_table": {
+                    "transitions": [[1, 0], [0, 1]],
+                    "outputs": [["0", "0"], ["1", "1"]],
+                    "initial_state": 0,
+                },
+                "observed_trace": [["0", "0"], ["1", "1"], ["0", "1"]],
+                "target_post_trace_state": 0,
+            }, "sat"),
+            ({
+                "status": "completed", "state_count": 1, "seed": 0,
+                "fixture_table": {
+                    "transitions": [[0, 0]],
+                    "outputs": [["0", "1"]],
+                    "initial_state": 0,
+                },
+                "observed_trace": [["0", "0"], ["1", "1"]],
+                "target_post_trace_state": 0,
+            }, "unsat"),
+        ]
+        for row, expected in cases:
+            with self.subTest(states=row["state_count"], expected=expected):
+                predecessor = MODULE.audit_row(
+                    row, timeout_ms=5000, candidate_labeling="predecessor"
+                )
+                canonical = MODULE.audit_row(
+                    row, timeout_ms=5000, candidate_labeling="bfs"
+                )
+                self.assertEqual(predecessor["status"], expected)
+                self.assertEqual(canonical["status"], expected)
+                if expected == "sat":
+                    self.assertTrue(canonical["witness"]["candidate_trace_verified"])
+                    self.assertTrue(canonical["witness"]["candidate_minimal_verified"])
+                    self.assertTrue(canonical["witness"]["candidate_strongly_connected_verified"])
+                    self.assertTrue(canonical["witness"]["future_counterexample"])
 
     def test_skips_rows_without_raw_evaluator_evidence(self):
         result = MODULE.audit_row({"status": "completed"}, timeout_ms=100)
