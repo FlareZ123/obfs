@@ -49,7 +49,7 @@ test('SCO must screen selected transitive private TextEncoder uses',()=>{
         code:'export function leaf(){return new TextEncoder().encodeInto(null,new Uint8Array(8)).written;}'
       }]
     }
-  ]),/unproved cross-realm host API/u);
+  }]),/unproved cross-realm host API/u);
 });
 
 test('SCO keeps unrelated private arithmetic and browser-side encoder source',()=>{
