@@ -88,15 +88,19 @@ function main(){
       fs.writeFileSync(path.join(emittedDir,'case.mjs'),String(compiled.code));
       /** @type {number[]} */
       const nativeHot=[],emittedHot=[],nativeWall=[],emittedWall=[];
+      /** @type {number|undefined} */
+      let expectedResult=undefined;
       for(let step=0;step<rounds;step++){
+        /** @type {Array<[string,number[],number[]]>} */
         const pairs=step%2===0?
           [[originalDir,nativeHot,nativeWall],[emittedDir,emittedHot,emittedWall]]:
           [[emittedDir,emittedHot,emittedWall],[originalDir,nativeHot,nativeWall]];
         for(const [folder,hot,wall] of pairs) {
-          const result=run(/** @type {string} */ (folder),count);
-          assert.equal(result.result,run(expectedFolder(count),count).result);
-          /** @type {number[]} */ (hot).push(result.hotMilliseconds);
-          /** @type {number[]} */ (wall).push(result.wallMilliseconds);
+          const result=run(folder,count);
+          if(expectedResult===undefined)expectedResult=result.result;
+          else assert.equal(result.result,expectedResult,'Native/emitted hot-loop answer drift');
+          hot.push(result.hotMilliseconds);
+          wall.push(result.wallMilliseconds);
         }
       }
       const nativeHotMs=median(nativeHot),emittedHotMs=median(emittedHot);
@@ -112,16 +116,6 @@ function main(){
   }finally{
     fs.rmSync(dir,{recursive:true,force:true});
   }
-}
-/**
- * @param {number} count
- * @returns {string}
- */
-function expectedFolder(count){
-  // Placeholder for independent-run original differential is superseded by
-  // comparing outputs across each paired round; never use a proxy baseline.
-  void count;
-  throw Error('Use equal paired program results rather than a separate process');
 }
 if(require.main===module)main();
 module.exports={main};
