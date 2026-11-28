@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/agent25-dom-island-composition.test.js",
+    "test/agent25-dom-document-alias.test.js",
     "test/sco-control-char-publication.test.js",
     "test/esm-url-control-char-guard.test.js",
     "test/agent1-lexical-switch-typescript-grid.test.js",
