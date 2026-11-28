@@ -197,7 +197,9 @@ function createScoWebAuthnAdmission(options){
     const clientBytes=decodeBase64url(assertion.clientDataJSON,16384);
     const authBytes=decodeBase64url(assertion.authenticatorData,16384);
     const signature=decodeBase64url(assertion.signature,1024);
-    if(!credentialBytes||!clientBytes||!isUtf8(clientBytes)||!authBytes||!signature||authBytes.length<37)return denied;
+    // Deliberately admit only the 37-byte basic ES256 authenticator assertion
+    // profile; CBOR extensions and attested credential data are unsupported.
+    if(!credentialBytes||!clientBytes||!isUtf8(clientBytes)||!authBytes||!signature||authBytes.length!==37)return denied;
     let client;
     try{client=JSON.parse(clientBytes.toString('utf8'));}catch{return denied;}
     if(!client || typeof client!=='object' || Array.isArray(client) ||
@@ -209,6 +211,9 @@ function createScoWebAuthnAdmission(options){
        !timingSafeEqual(submittedChallenge,pending.challenge))return denied;
     if(!timingSafeEqual(authBytes.subarray(0,32),rpHash))return denied;
     const flags=authBytes[32];
+    // Reject reserved, attestation and extension flags rather than parse
+    // unsupported authenticator-data grammar as a basic assertion.
+    if((flags&0xe2)!==0)return denied;
     const userPresent=(flags&0x01)!==0;
     const userVerified=(flags&0x04)!==0;
     const backupEligible=(flags&0x08)!==0;
