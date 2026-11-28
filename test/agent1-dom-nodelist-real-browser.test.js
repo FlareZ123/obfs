@@ -90,7 +90,10 @@ test('real Chromium preserves Function#toString through native indexed DOMString
       try{
         await page.goto('http://127.0.0.1:'+address.port+route,{waitUntil:'load'});
         await page.waitForFunction('globalThis._answer===17',{timeout:6000});
-        return page.evaluate(()=>({answer:globalThis._answer,seen:globalThis._seen}));
+        return page.evaluate(()=>{
+          const state=/** @type {typeof globalThis & {_answer?:number,_seen?:string}} */ (globalThis);
+          return {answer:state._answer,seen:state._seen};
+        });
       }finally{await page.close();}
     }
     for(const item of inventory){
