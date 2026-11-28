@@ -631,9 +631,12 @@ function collectVerifiedImportedCloneAliases(files,parseFile=parseModule) {
  * obfuscation eligibility.
  *
  * @param {SourceFile[]} files
+ * @param {(file:SourceFile)=>{ast:AstNode,bindings:Map<string,number>}} [parseFile]
+ * @param {'url'|'css'} [native] Keep URL's existing call contract; CSS is opt-in.
  * @returns {Map<string,Set<string>>}
  */
-function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
+function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule,native='url') {
+  const cssMode=native==='css';
   /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
@@ -656,12 +659,12 @@ function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
            module.bindings.get(item.id.name)===1)candidates.set(item.id.name,item.init);
       }
     }
-    const urls=new Set(['URL']);
+    const urls=new Set([cssMode?'CSS':'URL']);
     const urlModules=new Set();
     // Node's named URL import and namespace/default exports refer to the
     // same intrinsic class as globalThis.URL, per the Node URL API contract.
     for(const statement of module.ast.body) {
-      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+      if(cssMode||statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
          !['node:url','url'].includes(String(statement.source.value)))continue;
       for(const spec of statement.specifiers) {
         if(spec.type==='ImportSpecifier' &&
@@ -682,7 +685,7 @@ function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
       return Boolean(node&&(node.type==='Identifier'&&urls.has(node.name) ||
         node.type==='MemberExpression'&&node.object.type==='Identifier'&&
         (['globalThis','window','self','global'].includes(node.object.name)||
-         urlModules.has(node.object.name))&&property(node)==='URL'));
+         urlModules.has(node.object.name))&&property(node)===(cssMode?'CSS':'URL')));
     }
     /** @param {AstNode|null|undefined} node @returns {boolean} */
     function isNativeParser(node) {
@@ -691,7 +694,8 @@ function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
       if(node.type!=='MemberExpression')return false;
       const name=property(node);
       return isUrl(node.object)&&
-        (['parse','canParse'].includes(name??'')||node.computed&&name===null);
+        ((cssMode?name==='escape':['parse','canParse'].includes(name??''))||
+         node.computed&&name===null);
     }
     let progress;
     do {
@@ -789,6 +793,19 @@ function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
     imported.set(filename,aliases);
   }
   return imported;
+}
+
+/**
+ * Preserve source-coercing CSS.escape through verified named, namespace,
+ * default and forwarded ESM exports. Reuse the exact URL static-method
+ * provenance proof, changing only the native root and method selection.
+ *
+ * @param {SourceFile[]} files
+ * @param {(file:SourceFile)=>{ast:AstNode,bindings:Map<string,number>}} [parseFile]
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedCssEscapeAliases(files,parseFile=parseModule) {
+  return collectVerifiedImportedUrlStaticAliases(files,parseFile,'css');
 }
 
 /**
@@ -3089,4 +3106,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectVerifiedImportedCssEscapeAliases,collectImportedFunctionArrays};
