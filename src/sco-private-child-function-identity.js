@@ -236,7 +236,20 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
           (consumer.type==='CallExpression'||consumer.type==='NewExpression')&&
             consumer.callee===parent||
           consumer.type==='TaggedTemplateExpression'&&consumer.tag===parent));
-        if(noOpaqueInvocation&&noNestedPrototype&&
+        // A metadata primitive is safe only while its provenance remains
+        // visible. Storing it, passing it to an opaque callee, or placing it
+        // in a container would let later code use the receiving realm's
+        // String/Number prototype without this local proof seeing the alias.
+        const metadataValue=nestedLength?consumer:parent;
+        const metadataConsumer=nestedLength?upper:consumer;
+        const metadataEscapes=Boolean(metadataConsumer&&(
+          metadataConsumer.type==='VariableDeclarator'&&metadataConsumer.init===metadataValue||
+          metadataConsumer.type==='AssignmentExpression'&&metadataConsumer.right===metadataValue||
+          metadataConsumer.type==='CallExpression'&&metadataConsumer.arguments.includes(metadataValue)||
+          metadataConsumer.type==='NewExpression'&&metadataConsumer.arguments.includes(metadataValue)||
+          metadataConsumer.type==='Property'&&metadataConsumer.value===metadataValue||
+          metadataConsumer.type==='ArrayExpression'&&metadataConsumer.elements.includes(metadataValue)));
+        if(noOpaqueInvocation&&!metadataEscapes&&noNestedPrototype&&
            (!consumer||consumer.type!=='MemberExpression'||nestedLength)){
           return;
         }
