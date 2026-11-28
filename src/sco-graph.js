@@ -320,6 +320,14 @@ function createScoGraphHandler(graph,namespaces,options){
   // the HTTP handler must receive the same authoritative route.
   const {routePrefix,...remainingOptions}=options;
   const stableOptions={...remainingOptions,routePrefix};
+  // The graph helper spreads own enumerable options; an inherited or
+  // nonenumerable admission policy would otherwise silently disappear,
+  // forfeiting the promised pre-queue denial. Capture it exactly once
+  // without re-reading an already-copied own accessor.
+  if(!Object.hasOwn(stableOptions,'admitRpcEarly')&&
+     Reflect.has(options,'admitRpcEarly')){
+    stableOptions.admitRpcEarly=Reflect.get(options,'admitRpcEarly');
+  }
   const expectedEndpoint=(routePrefix??'/obfs/')+'rpc';
   for(const filename of trusted.exposedPaths){
     if(trusted.partitions[filename]?.endpoint!==expectedEndpoint){
