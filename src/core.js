@@ -185,9 +185,14 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          provenStrings.has(node.name))return null;
       return importedOrigins.get(node.name)??null;
     }
+    // Follow direct aliases to the ambient Document through immutable or
+    // mutable declarations. This is a may-alias overapproximation: when a
+    // binding is reassigned we continue protecting the producer rather than
+    // incorrectly assuming the DOMString source sink has disappeared.
+    const documentAliases=new Set(['document']);
     /** @param {import('./ast').AstNode|null|undefined} node @returns {boolean} */
     function isDocument(node) {
-      return Boolean(node?.type==='Identifier'&&node.name==='document');
+      return Boolean(node?.type==='Identifier'&&documentAliases.has(node.name));
     }
     /** @param {import('./ast').AstNode|null|undefined} node @returns {string|null} */
     function member(node) {
@@ -206,6 +211,9 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
           node.id:null;
         const value=node.type==='VariableDeclarator'?node.init:null;
         if(!binding||!value)return;
+        if(isDocument(value)&&!documentAliases.has(binding.name)) {
+          documentAliases.add(binding.name);changed=true;
+        }
         if(value.type==='Identifier'&&domValues.has(value.name)&&
            !domValues.has(binding.name)) {
           domValues.add(binding.name);changed=true;
