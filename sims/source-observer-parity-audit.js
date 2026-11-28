@@ -46,7 +46,9 @@ function audit(log) {
       throw new Error('Malformed CFG_CARRIER record: '+line.slice(0,250));
     if(seen.has(record.name))result.duplicateNames.push(record.name);
     seen.add(record.name);
-    const modes=new Map(record.evidence.map(row=>[row.mode,row]));
+    /** @type {Map<string,ModeEvidence>} */
+    const modes=new Map();
+    for(const row of record.evidence)modes.set(row.mode,row);
     if(modes.size!==3||!['coo','sco','sno'].every(mode=>modes.has(mode))) {
       result.modeDisagreements.push(record.name);
       continue;
