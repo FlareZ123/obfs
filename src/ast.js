@@ -1818,12 +1818,14 @@ function hasWeakMapPrototypeExposure(ast) {
       const names=new Set([
         ...environment.keys(),...tryEnvironment.keys(),...catchEnvironment.keys()
       ]);
+      /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>} */
+      const joinPairs=new Map();
       for(const name of names) {
         const base=environment.get(name)??carrierOther;
         const tryValue=tryEnvironment.get(name)??base;
         const catchValue=statement.handler?
           catchEnvironment.get(name)??base:base;
-        environment.set(name,mergeCarrierValues(tryValue,catchValue));
+        environment.set(name,mergeCarrierValues(tryValue,catchValue,joinPairs));
       }
       if(statement.finalizer)
         visitCarrierStatement(statement.finalizer,environment,thisValue,throwCollector);
@@ -1889,9 +1891,14 @@ function hasWeakMapPrototypeExposure(ast) {
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
+      // Reuse one pair memo per predecessor when joining across different
+      // binding names, or post-switch aliases become unrelated heaps.
+      /** @type {Map<CarrierContainer,Map<CarrierContainer,CarrierContainer>>[]} */
+      const joinPairs=branches.map(()=>new Map());
       for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
         let value=environment.get(name)??carrierOther;
-        for(const branch of branches)value=mergeCarrierValues(value,branch.get(name)??carrierOther);
+        for(let i=0;i<branches.length;i++)
+          value=mergeCarrierValues(value,branches[i].get(name)??carrierOther,joinPairs[i]);
         environment.set(name,value);
       }
     }
