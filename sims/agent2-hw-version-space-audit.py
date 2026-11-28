@@ -17,7 +17,7 @@ from collections import deque
 from pathlib import Path
 
 import z3
-from z3 import And, Array, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
+from z3 import And, Array, If, Int, IntSort, K, Or, Select, Solver, Store, sat, unknown
 
 
 def is_strongly_connected(transitions: list[list[int]]) -> bool:
@@ -231,7 +231,7 @@ def target_alternate_start_witness(
     return None
 
 
-def solve_for_size(row, candidate_size: int, timeout_ms: int):
+def solve_for_size(row, candidate_size: int, timeout_ms: int, candidate_labeling: str = "predecessor"):
     fixture = row["fixture_table"]
     target_transitions = [[int(x) for x in r] for r in fixture["transitions"]]
     target_outputs = [[int(x) for x in r] for r in fixture["outputs"]]
@@ -270,12 +270,35 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
         solver.add(trace_states[left] != trace_states[right])
 
     # State names are arbitrary, so fix the candidate initial state to 0.
-    # Every state s>0 has an incoming edge from some lower-numbered state;
-    # this is a spanning arborescence rooted at 0 and breaks label symmetry.
     solver.add(trace_states[0] == 0)
 
+    if candidate_labeling not in ("predecessor", "bfs"):
+        raise ValueError(f"unsupported candidate_labeling: {candidate_labeling}")
+    if candidate_labeling == "bfs":
+        # Every root-reachable deterministic machine has a relabeling in
+        # first-discovery BFS order (process state rows and 0,1 edges).
+        # Every state s is discovered before its row is read. Each next
+        # transition target can introduce at most the next unused label.
+        # This canonical representative removes state-label permutations;
+        # reverse reachability to the root still needs backward ranks below.
+        maximum_seen = [
+            Int(f"maximum_seen_{tag}_{i}") for i in range(2 * k + 1)
+        ]
+        solver.add(maximum_seen[0] == 0)
+        for state in range(k):
+            solver.add(maximum_seen[2 * state] >= state)
+            for a in range(2):
+                index = 2 * state + a
+                target_state = Select(delta, index)
+                solver.add(target_state <= maximum_seen[index] + 1)
+                solver.add(maximum_seen[index + 1] ==
+                           If(target_state > maximum_seen[index],
+                              target_state, maximum_seen[index]))
+        solver.add(maximum_seen[2 * k] == k - 1)
+
     # Every state can also reach 0: a strictly decreasing rank certifies a
-    # return path. Together, the two conditions encode strong connectivity.
+    # return path. Predecessor mode uses a lower-index spanning arborescence
+    # for reachability from 0; BFS mode proves this in canonical row order.
     backward_rank = [Int(f"backward_rank_{tag}_{s}") for s in range(k)]
     for s in range(k):
         solver.add(backward_rank[s] >= 0, backward_rank[s] < k)
@@ -295,7 +318,8 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
             for a in range(2)
             for t in range(k)
         ]
-        solver.add(Or(incoming))
+        if candidate_labeling == "predecessor":
+            solver.add(Or(incoming))
         solver.add(backward_rank[s] > 0, Or(outgoing))
 
     target_delta = K(IntSort(), 0)
@@ -449,7 +473,7 @@ def solve_for_size(row, candidate_size: int, timeout_ms: int):
     }
 
 
-def audit_row(row, timeout_ms: int):
+def audit_row(row, timeout_ms: int, candidate_labeling: str = "predecessor"):
     if row.get("status") != "completed":
         return {"status": "skipped", "reason": "learner row did not complete"}
     if "fixture_table" not in row or "observed_trace" not in row:
@@ -497,7 +521,7 @@ def audit_row(row, timeout_ms: int):
     unsat_sizes = []
     unknown_sizes = []
     for candidate_size in range(1, target_n + 1):
-        status, detail = solve_for_size(row, candidate_size, timeout_ms)
+        status, detail = solve_for_size(row, candidate_size, timeout_ms, candidate_labeling)
         if status == "sat":
             return {
                 "status": "sat",
@@ -546,6 +570,9 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-cases", type=int, default=10)
     parser.add_argument("--timeout-ms", type=int, default=5000)
+    parser.add_argument("--candidate-labeling", choices=("predecessor", "bfs"),
+                        default="predecessor",
+                        help="Root-reachable model label symmetry (experimental bfs canonicalization)")
     args = parser.parse_args()
     if args.max_cases < 1 or args.timeout_ms < 1:
         raise SystemExit("--max-cases and --timeout-ms must be positive")
@@ -579,7 +606,7 @@ def main():
             "seed": row.get("seed"),
             "candidate_hypothesis_starts": row.get("trace_matching_initial_candidates"),
             "hW_future_clone_success": row.get("future_clone_success"),
-            "audit": audit_row(row, args.timeout_ms),
+            "audit": audit_row(row, args.timeout_ms, args.candidate_labeling),
         })
 
     counts = {
@@ -594,6 +621,7 @@ def main():
             "outputs": ["0", "1"],
             "candidate_state_counts": "1..target_state_count inclusive",
             "candidate_class": "complete deterministic minimal strongly connected Mealy machines",
+            "candidate_labeling": args.candidate_labeling,
             "observation": "the public one-shot input/output trace only",
             "target_state_count": "hidden from learner; used only as evaluator upper bound",
             "target_fixture": "held-out evaluator data; never passed to hW",
