@@ -196,6 +196,9 @@ function proveSourceObserverIslands(files,selections) {
 
   const forbiddenIdentifiers=new Set([
     'process','globalThis','global','window','self','document','navigator',
+    // A browser WindowProxy root can expose its same-origin Document and
+    // parser-active SRI links without spelling window/document or fetch.
+    'top','parent','opener','frameElement',
     // Ambient reflection can reconstruct Function from computed string fragments,
     // then import filesystem readers without a visible import/eval node.
     // A sound allowlist requires an explicit capability proof, so decline both.
@@ -254,7 +257,10 @@ function proveSourceObserverIslands(files,selections) {
       if(node.type==='ImportExpression' || node.type==='MetaProperty' ||
          node.type==='WithStatement') opaque=true;
       if(node.type==='Identifier' && forbiddenIdentifiers.has(node.name) &&
-         !(parent?.type==='Property' && key==='key' && !parent.computed))opaque=true;
+         !(parent?.type==='Property' && key==='key' && !parent.computed) &&
+         !(parent?.type==='MemberExpression' && key==='property' && !parent.computed) &&
+         !((parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
+           key==='key' && !parent.computed))opaque=true;
       if(node.type==='MemberExpression') {
         const name=memberName(node);
         if(name===null || forbiddenMembers.has(name))opaque=true;
