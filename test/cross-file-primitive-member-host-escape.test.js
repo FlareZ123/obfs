@@ -87,3 +87,25 @@ test('unrelated arithmetic retains a private property rewrite',async()=>{
   assert.equal(emitted,native);
   assert.equal(result.crossFile.properties,1);
 });
+
+for(const control of [
+  {label:'length',expression:'"ab".length',expected:2},
+  {label:'index',expression:'"ab"[1]',expected:'b'}
+]) {
+  test('native String own '+control.label+' read retains private-key yield',async()=>{
+    const files=[
+      {path:'state.mjs',sourceType:'module',code:'export const state={secretField:53};'},
+      {path:'main.mjs',sourceType:'module',code:[
+        'import {state} from "./state.mjs";',
+        'const own='+control.expression+';',
+        'console.log(JSON.stringify([state.secretField,own]));'
+      ].join('\\n')}
+    ];
+    const native=await execute(files);
+    const result=transform(files,'primitive-own-string-'+control.label);
+    const emitted=await execute(result.files);
+    assert.equal(native,JSON.stringify([53,control.expected])+'\\n');
+    assert.equal(emitted,native);
+    assert.equal(result.crossFile.properties,1,'An own String data read cannot invoke a host getter');
+  });
+}
