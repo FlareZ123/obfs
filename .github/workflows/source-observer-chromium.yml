@@ -8,6 +8,10 @@ on:
         required: true
         default: "0417abb68e3bfe09ed0f80e5e175b057b23e8cca"
         type: string
+      only_bound_weakmap:
+        description: 'Run only the bound-WeakMap isolated browser witness; do not execute unrelated baseline fixture'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
         run: node test/agent3-weakmap-reflect-apply-browser.js
 
       - name: Execute the source-observer fixture in real Chromium
+        if: ${{ !inputs.only_bound_weakmap }}
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observation-plan-producer-browser.js
