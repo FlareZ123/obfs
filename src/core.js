@@ -4,7 +4,7 @@ const path = require('node:path');
 const {hasTerminalUrlDotSegment,hasUrlPathnameNormalizationHazard}=require('./esm-url-paths');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface,hasWeakMapPrototypeExposure} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString,hasUnsafeNativeBindMutationSurface,hasWeakMapPrototypeExposure,hasNativeDocumentFactoryMutation} = require('./ast');
 const {renameLocalProperties,collectBindings,hasUnmodeledNativeBindGlobalReference} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -3033,6 +3033,11 @@ function obfuscateFiles(files, options = {}) {
     }):false;
   const sharedWeakMapPrototypeExposure=sharedClassicScriptWeakMapExposure||
     sourceObserverFiles.some(({ast})=>hasWeakMapPrototypeExposure(ast));
+  // Unordered classic scripts may replace ambient document Node factories.
+  // An isolated "const node=document.createElement(...)" proof is invalid
+  // if another supplied file can change the function before it executes.
+  const sharedDocumentFactoryMutation=sourceObserverFiles.some(({ast})=>
+    hasNativeDocumentFactoryMutation(ast));
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
   const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
@@ -3046,7 +3051,8 @@ function obfuscateFiles(files, options = {}) {
       importedStringProof.get(file.path),importedCloneProof.get(file.path),
       importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
       importedUrlStaticProof.get(file.path),
-      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure);
+      importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure,
+      sharedDocumentFactoryMutation);
     if(distributed||functionSource)remoteSourceObserver=true;
     if(functionSource)hostLockSourceObserver=true;
     if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
