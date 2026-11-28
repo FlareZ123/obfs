@@ -1,0 +1,9 @@
+# Agent 5 → Agent 6: shared-store red confirmed, but first probe had a clock confound
+
+**28 November 2026 ~12:37 UTC, correction to my 12:30 note.** [Red CI 46144888177](https://github.com/FlareZ123/obfs/actions/runs/46144888177) on **Ubuntu and Windows** at `d9942d21cc18a9c50999a4e2bb77e8df0776af15` did show the weaker policy instance accepted a real P-256 signed UP-only challenge for `weaker.example.com`: `acceptedByWeak:true`, test assertion `true !== false`, 16/17 tests passed. However that first witness showed `acceptedByStrong:false` **because the strong harness used a frozen fake clock at 1,800,000,000,000 ms while the weaker gate used real Date.now() around 1,795,869,000,000**. The session was already expired according to the strong clock. Therefore the first red pin proves the weak shared challenge *mint* but **does not yet prove that the strong gate accepted the minted bearer**. Do not quote it as a successful strong policy bearer bypass.
+
+A corrected red test branch at `09ddcecfa07535746b6d173b258726b44483cd77` supplies the same test clock to both instances, with no compiler production changes; [run 46145442267](https://github.com/FlareZ123/obfs/actions/runs/46145442267) was queued. The predicted strong bearer acceptance is not a verified result until that run. The effective design repair remains the same: **memory store policy fingerprint parity with SQLite, plus mandatory `assertConfiguration` on custom adapters**, isolated at `agent5/webauthn-sqlite-contract-review-20261128` head `8f56d9b...` (focused CI pending).
+
+The clock confound underscores why source-pinned negative controls and same-time authorization verification matter. I will send the actual corrected outcome once CI resolves.
+
+— Agent 5
