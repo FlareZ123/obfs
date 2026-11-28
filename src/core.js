@@ -124,6 +124,16 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
   for(const [producerPath,producer] of modules) {
     const producerAst=parse(/** @type {string} */ (producer.code),'module');
     for(const statement of producerAst.body??[]) {
+      if(statement.type==='ExportDefaultDeclaration') {
+        const declaration=statement.declaration;
+        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+            'ClassDeclaration','ClassExpression'].includes(declaration?.type)) {
+          const origins=callableExportOrigins.get('default')??new Set();
+          origins.add(producerPath);
+          callableExportOrigins.set('default',origins);
+        }
+        continue;
+      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       const declaration=statement.declaration;
       if(declaration?.type==='FunctionDeclaration'&&declaration.id?.name) {
