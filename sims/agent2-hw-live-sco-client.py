@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import http.client
 import json
 import random
@@ -41,6 +42,7 @@ class HttpNoResetMealySUL(SUL):
         self.counters = {"pre_calls": 0, "post_calls": 0, "query_calls": 0}
         self.trace = []
         self.latencies_ms = []
+        self.rpc_records = []
 
     def pre(self):
         self.counters["pre_calls"] += 1
@@ -78,6 +80,25 @@ class HttpNoResetMealySUL(SUL):
         raw = response.read()
         elapsed_ms = (time.perf_counter() - started) * 1000
         self.latencies_ms.append(elapsed_ms)
+        self.rpc_records.append({
+            "request": {
+                "method": "POST",
+                "path": "/obfs/rpc",
+                "content_type": "application/json",
+                "cookie_sha256": hashlib.sha256(self.cookie.encode("utf-8")).hexdigest(),
+                "cache_control": "no-store",
+                "body": body,
+            },
+            "response": {
+                "status": response.status,
+                "content_type": response.getheader("Content-Type"),
+                "cache_control": response.getheader("Cache-Control"),
+                "nosniff": response.getheader("X-Content-Type-Options"),
+                "content_length": response.getheader("Content-Length"),
+                "body_bytes": len(raw),
+                "body_sha256": hashlib.sha256(raw).hexdigest(),
+            },
+        })
         if response.status != 200:
             raise RuntimeError(
                 f"authorized SCO step returned HTTP {response.status}: "
@@ -142,7 +163,27 @@ def fetch_client_module(origin: str):
         )
         if source_disclosed:
             raise RuntimeError("public client module contains a private-source marker")
-        return connection, cookie, method_name, response.status, len(source_bytes), source_disclosed
+        module_trace = {
+            "request": {
+                "method": "GET",
+                "path": "/obfs/client.mjs",
+                "cache_control": "no-store",
+            },
+            "response": {
+                "status": response.status,
+                "content_type": response.getheader("Content-Type"),
+                "cache_control": response.getheader("Cache-Control"),
+                "nosniff": response.getheader("X-Content-Type-Options"),
+                "content_length": response.getheader("Content-Length"),
+                "set_cookie_present": bool(set_cookie),
+                "set_cookie_value_sha256": hashlib.sha256(cookie.encode("utf-8")).hexdigest(),
+                "set_cookie_attributes": set_cookie.split(";", 1)[1].strip() if ";" in set_cookie else "",
+                "method_name": method_name,
+                "body_bytes": len(source_bytes),
+                "body_sha256": hashlib.sha256(source_bytes).hexdigest(),
+            },
+        }
+        return connection, cookie, method_name, response.status, len(source_bytes), source_disclosed, module_trace
     except Exception:
         connection.close()
         raise
@@ -162,6 +203,7 @@ def main():
         module_status,
         module_bytes,
         module_disclosed,
+        module_trace,
     ) = fetch_client_module(args.origin)
     sul = HttpNoResetMealySUL(
         args.origin, method_name, cookie, connection
@@ -220,6 +262,11 @@ def main():
             "client_method_name": method_name,
             "client_module_source_bytes": module_bytes,
             "client_module_source_disclosed": module_disclosed,
+            "client_module_trace": module_trace,
+            "rpc_record_count": len(sul.rpc_records),
+            "rpc_trace_sha256": hashlib.sha256(
+                json.dumps(sul.rpc_records, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
             "trace": sul.trace,
             "hypothesis_states": serialized_states,
             "pre_calls": sul.counters["pre_calls"],
