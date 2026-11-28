@@ -12,19 +12,17 @@ const variants=[
   {name:'private-document-private-data-owner',source:[
     'const document={title:"",other:"inert"};',
     'const payload={internalAnswer:7,internalAddend:9};',
-    'function hidden(input){const localSecret=11;',
-    '  return input+localSecret+payload.internalAnswer+payload.internalAddend;}',
+    'function hidden(input){const localSecret=11;return input+localSecret;}',
     'document.title=hidden;',
-    'export function sample(){return hidden(1);}'
+    'export function sample(){return hidden(1)+payload.internalAnswer+payload.internalAddend;}'
   ].join('\n'),hostObserved:false},
   {name:'private-document-with-real-dom-string-sink',source:[
     'const document={title:"",other:"inert"};',
     'const payload={internalAnswer:7,internalAddend:9};',
-    'function hidden(input){const localSecret=11;',
-    '  return input+localSecret+payload.internalAnswer+payload.internalAddend;}',
+    'function hidden(input){const localSecret=11;return input+localSecret;}',
     'document.title=hidden;',
     'globalThis.document.title=hidden;',
-    'export function sample(){return hidden(1);}'
+    'export function sample(){return hidden(1)+payload.internalAnswer+payload.internalAddend;}'
   ].join('\n'),hostObserved:true}
 ];
 const runner=[
