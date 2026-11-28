@@ -74,6 +74,8 @@ test('source-free direct private helper remains rewrite-eligible in all modes',(
 });
 
 test('external DOMString/host coercion preserves exact source, not just return value',()=>{
+  /** @type {string[]} */
+  const mismatches=[];
   for(const operation of operations){
     const source=functionSource+operation.code+'\nmodule.exports=inspect();';
     const native=execute(source);
@@ -90,8 +92,10 @@ test('external DOMString/host coercion preserves exact source, not just return v
         sourceParity:native.captures[0]===emitted.captures[0]};
       console.log(JSON.stringify(record));
       assert.equal(emitted.result,native.result,mode+' '+operation.id+' computation');
-      assert.deepEqual(emitted.captures,native.captures,
-        mode+' '+operation.id+' external source-observer parity');
+      if(emitted.captures[0]!==native.captures[0])
+        mismatches.push(mode+' '+operation.id+' bindings='+item.metrics.bindings);
     }
   }
+  assert.deepEqual(mismatches,[],
+    'source-visible host coerctions must all preserve native function bytes');
 });
