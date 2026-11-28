@@ -14,6 +14,8 @@ const source='export function read(){return 7;}';
 for(const {name,publicPath,privatePath} of [
   {name:'public file used as private parent directory',
     publicPath:'bundle.mjs',privatePath:'bundle.mjs/secret.mjs'},
+  {name:'private file used as public parent directory',
+    publicPath:'bundle.mjs/public.mjs',privatePath:'bundle.mjs'},
   {name:'ambiguous public/private ancestor case',
     publicPath:'PUBLIC/api.mjs',privatePath:'public/secret.mjs'},
   {name:'NFC-equivalent source paths',
