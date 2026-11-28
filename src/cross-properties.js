@@ -2322,6 +2322,76 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
       modules.set(file.path,{file,...parseFile(file)});
     }
   }
+  // A primitive value is boxed before object destructuring, and an array
+  // pattern asks for its host-controlled Symbol.iterator. A hostile embedding
+  // realm can install accessors/iterators returning Function; that capability
+  // can import an otherwise closed ESM owner and inspect its original keys.
+  // The ordinary own-record proof is not applicable to either operation.
+  // Use a monotone may-primitive set, not a claim that host prototypes are
+  // immutable. Ambiguous lexical shadows may cause refusal, never admission.
+  for(const module of modules.values()) {
+    const maybePrimitives=new Set();
+    /** @param {AstNode|null|undefined} value @returns {boolean} */
+    function mayBeBoxedPrimitive(value) {
+      if(!value)return false;
+      if(value.type==='Literal')return value.value!==null&&
+        ['number','string','boolean','bigint'].includes(typeof value.value);
+      if(value.type==='TemplateLiteral')return true;
+      if(value.type==='Identifier')return maybePrimitives.has(value.name);
+      if(value.type==='UnaryExpression')return true;
+      if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
+         ['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name))
+        return true;
+      if(value.type==='MemberExpression'&&value.object.type==='Identifier'&&
+         value.object.name==='Symbol'&&!value.optional) {
+        const key=value.computed?staticString(value.property):staticName(value.property);
+        return key!==null&&!['prototype','for','keyFor'].includes(key);
+      }
+      if(value.type==='ConditionalExpression')return
+        mayBeBoxedPrimitive(value.consequent)||mayBeBoxedPrimitive(value.alternate);
+      if(value.type==='LogicalExpression')return
+        mayBeBoxedPrimitive(value.left)||mayBeBoxedPrimitive(value.right);
+      if(value.type==='SequenceExpression')return
+        mayBeBoxedPrimitive(value.expressions[value.expressions.length-1]);
+      if(value.type==='AssignmentExpression')return mayBeBoxedPrimitive(value.right);
+      return false;
+    }
+    let grew;
+    do {
+      grew=false;
+      walk(module.ast,node=>{
+        // for...in binds string property names even when the receiver is an
+        // unrelated record. The loop key's boxed String prototype is mutable.
+        if(node.type==='ForInStatement' && node.left.type==='VariableDeclaration') {
+          for(const declaration of node.left.declarations??[]) {
+            if(declaration.id.type==='Identifier'&&!maybePrimitives.has(declaration.id.name)) {
+              maybePrimitives.add(declaration.id.name);
+              grew=true;
+            }
+          }
+        }
+        const binding=node.type==='VariableDeclarator'?node.id:
+          node.type==='AssignmentExpression'?node.left:null;
+        const value=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'?node.right:null;
+        if(binding?.type==='Identifier'&&mayBeBoxedPrimitive(value)&&
+           !maybePrimitives.has(binding.name)) {
+          maybePrimitives.add(binding.name);
+          grew=true;
+        }
+      });
+    } while(grew);
+    let exposed=false;
+    walk(module.ast,node=>{
+      const pattern=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(pattern&&['ObjectPattern','ArrayPattern'].includes(pattern.type)&&
+         mayBeBoxedPrimitive(value))exposed=true;
+    });
+    if(exposed)return {files,objects:0,properties:0};
+  }
   // String-selector metadata has already been verified across the static ESM
   // graph. Use it during native-pattern admission to avoid refusing known
   // private keys merely because their spellings arrive through imports.
