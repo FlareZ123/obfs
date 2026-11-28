@@ -724,7 +724,7 @@ function hasUnreviewedHtmlExecutableScripts(files) {
       if(node.content)visit(node.content);
     }
     visit(root);
-    if((hasBase&&scriptUrls.length)||hasBase)return true;
+    if(hasBase)return true;
     for(const url of scriptUrls) {
       if(!url || /[?#%\\]/u.test(url) || url.includes('//') ||
          /^[A-Za-z][A-Za-z0-9+.-]*:/u.test(url) ||
