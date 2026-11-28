@@ -86,7 +86,10 @@ test('alias, destructuring, prototype and Reflect factory writes all veto siblin
     'const {document:d}=globalThis;d.createElement='+body+';',
     'const d=document;Reflect.set(d,"createElement",'+body+');',
     'const C=Document;C.prototype.createElement='+body+';',
-    'const d=window.document;Object.defineProperty(d,"createElement",{value:'+body+'});'
+    'const d=window.document;Object.defineProperty(d,"createElement",{value:'+body+'});',
+    'const d=new Proxy(document,{});d.createElement='+body+';',
+    'const setter=Reflect.set;setter(document,"createElement",'+body+');',
+    'const define=Object.defineProperty;define(document,"createElement",{value:'+body+'});'
   ];
   const original='globalThis.nativeNodeVeto="the sibling factory write can alter DOMString coercion";';
   const loader='const node=document.createElement("script");'+
