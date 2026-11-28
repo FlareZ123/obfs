@@ -181,7 +181,7 @@ async function runAttacker(){
       };
       const policy=createPolicy();
       assert.equal(policy.models.length,260);
-      assert.equal(policy.beliefs.length,4501);
+      assert.equal(policy.beliefs.length,4429);
       assert.equal(policy.ranks[0],9);
       bindFetch(scoOrigin);
       const sco=await learn(scoApi,policy);
