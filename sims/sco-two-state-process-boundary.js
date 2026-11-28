@@ -31,6 +31,7 @@ async function listen(server){
  * @returns {Promise<void>}
  */
 async function runServer(){
+  const tamperOrdinary=process.argv.includes('--tamper-wire');
   const {transform}=require('esbuild');
   const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
   const material=randomBytes(4);
@@ -124,7 +125,8 @@ async function runServer(){
         ordinaryState=machine.next[ordinaryState][symbol];
         ordinaryTrace.push({input:symbol,output});
         response.writeHead(200,{'content-type':'application/json'});
-        response.end(JSON.stringify({ok:true,value:output}));
+        response.end(JSON.stringify(tamperOrdinary?{ok:true,value:output,wireMarker:1}:
+          {ok:true,value:output}));
       }catch{
         response.writeHead(400);response.end();
       }
@@ -234,7 +236,9 @@ async function runAttacker(){
       globalThis.fetch=nativeFetch;
       // Compare every method, argument body, fetch option, and JSON reply.
       // Origins intentionally differ because each arm has independent state.
-      assert.deepEqual(wires.sco,wires.ordinary);
+      try{assert.deepEqual(wires.sco,wires.ordinary);}catch(error){
+        throw new Error('Wire transcript mismatch after semantic parity',{cause:error});
+      }
       assert.equal(wires.sco.length,sco.queries+followup.length);
       process.send?.({kind:'attacker-result',result:{sco,ordinary,followup,
         followupOutputs:actualSco,scoPublicBytes:Buffer.byteLength(scoSource),
@@ -296,12 +300,14 @@ function receive(child,expected,timeoutMs=45000){
  *   attackerPid:number,traceLength:number,serverUid:number,attackerUid:number,
  *   signalPermissionDenied:boolean,wireCalls:number,wireMatched:boolean}>}
  */
-async function runProcessBoundary(isolatedUid=false){
+async function runProcessBoundary(isolatedUid=false,tamperOrdinary=false){
+  if(typeof tamperOrdinary!=='boolean')throw new TypeError('Expected boolean wire mutation');
   if(typeof isolatedUid!=='boolean')throw new TypeError('Expected boolean UID isolation');
   if(isolatedUid&&(process.platform!=='linux'||process.getuid?.()!==0)){
     throw new Error('Dedicated UID requires a privileged Linux test process');
   }
-  const server=fork(__filename,['--server'],{execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
+  const server=fork(__filename,tamperOrdinary?['--server','--tamper-wire']:['--server'],
+    {execArgv:[],stdio:['ignore','ignore','pipe','ipc']});
   /** @type {import('node:child_process').ChildProcess|null} */
   let attacker=null;
   try{
