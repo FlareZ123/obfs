@@ -15,10 +15,10 @@ const {assertSnoDirectBareRequireParity}=require('./sno-bare-audit');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,experimentalEntropyPropertyNames:boolean,auditBareCjs?:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,experimentalEntropyPropertyNames:boolean,experimentalPropertyKeyEnv?:string,auditBareCjs?:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,experimentalEntropyPropertyNames:boolean,auditBareCjs?:boolean}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,experimentalEntropyPropertyNames:boolean,experimentalPropertyKeyEnv?:string,auditBareCjs?:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[],experimentalSymbolKeys:false,experimentalEntropyPropertyNames:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -36,6 +36,12 @@ function readArgs(argv) {
     else if (option === '--port') opts.port=Number(value);
     else if (option === '--host') opts.hosts.push(value);
     else if (option === '--seed') opts.seed=value;
+    else if (option === '--property-key-env') {
+      if(!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(value)) {
+        throw new TypeError('--property-key-env requires a valid environment variable name');
+      }
+      opts.experimentalPropertyKeyEnv=value;
+    }
     else if (option === '--asset') opts.publicAssets.push(value);
     else if (option === '--reviewed-assets') {
       if(opts.reviewedAssetsPath!==undefined) {
@@ -476,13 +482,25 @@ async function assertSnoPackageScope(files,root,context) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys,experimentalEntropyPropertyNames,auditBareCjs} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys,experimentalEntropyPropertyNames,experimentalPropertyKeyEnv,auditBareCjs} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   if(auditBareCjs&&mode!=='sno')throw new TypeError('--audit-bare-cjs is SNO-only');
   // SCO already derives a secret 192-bit nonce per HTTP response. A second
   // compile flag would be accepted without meaning; refuse that ambiguity.
-  if(mode==='sco'&&experimentalEntropyPropertyNames) {
-    throw new TypeError('--random-property-names is for prebuilt COO/SNO; SCO already randomizes each HTTP response');
+  if(mode==='sco'&&(experimentalEntropyPropertyNames||experimentalPropertyKeyEnv!==undefined)) {
+    throw new TypeError('Private property naming flags are for prebuilt COO/SNO; SCO already randomizes each HTTP response');
+  }
+  if(experimentalEntropyPropertyNames && experimentalPropertyKeyEnv!==undefined) {
+    throw new TypeError('Choose either --random-property-names or --property-key-env');
+  }
+  // Read the private key only from an explicit environment variable, never
+  // from a world-readable process argv flag. The compiler does not emit it.
+  const experimentalPrivatePropertyKey=experimentalPropertyKeyEnv===undefined ? undefined :
+    process.env[experimentalPropertyKeyEnv];
+  if(experimentalPropertyKeyEnv!==undefined &&
+     (typeof experimentalPrivatePropertyKey!=='string' ||
+      !/^[a-fA-F0-9]{64}$/u.test(experimentalPrivatePropertyKey))) {
+    throw new TypeError('--property-key-env requires an existing 64-hex-character secret in that environment variable');
   }
   if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalStatementFlow||experimentalStatementFlowCompact||experimentalPolyvariantAffine||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
   const absRoot = path.resolve(root);
@@ -515,7 +533,7 @@ async function main(mode,argv) {
     portableKeys(file.path.split('/',1)[0]).some(key=>reservedLauncherKeys.has(key)))) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts.length?hosts:undefined,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys,experimentalEntropyPropertyNames});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts.length?hosts:undefined,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys,experimentalEntropyPropertyNames,experimentalPrivatePropertyKey});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
