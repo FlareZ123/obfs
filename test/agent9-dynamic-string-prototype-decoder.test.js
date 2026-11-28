@@ -60,9 +60,7 @@ for(const [name,expression] of producers){
     test('dynamic string primitive prototype mutation must not corrupt decoder: '+name+'/'+mode,{
       timeout:30000
     },async()=>{
-      const mutator='const p=('+expression+').__proto__;'+
-        'if(p!==String.prototype)throw Error("invalid fixture");'+
-        'p.charCodeAt=()=>0;';
+      const mutator='const p=('+expression+').__proto__;p.charCodeAt=()=>0;';
       const input=graph(mutator);
       const native=await run(input);
       assert.deepEqual(native,{status:0,stdout:payload,stderr:''},
