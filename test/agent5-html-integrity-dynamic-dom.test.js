@@ -37,6 +37,10 @@ for(const [label,body] of /** @type {[string,string][]} */ ([
     "const field=['inner','HTML'].join('');document.head[field]="+JSON.stringify(fragment)+';'],
   ['known innerHTML setter',
     'document.head.innerHTML='+JSON.stringify(fragment)+';'],
+  ['Reflect.set DOM HTML setter',
+    "Reflect.set(document.head,'innerHTML',"+JSON.stringify(fragment)+');'],
+  ['Object.assign DOM HTML setter',
+    'Object.assign(document.head,{innerHTML:'+JSON.stringify(fragment)+'});'],
   ['known outerHTML setter',
     'document.head.outerHTML='+JSON.stringify(fragment)+';'],
   ['dynamic HTML payload into computed method',
@@ -68,7 +72,11 @@ for(const [label,body] of /** @type {[string,string][]} */ ([
   ['benign reflected native insert',
     "const insert=document.head.insertAdjacentHTML;Reflect.apply(insert,document.head,['beforeend','<p>unrelated</p>']);"],
   ['benign computed HTML field',
-    "const field=['inner','HTML'].join('');document.head[field]='<p>unrelated</p>';"]
+    "const field=['inner','HTML'].join('');document.head[field]='<p>unrelated</p>';"],
+  ['Reflect.set benign unrelated DOM field',
+    "Reflect.set(document.head,'title','unrelated');"],
+  ['Object.assign benign unrelated DOM field',
+    "Object.assign(document.head,{title:'unrelated'});"]
 ])) {
   test('benign non-integrity parser use retains private-key rewrite: '+label,()=>{
     const files=graph(body);
