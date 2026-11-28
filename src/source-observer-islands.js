@@ -225,6 +225,22 @@ function proveSourceObserverIslands(files,selections) {
     // when this ESM graph never spells a Window or Document global.
     'contentDocument','contentWindow'
   ]);
+  // The *supplied ESM import graph* being closed does not imply the host's
+  // global capability namespace is closed. An embedding runtime can expose
+  // a file reader as a previously unknown global identifier. Deny every free
+  // ambient name that is not a narrowly listed language primitive. A list
+  // of suspicious reader methods alone cannot discharge this obligation.
+  const inertAmbientNames=new Set([
+    'undefined','NaN','Infinity','console','JSON','Math','String','Number',
+    'Boolean','BigInt','Symbol','Array','Date','RegExp','Map','Set','WeakMap',
+    'WeakSet','Promise','Error','TypeError','RangeError','URIError','SyntaxError',
+    'ReferenceError','EvalError','AggregateError','parseInt','parseFloat',
+    'isNaN','isFinite','encodeURI','encodeURIComponent','decodeURI',
+    'decodeURIComponent','ArrayBuffer','DataView','Int8Array','Uint8Array',
+    'Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array',
+    'Float32Array','Float64Array','BigInt64Array','BigUint64Array',
+    'TextEncoder','TextDecoder','Buffer'
+  ]);
   const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
     // An unselected module is retained byte-for-byte, but exporting an
@@ -256,8 +272,20 @@ function proveSourceObserverIslands(files,selections) {
     walk(module.ast,(node,parent,key)=>{
       if(node.type==='ImportExpression' || node.type==='MetaProperty' ||
          node.type==='WithStatement') opaque=true;
-      if(node.type==='Identifier' && forbiddenIdentifiers.has(node.name) &&
-         !(parent?.type==='Property' && key==='key' && !parent.computed))opaque=true;
+      if(node.type==='Identifier') {
+        const nonReference=Boolean(
+          parent?.type==='Property' && key==='key' && !parent.computed ||
+          parent?.type==='MemberExpression' && key==='property' && !parent.computed ||
+          parent?.type==='ImportSpecifier' && key==='imported' ||
+          parent?.type==='ExportSpecifier' && key==='exported' ||
+          parent?.type==='LabeledStatement' && key==='label' ||
+          parent?.type==='BreakStatement' && key==='label' ||
+          parent?.type==='ContinueStatement' && key==='label'
+        );
+        if(!nonReference && (forbiddenIdentifiers.has(node.name) ||
+           (!module.bindings.has(node.name) && !inertAmbientNames.has(node.name))))
+          opaque=true;
+      }
       if(node.type==='MemberExpression') {
         const name=memberName(node);
         if(name===null || forbiddenMembers.has(name))opaque=true;
