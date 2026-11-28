@@ -14,7 +14,8 @@ const cases=[
   {name:'getElementsByName-index',receiver:'document.getElementsByName("locked")[0]'},
   {name:'getElementsByClassName-index',receiver:'document.getElementsByClassName("locked")[0]'},
   {name:'getElementsByTagName-item',receiver:'document.getElementsByTagName("div").item(0)'},
-  {name:'aliased-NodeList-item',receiver:'document.querySelectorAll("div.locked").item(0)'}
+  {name:'aliased-NodeList-item',receiver:'document.querySelectorAll("div.locked").item(0)'},
+  {name:'named-HTMLCollection-item',receiver:'document.getElementsByClassName("locked").namedItem("target")'}
 ];
 
 /** @param {typeof cases[number]} fixture @returns {string} */
@@ -53,7 +54,7 @@ test('real Chromium preserves Function#toString through native indexed DOMString
         body:variant==='native'?native:emitted});
       routes.set(root+'/index.html',{type:'text/html',
         body:'<!doctype html><html><head></head><body>'+
-          '<div class="locked">test</div><input name="locked">'+
+          '<div class="locked" id="target">test</div><input name="locked">'+
           '<script type="module" src="./entry.mjs"></script></body></html>'});
     }
     inventory.push({id:fixture.name,base:stem,mode,
