@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {createPolicy,learn,learnExpected,continuation,equivalent}=
+const {createPolicy,learn,learnExpected,continuation,equivalent,sameFutureBehavior}=
   require('../sims/sco-two-state-optimal-network-policy');
 const {runProcessBoundary}=require('../sims/sco-two-state-process-boundary');
 
@@ -151,7 +151,7 @@ test('three-state model falsifies any unconditional two-state clone certificate'
   assert.deepEqual(learned.outputs,[0,0,0,0,0,1,0]);
   assert.equal(state,2);
   assert.equal(learned.currentState,1);
-  assert.equal(equivalent([learned.clone,model],learned.currentState,2+state),false);
+  assert.equal(sameFutureBehavior(learned.clone,learned.currentState,model,state),false);
   assert.deepEqual(continuation(learned.clone,learned.currentState,[0]).outputs,[1]);
   assert.deepEqual(continuation(model,state,[0]).outputs,[0]);
 });
