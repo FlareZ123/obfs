@@ -2500,7 +2500,14 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // A closed-world, pure primitive ESM leaf is the *only* source-observer
+    // exception. Its unescaped own-record keys are local data, not externally
+    // visible function source. This does not enable identifier, string,
+    // symbol, VM, or cross-file rewriting: those retain the observer veto.
+    // Pinned integrity or a browser source producer also forbids this carveout.
+    const allowProvenLocalPropertyIsland=sourceObserverIslands.has(filename)&&
+      !hasPinnedSource&&!esmDomSourceProducers.has(filename);
+    if ((!fileSourceObserver||allowProvenLocalPropertyIsland) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
