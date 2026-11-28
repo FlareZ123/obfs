@@ -322,6 +322,7 @@ test('any malformed attempt burns its known challenge ID, blocking retry with co
 test('mutating config callbacks cannot replace snapshotted credential policy after startup',async()=>{
   const fixture=harness();
   const origins=['https://secure.example.com'];
+  /** @type {import('../src/sco-webauthn-admission').ScoWebAuthnAdmissionOptions} */
   const config={
     rpId:'example.com',allowedOrigins:origins,
     lookupCredential:async()=>null,
