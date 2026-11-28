@@ -68,6 +68,8 @@ function walk(root, visit) {
  */
 function hasWeakMapPrototypeExposure(ast) {
   const globalNames=new Set(['globalThis','window','self','global']);
+  /** @type {Set<string>} */
+  const provenPrimitiveModuleKeys=new Set();
   /** @type {Map<string,string|null>} */
   const staticStringAliases=new Map();
   walk(ast,(node,parent)=>{
@@ -513,28 +515,6 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   }
-  // Direct calls on a private const object literal can replay a method's
-  // captured carrier effects without treating arbitrary mutable properties as
-  // stable. The final use-count check is applied at the call site after all
-  // identifier occurrences have been collected.
-  /** @type {Map<string,Map<string,AstNode>>} */
-  const localObjectMethods=new Map();
-  for(const statement of ast.body??[]) {
-    const declaration=statement.type==='ExportNamedDeclaration'?
-      statement.declaration:statement;
-    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
-    for(const item of declaration.declarations??[]) {
-      if(item.id?.type!=='Identifier'||item.init?.type!=='ObjectExpression')continue;
-      const methods=new Map();
-      for(const property of item.init.properties??[]) {
-        if(property.type!=='Property'||!functionTypes.has(property.value?.type))continue;
-        const key=carrierStaticKey(property.key,property.computed);
-        if(key!==null)methods.set(key,property.value);
-      }
-      if(methods.size)localObjectMethods.set(item.id.name,methods);
-    }
-  }
-
   /**
    * @param {AstNode|null|undefined} pattern
    * @param {Map<string,number>} counts
@@ -601,13 +581,42 @@ function hasWeakMapPrototypeExposure(ast) {
   // Keep this precision proof deliberately scoped to module bindings.
   /** @type {Map<string,number>} */
   const identifierOccurrences=new Map();
+  /** @type {Map<string,number>} */
+  const directConstructorReferences=new Map();
+  /** @type {Set<string>} */
+  const exportedDefaultClassNames=new Set();
   let hasDirectEval=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
     if(node.type==='Identifier')
       identifierOccurrences.set(node.name,(identifierOccurrences.get(node.name)??0)+1);
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier')
+      directConstructorReferences.set(node.callee.name,
+        (directConstructorReferences.get(node.callee.name)??0)+1);
+    if(node.type==='ClassDeclaration'&&node.id?.type==='Identifier'&&
+       parent?.type==='ExportDefaultDeclaration')
+      exportedDefaultClassNames.add(node.id.name);
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        (node.callee.name==='eval'||node.callee.name==='Function'))hasDirectEval=true;
   });
+  // A unique top-level module const is a declarative lexical binding. If
+  // initialized by an effect-free primitive expression it cannot later turn
+  // into an object with a ToPropertyKey hook; reject shadowed names, direct
+  // eval and non-module source before considering this precision exception.
+  if(ast.sourceType==='module'&&!hasDirectEval) {
+    for(const statement of ast.body??[]) {
+      const declaration=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:statement;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')
+        continue;
+      for(const binding of declaration.declarations??[]) {
+        if(binding.id?.type!=='Identifier'||
+           localBindingCounts.get(binding.id.name)!==1||
+           reassignedLocalFunctions.has(binding.id.name))continue;
+        if(primitiveComputedKeyWithoutEffects(binding.init))
+          provenPrimitiveModuleKeys.add(binding.id.name);
+      }
+    }
+  }
   /** @type {WeakSet<AstNode>} */
   const unobservedGetterInitializers=new WeakSet();
   if(ast.sourceType==='module'&&!hasDirectEval) {
@@ -1219,7 +1228,7 @@ function hasWeakMapPrototypeExposure(ast) {
   // It intentionally models only statically resolvable object/array keys;
   // unresolved imported/dynamic values are treated as possibly carrying a
   // WeakMap when they reach an opaque call.
-  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,unknown:boolean}} CarrierContainer */
+  /** @typedef {{kind:'container',properties:Map<string,CarrierValue>,accessors:Set<string>,unknown:boolean}} CarrierContainer */
   /** @typedef {{kind:'weakmap'}|{kind:'maybe'}|{kind:'other'}|CarrierContainer} CarrierValue */
   /** @type {CarrierValue} */
   const carrierWeakMap={kind:'weakmap'};
@@ -1229,7 +1238,7 @@ function hasWeakMapPrototypeExposure(ast) {
   const carrierOther={kind:'other'};
   /** @returns {CarrierContainer} */
   function carrierContainer() {
-    return {kind:'container',properties:new Map(),unknown:false};
+    return {kind:'container',properties:new Map(),accessors:new Set(),unknown:false};
   }
   /**
    * @param {AstNode} property
@@ -1275,9 +1284,7 @@ function hasWeakMapPrototypeExposure(ast) {
   function carrierLookupValue(container,key) {
     if(container.kind!=='container')return carrierOther;
     if(key!==null) {
-      const known=container.properties.get(key)??carrierOther;
-      if(container.properties.has(key))
-        return container.unknown?mergeCarrierValues(known,carrierMaybe):known;
+      if(container.properties.has(key))return container.properties.get(key)??carrierOther;
       return container.unknown?carrierMaybe:carrierOther;
     }
     let value=carrierOther;
@@ -1306,6 +1313,9 @@ function hasWeakMapPrototypeExposure(ast) {
       const merged=carrierContainer();
       byRight.set(right,merged);
       merged.unknown=left.unknown||right.unknown;
+      // Joining data and accessor alternatives retains possible setters.
+      for(const key of left.accessors)merged.accessors.add(key);
+      for(const key of right.accessors)merged.accessors.add(key);
       for(const [key,value] of left.properties)merged.properties.set(key,value);
       for(const [key,value] of right.properties) {
         merged.properties.set(key,merged.properties.has(key)?
@@ -1332,6 +1342,7 @@ function hasWeakMapPrototypeExposure(ast) {
     const copy=carrierContainer();
     memo.set(value,copy);
     copy.unknown=value.unknown;
+    for(const key of value.accessors)copy.accessors.add(key);
     for(const [key,nested] of value.properties)
       copy.properties.set(key,cloneCarrierValue(nested,memo));
     return copy;
@@ -1367,32 +1378,6 @@ function hasWeakMapPrototypeExposure(ast) {
       for(let index=1;index<states.length;index++)
         value=mergeCarrierValues(value,states[index].get(name)??carrierOther,memo);
       target.set(name,value);
-    }
-    // A single concrete post-join container cannot encode aliases that exist
-    // on only some predecessors. When two bindings alias in any predecessor
-    // but not all predecessors, retain soundness by marking both joined
-    // containers as having an unknown overlapping slot. Static field reads
-    // then conservatively include MaybeWeakMap via carrierLookupValue.
-    const ordered=[...names];
-    for(let leftIndex=0;leftIndex<ordered.length;leftIndex++) {
-      for(let rightIndex=leftIndex+1;rightIndex<ordered.length;rightIndex++) {
-        const leftName=ordered[leftIndex];
-        const rightName=ordered[rightIndex];
-        let aliasSome=false;
-        let aliasAll=true;
-        for(const state of states) {
-          const left=state.get(leftName)??carrierOther;
-          const right=state.get(rightName)??carrierOther;
-          const aliases=left.kind==='container'&&right.kind==='container'&&left===right;
-          aliasSome=aliasSome||aliases;
-          aliasAll=aliasAll&&aliases;
-        }
-        if(!aliasSome||aliasAll)continue;
-        const joinedLeft=target.get(leftName);
-        const joinedRight=target.get(rightName);
-        if(joinedLeft?.kind==='container')joinedLeft.unknown=true;
-        if(joinedRight?.kind==='container')joinedRight.unknown=true;
-      }
     }
   }
   /**
@@ -1469,10 +1454,21 @@ function hasWeakMapPrototypeExposure(ast) {
           value.unknown=true;
           continue;
         }
-        const getterMayReturnWeakMap=property.kind==='get'&&
-          functionMayReturnWeakMap(property.value);
-        value.properties.set(propertyKey,getterMayReturnWeakMap?
-          carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
+        // Source-order getter and setter definitions coalesce into one
+        // accessor descriptor; data definitions replace that descriptor.
+        if(property.kind==='set') {
+          const alreadyAccessor=value.accessors.has(propertyKey);
+          value.accessors.add(propertyKey);
+          if(!alreadyAccessor)value.properties.set(propertyKey,carrierOther);
+        } else if(property.kind==='get') {
+          value.accessors.add(propertyKey);
+          value.properties.set(propertyKey,functionMayReturnWeakMap(property.value)?
+            carrierMaybe:carrierOther);
+        } else {
+          value.accessors.delete(propertyKey);
+          value.properties.set(propertyKey,
+            evaluateCarrierValue(property.value,environment,thisValue));
+        }
       }
       return value;
     }
@@ -1571,6 +1567,51 @@ function hasWeakMapPrototypeExposure(ast) {
     return carrierOther;
   }
   /**
+   * Binding patterns execute computed ToPropertyKey conversions while values
+   * are being destructured, including function parameters and catch clauses.
+   * The value-only binder cannot transfer these effects. Visit the explicit
+   * key expressions in their textual order and refuse any unproved object
+   * key whose implicit coercion may call host/user code.
+   * @param {AstNode|null|undefined} pattern
+   * @param {Map<string,CarrierValue>} environment
+   * @param {CarrierValue} [thisValue=carrierOther]
+   * @returns {void}
+   */
+  function visitCarrierBindingPatternEffects(pattern,environment,thisValue=carrierOther) {
+    if(!pattern)return;
+    if(pattern.type==='ObjectPattern') {
+      for(const entry of pattern.properties??[]) {
+        if(entry.type==='RestElement') {
+          visitCarrierBindingPatternEffects(entry.argument,environment,thisValue);
+        } else if(entry.type==='Property') {
+          if(entry.computed) {
+            visitCarrierExpression(entry.key,environment,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(entry.key))exposed=true;
+          }
+          visitCarrierBindingPatternEffects(entry.value,environment,thisValue);
+        }
+      }
+      return;
+    }
+    if(pattern.type==='ArrayPattern') {
+      for(const element of pattern.elements??[])
+        visitCarrierBindingPatternEffects(element,environment,thisValue);
+      return;
+    }
+    if(pattern.type==='RestElement') {
+      visitCarrierBindingPatternEffects(pattern.argument,environment,thisValue);
+      return;
+    }
+    if(pattern.type==='AssignmentPattern') {
+      // Evaluating a default is conditional on the bound value being
+      // undefined. The abstract binder cannot prove this for unknown values.
+      // Refuse effectful defaults rather than unconditionally overwriting the
+      // reaching state with a possibly skipped assignment.
+      if(!primitiveComputedKeyWithoutEffects(pattern.right))exposed=true;
+      visitCarrierBindingPatternEffects(pattern.left,environment,thisValue);
+    }
+  }
+  /**
    * @param {AstNode} pattern
    * @param {CarrierValue} value
    * @param {Map<string,CarrierValue>} environment
@@ -1634,6 +1675,220 @@ function hasWeakMapPrototypeExposure(ast) {
   }
   /** @type {Map<AstNode,Map<string,CarrierValue>>} */
   const functionClosureEnvironments=new Map();
+  // Instance field *values* execute on construction, not class declaration;
+  // computed field *keys* still execute when the class is defined.
+  /** @type {Map<string,AstNode[]>} */
+  const instanceFieldInitializers=new Map();
+  /** @type {WeakMap<AstNode,AstNode[]>} */
+  const classExpressionInitializers=new WeakMap();
+  /** @type {WeakMap<AstNode,string>} */
+  const provenClassExpressionOwners=new WeakMap();
+  /** @type {WeakSet<AstNode>} */
+  const unobservedClassExpressions=new WeakSet();
+  /** @type {WeakSet<AstNode>} */
+  const directlyConstructedClassExpressions=new WeakSet();
+  /**
+   * A static initializer or block can construct its enclosing class before
+   * instance-field transfer is registered, including via aliases or unknown
+   * callees. The local carrier model cannot prove those call/escape effects.
+   * This deliberately refuses effectful instance fields while retaining
+   * class definitions whose static work has no such invocation/escape.
+   * @param {AstNode[]} elements
+   * @returns {boolean}
+   */
+  function classStaticMayActivateInstanceFields(elements) {
+    /**
+     * Deliberately narrow no-user-code certificate for a static initializer.
+     * An Identifier is inert only when bound by a prior local static-block
+     * declaration; ambient globals may be accessor-backed host capabilities.
+     * An arrow/function literal is inert only when kept in a block-local
+     * declarator, never when published as a persistent static class field.
+     * @param {AstNode|null|undefined} node
+     * @param {Set<string>} locals
+     * @param {boolean} localCallable
+     * @returns {boolean}
+     */
+    function inertExpression(node,locals,localCallable=false) {
+      if(!node)return true;
+      if(node.type==='Literal')return true;
+      if(node.type==='Identifier')return locals.has(node.name);
+      if(node.type==='ArrowFunctionExpression'||node.type==='FunctionExpression')
+        return localCallable;
+      if(node.type==='TemplateLiteral')return (node.expressions?.length??0)===0;
+      if(node.type==='UnaryExpression')
+        return ['!','void','typeof'].includes(node.operator)&&
+          inertExpression(node.argument,locals);
+      if(node.type==='BinaryExpression') {
+        if(!inertExpression(node.left,locals)||!inertExpression(node.right,locals))
+          return false;
+        // Strict equality performs no coercion on objects. Arithmetic must
+        // use literals, never an object with user-defined ToPrimitive hooks.
+        if(['===','!=='].includes(node.operator))return true;
+        const primitives=[node.left,node.right].every(part=>
+          part?.type==='Literal'&&
+          ['number','string','boolean','bigint'].includes(typeof part.value));
+        return primitives&&
+          ['+','-','*','/','%','**','<<','>>','>>>','|','&','^',
+            '<','<=','>','>=','==','!='].includes(node.operator);
+      }
+      if(node.type==='LogicalExpression')
+        return inertExpression(node.left,locals)&&
+          inertExpression(node.right,locals);
+      if(node.type==='ConditionalExpression')
+        return inertExpression(node.test,locals)&&
+          inertExpression(node.consequent,locals)&&
+          inertExpression(node.alternate,locals);
+      if(node.type==='SequenceExpression')
+        return (/** @type {AstNode[]} */(node.expressions??[])).every(
+          (part)=>inertExpression(part,locals));
+      if(node.type==='ArrayExpression')
+        return (/** @type {Array<AstNode|null>} */(node.elements??[])).every(
+          (part)=>part?.type!=='SpreadElement'&&inertExpression(part,locals));
+      if(node.type==='ObjectExpression')
+        return (/** @type {AstNode[]} */(node.properties??[])).every(property=>{
+          if(property.type!=='Property'||property.computed)return false;
+          // Defining a method/getter is inert; executing one is not. The
+          // enclosing record must stay local and every later operation in
+          // this block must independently pass this same certificate.
+          return ['init','get','set'].includes(property.kind)&&
+            inertExpression(property.value,locals,true);
+        });
+      return false;
+    }
+    /**
+     * @param {AstNode[]} statements
+     * @param {Set<string>} [outer=new Set()]
+     * @returns {boolean}
+     */
+    function inertStatements(statements,outer=new Set()) {
+      const locals=new Set(outer);
+      for(const statement of statements) {
+        if(statement.type==='EmptyStatement')continue;
+        if(statement.type==='FunctionDeclaration') {
+          if(statement.id?.type!=='Identifier')return false;
+          locals.add(statement.id.name);
+          continue;
+        }
+        if(statement.type==='VariableDeclaration') {
+          for(const declaration of statement.declarations??[]) {
+            if(declaration.id?.type!=='Identifier'||
+               !inertExpression(declaration.init,locals,true))return false;
+            locals.add(declaration.id.name);
+          }
+          continue;
+        }
+        if(statement.type==='ExpressionStatement') {
+          if(!inertExpression(statement.expression,locals))return false;
+          continue;
+        }
+        if(statement.type==='BlockStatement') {
+          if(!inertStatements(statement.body??[],locals))return false;
+          continue;
+        }
+        if(statement.type==='IfStatement') {
+          if(!inertExpression(statement.test,locals)||
+             !inertStatements([statement.consequent],locals)||
+             statement.alternate&&
+               !inertStatements([statement.alternate],locals))return false;
+          continue;
+        }
+        return false;
+      }
+      return true;
+    }
+    for(const element of elements) {
+      if(element.type==='StaticBlock') {
+        if(!inertStatements(element.body??[]))return true;
+      } else if(element.type==='PropertyDefinition'&&element.static) {
+        // A nonliteral computed class key itself may invoke ToPropertyKey.
+        if(element.computed&&element.key?.type!=='Literal')return true;
+        if(!inertExpression(element.value,new Set()))return true;
+      }
+    }
+    return false;
+  }
+  /**
+   * Conservatively screen field expressions whose execution may change
+   * reaching carrier state or invoke/observe the surrounding host.
+   * @param {AstNode[]} initializers
+   * @returns {boolean}
+   */
+  function classInstanceFieldsHaveEffects(initializers) {
+    let effectful=false;
+    for(const initializer of initializers)walk(initializer,child=>{
+      if(['AssignmentExpression','UpdateExpression','CallExpression',
+          'NewExpression','MemberExpression','AwaitExpression',
+          'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+        effectful=true;
+    });
+    return effectful;
+  }
+  if(ast.sourceType==='module'&&!hasDirectEval)walk(ast,(node,parent)=>{
+    if(node.type==='NewExpression'&&node.callee.type==='ClassExpression')
+      directlyConstructedClassExpressions.add(node.callee);
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       parent?.kind!=='const'||exportedLocalNames.has(node.id.name)||
+       reassignedLocalFunctions.has(node.id.name)||
+       localBindingCounts.get(node.id.name)!==1)return;
+    const name=node.id.name;
+    const direct=directConstructorReferences.get(name)??0;
+    if(node.init?.type==='ClassExpression'&&
+       identifierOccurrences.get(name)===1+direct)
+      provenClassExpressionOwners.set(node.init,name);
+    if(node.init?.type==='ObjectExpression'&&identifierOccurrences.get(name)===1)
+      for(const property of node.init.properties??[])
+        if(property.type==='Property'&&property.value?.type==='ClassExpression')
+          unobservedClassExpressions.add(property.value);
+  });
+  /**
+   * Certify that evaluating a computed property name returns a primitive
+   * without performing any user-observable operation. ToPropertyKey of an
+   * object (including a RegExp literal) may call an arbitrarily patched
+   * Symbol.toPrimitive/valueOf/toString hook, which can mutate a carrier
+   * before a later WeakMap.prototype source observer is installed.
+   *
+   * This is an intentionally small sufficient proof, not a value inference
+   * from name spelling: unknown identifiers and member reads fail closed.
+   * @param {AstNode|null|undefined} key
+   * @param {number} [depth=0]
+   * @returns {boolean}
+   */
+  function primitiveComputedKeyWithoutEffects(key,depth=0) {
+    if(!key||depth>16)return false;
+    if(key.type==='Identifier')return provenPrimitiveModuleKeys.has(key.name);
+    if(key.type==='Literal')
+      return key.regex===undefined&&
+        (key.value===null||['string','number','boolean','bigint'].includes(typeof key.value));
+    if(key.type==='TemplateLiteral')
+      return (key.expressions??[]).every(
+        (/** @type {AstNode} */ expression)=>
+          primitiveComputedKeyWithoutEffects(expression,depth+1));
+    if(key.type==='UnaryExpression')
+      return ['+','-','!','~','void','typeof'].includes(key.operator)&&
+        primitiveComputedKeyWithoutEffects(key.argument,depth+1);
+    if(key.type==='BinaryExpression')
+      return ['+','-','*','/','%','**','<<','>>','>>>','|','&','^',
+        '<','<=','>','>=','==','!=','===','!=='].includes(key.operator)&&
+        primitiveComputedKeyWithoutEffects(key.left,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.right,depth+1);
+    if(key.type==='LogicalExpression')
+      return primitiveComputedKeyWithoutEffects(key.left,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.right,depth+1);
+    if(key.type==='ConditionalExpression')
+      return primitiveComputedKeyWithoutEffects(key.test,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.consequent,depth+1)&&
+        primitiveComputedKeyWithoutEffects(key.alternate,depth+1);
+    if(key.type==='SequenceExpression') {
+      // Earlier expression effects are transferred by the carrier visitor.
+      // ToPropertyKey sees the final expression's value, not the prefix.
+      const parts=/** @type {AstNode[]} */(key.expressions??[]);
+      return parts.length>0&&
+        primitiveComputedKeyWithoutEffects(parts.at(-1),depth+1);
+    }
+    return false;
+  }
+  /** @type {Set<string>} */
+  const activeInstanceFieldConstructors=new Set();
   /** @type {Set<AstNode>} */
   const activeLocalCallEffects=new Set();
   /**
@@ -1657,62 +1912,11 @@ function hasWeakMapPrototypeExposure(ast) {
     const base=evaluateCarrierValue(assignment.left.object,environment,thisValue);
     const key=carrierStaticKey(assignment.left.property,assignment.left.computed);
     if(base.kind!=='container'||base.unknown||key===null||
-       !base.properties.has(key))return false;
+       (!base.properties.has(key)||base.accessors.has(key)))return false;
     const right=assignment.right;
     if(right.type==='Literal')return true;
     return right.type==='NewExpression'&&right.callee.type==='Identifier'&&
       (right.arguments?.length??0)===0&&pureEmptyClassNames.has(right.callee.name);
-  }
-  /**
-   * Replay a stable local callable against the current carrier state.
-   * Parameters receive the abstract values of direct call arguments; opaque
-   * callback invocations receive Maybe for missing arguments. Parameter names
-   * are function-local and therefore never flow back into same-spelled outer
-   * bindings after the replay.
-   * @param {AstNode} local
-   * @param {Map<string,CarrierValue>} environment
-   * @param {CarrierValue} thisValue
-   * @param {boolean} direct
-   * @param {AstNode[]} callArguments
-   * @param {boolean} allowDefinite
-   * @returns {void}
-   */
-  function replayCarrierFunctionNode(local,environment,thisValue,direct,
-    callArguments,allowDefinite) {
-    if(local.async||local.generator||local.body?.type!=='BlockStatement')return;
-    if(activeLocalCallEffects.has(local)) {
-      // Recursive effects need an explicit fixed-point proof; otherwise the
-      // caller's abstract state cannot justify a source-spelling rewrite.
-      exposed=true;
-      return;
-    }
-    const definite=direct&&allowDefinite&&
-      provenDefiniteLocalSlotWrite(local,environment,thisValue);
-    const before=forkCarrierEnvironment(environment);
-    const invoked=forkCarrierEnvironment(environment);
-    /** @type {Map<string,number>} */
-    const parameterNames=new Map();
-    for(let index=0;index<(local.params??[]).length;index++) {
-      const parameter=local.params[index];
-      addPatternBindings(parameter,parameterNames);
-      const argument=callArguments[index];
-      const value=!argument||argument.type==='SpreadElement'?
-        carrierMaybe:evaluateCarrierValue(argument,environment,thisValue);
-      bindCarrierPattern(parameter,value,invoked);
-    }
-    activeLocalCallEffects.add(local);
-    try {
-      visitCarrierStatement(local.body,invoked,thisValue);
-    } finally {
-      activeLocalCallEffects.delete(local);
-    }
-    /** @type {Map<string,CarrierValue>} */
-    const outerEffects=new Map();
-    for(const key of before.keys())
-      outerEffects.set(key,parameterNames.has(key)?
-        before.get(key)??carrierOther:invoked.get(key)??carrierOther);
-    if(definite)joinCarrierEnvironments(environment,outerEffects);
-    else joinCarrierEnvironments(environment,before,outerEffects);
   }
   /**
    * A proven stable local helper may write captured outer bindings even when
@@ -1723,15 +1927,35 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {Map<string,CarrierValue>} environment
    * @param {CarrierValue} thisValue
    * @param {boolean} [direct=false]
-   * @param {AstNode[]} [callArguments=[]]
    * @returns {void}
    */
-  function replayLocalFunctionEffects(name,environment,thisValue,direct=false,
-    callArguments=[]) {
+  function replayLocalFunctionEffects(name,environment,thisValue,direct=false) {
     const local=localFunctionNodes.get(name);
-    if(!local||reassignedLocalFunctions.has(name))return;
-    replayCarrierFunctionNode(local,environment,thisValue,direct,callArguments,
-      localBindingCounts.get(name)===1);
+    if(!local||local.params.length!==0||local.async||local.generator||
+       local.body?.type!=='BlockStatement'||
+       reassignedLocalFunctions.has(name))return;
+    if(activeLocalCallEffects.has(local)) {
+      // Recursive effects need an explicit fixed-point proof; otherwise the
+      // caller's abstract state cannot justify a source-spelling rewrite.
+      exposed=true;
+      return;
+    }
+    const definite=direct&&localBindingCounts.get(name)===1&&
+      provenDefiniteLocalSlotWrite(local,environment,thisValue);
+    const before=forkCarrierEnvironment(environment);
+    const invoked=forkCarrierEnvironment(environment);
+    activeLocalCallEffects.add(local);
+    try {
+      visitCarrierStatement(local.body,invoked,thisValue);
+    } finally {
+      activeLocalCallEffects.delete(local);
+    }
+    /** @type {Map<string,CarrierValue>} */
+    const outerEffects=new Map();
+    for(const key of before.keys())
+      outerEffects.set(key,invoked.get(key)??carrierOther);
+    if(definite)joinCarrierEnvironments(environment,outerEffects);
+    else joinCarrierEnvironments(environment,before,outerEffects);
   }
   /**
    * @param {CarrierValue} target
@@ -1747,8 +1971,13 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     const getter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
       property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='get');
-    if(!getter)return;
-    target.properties.set(key,functionMayReturnWeakMap(getter.value)?
+    const setter=(descriptor.properties??[]).find((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&carrierStaticKey(property.key,property.computed)==='set');
+    if(!getter&&!setter)return;
+    // The native descriptor remains an accessor across later writes, even
+    // if a helper assigns to its property or the setter does nothing.
+    target.accessors.add(key);
+    target.properties.set(key,getter&&functionMayReturnWeakMap(getter.value)?
       carrierMaybe:carrierOther);
   }
   /**
@@ -1759,14 +1988,94 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function visitCarrierExpression(node,environment,thisValue=carrierOther) {
     if(!node)return;
+    if(node.type==='ClassExpression') {
+      // Class-expression computed keys and static bodies run at definition;
+      // instance field value initializers do not run until construction.
+      visitCarrierExpression(node.superClass,environment,thisValue);
+      const staticValue=carrierContainer();
+      /** @type {AstNode[]} */
+      const deferred=[];
+      for(const element of node.body?.body??[]) {
+        if(element.computed) {
+          visitCarrierExpression(element.key,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(element.key))exposed=true;
+        }
+        if(element.type==='PropertyDefinition') {
+          if(element.static)visitCarrierExpression(element.value,environment,staticValue);
+          else if(element.value)deferred.push(element.value);
+        } else if(element.type==='StaticBlock') {
+          visitCarrierStatement(element,environment,staticValue);
+        } else if(element.type==='MethodDefinition'&&element.value?.body) {
+          if(!functionClosureEnvironments.has(element.value))
+            functionClosureEnvironments.set(element.value,new Map(environment));
+        }
+      }
+      classExpressionInitializers.set(node,deferred);
+      if(deferred.length&&classStaticMayActivateInstanceFields(node.body?.body??[])&&
+         classInstanceFieldsHaveEffects(deferred))exposed=true;
+      const owner=provenClassExpressionOwners.get(node);
+      if(owner&&deferred.length)instanceFieldInitializers.set(owner,deferred);
+      const isUnproved=deferred.length>0&&!owner&&
+        !unobservedClassExpressions.has(node)&&
+        !directlyConstructedClassExpressions.has(node);
+      if(isUnproved) {
+        for(const initializer of deferred) {
+          walk(initializer,child=>{
+            if(['AssignmentExpression','UpdateExpression','CallExpression',
+                'NewExpression','MemberExpression','AwaitExpression',
+                'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+              exposed=true;
+          });
+        }
+      }
+      return;
+    }
     if(functionTypes.has(node.type)) {
       if(!functionClosureEnvironments.has(node))
         functionClosureEnvironments.set(node,environment);
       return;
     }
+    // Optional chains evaluate the receiver before deciding whether the
+    // computed key, call arguments or invocation may run. For receivers with
+    // unproved effects, fail closed rather than re-evaluate an expression.
+    if(node.type==='CallExpression') {
+      const receiver=node.callee.type==='MemberExpression'&&
+        node.callee.optional?node.callee.object:
+        node.optional?node.callee:null;
+      if(receiver) {
+        if(!['Identifier','Literal'].includes(receiver.type)) {
+          exposed=true;
+          return;
+        }
+        if(receiver.type==='Literal'&&receiver.value===null)return;
+        const receiverValue=evaluateCarrierValue(receiver,environment,thisValue);
+        if(receiverValue.kind!=='container'&&receiverValue.kind!=='weakmap') {
+          const bypass=forkCarrierEnvironment(environment);
+          const invoked=forkCarrierEnvironment(environment);
+          const callee=node.callee.type==='MemberExpression'?
+            {...node.callee,optional:false}:node.callee;
+          visitCarrierExpression({...node,optional:false,callee},invoked,thisValue);
+          joinCarrierEnvironments(environment,bypass,invoked);
+          return;
+        }
+      }
+    }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       const operation=memberKey(node.callee);
       const namespace=node.callee.object;
+      // A native Object/Reflect method applies ToPropertyKey to its key
+      // argument *inside* the call. Its argument AST may be a harmless
+      // Identifier whose object-valued runtime payload has a mutating
+      // @@toPrimitive/toString hook. Alias/unknown methods remain guarded
+      // by their pre-existing opaque-call analysis.
+      const nativeKeyArgument=
+        isNamespace(namespace,reflectNamespaces)&&
+          ['get','set','has','deleteProperty','defineProperty',
+           'getOwnPropertyDescriptor'].includes(operation??'')||
+        isNamespace(namespace,objectNamespaces)&&
+          ['hasOwn','defineProperty','getOwnPropertyDescriptor'].includes(operation??'');
+      if(nativeKeyArgument&&node.arguments.length>=2&&
+         !primitiveComputedKeyWithoutEffects(node.arguments[1]))exposed=true;
       const isObjectDefinition=isNamespace(namespace,objectNamespaces)&&
         ['defineProperty','defineProperties'].includes(operation??'');
       const isReflectDefinition=isNamespace(namespace,reflectNamespaces)&&
@@ -1815,34 +2124,78 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       visitCarrierExpression(node.callee,environment,thisValue);
       if(node.callee.type==='Identifier')
-        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true,
-          node.arguments??[]);
-      if(node.callee.type==='MemberExpression' &&
-         node.callee.object.type==='Identifier') {
-        const owner=node.callee.object.name;
-        const method=carrierStaticKey(node.callee.property,node.callee.computed);
-        const localMethod=method===null?undefined:localObjectMethods.get(owner)?.get(method);
-        // Exactly two owner references prove the private const object appears
-        // only at its declaration and this direct method call. This excludes
-        // mutation/escape surfaces without assuming arbitrary member stability.
-        if(localMethod&&localBindingCounts.get(owner)===1&&
-           identifierOccurrences.get(owner)===2&&!hasDirectEval) {
-          replayCarrierFunctionNode(localMethod,environment,
-            evaluateCarrierValue(node.callee.object,environment,thisValue),
-            true,node.arguments??[],true);
-        }
-      }
+        replayLocalFunctionEffects(node.callee.name,environment,thisValue,true);
       return;
     }
     if(node.type==='NewExpression') {
+      // The constructor reference (including a computed property key) runs
+      // before constructor arguments and may mutate reaching carrier state.
+      visitCarrierExpression(node.callee,environment,thisValue);
       for(const argument of node.arguments??[]) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
         visitCarrierExpression(argument,environment,thisValue);
       }
+      if(node.callee.type==='ClassExpression') {
+        const fields=classExpressionInitializers.get(node.callee)??[];
+        for(const initializer of fields)
+          visitCarrierExpression(initializer,environment,carrierOther);
+      }
+      if(node.callee.type==='Identifier') {
+        const className=node.callee.name;
+        const fields=instanceFieldInitializers.get(className);
+        if(fields?.length) {
+          if(activeInstanceFieldConstructors.has(className))exposed=true;
+          else {
+            activeInstanceFieldConstructors.add(className);
+            try {
+              for(const initializer of fields)
+                visitCarrierExpression(initializer,environment,carrierOther);
+            } finally {
+              activeInstanceFieldConstructors.delete(className);
+            }
+          }
+        }
+      }
       return;
     }
     if(node.type==='AssignmentExpression') {
+      // Logical writes may skip both their RHS and assignment. The known
+      // WeakMap/record abstract kinds are truthy and non-nullish. All other
+      // known-safe references must preserve the no-write predecessor.
+      if(['||=','??=','&&='].includes(node.operator)) {
+        const simpleLeft=node.left.type==='Identifier'||
+          node.left.type==='MemberExpression'&&
+          node.left.object.type==='Identifier'&&
+          (!node.left.computed||
+            carrierStaticKey(node.left.property,true)!==null);
+        if(!simpleLeft) {
+          // An effectful computed reference needs ordered reference/value
+          // transfer, not replay of its computed key on both paths.
+          exposed=true;
+          return;
+        }
+        const prior=evaluateCarrierValue(node.left,environment,thisValue);
+        const definitelyTruthy=prior.kind==='weakmap'||prior.kind==='container';
+        if(definitelyTruthy&&['||=','??='].includes(node.operator))return;
+        if(!definitelyTruthy) {
+          const skipped=forkCarrierEnvironment(environment);
+          const written=forkCarrierEnvironment(environment);
+          const assignment={...node,operator:'='};
+          visitCarrierExpression(assignment,written,thisValue);
+          joinCarrierEnvironments(environment,skipped,written);
+          return;
+        }
+      }
+      // ECMAScript resolves a member reference, including computed property
+      // key effects, before evaluating its assigned RHS.
+      if(node.left.type==='MemberExpression') {
+        visitCarrierExpression(node.left.object,environment,thisValue);
+        if(node.left.computed) {
+          visitCarrierExpression(node.left.property,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(node.left.property))exposed=true;
+        }
+      }
       visitCarrierExpression(node.right,environment,thisValue);
       const assigned=evaluateCarrierValue(node.right,environment,thisValue);
       if(node.left.type==='Identifier') {
@@ -1852,7 +2205,12 @@ function hasWeakMapPrototypeExposure(ast) {
         const key=carrierStaticKey(node.left.property,node.left.computed);
         if(base.kind==='container') {
           if(key===null)base.unknown=true;
-          else base.properties.set(key,assigned);
+          else if(base.accessors.has(key)) {
+            // A setter need not modify a getter's reaching return carrier;
+            // on joined accessor/data paths either old or new may survive.
+            base.properties.set(key,
+              mergeCarrierValues(base.properties.get(key)??carrierOther,assigned));
+          } else base.properties.set(key,assigned);
         } else if(base.kind==='maybe'&&(
           carrierMayContainWeakMap(assigned)||['set','get','has','delete'].includes(key??'')
         )) {
@@ -1860,8 +2218,8 @@ function hasWeakMapPrototypeExposure(ast) {
         } else if(base.kind==='weakmap'&&['set','get','has','delete'].includes(key??'')) {
           exposed=true;
         }
-        visitCarrierExpression(node.left.object,environment,thisValue);
       } else if(node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern') {
+        visitCarrierBindingPatternEffects(node.left,environment,thisValue);
         bindCarrierPattern(node.left,assigned,environment);
       }
       return;
@@ -1870,6 +2228,11 @@ function hasWeakMapPrototypeExposure(ast) {
       for(const property of node.properties??[]) {
         if(property.type==='SpreadElement')visitCarrierExpression(property.argument,environment,thisValue);
         else if(property.type==='Property') {
+          // Computed object keys are executed before property values.
+          if(property.computed) {
+            visitCarrierExpression(property.key,environment,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(property.key))exposed=true;
+          }
           visitCarrierExpression(property.value,environment,thisValue);
           // A source-visible getter can be invoked by any later property
           // read or reflection. Union its captured outer-binding effects with
@@ -1897,14 +2260,37 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(node.type==='MemberExpression') {
       visitCarrierExpression(node.object,environment,thisValue);
-      if(node.computed)visitCarrierExpression(node.property,environment,thisValue);
+      if(node.optional) {
+        if(!['Identifier','Literal'].includes(node.object.type)) {
+          exposed=true;
+          return;
+        }
+        if(node.object.type==='Literal'&&node.object.value===null)return;
+        const receiver=evaluateCarrierValue(node.object,environment,thisValue);
+        if(receiver.kind!=='container'&&receiver.kind!=='weakmap') {
+          const bypass=forkCarrierEnvironment(environment);
+          const evaluated=forkCarrierEnvironment(environment);
+          if(node.computed) {
+            visitCarrierExpression(node.property,evaluated,thisValue);
+            if(!primitiveComputedKeyWithoutEffects(node.property))exposed=true;
+          }
+          joinCarrierEnvironments(environment,bypass,evaluated);
+          return;
+        }
+      }
+      if(node.computed) {
+        visitCarrierExpression(node.property,environment,thisValue);
+        if(!primitiveComputedKeyWithoutEffects(node.property))exposed=true;
+      }
       return;
     }
     if(node.type==='VariableDeclaration') {
       for(const declaration of node.declarations??[]) {
         visitCarrierExpression(declaration.init,environment,thisValue);
-        bindCarrierPattern(declaration.id,
-          evaluateCarrierValue(declaration.init,environment,thisValue),environment);
+        // The RHS value is computed before the pattern's key operations.
+        const initial=evaluateCarrierValue(declaration.init,environment,thisValue);
+        visitCarrierBindingPatternEffects(declaration.id,environment,thisValue);
+        bindCarrierPattern(declaration.id,initial,environment);
       }
       return;
     }
@@ -1941,6 +2327,14 @@ function hasWeakMapPrototypeExposure(ast) {
       joinCarrierEnvironments(environment,bypass,evaluated);
       return;
     }
+    if(node.type==='BinaryExpression'&&node.operator==='in') {
+      visitCarrierExpression(node.left,environment,thisValue);
+      visitCarrierExpression(node.right,environment,thisValue);
+      // The left operand is converted by ToPropertyKey only after its
+      // expression and the right operand have been evaluated.
+      if(!primitiveComputedKeyWithoutEffects(node.left))exposed=true;
+      return;
+    }
     for(const value of Object.values(node)) {
       if(Array.isArray(value)) {
         for(const child of value) {
@@ -1974,6 +2368,85 @@ function hasWeakMapPrototypeExposure(ast) {
         carrierDefinitelyAbrupt(statement.consequent)&&
         carrierDefinitelyAbrupt(statement.alternate));
     }
+    if(statement.type==='TryStatement') {
+      // A finalizer that unconditionally exits prevents any following
+      // statement, irrespective of how try/catch completed. Without a catch,
+      // a definitely abrupt try block also cannot resume after finally:
+      // normal completion of finally preserves the pending abrupt exit.
+      // A catch can resume normally, so it requires a separate proof.
+      if(statement.finalizer&&carrierDefinitelyAbrupt(statement.finalizer))
+        return true;
+      return !statement.handler&&carrierDefinitelyAbrupt(statement.block);
+    }
+    return false;
+  }
+  /**
+   * A return or throw within a loop/switch may bypass statements after the
+   * enclosing construct. Bare break is consumed by the nearest loop/switch;
+   * bare continue is consumed by a loop but escapes a switch. Labeled exits
+   * are conservatively treated as potentially escaping. Ignore function
+   * declarations/expressions: their bodies are not executed at definition.
+   * @param {AstNode|null|undefined} statement
+   * @param {boolean} continueExits
+   * @returns {boolean}
+   */
+  function carrierMayEscapeConstruct(statement,continueExits) {
+    if(!statement)return false;
+    if(statement.type==='ReturnStatement'||statement.type==='ThrowStatement')
+      return true;
+    if(statement.type==='BreakStatement')return Boolean(statement.label);
+    if(statement.type==='ContinueStatement')
+      return continueExits||Boolean(statement.label);
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some((/** @type {AstNode} */ child)=>
+        carrierMayEscapeConstruct(child,continueExits));
+    if(statement.type==='IfStatement')
+      return carrierMayEscapeConstruct(statement.consequent,continueExits)||
+        carrierMayEscapeConstruct(statement.alternate,continueExits);
+    if(statement.type==='TryStatement')
+      return carrierMayEscapeConstruct(statement.block,continueExits)||
+        carrierMayEscapeConstruct(statement.handler?.body,continueExits)||
+        carrierMayEscapeConstruct(statement.finalizer,continueExits);
+    if(statement.type==='LabeledStatement')
+      return carrierMayEscapeConstruct(statement.body,continueExits);
+    if(statement.type==='SwitchStatement')
+      return (statement.cases??[]).some((/** @type {AstNode} */ branch)=>
+        (branch.consequent??[]).some((/** @type {AstNode} */ child)=>
+          carrierMayEscapeConstruct(child,continueExits)));
+    if(['ForStatement','ForInStatement','ForOfStatement',
+        'WhileStatement','DoWhileStatement'].includes(statement.type))
+      return carrierMayEscapeConstruct(statement.body,false);
+    return false;
+  }
+  /**
+   * Possible abrupt exits must retain their carrier state as an alternative
+   * to the path which executes subsequent siblings. "Not definitely abrupt"
+   * does not mean "definitely falls through"; e.g. a catch may resume when
+   * its try block returns on another path.
+   * @param {AstNode|null|undefined} statement
+   * @returns {boolean}
+   */
+  function carrierMayAbrupt(statement) {
+    if(!statement)return false;
+    if(carrierDefinitelyAbrupt(statement))return true;
+    if(statement.type==='BlockStatement'||statement.type==='StaticBlock')
+      return (statement.body??[]).some(carrierMayAbrupt);
+    if(statement.type==='IfStatement')
+      return carrierMayAbrupt(statement.consequent)||
+        carrierMayAbrupt(statement.alternate);
+    if(statement.type==='TryStatement')
+      return carrierMayAbrupt(statement.block)||
+        carrierMayAbrupt(statement.handler?.body)||
+        carrierMayAbrupt(statement.finalizer);
+    if(statement.type==='LabeledStatement')
+      return carrierMayAbrupt(statement.body);
+    if(statement.type==='SwitchStatement')
+      return (statement.cases??[]).some((/** @type {AstNode} */ branch)=>
+        (branch.consequent??[]).some((/** @type {AstNode} */ child)=>
+          carrierMayEscapeConstruct(child,true)));
+    if(['ForStatement','ForInStatement','ForOfStatement',
+        'WhileStatement','DoWhileStatement'].includes(statement.type))
+      return carrierMayEscapeConstruct(statement.body,false);
     return false;
   }
   /**
@@ -2006,13 +2479,20 @@ function hasWeakMapPrototypeExposure(ast) {
         blockScopedNames.add(child.id.name);
       }
     }
+    /** @type {Array<Map<string,CarrierValue>>} */
+    const possibleExits=[];
     for(const child of statement.body??[]) {
       visitCarrierStatement(child,scopedEnvironment,thisValue,throwCollector);
-      // An unconditional abrupt completion makes later statements in this
-      // block unreachable. Do not let dead writes erase a live WeakMap from
-      // the state passed to catch, loop continuation or the caller.
+      // A definite abrupt completion ends this path. A merely possible
+      // abrupt completion instead contributes a separate outgoing state:
+      // the following siblings run only on the normal path.
       if(carrierDefinitelyAbrupt(child))break;
+      if(carrierMayAbrupt(child))
+        possibleExits.push(forkCarrierEnvironment(scopedEnvironment));
     }
+    if(possibleExits.length)
+      joinCarrierEnvironments(scopedEnvironment,
+        forkCarrierEnvironment(scopedEnvironment),...possibleExits);
     for(const [name,value] of scopedEnvironment) {
       if(blockScopedNames.has(name))continue;
       if(environment.has(name)||varNames.has(name))environment.set(name,value);
@@ -2074,13 +2554,24 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ClassDeclaration') {
+      // The heritage expression is evaluated when defining a class, before
+      // computed class element names and static initializers.
+      visitCarrierExpression(statement.superClass,environment,thisValue);
       const staticValue=carrierContainer();
+      /** @type {AstNode[]} */
+      const deferred=[];
       if(statement.id?.type==='Identifier')
         environment.set(statement.id.name,staticValue);
       for(const element of statement.body.body??[]) {
+        // Both static and instance computed names execute at definition.
+        if(element.computed) {
+          visitCarrierExpression(element.key,environment,thisValue);
+          if(!primitiveComputedKeyWithoutEffects(element.key))exposed=true;
+        }
         if(element.type==='PropertyDefinition') {
           const thisValue=element.static?staticValue:carrierOther;
-          visitCarrierExpression(element.value,environment,thisValue);
+          if(element.static)visitCarrierExpression(element.value,environment,thisValue);
+          else if(element.value)deferred.push(element.value);
           const fieldValue=evaluateCarrierValue(element.value,environment,thisValue);
           if(element.static) {
             const fieldKey=carrierStaticKey(element.key,element.computed);
@@ -2101,6 +2592,34 @@ function hasWeakMapPrototypeExposure(ast) {
             functionClosureEnvironments.set(element.value,new Map(environment));
         }
       }
+      if(deferred.length&&classStaticMayActivateInstanceFields(statement.body.body??[])&&
+         classInstanceFieldsHaveEffects(deferred))exposed=true;
+      if(statement.id?.type==='Identifier'&&deferred.length) {
+        const name=statement.id.name;
+        instanceFieldInitializers.set(name,deferred);
+        // Only direct, unescaped local constructors can have their field
+        // writes replayed at the observed new-expression site. An alias,
+        // inheritance, export or dynamic eval can construct elsewhere.
+        const expected=1+(directConstructorReferences.get(name)??0);
+        const unresolved=hasDirectEval||exportedLocalNames.has(name)||
+          exportedDefaultClassNames.has(name)||
+          localBindingCounts.get(name)!==1||
+          identifierOccurrences.get(name)!==expected;
+        if(unresolved) {
+          let effectful=false;
+          for(const initializer of deferred) {
+            if(carrierMayContainWeakMap(
+              evaluateCarrierValue(initializer,environment,carrierOther)))effectful=true;
+            walk(initializer,child=>{
+              if(['AssignmentExpression','UpdateExpression','CallExpression',
+                  'NewExpression','MemberExpression','AwaitExpression',
+                  'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+                effectful=true;
+            });
+          }
+          if(effectful)exposed=true;
+        }
+      }
       if(statement.id?.type==='Identifier'&&carrierMayContainWeakMap(staticValue))
         weakMapContainerOwners.add(statement.id.name);
       if(statement.id?.type==='Identifier'&&exportedLocalNames.has(statement.id.name)&&
@@ -2117,9 +2636,11 @@ function hasWeakMapPrototypeExposure(ast) {
       return;
     }
     if(statement.type==='ThrowStatement') {
+      // The thrown value is determined after its expression's side effects.
+      // Snapshotting first can lose a WeakMap created by a comma/call effect.
+      visitCarrierExpression(statement.argument,environment,thisValue);
       if(throwCollector)
         throwCollector.push(evaluateCarrierValue(statement.argument,environment,thisValue));
-      visitCarrierExpression(statement.argument,environment,thisValue);
       return;
     }
     if(statement.type==='TryStatement') {
@@ -2137,8 +2658,10 @@ function hasWeakMapPrototypeExposure(ast) {
         const caughtValue=thrownValues.length?
           thrownValues.reduce((value,next)=>mergeCarrierValues(value,next),carrierOther):
           carrierMaybe;
-        if(statement.handler.param)
+        if(statement.handler.param) {
+          visitCarrierBindingPatternEffects(statement.handler.param,catchEnvironment,thisValue);
           bindCarrierPattern(statement.handler.param,caughtValue,catchEnvironment);
+        }
         visitCarrierStatement(statement.handler.body,catchEnvironment,thisValue,throwCollector);
       } else if(throwCollector) {
         throwCollector.push(...thrownValues);
@@ -2165,6 +2688,9 @@ function hasWeakMapPrototypeExposure(ast) {
       }
       if(statement.test)visitCarrierExpression(statement.test,loopEnv,thisValue);
       if(statement.type==='ForOfStatement'||statement.type==='ForInStatement') {
+        // The iterable expression executes before each iteration's binding
+        // pattern and its computed keys.
+        if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
         let iterationValue=carrierOther;
         if(statement.type==='ForOfStatement') {
           const iterableValue=evaluateCarrierValue(statement.right,loopEnv,thisValue);
@@ -2179,14 +2705,15 @@ function hasWeakMapPrototypeExposure(ast) {
         }
         if(statement.left?.type==='VariableDeclaration') {
           for(const declaration of statement.left.declarations??[]) {
+            visitCarrierBindingPatternEffects(declaration.id,loopEnv,thisValue);
             bindCarrierPattern(declaration.id,iterationValue,loopEnv);
             if(statement.left.kind!=='var')addPatternBindings(declaration.id,loopScopedNames);
           }
         } else if(statement.left) {
+          visitCarrierBindingPatternEffects(statement.left,loopEnv,thisValue);
           bindCarrierPattern(statement.left,iterationValue,loopEnv);
         }
       }
-      if(statement.right)visitCarrierExpression(statement.right,loopEnv,thisValue);
       visitCarrierStatement(statement.body,loopEnv,thisValue,throwCollector);
       if(statement.update)visitCarrierExpression(statement.update,loopEnv,thisValue);
       /** @type {Map<string,CarrierValue>} */
@@ -2198,24 +2725,47 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     if(statement.type==='SwitchStatement') {
       visitCarrierExpression(statement.discriminant,environment,thisValue);
-      const branches=[];
-      let fallthroughEnvironment=new Map(environment);
+      // A case selector is executable code, even when its consequent is
+      // unreachable. A selector after an earlier match might never run.
+      // Join each evaluated prefix with the skipped path; do not treat every
+      // selector side effect as a definite overwrite of a live carrier.
+      for(const option of statement.cases??[]) {
+        if(!option.test)continue;
+        const bypass=forkCarrierEnvironment(environment);
+        const evaluated=forkCarrierEnvironment(environment);
+        visitCarrierExpression(option.test,evaluated,thisValue);
+        joinCarrierEnvironments(environment,bypass,evaluated);
+      }
+      // Switch paths may enter at any matching case and fall through. Keep
+      // alias-preserving heap forks rather than shallow Maps that let one
+      // mutually exclusive case overwrite another case's source state.
+      const branches=[forkCarrierEnvironment(environment)];
+      let fallthroughEnvironment=forkCarrierEnvironment(environment);
       for(const branch of statement.cases??[]) {
-        const branchEnv=new Map(environment);
-        for(const [name,value] of fallthroughEnvironment) {
-          const base=environment.get(name)??carrierOther;
-          branchEnv.set(name,mergeCarrierValues(base,value));
-        }
-        for(const child of branch.consequent??[])
+        /** @type {Map<string,CarrierValue>} */
+        const branchEnv=new Map();
+        joinCarrierEnvironments(branchEnv,
+          forkCarrierEnvironment(environment),
+          forkCarrierEnvironment(fallthroughEnvironment));
+        /** @type {Array<Map<string,CarrierValue>>} */
+        const possibleCaseExits=[];
+        for(const child of branch.consequent??[]) {
           visitCarrierStatement(child,branchEnv,thisValue,throwCollector);
+          // Definite break/return/throw/continue exits the current case.
+          // Unknown try/catch or conditional completion preserves both the
+          // early-exit and subsequent-statement paths.
+          if(carrierDefinitelyAbrupt(child))break;
+          if(carrierMayAbrupt(child))
+            possibleCaseExits.push(forkCarrierEnvironment(branchEnv));
+        }
+        if(possibleCaseExits.length)
+          joinCarrierEnvironments(branchEnv,
+            forkCarrierEnvironment(branchEnv),...possibleCaseExits);
         branches.push(branchEnv);
         fallthroughEnvironment=branchEnv;
       }
-      for(const name of new Set(branches.flatMap(branch=>[...branch.keys()]))) {
-        let value=environment.get(name)??carrierOther;
-        for(const branch of branches)value=mergeCarrierValues(value,branch.get(name)??carrierOther);
-        environment.set(name,value);
-      }
+      joinCarrierEnvironments(environment,...branches);
+      return;
     }
   }
 
@@ -2232,8 +2782,10 @@ function hasWeakMapPrototypeExposure(ast) {
     if(!functionNode.body)continue;
     const closureEnvironment=functionClosureEnvironments.get(functionNode)??carrierEnvironment;
     const localEnvironment=new Map(closureEnvironment);
-    for(const parameter of functionNode.params??[])
+    for(const parameter of functionNode.params??[]) {
+      visitCarrierBindingPatternEffects(parameter,localEnvironment);
       bindCarrierPattern(parameter,carrierOther,localEnvironment);
+    }
     const thisValue=info.ownerName&&weakMapContainerOwners.has(info.ownerName)?
       (()=>{const value=carrierContainer();value.unknown=true;return value;})():carrierOther;
     if(functionNode.body.type==='BlockStatement')
