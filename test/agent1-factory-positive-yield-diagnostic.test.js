@@ -31,11 +31,11 @@ test('factory results retain ownership through const-captured record and tuple s
   const mains=[
     'import {makeState} from "./state.mjs";import {identity} from "./identity.mjs";'+
       'const first=makeState();const second=makeState();'+
-      'const carrier={left:first,right:first};const left=carrier.left;const right=carrier.right;'+
-      'const carried=identity(left);console.log(carried.secretField+right.otherField+second.otherField);',
+      'const carrier={left:first,right:second};const left=carrier.left;const right=carrier.right;'+
+      'const carried=identity(left);console.log(carried.secretField+right.otherField);',
     'import {makeState} from "./state.mjs";import {identity} from "./identity.mjs";'+
       'const first=makeState();const second=makeState();'+
-      'const carrier=[first,first];const left=carrier[0];const right=carrier[1];'+
+      'const carrier=[first,second];const left=carrier[0];const right=carrier[1];'+
       'const carried=identity(left);console.log(carried.secretField+right.otherField+second.otherField);'
   ];
   for(const [index,main] of mains.entries()) {
