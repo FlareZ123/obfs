@@ -59,7 +59,10 @@ const positives=[
     'export const output=read((0,imported));',22],
   ['function forward(value){return value;}'+
     'const alias=forward((0,imported));'+
-    'export const output=alias.privateKey+alias.otherKey;',22]
+    'export const output=alias.privateKey+alias.otherKey;',22],
+  ['const alias=(0,imported);'+
+    'const {privateKey:first,otherKey:second}=alias;'+
+    'export const output=first+second;',22]
 ];
 
 test('cross-file exported owner property names rewrite through inert comma aliases and helper parameters',async()=>{
@@ -141,7 +144,10 @@ const negatives=[
   'const alias=(0,imported);'+
     'export const output=[alias.privateKey,Object.keys(alias)];',
   'const alias=(0,imported);'+
-    'export const output=alias;'
+    'export const output=alias;',
+  'const alias=(0,imported);'+
+    'const {privateKey, ...rest}=alias;'+
+    'export const output=[privateKey,Object.keys(rest)];'
 ];
 
 test('cross-file comma aliases exposed through host globals, exports and reflection decline',async()=>{
