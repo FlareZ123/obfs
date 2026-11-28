@@ -1860,7 +1860,8 @@ function hasWeakMapPrototypeExposure(ast) {
    */
   function replayCarrierFunctionNode(local,environment,thisValue,direct,
     callArguments,allowDefinite) {
-    if(local.body?.type!=='BlockStatement')return;
+    if(!local.body || local.body.type!=='BlockStatement'&&
+       local.type!=='ArrowFunctionExpression')return;
     if(activeLocalCallEffects.has(local)) {
       // Recursive parameter defaults and body effects require a fixed-point
       // proof; never silently assume they leave captured objects unchanged.
@@ -1888,8 +1889,12 @@ function hasWeakMapPrototypeExposure(ast) {
       // Generator/async parameter binding is synchronous at invocation.
       // The body may be suspended or deferred and is not safely replayable
       // as a direct synchronous state transition.
-      if(!local.async&&!local.generator)
-        visitCarrierStatement(local.body,invoked,thisValue);
+      if(!local.async&&!local.generator) {
+        if(local.body.type==='BlockStatement')
+          visitCarrierStatement(local.body,invoked,thisValue);
+        else // Concise arrow expressions also run after formal defaults.
+          visitCarrierExpression(local.body,invoked,thisValue);
+      }
     } finally {
       activeLocalCallEffects.delete(local);
     }
@@ -2041,6 +2046,26 @@ function hasWeakMapPrototypeExposure(ast) {
               (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
           replayLocalFunctionEffects(owner,environment,thisValue,false,
             argumentsToReplay);
+        }
+      }
+      if(node.callee.type==='MemberExpression'&&
+         (node.callee.object.type==='FunctionExpression'||
+          node.callee.object.type==='ArrowFunctionExpression')) {
+        const method=memberKey(node.callee);
+        if(['call','apply','bind'].includes(method??'')) {
+          /** @type {AstNode[]} */
+          let passed=[];
+          if(method==='call'||method==='bind')passed=node.arguments.slice(1);
+          else if(node.arguments[1]?.type==='ArrayExpression'&&
+                  !node.arguments[1].elements.some((/** @type {AstNode|null} */ x)=>
+                    x?.type==='SpreadElement'))
+            passed=node.arguments[1].elements.map(
+              (/** @type {AstNode|null} */ x)=>x??/** @type {AstNode} */ ({type:'UnaryExpression',operator:'void'}));
+          // An inline callable has no mutable binding alias; still join both
+          // execution and nonexecution for potentially overridden intrinsics.
+          replayCarrierFunctionNode(node.callee.object,environment,
+            node.callee.object.type==='ArrowFunctionExpression'?thisValue:carrierOther,
+            false,passed,true);
         }
       }
       if(node.callee.type==='MemberExpression' &&
