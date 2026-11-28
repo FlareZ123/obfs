@@ -1621,6 +1621,54 @@ function hasWeakMapPrototypeExposure(ast) {
   const unobservedClassExpressions=new WeakSet();
   /** @type {WeakSet<AstNode>} */
   const directlyConstructedClassExpressions=new WeakSet();
+  /**
+   * A static initializer or block can construct its enclosing class before
+   * instance-field transfer is registered, including via aliases or unknown
+   * callees. The local carrier model cannot prove those call/escape effects.
+   * This deliberately refuses effectful instance fields while retaining
+   * class definitions whose static work has no such invocation/escape.
+   * @param {AstNode[]} elements
+   * @returns {boolean}
+   */
+  function classStaticMayActivateInstanceFields(elements) {
+    for(const element of elements) {
+      if(element.type!=='StaticBlock'&&
+         !(element.type==='PropertyDefinition'&&element.static))continue;
+      let hasClassThis=false;
+      let couldInvoke=false;
+      let couldEscape=false;
+      walk(element,child=>{
+        if(child.type==='ThisExpression')hasClassThis=true;
+        if(['CallExpression','NewExpression','TaggedTemplateExpression'].includes(child.type))
+          couldInvoke=true;
+        if(child.type==='PropertyDefinition'&&child.static&&
+           child.value?.type==='ThisExpression')couldEscape=true;
+        if(child.type==='AssignmentExpression'&&
+           (child.right?.type==='ThisExpression'||
+            child.left?.type==='MemberExpression'&&
+             child.left.object?.type!=='ThisExpression'))
+          couldEscape=true;
+      });
+      if(couldInvoke||hasClassThis&&couldEscape)return true;
+    }
+    return false;
+  }
+  /**
+   * Conservatively screen field expressions whose execution may change
+   * reaching carrier state or invoke/observe the surrounding host.
+   * @param {AstNode[]} initializers
+   * @returns {boolean}
+   */
+  function classInstanceFieldsHaveEffects(initializers) {
+    let effectful=false;
+    for(const initializer of initializers)walk(initializer,child=>{
+      if(['AssignmentExpression','UpdateExpression','CallExpression',
+          'NewExpression','MemberExpression','AwaitExpression',
+          'YieldExpression','TaggedTemplateExpression'].includes(child.type))
+        effectful=true;
+    });
+    return effectful;
+  }
   if(ast.sourceType==='module'&&!hasDirectEval)walk(ast,(node,parent)=>{
     if(node.type==='NewExpression'&&node.callee.type==='ClassExpression')
       directlyConstructedClassExpressions.add(node.callee);
@@ -1759,6 +1807,8 @@ function hasWeakMapPrototypeExposure(ast) {
         }
       }
       classExpressionInitializers.set(node,deferred);
+      if(deferred.length&&classStaticMayActivateInstanceFields(node.body?.body??[])&&
+         classInstanceFieldsHaveEffects(deferred))exposed=true;
       const owner=provenClassExpressionOwners.get(node);
       if(owner&&deferred.length)instanceFieldInitializers.set(owner,deferred);
       const isUnproved=deferred.length>0&&!owner&&
@@ -2303,6 +2353,8 @@ function hasWeakMapPrototypeExposure(ast) {
             functionClosureEnvironments.set(element.value,new Map(environment));
         }
       }
+      if(deferred.length&&classStaticMayActivateInstanceFields(statement.body.body??[])&&
+         classInstanceFieldsHaveEffects(deferred))exposed=true;
       if(statement.id?.type==='Identifier'&&deferred.length) {
         const name=statement.id.name;
         instanceFieldInitializers.set(name,deferred);
