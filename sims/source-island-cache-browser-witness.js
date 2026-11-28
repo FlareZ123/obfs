@@ -2,11 +2,8 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src/core');
-
-const chromium=promisify(execFile);
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
@@ -103,20 +100,37 @@ async function main(){
     const address=server.address();
     if(!address || typeof address==='string')throw new Error('No web server address');
     const origin='http://127.0.0.1:'+address.port;
-    /** @returns {Promise<{watched:string,value:number,containsOriginal:boolean}>}
-     *  @param {string} folder */
-    async function run(folder){
-      const {stdout}=await chromium(process.env.CHROMIUM_BIN??'google-chrome',[
-        '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-        '--no-first-run','--virtual-time-budget=15000','--dump-dom',
-        origin+'/'+folder+'/index.html'
-      ],{encoding:'utf8',timeout:45000,maxBuffer:5*1024*1024});
-      const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
-      assert.ok(encoded,folder+' browser failed: '+stdout.slice(0,1500));
-      return JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
-    }
-    const native=await run('original');
-    const changed=await run('counterfactual');
+    // Headless --dump-dom can snapshot before top-level await and
+    // CacheStorage asynchronous I/O finish. Wait for a completion marker
+    // instead of allowing the virtual-time budget to outrun real I/O.
+    const browser=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    try{
+      /** @returns {Promise<{watched:string,value:number,containsOriginal:boolean}>}
+       * @param {string} folder */
+      async function run(folder){
+        const page=await browser.newPage();
+        try{
+          await page.goto(origin+'/'+folder+'/index.html',{
+            waitUntil:'domcontentloaded',timeout:30000
+          });
+          await page.waitForSelector('#result, #failure',{timeout:30000});
+          const outcome=await page.evaluate(()=>({
+            result:document.getElementById('result')?.textContent??null,
+            failure:document.getElementById('failure')?.textContent??null
+          }));
+          assert.ok(outcome.result,
+            folder+' Chromium module error: '+String(outcome.failure??'missing result'));
+          return JSON.parse(Buffer.from(outcome.result,'base64').toString('utf8'));
+        }finally{
+          await page.close();
+        }
+      }
+      const native=await run('original');
+      const changed=await run('counterfactual');
     assert.deepEqual(native,{
       watched:'function watched(){return valueA;}',value:23,containsOriginal:true
     });
@@ -135,7 +149,10 @@ async function main(){
     console.log('SOURCE_ISLAND_CACHE_BROWSER '+JSON.stringify(outcome));
     assert.equal(guarded,null,
       'The opt-in source-island proof must refuse indirect CacheStorage source-byte readers');
-    return outcome;
+      return outcome;
+    }finally{
+      await browser.close();
+    }
   }finally{
     await new Promise(resolve=>server.close(resolve));
   }
