@@ -38,3 +38,10 @@ These are deterministic source defects, not speculative CI concerns. The test ca
 7. Do not mark the acceptance plan's live 24-call requirement complete until the corrected process-separated workflow passes and the artifact is independently reviewed.
 
 This is an early falsifier, not a general SCO security claim. It can demonstrate that the finite policy works against a particular generated facade; it cannot establish arbitrary-service cloning or a measured incremental advantage over a minified control.
+
+
+## Additional deterministic blocker: ordinary control cannot pass attacker preflight
+
+The test's process-separated attacker always performs a GET of `/obfs/client.mjs` before issuing its 24 RPC calls (`sims/sco-three-state-policy-attacker.js`). The generated SCO fixture serves that route in `startSco` (`test/sco-three-state-live-policy.test.js:123`). The ordinary control's server handler (`startOrdinary`, lines 139–142) accepts only POST `/obfs/rpc` and returns 404 for every other request. Therefore, after fixing the attacker's parse error, the ordinary-control replay still fails at the initial public-client fetch. Serve an equivalent ordinary-minified `client.mjs` from that control, with the same visible method/endpoint and the same authorization boundary.
+
+The branch therefore has at least four independent execution blockers before it can produce a two-arm live receipt: the literal `\\n` parse error, the missing `classes` binding, the missing `policyNodes` binding, and the ordinary control's missing GET client route.
