@@ -280,3 +280,26 @@ test('SQLite persisted policy fences independently named credential authorities'
     }finally{reopened.close();}
   });
 });
+
+test('SQLite policy binds independent 32-byte authority keys under the same label',async()=>{
+  await withDatabase('credential-registry-key.sqlite',async file=>{
+    const one=store(file),two=store(file);
+    const policy={
+      rpId:'localhost',allowedOrigins:['http://localhost:8080'],
+      allowInsecureLocalhost:true,credentialAuthorityId:'same-public-name',
+      credentialAuthorityKey:Buffer.alloc(32,0x32),
+      lookupCredential:()=>null,updateSignCount:()=>false
+    };
+    try{
+      assert.doesNotThrow(()=>createScoWebAuthnAdmission({...policy,stateStore:one}));
+      assert.throws(()=>createScoWebAuthnAdmission({
+        ...policy,credentialAuthorityKey:Buffer.alloc(32,0x33),stateStore:two
+      }),/replica configuration/u,
+      'Same registry label with distinct private authority keys must refuse persisted state');
+      assert.doesNotThrow(()=>createScoWebAuthnAdmission({
+        ...policy,credentialAuthorityKey:Buffer.from(policy.credentialAuthorityKey),
+        stateStore:two
+      }), 'A second verifier with the identical authority key is a permitted replica');
+    }finally{one.close();two.close();}
+  });
+});

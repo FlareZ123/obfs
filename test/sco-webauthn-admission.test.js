@@ -526,3 +526,73 @@ test('registry ID is a trusted assertion, not proof that callbacks share credent
   if(minted.ok)assert.equal(first.admission.authorizeSession(minted.token,'accountA'),true,
     'An explicit label is not a cryptographic certificate of callback equivalence');
 });
+
+test('high-entropy credential authority keys refuse same-label cross-registry sharing',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const aKey=Buffer.alloc(32,0xa5),bKey=Buffer.alloc(32,0xa6);
+  const a=harness({stateStore:shared,credentialAuthorityId:'same-label',
+    credentialAuthorityKey:aKey});
+  assert.throws(()=>harness({stateStore:shared,credentialAuthorityId:'same-label',
+    credentialAuthorityKey:bKey}),/replica configuration/u,
+  'Distinct per-registry keys must separate even identical trusted text labels');
+  assert.throws(()=>harness({stateStore:shared,credentialAuthorityId:'same-label'}),
+    /replica configuration/u,'A keyless peer cannot inherit the keyed authority policy');
+  assert.doesNotThrow(()=>harness({stateStore:shared,credentialAuthorityId:'same-label',
+    credentialAuthorityKey:Buffer.from(aKey)}),
+  'Replicas of one registry may share the same stable 32-byte key');
+
+  const challenge=a.admission.issueChallenge('accountA','loginA');
+  const result=await a.admission.verifyAssertion(assertion(a,challenge));
+  assert.equal(result.ok,true,'A fully signed same-authority ES256 assertion remains valid');
+  if(result.ok)assert.equal(a.admission.authorizeSession(result.token,'accountA'),true);
+});
+
+test('credential authority key-only policy is distinct from unlabeled v1 state',()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  harness({stateStore:shared});
+  assert.throws(()=>harness({stateStore:shared,
+    credentialAuthorityKey:Buffer.alloc(32,0x14)}),/replica configuration/u);
+  const named=createScoWebAuthnMemoryStore();
+  harness({stateStore:named,credentialAuthorityId:'human-readable'});
+  assert.throws(()=>harness({stateStore:named,credentialAuthorityId:'human-readable',
+    credentialAuthorityKey:Buffer.alloc(32,0x14)}),/replica configuration/u,
+    'A keyed v3 policy is intentionally distinct from label-only v2');
+});
+
+test('credential authority key validation and exact versioned configuration hash',()=>{
+  for(const key of [null,'a'.repeat(32),new Uint8Array(32),
+    Buffer.alloc(31),Buffer.alloc(33)]){
+    assert.throws(()=>harness({
+      credentialAuthorityKey:/** @type {any} */(key)
+    }),/credentialAuthorityKey/u);
+  }
+  const accepted=createScoWebAuthnMemoryStore();
+  /** @type {string[]} */
+  const fingerprints=[];
+  /** @type {import('../src/sco-webauthn-state').ScoWebAuthnStateStore} */
+  const captured={...accepted,assertConfiguration(hash){
+    fingerprints.push(hash);
+    accepted.assertConfiguration(hash);
+  }};
+  harness({stateStore:captured,credentialAuthorityId:'registry:tenant-A',
+    credentialAuthorityKey:Buffer.alloc(32,0xa5)});
+  assert.deepEqual(fingerprints,[
+    'eaaeb465a9a91be5f2c2340516248333cef5e0c60c630dfd2e0ae5510d8b26af'
+  ],'Full input to a versioned cryptographic authority fingerprint must stay reproducible');
+});
+
+test('same key reused across independent registries remains caller contract failure',async()=>{
+  const shared=createScoWebAuthnMemoryStore();
+  const key=Buffer.alloc(32,0xdd);
+  const one=harness({stateStore:shared,credentialAuthorityId:'same-registry',
+    credentialAuthorityKey:key});
+  const two=harness({stateStore:shared,credentialAuthorityId:'same-registry',
+    credentialAuthorityKey:Buffer.from(key)});
+  assert.notEqual(one.credentialId,two.credentialId);
+  const issued=one.admission.issueChallenge('accountA','loginA');
+  const signedByOther=assertion(two,issued);
+  const minted=await two.admission.verifyAssertion(signedByOther);
+  assert.equal(minted.ok,true);
+  if(minted.ok)assert.equal(one.admission.authorizeSession(minted.token,'accountA'),true,
+  'A reused authority key cannot attest the contents of caller-owned credential callbacks');
+});
