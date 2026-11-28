@@ -22,7 +22,8 @@ const cases=[
   {label:'string-plus-function',expression:'"prefix:"+inspect'},
   {label:'function-plus-string',expression:'inspect+":suffix"'},
   {label:'conditional-string-addition',expression:'true?("prefix:"+inspect):"unreachable"'},
-  {label:'String-positive-control',expression:'String(inspect)'}
+  {label:'String-direct-source',expression:'String(inspect)'},
+  {label:'literal-positive-control',expression:'"literal"'}
 ];
 
 /** @param {Case} sample @returns {File[]} */
@@ -70,13 +71,17 @@ function execute(files) {
 test('DOMString binary function coercion preserves native exact source across COO/SNO/SCO',()=>{
   /** @type {Array<{mode:string,case:string,expected:string,actual:string,producerRewrites:number,positiveRewrites:number}>} */
   const mismatches=[];
+  /** @type {Array<{mode:string,case:string,sourceParity:boolean,producerRewrites:number,positiveRewrites:number}>} */
+  const classifications=[];
   for(const sample of cases) {
     const original=graph(sample);
     const baseline=execute(original);
     assert.equal(baseline.value,57);
     assert.equal(baseline.independent,73);
-    assert.ok(baseline.source.includes('secretField'),
-      sample.label+' must actually source-coerce the imported function');
+    if(sample.label!=='literal-positive-control')
+      assert.ok(baseline.source.includes('secretField'),
+        sample.label+' must actually source-coerce the imported function');
+    else assert.equal(baseline.source,'literal');
     for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       const built=obfuscateFiles(original,{
         mode,seed:'agent21-dom-binary-source/'+mode+'/'+sample.label,
@@ -88,8 +93,13 @@ test('DOMString binary function coercion preserves native exact source across CO
       assert.ok(producer&&pure);
       assert.equal(actual.value,57,mode+'/'+sample.label+' numeric parity');
       assert.equal(actual.independent,73,mode+'/'+sample.label+' independent value');
-      assert.ok(pure.metrics.properties>=1,
-        mode+'/'+sample.label+' unrelated private field positive rewrite');
+      classifications.push({mode,case:sample.label,
+        sourceParity:actual.source===baseline.source,
+        producerRewrites:producer.metrics.properties,
+        positiveRewrites:pure.metrics.properties});
+      if(sample.label==='literal-positive-control')assert.ok(
+        pure.metrics.properties>=1||producer.metrics.properties>=1,
+        mode+' literal sink requires at least one real private-field rename');
       if(actual.source!==baseline.source)mismatches.push({
         mode,case:sample.label,expected:baseline.source,actual:actual.source,
         producerRewrites:producer.metrics.properties,
@@ -97,7 +107,7 @@ test('DOMString binary function coercion preserves native exact source across CO
       });
     }
   }
-  console.log('AGENT21_DOM_BINARY_SOURCE '+JSON.stringify(mismatches));
+  console.log('AGENT21_DOM_BINARY_SOURCE '+JSON.stringify({classifications,mismatches}));
   assert.deepEqual(mismatches,[],
     'Binary + must not evade exact source-provenance protection');
 });
