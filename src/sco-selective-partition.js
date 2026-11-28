@@ -1133,7 +1133,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   let primitiveAliasesChanged=true;
   while(primitiveAliasesChanged){
     primitiveAliasesChanged=false;
-    walk(body,(node,parent)=>{
+    walk(body,(node,parent,key)=>{
       const binding=node.type==='VariableDeclarator'?node.id:
         node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const initial=node.type==='VariableDeclarator'?node.init:
@@ -1370,6 +1370,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
        !(parent.type==='CallExpression'&&key==='callee')&&
        !(parent.type==='NewExpression'&&key==='callee')){
       intrinsicTouched=true;
+    }
+    if(node.type==='Identifier'&&primitiveAliases.has(node.name)&&parent){
+      const escapesToOpaqueCode=
+        ((parent.type==='CallExpression'||parent.type==='NewExpression')&&key==='arguments')||
+        (parent.type==='Property'&&key==='value')||
+        (parent.type==='ArrayExpression'&&key==='elements')||
+        (parent.type==='AssignmentExpression'&&key==='right'&&parent.left.type!=='Identifier');
+      if(escapesToOpaqueCode)prototypeTouched=true;
     }
     if(node.type==='MemberExpression'){
       const key=keyName(node);
