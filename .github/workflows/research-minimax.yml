@@ -7,11 +7,15 @@ on:
     paths:
       - 'sims/agent49-hw-public-prior-optimal-attack.py'
       - 'sims/agent49-hw-delayed-pair-prior-optimal-attack.py'
+      - 'sims/agent17-hw-inference-baseline.py'
+      - 'sims/requirements-hw.txt'
       - '.github/workflows/research-minimax.yml'
   pull_request:
     paths:
       - 'sims/agent49-hw-public-prior-optimal-attack.py'
       - 'sims/agent49-hw-delayed-pair-prior-optimal-attack.py'
+      - 'sims/agent17-hw-inference-baseline.py'
+      - 'sims/requirements-hw.txt'
       - '.github/workflows/research-minimax.yml'
 
 permissions:
@@ -25,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install pinned resetless hW reference learner
+        run: python -m pip install --disable-pip-version-check -r sims/requirements-hw.txt
       - name: Validate random offline prior (70 candidates)
         shell: bash
         run: |
@@ -48,3 +54,5 @@ jobs:
           grep -q 'iterative_reachable_beliefs=10441' delayed-pair.out
           grep -q 'pair_lower_bound_queries=126' delayed-pair.out
           grep -q 'optimal_policy_uses_only_input0=True' delayed-pair.out
+      - name: Compare published resetless hW inference against the exact three-state bound
+        run: python sims/agent17-hw-inference-baseline.py
