@@ -75,7 +75,7 @@ A red-first test `test/sco-private-realpath-identity.test.js` at **`495cec56405e
 
 The repository already documents a related **direct in-memory API** symlink-induced module-identity mismatch in `test/direct-api-symlink-module-identity.test.js` and `README.md`. The new finding is narrower and distinct: the opt-in trusted SCO server digest *verification step itself* accepted an in-root symlink capable of redirecting relative ESM imports while every listed source SHA-256 matched.
 
-This is a non-atomic deployment preflight: filesystem replacement between `lstat` and the actual ESM `import()` is still possible unless the trusted integrator makes its source tree immutable. It adds initialization filesystem checks but no per-RPC computation. A user running Node with explicit `--preserve-symlinks` may have different relative import behavior; this conservative policy rejects symlinks rather than promising compatibility with arbitrary loader flags.
+This is a non-atomic deployment preflight: filesystem replacement between `lstat` and the actual ESM `import()` is still possible unless the trusted integrator makes its source tree immutable. It adds initialization filesystem checks but no per-RPC computation. An independent local Node 22.16.0 paired subprocess check confirmed that runtime flag matters for the exact same symlinked file tree: default Node returned `"UNREVIEWED"`, while `--preserve-symlinks` returned `"REVIEWED"`. This strict policy rejects symlinks rather than relying on whichever loader-identity flag happens to be active. The paired observation is a native runtime experiment, not a security-performance measurement.
 
 ## Limits and decision
 
