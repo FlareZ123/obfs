@@ -6,6 +6,7 @@ const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
 const svgNamespace='http://www.w3.org/2000/svg';
+const SMIL_ANIMATION_ELEMENTS=new Set(['animate','set','animatecolor','animatemotion','animatetransform']);
 
 /**
  * SVG SMIL animation can synthesize an event-handler attribute even when the
@@ -18,8 +19,7 @@ const svgNamespace='http://www.w3.org/2000/svg';
  * @returns {boolean}
  */
 function smilTargetsExecutableAttribute(elementName,attributeName) {
-  if(!['animate','set','animatecolor','animatemotion','animatetransform'].includes(
-    elementName.toLowerCase())||typeof attributeName!=='string')return false;
+  if(!SMIL_ANIMATION_ELEMENTS.has(elementName.toLowerCase())||typeof attributeName!=='string')return false;
   const target=attributeName.trim().toLowerCase().split(':').at(-1);
   return !!target&&(/^on[a-z]/u.test(target)||target==='srcdoc');
 }
@@ -275,9 +275,20 @@ function findInlineHtmlSource(html) {
   function visit(node) {
     if(issue)return;
     const attrs=node.attrs??[];
-    if(node.namespaceURI===svgNamespace&&smilTargetsExecutableAttribute(
-      node.tagName??'',attrs.find(attr=>attr.name.toLowerCase()==='attributename')?.value)) {
-      issue='SVG animation targets executable attribute';return;
+    if(node.namespaceURI===svgNamespace&&SMIL_ANIMATION_ELEMENTS.has(node.tagName??'')) {
+      if(smilTargetsExecutableAttribute(node.tagName??'',
+        attrs.find(attr=>attr.name.toLowerCase()==='attributename')?.value)) {
+        issue='SVG animation targets executable attribute';return;
+      }
+      // HTML parsing does not use the separate SVG/XML scanners. Animation
+      // values may synthesize javascript: URLs despite no original href.
+      for(const attr of attrs) {
+        const key=attr.name.toLowerCase();
+        if(['from','to','by','values'].includes(key)&&
+          (key==='values'?attr.value.split(';'):[attr.value]).some(isEmbeddedExecutableUrl)) {
+          issue='SVG animation embeds executable URL';return;
+        }
+      }
     }
     for(const {name,value} of attrs) {
       const lower=name.toLowerCase();
