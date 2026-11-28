@@ -2687,12 +2687,18 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
-      // Dynamic imports are runtime-only graph edges. The ownership proofs
-      // below enumerate static import declarations only; a dynamic importer
-      // can observe an exported factory's original object keys without
-      // appearing in the direct-importer inventory. Decline cross-file
-      // property rewriting until every dynamic target and consumer is proved.
-      if(node.type==='ImportExpression'){ambiguous=true;return;}
+      // A runtime ESM edge can import another supplied module or an
+      // unlisted package, so it is not part of the static ownership graph.
+      // Permit only a literal Node builtin that cannot add an in-group
+      // consumer; dynamic source paths and module-loader builtins stay closed.
+      if(node.type==='ImportExpression') {
+        const specifier=staticString(node.source);
+        if(node.options || specifier===null ||
+           !specifier.startsWith('node:') ||
+           specifier==='node:module' ||
+           secondaryLoaderModules.has(specifier)) ambiguous=true;
+        return;
+      }
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
       if(node.attributes?.length || node.assertions?.length){ambiguous=true;return;}
