@@ -366,6 +366,7 @@ async function checkFactoryGraph(factory,modules,renamed,mode='coo') {
       const right=output.files.find(file=>file.path==='right.mjs');
       assert.ok(state&&left&&right);
       for(const file of [state,left,right]) {
+        assert.ok(file);
         assert.doesNotMatch(String(file.code),/secretField|otherField/u);
       }
     }
