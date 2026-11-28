@@ -9,7 +9,8 @@
  *
  * @typedef {{next:number[][],output:number[][]}} Machine
  * @typedef {{models:Machine[], beliefs:number[][], transitions:number[][][],
- *   ranks:number[], decisions:number[],root:number}} Policy
+ *   ranks:number[],decisions:number[],weightedDecisions:number[][],
+ *   rootWeightedCalls:number,root:number}} Policy
  */
 
 /** @returns {Machine[]} */
@@ -164,7 +165,35 @@ function createPolicy(){
     }
     throw new Error('No rank-decreasing policy at belief '+index);
   });
-  return {models,beliefs,transitions,ranks,decisions,root:0};
+  // Source-weighted finite-horizon Bellman decision with a certified cap.
+  // A live labelled source table incurs one public call each step.
+  /** @type {number[][]} */
+  const weightedCosts=[ranks.map(rank=>rank===0?0:Infinity)];
+  /** @type {number[][]} */
+  const weightedDecisions=[ranks.map(()=>-1)];
+  for(let allowance=1;allowance<=ranks[0];allowance++){
+    const prior=weightedCosts[allowance-1];
+    /** @type {number[]} */
+    const costs=[],actions=[];
+    for(let i=0;i<beliefs.length;i++){
+      if(ranks[i]===0){costs.push(0);actions.push(-1);continue;}
+      let bestCost=Infinity,bestInput=-1;
+      for(let input=0;input<2;input++){
+        const edges=transitions[i][input].filter(child=>child>=0);
+        const branch=edges.reduce((sum,child)=>sum+prior[child],0);
+        const score=beliefs[i].length+branch;
+        if(score<bestCost){bestCost=score;bestInput=input;}
+      }
+      costs.push(bestCost);actions.push(bestInput);
+    }
+    weightedCosts.push(costs);weightedDecisions.push(actions);
+  }
+  const rootWeightedCalls=weightedCosts[ranks[0]][0];
+  if(!Number.isFinite(rootWeightedCalls)){
+    throw new Error('No finite-horizon policy for the initial model space');
+  }
+  return {models,beliefs,transitions,ranks,decisions,weightedDecisions,
+    rootWeightedCalls,root:0};
 }
 
 /**
@@ -207,6 +236,40 @@ async function learn(oracle,policy){
 }
 
 /**
+ * State-aligned expected-query optimal learner with an exact nine-request
+ * worst-case cap, under uniform prior on 260 labelled one/two-state tables.
+ *
+ * @param {StepOracle} oracle
+ * @param {Policy} policy
+ * @returns {Promise<Learned>}
+ */
+async function learnExpected(oracle,policy){
+  const initialRank=policy.ranks[policy.root];
+  let at=policy.root;
+  /** @type {number[]} */
+  const inputs=[],outputs=[],rankTrace=[initialRank];
+  while(policy.ranks[at]>0){
+    const budget=initialRank-inputs.length;
+    const input=policy.weightedDecisions[budget]?.[at];
+    if(input!==0&&input!==1)throw new Error('No finite expected-cost decision');
+    const answer=await oracle.step(input);
+    if(answer!==0&&answer!==1)throw new Error('Unexpected oracle output');
+    const next=policy.transitions[at][input][answer];
+    if(next<0||policy.ranks[next]>budget-1){
+      throw new Error('Oracle violated trusted two-state hypothesis');
+    }
+    inputs.push(input);outputs.push(answer);at=next;
+    rankTrace.push(policy.ranks[at]);
+  }
+  const [first]=policy.beliefs[at];
+  const model=policy.models[Math.floor(first/2)];
+  return {queries:inputs.length,inputs,outputs,clone:model,
+    currentState:first%2,remaining:policy.beliefs[at].length,
+    initialRank,rankTrace,beliefCount:policy.beliefs.length,
+    modelCount:policy.models.length};
+}
+
+/**
  * @param {Machine} model
  * @param {number} state
  * @param {number[]} inputs
@@ -223,4 +286,4 @@ function continuation(model,state,inputs){
   return {outputs,state};
 }
 
-module.exports={enumerateModels,successor,equivalent,createPolicy,learn,continuation};
+module.exports={enumerateModels,successor,equivalent,createPolicy,learn,learnExpected,continuation};
