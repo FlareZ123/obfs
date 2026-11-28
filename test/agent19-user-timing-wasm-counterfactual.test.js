@@ -48,3 +48,50 @@ test('native User Timing name prevents explicit selected-Wasm function replaceme
   }),/Wasm i32 requires|declined|source/i,
   'The compiler must not permit explicit source-changing Wasm under native User Timing');
 });
+
+test('primitive User Timing mark permits explicit selected Wasm backend with parity',async()=>{
+  const source='export function inspect(a){return a^17;}'+
+    'export const view={text:performance.mark("fixed User Timing name").name,'+
+      'value:inspect(31)};';
+  const native=await evaluate(source);
+  assert.deepEqual(native,{text:'fixed User Timing name',value:14});
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const output=obfuscateFiles([{
+      path:'entry.mjs',sourceType:'module',code:source
+    }],{
+      mode,closedWorld:true,seed:'agent19-primitive-selected-wasm/'+mode,
+      strings:false,identifiers:false,properties:false,
+      experimentalWasmI32:{'entry.mjs':['inspect']}
+    }).files[0];
+    assert.equal(output.metrics.wasmI32Functions,1,
+      'Native User Timing primitive mark must leave selected Wasm available');
+    assert.deepEqual(await evaluate(String(output.code)),native);
+  }
+});
+
+test('all seven selected source-changing backends refuse one-file observed callable',()=>{
+  const selected=[
+    'experimentalRegisterVm',
+    'experimentalExpressionVm',
+    'experimentalNativeGraph',
+    'experimentalBranchBlocks',
+    'experimentalStatementFlow',
+    'experimentalWasmI32',
+    'experimentalPolyvariantAffine'
+  ];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    for(const key of selected) {
+      const config={mode,closedWorld:true,
+        seed:'agent19-source-observer-selected-'+mode+'/'+key,
+        strings:false,identifiers:false,properties:false};
+      // The selected option is dynamically keyed solely inside the test;
+      // the production type contract is unaffected.
+      const options=/** @type {any} */ (config);
+      options[key]={'entry.mjs':['inspect']};
+      assert.throws(()=>obfuscateFiles([{
+        path:'entry.mjs',sourceType:'module',code:original
+      }],options),/source observation/i,
+      key+' must decline when User Timing observes selected function source');
+    }
+  }
+});
