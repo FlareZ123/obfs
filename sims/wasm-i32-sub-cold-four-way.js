@@ -106,8 +106,8 @@ function experiment() {
     }
     /** @type {Record<Variant,number[]>} */
     const samples={native:[],wasm:[],minified:[],reconstructed:[]};
+    const expected=run(initializers.native,calls).checksum;
     for(let trial=0;trial<31;trial++) {
-      const expected=run(initializers.native,calls).checksum;
       for(const variant of orders[trial%orders.length]) {
         const seen=run(initializers[variant],calls);
         assert.equal(seen.checksum,expected,
