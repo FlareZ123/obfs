@@ -281,7 +281,11 @@ const cases=[
 ['host-bind-this-weakmap',"let carrier={};function fill(){this.instance=new WeakMap();}const bound=fill.bind(carrier);bound();",'carrier.instance'],
 ['host-call-this-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(){this.instance=new Ordinary();}fill.call(carrier);",'carrier.instance'],
 ['mutable-aliased-call-overrides-arguments',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}let alias=fill;alias.call=function(){fill();};fill.call(null,23);",'carrier.instance'],
-['stored-call-overrides-arguments',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const box={f:fill};box.f.call=function(){fill();};fill.call(null,23);",'carrier.instance']
+['stored-call-overrides-arguments',"let carrier={};function fill(x=(carrier={instance:new WeakMap()})){}const box={f:fill};box.f.call=function(){fill();};fill.call(null,23);",'carrier.instance'],
+// Two private syntactic protocol uses do not expose a function object; a
+// global identifier occurrence-count veto would lose safe rename yield.
+['repeated-call-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.call(null,23);fill.call(null,42);",'carrier.instance'],
+['repeated-apply-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.apply(null,[23]);fill.apply(null,[42]);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
