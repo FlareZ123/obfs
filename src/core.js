@@ -516,7 +516,12 @@ function esmDomSourceProducerPaths(files,importedPrimitives,importedStrings) {
          locallyImmutablePrimitive.has(node.name));
       if(node.type==='UnaryExpression'&&
          ['!','typeof','void','+','-','~'].includes(node.operator))return true;
-      if(node.type==='BinaryExpression')return true;
+      // Binary + and non-strict comparisons can coerce callable operands
+      // to their source. Even arithmetic may invoke user-defined valueOf.
+      // Refuse a syntactic binary expression unless BOTH values are proved
+      // inert without reference to a lexically shadowed local binding.
+      if(node.type==='BinaryExpression')return isInertSinkOperand(node.left)&&
+        isInertSinkOperand(node.right);
       if(node.type==='TemplateLiteral')return node.expressions.every(
         isInertSinkOperand);
       if(node.type==='ConditionalExpression')return (
