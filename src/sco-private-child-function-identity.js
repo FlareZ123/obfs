@@ -29,23 +29,31 @@ function assertNoSharedChildFunctionIdentity(filename,ast){
       statement.declaration&&!statement.source?statement.declaration:
       statement.type==='ExportDefaultDeclaration'&&
       statement.declaration?statement.declaration:statement;
-    if(declaration.type==='FunctionDeclaration'&&
+    if((declaration.type==='FunctionDeclaration'||
+        declaration.type==='ClassDeclaration')&&
        declaration.id?.type==='Identifier'){
       functions.add(declaration.id.name);
     }else if(declaration.type==='VariableDeclaration'&&
              declaration.kind==='const'){
       for(const item of declaration.declarations){
-        if(item.id.type==='Identifier'&&item.init&&
-           ['FunctionExpression','ArrowFunctionExpression'].includes(item.init.type)){
-          functions.add(item.id.name);
+        if(item.id.type!=='Identifier'||!item.init||
+           !['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(item.init.type)){
+          continue;
         }
+        functions.add(item.id.name);
+        // A named expression has its own recursive self-binding, distinct
+        // from the exported const. It can mutate that same shared function.
+        if(item.init.id?.type==='Identifier')functions.add(item.init.id.name);
       }
     }
   }
   if(!functions.size)return;
   walk(ast,(node,parent,key)=>{
     if(node.type!=='Identifier'||!functions.has(node.name))return;
-    if(parent?.type==='FunctionDeclaration'&&key==='id'||
+    if((parent?.type==='FunctionDeclaration'||
+        parent?.type==='FunctionExpression'||
+        parent?.type==='ClassDeclaration'||
+        parent?.type==='ClassExpression')&&key==='id'||
        parent?.type==='VariableDeclarator'&&key==='id'||
        parent?.type==='CallExpression'&&key==='callee'||
        parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
