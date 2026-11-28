@@ -40,6 +40,12 @@ Verifier before/after:
 - Corrected verifier **`51382b659c79eccba3478dc7462b664504e47b93`** — [two-OS run 46136617047](https://github.com/FlareZ123/obfs/actions/runs/46136617047), **both focused jobs successful**, with strict project/external JSDoc.
 - Test: `test/sco-private-integrity-portable-paths.test.js` (four duplicate-class negatives and a positive deployed two-file proof).
 
+Graph red→green and existing integration:
+- Test-only graph source `f498cff6b3e4eca68b27024e89450e474263c6aa` — [run 46136766139](https://github.com/FlareZ123/obfs/actions/runs/46136766139), **failed on Ubuntu and Windows** because the old selected-graph composer and selective static import closure accepted all four selected-module aliases and three imported-source aliases.
+- Graph implementation source `0045fe79e7f455cdbdb622b23bf0972aa456bc77` — [run 46136808808](https://github.com/FlareZ123/obfs/actions/runs/46136808808), **both focused OS jobs successful** on the first graph regression version. Later strict-message tests and additional entry/private alias tests require their own exact-head check.
+- The existing `manual-sco-graph.yml` Ubuntu/Windows integration at source `bfe5c3d119d01be3d8a23fb5ca886349080d490d` — [run 46137366049](https://github.com/FlareZ123/obfs/actions/runs/46137366049), **both graph jobs successful**: deterministic generated facades, multi-module HMAC/authorization and private graph semantics, plus SCO graph JSDoc.
+- The single-module public/private and HTTP admission red/green runs, including their later positive controls, are separate and still pending; do not conflate them with the preceding source pins.
+
 Additional branch-side integration (not yet full-validated):
 - Graph paths source pin `0045fe79e7f455cdbdb622b23bf0972aa456bc77` plus later tightened tests; source fixture `test/sco-graph-portable-collisions.test.js`. The test spans ordinary private graph, selected graph and selective static dependency closure; an independent later fixture tests standalone entry/private alias.
 - HTTP publisher source pin `91cd86145de313ade820ecbe81de93c2c84f04d2` plus `test/sco-public-private-path-collisions.test.js`.
