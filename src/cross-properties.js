@@ -798,7 +798,8 @@ function collectVerifiedImportedUrlStaticAliases(files,parseFile=parseModule) {
  * false positives can only veto rewriting, while source-observing calls must
  * never be missed because the receiver resides in a sibling module.
  *
- * Kinds: receiver, method, returnReceiver, holder:<key>, returnsHolder:<key>.
+ * Kinds: receiver, method, returnReceiver, holder:<key>, returnsHolder:<key>,
+ * receiverHolder:<key> and returnsReceiverHolder:<key>.
  * Only shallow direct function returns and object method fields are inferred.
  * @param {SourceFile[]} files
  * @returns {Map<string,Map<string,Set<string>>>}
@@ -876,15 +877,22 @@ function collectImportedTimingAliases(files,parseFile=parseModule) {
          name===null&&node.computed&&
          [...base].some(kind=>kind.startsWith('holder:')))
         result.add('method');
+      if(name!==null&&base.has('receiverHolder:'+name)||
+         name===null&&node.computed&&
+         [...base].some(kind=>kind.startsWith('receiverHolder:')))
+        result.add('receiver');
     } else if(node.type==='CallExpression') {
       if(node.callee.type==='Identifier'&&node.callee.name==='require'&&
          nodeModules.has(String(node.arguments[0]?.value??'')))result.add('module');
       const callable=kinds(node.callee,names);
       if(callable.has('returnReceiver'))result.add('receiver');
       if(callable.has('returnMethod'))result.add('method');
-      for(const kind of callable)
+      for(const kind of callable) {
         if(kind.startsWith('returnsHolder:'))
           result.add('holder:'+kind.slice('returnsHolder:'.length));
+        if(kind.startsWith('returnsReceiverHolder:'))
+          result.add('receiverHolder:'+kind.slice('returnsReceiverHolder:'.length));
+      }
       if(node.callee.type==='MemberExpression'&&
          property(node.callee)==='bind'&&
          kinds(node.callee.object,names).has('method'))result.add('method');
@@ -892,8 +900,10 @@ function collectImportedTimingAliases(files,parseFile=parseModule) {
       for(const item of node.properties) {
         if(item.type!=='Property'||item.kind!=='init')continue;
         const name=item.computed?staticString(item.key):key(item.key);
-        if(name!==null&&kinds(item.value,names).has('method'))
-          result.add('holder:'+name);
+        if(name===null)continue;
+        const value=kinds(item.value,names);
+        if(value.has('method'))result.add('holder:'+name);
+        if(value.has('receiver'))result.add('receiverHolder:'+name);
       }
     } else if(['FunctionExpression','FunctionDeclaration','ArrowFunctionExpression'].includes(node.type)) {
       const returns=node.body?.type==='BlockStatement'?
@@ -905,6 +915,8 @@ function collectImportedTimingAliases(files,parseFile=parseModule) {
         if(value.has('method'))result.add('returnMethod');
         for(const tag of value) {
           if(tag.startsWith('holder:'))result.add('returnsHolder:'+tag.slice(7));
+          if(tag.startsWith('receiverHolder:'))
+            result.add('returnsReceiverHolder:'+tag.slice('receiverHolder:'.length));
         }
       }
     }
