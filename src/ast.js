@@ -4476,6 +4476,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const domDatasetNames=new Set();
   const domRangeNames=new Set();
   const domTokenListNames=new Set();
+  const domCanvasContexts=new Set();
   const domElementFactories=new Set();
   const domStyleFactories=new Set();
   const domDatasetFactories=new Set();
@@ -4537,6 +4538,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
       isNativeDocument(node.callee.object)&&
       memberName(node.callee)==='createRange'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeCanvasContext(node) {
+    return Boolean(node && (node.type==='Identifier'&&domCanvasContexts.has(node.name)||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+      memberName(node.callee)==='getContext'&&
+      isNativeDomElement(node.callee.object)&&
+      node.arguments[0]&&staticString(node.arguments[0])==='2d'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNativeDomTokenList(node) {
@@ -4654,6 +4663,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isNativeDomTokenList(value)&&!domTokenListNames.has(name)) {
         domTokenListNames.add(name);changedDom=true;
+      }
+      if(isNativeCanvasContext(value)&&!domCanvasContexts.has(name)) {
+        domCanvasContexts.add(name);changedDom=true;
       }
     });
   }while(changedDom);
@@ -5899,7 +5911,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isNativeDomElement(owner) &&
          (['setAttribute','setAttributeNS','insertAdjacentText',
            'insertAdjacentHTML','append','prepend','replaceChildren',
-           'before','after','replaceWith'].includes(method??'') ||
+           'before','after','replaceWith','setCustomValidity',
+           'setRangeText','setHTMLUnsafe'].includes(method??'') ||
            node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
@@ -5908,6 +5921,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeCanvasContext(owner)&&
+         ['measureText','fillText','strokeText'].includes(method??'')&&
+         node.arguments[0]&&!isDefinitelyPrimitive(node.arguments[0]))
+         observed=true;
       if(isNativeDomTokenList(owner)&&
          ['add','remove','toggle','replace','contains','supports'].includes(method??'')&&
          node.arguments.some((/** @type {AstNode} */ argument)=>
@@ -5917,7 +5934,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            !isDefinitelyPrimitive(argument)))observed=true;
       if(isNativeDocument(owner) &&
          ['createTextNode','createComment','querySelector','getElementById',
-          'createElement','createElementNS'].includes(method??'') &&
+          'createElement','createElementNS','createProcessingInstruction',
+          'write','writeln'].includes(method??'') &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
     }
