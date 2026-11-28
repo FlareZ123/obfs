@@ -17,21 +17,29 @@ function createPathInventory() {
 }
 
 /**
- * Two conservative name-equivalence keys for cross-platform output trees.
- * Some names (for example Greek final sigma) share an uppercase mapping
- * but differ when lowercased. Some other names share a lowercase mapping
- * but differ when uppercased. Retain both checks to avoid dropping either
- * previously rejected alias family. Uppercase expansion may intentionally
- * reject names that a particular filesystem would keep distinct.
+ * Four conservative filename-equivalence keys for portable output trees.
+ *
+ * Preserve the old NFC/lowercase and NFC/uppercase checks exactly: no pair
+ * previously rejected by this inventory may become admissible. Additional
+ * opposite-case round trips catch Unicode full-casefold collision families
+ * missed by checking either one-step map alone, e.g. U+03D1 vs U+03F4
+ * (both casefold to theta) and U+1E9E vs the letters "ss".
+ *
+ * This is intentionally not a complete Unicode full-casefold implementation
+ * or a promise of filesystem identity on all volume/Unicode versions.
  *
  * @param {string} filename
- * @returns {[string,string]}
+ * @returns {[string,string,string,string]}
  */
 function portableKeys(filename) {
   const normalized=filename.normalize('NFC');
+  const lower=normalized.toLowerCase().normalize('NFC');
+  const upper=normalized.toUpperCase().normalize('NFC');
   return [
-    'lower:'+normalized.toLowerCase().normalize('NFC'),
-    'upper:'+normalized.toUpperCase().normalize('NFC')
+    'lower:'+lower,
+    'upper:'+upper,
+    'upper-lower:'+upper.toLowerCase().normalize('NFC'),
+    'lower-upper:'+lower.toUpperCase().normalize('NFC')
   ];
 }
 
@@ -56,7 +64,7 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
 
   const segments=filename.split('/');
   let directory='';
-  /** @type {{name:string,keys:[string,string]}[]} */
+  /** @type {{name:string,keys:ReturnType<typeof portableKeys>}[]} */
   const ancestors=[];
   for(let index=0;index<segments.length-1;index++) {
     directory=directory?directory+'/'+segments[index]:segments[index];
@@ -90,6 +98,14 @@ function safePath(file) {
   // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.
   if (/[\uD800-\uDFFF]/u.test(file)) {
     throw new TypeError(`Unsafe non-well-formed Unicode file path: ${file}`);
+  }
+  // Linux casefolded ext4/f2fs may remove Default_Ignorable_Code_Point
+  // characters before lookup (including U+200B and U+202E). Even a lone
+  // spelling like ".."+RLO may alias parent/dot or an empty name on certain
+  // volumes. Reject these rather than depending on platform kernel patches.
+  // Do not echo the raw character in an error: bidi controls can spoof logs.
+  if (/\\p{Default_Ignorable_Code_Point}/u.test(file)) {
+    throw new TypeError('Default-ignorable Unicode filename: refused portable path');
   }
   for (const segment of file.split('/')) {
     // Windows treats these names as DOS devices, including console handles.
