@@ -4,7 +4,8 @@ const {createHash}=require('node:crypto');
 const {safePath}=require('./core');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
-const {parse,walk}=require('./ast');
+const {parse}=require('./ast');
+const {assertNoSharedChildFunctionIdentity}=require('./sco-private-child-function-identity');
 const {assertNoPrivateImportMemberState}=require('./sco-private-import-identity');
 const {bindScoModuleExports}=require('./sco-partition');
 const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
@@ -48,8 +49,6 @@ const generatedSnapshots=new WeakMap();
 function assertImmutablePrivateModuleTopLevels(sources){
   for(const source of sources){
     const ast=parse(source.code,'module');
-    /** @type {Set<string>} */
-    const moduleFunctions=new Set();
     for(const statement of ast.body){
       if(statement.type==='ImportDeclaration'||statement.type==='EmptyStatement'||
          statement.type==='ExpressionStatement'&&statement.directive==='use strict'){
@@ -59,7 +58,6 @@ function assertImmutablePrivateModuleTopLevels(sources){
         statement.declaration&&!statement.source?statement.declaration:statement;
       if(declaration.type==='FunctionDeclaration'&&
          declaration.id?.type==='Identifier'&&!declaration.generator){
-        moduleFunctions.add(declaration.id.name);
         continue;
       }
       if(declaration.type==='VariableDeclaration'&&declaration.kind==='const'&&
@@ -72,20 +70,7 @@ function assertImmutablePrivateModuleTopLevels(sources){
       }
       throw new TypeError('Selected SCO private dependency has unproved module-level mutable state or effects: '+source.path);
     }
-    // A function object is mutable even when its declaration binding is not.
-    // Keep purely direct local function calls; decline use as a container,
-    // first-class value or property receiver, which could persist per-client
-    // state in the single server instance.
-    walk(ast,(node,parent,key)=>{
-      if(node.type!=='Identifier'||!moduleFunctions.has(node.name))return;
-      if(parent?.type==='FunctionDeclaration'&&key==='id'||
-         parent?.type==='CallExpression'&&key==='callee'||
-         parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
-         parent?.type==='Property'&&key==='key'&&!parent.computed&&!parent.shorthand){
-        return;
-      }
-      throw new TypeError('Selected SCO private dependency escapes a shared function identity: '+source.path);
-    });
+    assertNoSharedChildFunctionIdentity(source.path,ast);
   }
 }
 
