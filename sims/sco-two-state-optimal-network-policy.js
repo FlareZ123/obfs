@@ -44,6 +44,37 @@ function enumerateModels(){
 }
 
 /**
+ * Full product-machine equivalence for independently supplied state indices,
+ * including models OUTSIDE the learner's two-state encoding. The finite
+ * reachability graph has at most |left.states| * |right.states| pairs.
+ * @param {Machine} left
+ * @param {number} leftState
+ * @param {Machine} right
+ * @param {number} rightState
+ * @returns {boolean}
+ */
+function sameFutureBehavior(left,leftState,right,rightState){
+  if(!Number.isSafeInteger(leftState)||leftState<0||leftState>=left.next.length||
+      !Number.isSafeInteger(rightState)||rightState<0||rightState>=right.next.length){
+    throw new RangeError('Invalid model start state');
+  }
+  /** @type {Array<[number,number]>} */
+  const pending=[[leftState,rightState]];
+  const seen=new Set();
+  for(let at=0;at<pending.length;at++){
+    const [a,b]=pending[at];
+    const key=a*right.next.length+b;
+    if(seen.has(key))continue;
+    seen.add(key);
+    for(let input=0;input<2;input++){
+      if(left.output[a][input]!==right.output[b][input])return false;
+      pending.push([left.next[a][input],right.next[b][input]]);
+    }
+  }
+  return true;
+}
+
+/**
  * Each encoded entry is 2*modelIndex+currentState. Models with one state
  * never use the second state label. Every belief has at most one live state
  * for each table because the transcript starts from a known state zero.
@@ -286,4 +317,4 @@ function continuation(model,state,inputs){
   return {outputs,state};
 }
 
-module.exports={enumerateModels,successor,equivalent,createPolicy,learn,learnExpected,continuation};
+module.exports={enumerateModels,successor,equivalent,sameFutureBehavior,createPolicy,learn,learnExpected,continuation};
