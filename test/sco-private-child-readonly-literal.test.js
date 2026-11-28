@@ -67,6 +67,32 @@ test('SCO child read-only literal proof refuses mutations and first-class escape
   }
 });
 
+test('SCO child scalar table proof refuses destructuring assignment targets',()=>{
+  const mutableOwner='const table={n:0};';
+  const bodies=[
+    '({n:table.n}={n:table.n+1});return table.n;',
+    '[table.n]=[table.n+1];return table.n;',
+    '({x:[table.n]}={x:[table.n+1]});return table.n;',
+    '({x:{y:table.n}}={x:{y:42}});return table.n;',
+    'for({n:table.n} of [{n:table.n+1}]){}return table.n;',
+    'for([table.n] of [[table.n+1]]){}return table.n;',
+    'for(table.n of [table.n+1]){}return table.n;',
+    'for(table.n in {a:1}){}return table.n;'
+  ];
+  for(const body of bodies){
+    assert.throws(()=>compile(mutableOwner+
+      'export function next(){'+body+'}'),
+      /unproved shared module object state/u,body);
+  }
+});
+
+test('SCO child scalar table proof preserves RHS-only destructuring reads',()=>{
+  const source='const table={n:41};'+
+    'export function next(){let value=0;({x:value}={x:table.n});'+
+    'for(const x of [table.n]){value=x;}return value+1;}';
+  assert.doesNotThrow(()=>compile(source));
+});
+
 test('SCO child scalar table audit retains byte-identical emitted RPC facade',()=>{
   const source='const table={n:41};export function next(){return table.n+1;}';
   const reviewed=compile(source);
