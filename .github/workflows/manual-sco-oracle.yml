@@ -87,6 +87,8 @@ jobs:
         run: node sims/sco-step-only-version-space-report.js --holdout
       - name: Validate two through five-state continuation through real authenticated SCO RPC
         run: node --test test/sco-step-only-live-rpc.test.js
+      - name: Test independent two-state minimax and process-separated public SCO versus matched ordinary RPC
+        run: node --test test/sco-two-state-process-boundary.test.js
       - name: Publish real SCO server-private to public continuation result
         run: node sims/sco-step-only-live-rpc.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
