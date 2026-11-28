@@ -191,3 +191,123 @@ test('all 40,320 width-three permutations admit complete eight-target batch inde
   assert.equal(targets,322560);
   assert.equal(maxCalls,8);
 });
+
+/** @param {number} seed @returns {()=>number} */
+function rng32(seed){
+  let state=seed>>>0;
+  return()=>{state^=state<<13;state^=state>>>17;state^=state<<5;return state>>>0;};
+}
+/** @param {number} seed @returns {number[]} */
+function matrix32(seed){
+  const draw=rng32(seed);
+  const columns=Array.from({length:32},(_,bit)=>(2**bit)>>>0);
+  for(let index=0;index<300;index++){
+    const left=draw()%32,right=draw()%32;
+    if(left===right)continue;
+    if(draw()&1)columns[left]=(columns[left]^columns[right])>>>0;
+    else [columns[left],columns[right]]=[columns[right],columns[left]];
+  }
+  return columns;
+}
+/** @param {number[]} columns @param {number} x @returns {number} */
+function apply32(columns,x){
+  let image=0;
+  for(let bit=0;bit<32;bit++)if((x>>>bit)&1)image^=columns[bit];
+  return image>>>0;
+}
+/** @param {number[]} columns @returns {number[]} */
+function invert32(columns){
+  /** @type {{left:number,right:number}[]} */
+  const rows=[];
+  for(let row=0;row<32;row++){
+    let left=0;
+    for(let col=0;col<32;col++)if((columns[col]>>>row)&1)left^=1<<col;
+    rows.push({left:left>>>0,right:(1<<row)>>>0});
+  }
+  for(let bit=0;bit<32;bit++){
+    let selected=bit;
+    while(selected<32&&!((rows[selected].left>>>bit)&1))selected++;
+    assert.ok(selected<32,'fixture matrix must be invertible');
+    [rows[selected],rows[bit]]=[rows[bit],rows[selected]];
+    for(let row=0;row<32;row++)if(row!==bit&&((rows[row].left>>>bit)&1)){
+      rows[row].left=(rows[row].left^rows[bit].left)>>>0;
+      rows[row].right=(rows[row].right^rows[bit].right)>>>0;
+    }
+  }
+  return Array.from({length:32},(_,col)=>{
+    let x=0;
+    for(let row=0;row<32;row++)if((rows[row].right>>>col)&1)x^=1<<row;
+    return x>>>0;
+  });
+}
+/** @param {number[]} vectors @returns {number} */
+function rank32(vectors){
+  const pivots=Array(32).fill(0);
+  let count=0;
+  for(const original of vectors){
+    let value=original>>>0;
+    for(let bit=31;bit>=0;bit--){
+      if(!((value>>>bit)&1))continue;
+      if(pivots[bit])value^=pivots[bit];
+      else {pivots[bit]=value>>>0;count++;break;}
+    }
+  }
+  return count;
+}
+
+test('32-bit rank-four wrapped shear: shared residual sampling saves 43 calls',()=>{
+  const inputColumns=matrix32(1),outputColumns=matrix32(1^0x87654321);
+  const inputInverse=invert32(inputColumns);
+  const inputBias=0x13579bdf,outputBias=0x2468ace0;
+  /** @param {number} x @returns {number} */
+  const oracle=x=>{
+    const h=(apply32(inputColumns,x)^inputBias)>>>0;
+    let moved=h;
+    if((h&3)===3)moved^=1<<24;
+    if((h&12)===12)moved^=1<<25;
+    if((h&48)===48)moved^=1<<26;
+    if((h&192)===192)moved^=1<<27;
+    return (apply32(outputColumns,moved)^outputBias)>>>0;
+  };
+  // Source-private oracle audit; none of these 256 probe calls belong to
+  // the actual attacker API or to the counted 16 target inversions.
+  const constant=oracle(0);
+  const interpolation=Array.from({length:32},(_,bit)=>
+    (oracle((1<<bit)>>>0)^constant)>>>0);
+  assert.equal(rank32(interpolation),30);
+  const witnessResiduals=Array.from({length:256},(_,h)=>{
+    const input=apply32(inputInverse,(h^inputBias)>>>0);
+    return (oracle(input)^constant^apply32(interpolation,input))>>>0;
+  });
+  assert.equal(rank32(witnessResiduals),4);
+
+  const hiddenBase=0x56a2c7e5;
+  const secrets=Array.from({length:16},(_,low)=>apply32(inputInverse,
+    (hiddenBase^((low<<24)>>>0)^inputBias)>>>0));
+  const targets=secrets.map(oracle);
+  assert.equal(new Set(targets).size,16);
+  const deterministic=prepareLowRankBatchInverter(oracle,{bits:32,rankBound:4});
+  for(let i=0;i<16;i++)
+    assert.equal(deterministic.invert(targets[i]).preimage,secrets[i]);
+  assert.equal(deterministic.stats().interpolantNullity,2);
+  assert.equal(deterministic.stats().orbitCap,64);
+  assert.equal(deterministic.stats().totalCalls,96);
+
+  const draw=rng32(1^0x13572468);
+  const sampled=prepareLowRankBatchInverter(oracle,{
+    bits:32,rankBound:4,completion:'sampled-residual',
+    sample:()=>draw(),maxSamples:256
+  });
+  for(let i=0;i<16;i++)
+    assert.equal(sampled.invert(targets[i]).preimage,secrets[i]);
+  const stats=sampled.stats();
+  assert.equal(stats.interpolantNullity,2);
+  assert.equal(stats.samplingCalls,4);
+  assert.equal(stats.orbitCap,16);
+  assert.equal(stats.setupCalls,37);
+  assert.equal(stats.totalCalls,53);
+  assert.equal(stats.scannedCycles,2);
+  assert.equal(stats.cacheHits,14);
+  assert.equal(targets.every(y=>sampled.invert(y).newOracleCalls===0),true);
+  assert.equal(sampled.stats().totalCalls,53);
+});
