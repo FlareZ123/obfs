@@ -93,6 +93,7 @@
     "sims/sco-batch-wrapper-preflight-attack.js",
     "test/sco-batch-required-preflight.test.js",
     "sims/webcrack-four-way-browser.js",
+    "sims/webcrack-stage-ablation.js",
     "sims/jsimplifier-static-attacker.js",
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
