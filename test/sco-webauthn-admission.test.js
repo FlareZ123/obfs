@@ -5,6 +5,7 @@ const {test}=require('node:test');
 const http=require('node:http');
 const {createHash,generateKeyPairSync,randomBytes,sign}=require('node:crypto');
 const {createScoWebAuthnAdmission}=require('../src/sco-webauthn-admission');
+const {createScoWebAuthnMemoryStore}=require('../src/sco-webauthn-state');
 
 /** @typedef {import('../src/sco-webauthn-admission').RegisteredCredential} RegisteredCredential */
 
@@ -153,6 +154,30 @@ test('private PEM credentials are not silently treated as registered public keys
   const challenge=h.admission.issueChallenge('accountA','loginA');
   assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,true,
     'Legitimate SPKI PEM public keys must remain accepted');
+});
+
+test('WebAuthn state adapters must not grant on truthy nonboolean or async outcomes',async()=>{
+  const firstStore=createScoWebAuthnMemoryStore();
+  const first=harness({stateStore:/** @type {any} */({
+    ...firstStore,mintSession:()=>({notCommitted:true})
+  })});
+  const nonce=first.admission.issueChallenge('accountA','loginA');
+  assert.equal((await first.admission.verifyAssertion(assertion(first,nonce))).ok,false,
+    'Truthy nonboolean mint must never grant a token');
+
+  const secondStore=createScoWebAuthnMemoryStore();
+  const second=harness({stateStore:/** @type {any} */({
+    ...secondStore,authorizeSession:()=>Promise.resolve(true),
+    revokeSession:()=>({notRevoked:true})
+  })});
+  const next=second.admission.issueChallenge('accountA','loginA');
+  const granted=await second.admission.verifyAssertion(assertion(second,next));
+  assert.equal(granted.ok,true,'Valid synchronous mint remains admitted');
+  if(!granted.ok)return;
+  assert.equal(second.admission.authorizeSession(granted.token,'accountA'),false,
+    'Async authority check must not be returned as a truthy authorization');
+  assert.equal(second.admission.revokeSession(granted.token),false,
+    'Truthy nonboolean revocation result is not proof of revocation');
 });
 
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
