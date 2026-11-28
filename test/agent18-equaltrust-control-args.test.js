@@ -38,7 +38,7 @@ async function compareWire(){
     const cases=[
       [17,400],[17],[17,400,9],[],[17,undefined],[17,400,null]
     ];
-    /** @param {(x?:unknown,y?:unknown)=>Promise<unknown>} invoke
+    /** @param {(...values:unknown[])=>Promise<unknown>} invoke
      * @param {unknown[]} args
      * @returns {Promise<{method:string,args:unknown[]}>}
      */
