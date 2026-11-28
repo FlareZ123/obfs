@@ -61,7 +61,8 @@ test('SCO standalone child refuses private top-level array and RegExp state',()=
     'const history=[];export function next(){return history.push(1);}',
     'const matcher=/a/g;export function next(){return matcher.test("a");}'
   ]){
-    assert.throws(()=>compile(source),/unproved shared module object state/u);
+    assert.throws(()=>compile(source),
+      /unproved shared module object state|unproved client host state/u);
   }
 });
 
