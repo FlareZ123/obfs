@@ -152,3 +152,45 @@ private source graphs. Avoid general-proof claims.
 
 Do not end or release before measured 70m; after threshold commit/push
 research first, then delete lease in final GitHub commit and verify.
+
+
+### Checkpoint 2026-11-28 15:21 UTC
+
+First pinned SCO graph workflow [46157991330] at `427ff984`
+completed **RED on both Ubuntu and Windows: 104/105 tests passed**, one
+existing constructor-loader diagnostic expected one specific refusal but
+our new earlier child function-state guard threw a different legitimate
+refusal. No unsafe acceptance; preserved legacy diagnostic by moving new
+guard *after* realm/host/loader checks in
+`src/sco-selective-partition.js` commit `bb3ecb8f`.
+Next cross-platform workflow [46159150715] pinned at `bb3ecb8f`
+was queued as of the last read. Do not call it green before checking.
+
+Expanded admitted private child state study:
+- Module-level `let`/`var` counters, `const` record/array/RegExp
+  state and transitive function imports can differ across clients;
+  new strict shared checker refuses those forms.
+- Native Node 22.16 three-tree original ESM tests returned
+  `[1,1,1,2]` for function-own, module lexical, object, array and
+  transitive shared-state samples, vs `[42,42,42,42]` for primitive
+  stateless control.
+- `src/sco-private-child-readonly-literal.js` now proves narrowly
+  unexported, nonescaping scalar-literal record/array reads safe and
+  admits them rather than refusing all tables. Readonly tests cover
+  6 positive and 17+ deliberately rejected negative examples.
+  The proof declines exported table owners, property writes, aliases,
+  getters, computed keys, nested reads, array methods, reflection,
+  RegExp, mutable module lexical cells. Unknown dynamic object factory
+  results/constructors remain unproved and outside this soundness gate.
+- No SCO emitted runtime code or handler behavior changed. Build-time
+  analysis grows; no global compatibility/performance release assertion.
+- Report `im-results/sco-private-child-function-identity-2026-11-28.md`
+  records the red source pin and readonly proof. Need update with
+  final green CI receipt after actual result and preserve exact SHA.
+
+Primary next action: get [46159150715] result; fix failures without
+weakening evidence; dispatch ONE revised final cross-platform run at
+a dedicated immutable branch after all new source and tests settle.
+Then run broader validation only if targeted stable and worthwhile.
+Important program objective still NO-GO pending frozen PR #384 and
+independent attacker-equal-trust metrics.
