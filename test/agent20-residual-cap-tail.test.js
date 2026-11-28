@@ -125,3 +125,31 @@ test('sharp permutation-only finite cap failure bound is at most 2^-67 for n<=32
   assert.deepEqual(failureFraction(1,67),
     {bad:1n,total:1n<<67n});
 });
+
+test('exhaustive 40320 3-bit permutations match sharp interpolant-rank witness count',()=>{
+  const perm=[0,1,2,3,4,5,6,7];
+  let enumerated=0,rankTwo=0,fullRank=0;
+  /** @param {number} position */
+  function visit(position) {
+    if(position===perm.length){
+      enumerated++;
+      const base=perm[0];
+      const columns=[perm[1]^base,perm[2]^base,perm[4]^base];
+      if(spans(3,columns))fullRank++;
+      else rankTwo++; // Cannot be rank 0 or 1: three distinct nonzero columns.
+      return;
+    }
+    for(let at=position;at<perm.length;at++){
+      [perm[position],perm[at]]=[perm[at],perm[position]];
+      visit(position+1);
+      [perm[position],perm[at]]=[perm[at],perm[position]];
+    }
+  }
+  visit(0);
+  // Independent combinatorial count: choose F(0) in 8 ways, F(e0) in 7,
+  // F(e1) in 6, force F(e2)=F(0)^M(e0)^M(e1), then permute 4 remaining
+  // output images in 4! ways. Exactly 8*7*6*24 = 8064 rank-two maps.
+  assert.equal(enumerated,40320);
+  assert.equal(rankTwo,8064);
+  assert.equal(fullRank,32256);
+});
