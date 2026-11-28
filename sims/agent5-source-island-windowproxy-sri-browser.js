@@ -19,7 +19,7 @@ const runBrowser=promisify(execFile);
  * There is no injected Function/require/fetch/globalThis/window/document
  * identifier, source-file API, or opaque computed member in the declared AST.
  *
- * @param {'windowproxy'|'dynamic'|'reflected'|'computedSetter'} [scenario]
+ * @param {'windowproxy'|'dynamic'|'reflected'|'computedSetter'|'reflectSet'|'objectAssign'} [scenario]
  * @returns {SourceFile[]}
  */
 function originalFiles(scenario='windowproxy'){
@@ -32,6 +32,10 @@ function originalFiles(scenario='windowproxy'){
       "const insert=doc.head.insertAdjacentHTML;Reflect.apply(insert,doc.head,['beforeend',"+JSON.stringify(markup)+"]);" :
       scenario==='computedSetter' ?
         "const selector=['inner','HTML'].join('');doc.head[selector]="+JSON.stringify(markup)+";" :
+      scenario==='reflectSet' ?
+        'Reflect.set(doc.head,"innerHTML",'+JSON.stringify(markup)+');' :
+      scenario==='objectAssign' ?
+        'Object.assign(doc.head,{innerHTML:'+JSON.stringify(markup)+'});' :
         'doc.head.insertAdjacentHTML("beforeend",'+JSON.stringify(markup)+');';
   const entry=[
     "import {leaf} from './leaf.mjs';",
@@ -57,7 +61,9 @@ function originalFiles(scenario='windowproxy'){
 async function serve(){
   const scenario=process.argv.includes('--dynamic-selector')?'dynamic':
     process.argv.includes('--reflective-insert')?'reflected':
-    process.argv.includes('--computed-setter')?'computedSetter':'windowproxy';
+    process.argv.includes('--computed-setter')?'computedSetter':
+    process.argv.includes('--reflect-set')?'reflectSet':
+    process.argv.includes('--object-assign')?'objectAssign':'windowproxy';
   const original=originalFiles(scenario);
   // This script is deliberately dual-use. On the red-first source, run it
   // without flags to prove native-vs-generated SRI mismatch. After the
