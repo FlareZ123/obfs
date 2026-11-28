@@ -41,7 +41,7 @@ Let \(B\) be a nonempty belief and \(k\) the remaining query budget. A belief is
 
 The attacker chooses the input \(a\); the unknown source may return any output \(o\) consistent with the current belief. Therefore a winning input must leave **every nonempty output branch** solvable within the remaining budget. This is the correct worst-case no-reset game, not an average-case or fixed-sequence approximation.
 
-The implementation memoizes exact \((B,k)\) states. Each belief is a sorted Uint16Array and its memo key is the exact base64 encoding of its bytes; no probabilistic hash or collision assumption is used. The solver searches 23 calls and then 24 calls, stores the winning input for every successful state, and walks the resulting policy DAG to verify all branches.
+The implementation memoizes exact \((B,k)\) states. Each belief is a sorted Uint16Array and its memo key is the exact base64 encoding of its bytes; no probabilistic hash or collision assumption is used. The solver searches 23 calls and then 24 calls, stores the winning input for every successful state, and walks the resulting policy DAG to verify all branches. It then replays the materialized policy against every one of the 46,656 original labelled source tables, checking that each observed output follows a nonempty policy edge and that the terminal class equals the actual source's current quotient class. All source replays terminate within 24 calls.
 
 ## Reproducible computational evidence
 
@@ -58,6 +58,8 @@ The implementation memoizes exact \((B,k)\) states. Each belief is a sorted Uint
 | Distinct nonterminal policy-DAG states | 13,329 |
 | Terminal policy leaves | 6,628 |
 | Maximum policy path length | 24 |
+| Labelled source tables replayed through policy | 46,656 |
+| Maximum observed replay queries | 24 |
 
 The local Node 22 run completed in 20.44 seconds with 653,736 KB maximum resident memory. These are local measurements, not a promise about CI runner performance. The exact test and strict JSDoc check passed in [isolated workflow 46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556) on the corrected source pin. The search is deterministic and requires no random seed or external dataset.
 
@@ -67,7 +69,7 @@ The exact two-state minimax value is nine calls. Extending the source class to a
 
 The companion live process-boundary test selects a three-state source privately, then runs the unchanged two-state learner against both the generated SCO facade and a matched minified ordinary RPC control. It demonstrates a concrete false two-state certificate after seven calls and a next-input divergence. That live test passed on Ubuntu and Windows, including the Linux different-UID and Chromium checks, in [workflow 46166686714](https://github.com/FlareZ123/obfs/actions/runs/46166686714).
 
-The earlier complete 46,656-table census and independent ten-call lower-bound test passed on both operating systems in [workflow 46167535403](https://github.com/FlareZ123/obfs/actions/runs/46167535403). The first isolated run [46168854508](https://github.com/FlareZ123/obfs/actions/runs/46168854508) exposed a quotient-field wiring error and failed immediately; the corrected source passed the exact solver test and strict JSDoc in [run 46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556).
+The earlier complete 46,656-table census and independent ten-call lower-bound test passed on both operating systems in [workflow 46167535403](https://github.com/FlareZ123/obfs/actions/runs/46167535403). The first isolated run [46168854508](https://github.com/FlareZ123/obfs/actions/runs/46168854508) exposed a quotient-field wiring error. The corrected core solver passed in [run 46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556). The subsequent all-source replay passed its assertions but exposed one missing JSDoc annotation in [run 46169979728](https://github.com/FlareZ123/obfs/actions/runs/46169979728); the final typed source passed both replay and strict JSDoc in [run 46170255006](https://github.com/FlareZ123/obfs/actions/runs/46170255006).
 
 ## Scope and limitations
 
@@ -80,6 +82,6 @@ It is an attacker-model result, not an obfuscation improvement. It does not show
 - Simulator: sims/sco-three-state-minimax.js
 - Test: test/sco-three-state-minimax.test.js
 - Strict JSDoc project: jsconfig.sco-oracles.json
-- Corrected solver/test source pin: 9c5827f26c1e7504e59e41ee6d58738d4d12a41d
+- Final solver/test source pin: 014d86c962821da637c19b9a20e6a096d301df79
 - Dispatch-workflow source pin: 0434c54cd64632147468ac031f219b798884076d
-- CI: [46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556), **GREEN** (exact solver test + strict JSDoc).
+- CI: [46170255006](https://github.com/FlareZ123/obfs/actions/runs/46170255006), **GREEN** (exact solver, 46,656-source policy replay + strict JSDoc).
