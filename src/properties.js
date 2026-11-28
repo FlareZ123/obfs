@@ -170,6 +170,26 @@ const constantDeclaratorsCache=new WeakMap();
 const proofInventoryCache=new WeakMap();
 
 /**
+ * Recognize a comma expression whose discarded operands are inert
+ * primitive constants. These can neither invoke user code nor
+ * observe/escape an owner; the expression's value is its last operand.
+ * The existing primitive expression proof excludes potentially throwing
+ * BigInt arithmetic; standalone BigInt literals are separately inert.
+ * No arbitrary side-effectful sequence is transparent to alias analysis.
+ *
+ * @param {AstNode|null|undefined} node
+ * @returns {AstNode|null}
+ */
+function inertSequenceValue(node) {
+  if(node?.type!=='SequenceExpression'||node.expressions.length<2)return null;
+  for(const discarded of node.expressions.slice(0,-1)) {
+    if(discarded.type==='Literal'&&typeof discarded.value==='bigint')continue;
+    if(!isPrimitiveConstantExpression(discarded))return null;
+  }
+  return node.expressions[node.expressions.length-1];
+}
+
+/**
  * @param {AstNode} ast
  * @returns {{
  *   calls:Map<string,AstNode[]>, declarations:AstNode[], declarationSet:Set<AstNode>,
@@ -235,7 +255,8 @@ function collectProofInventory(ast) {
     }
   });
   const aliasDeclarations=declarations.filter(node=>node.init&&
-    ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
+    (['Identifier','MemberExpression','CallExpression'].includes(node.init.type)||
+      node.init.type==='SequenceExpression'&&parents.get(node)?.kind==='const'));
   const complexAliasDeclarations=aliasDeclarations.filter(node=>node.init?.type!=='Identifier');
   // An immutable reverse index lets ordinary direct aliases use a queue per
   // candidate owner, avoiding a full scan of all declarations on each pass.
@@ -741,6 +762,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   function resolvingDependency(expression) {
     if(!expression)return false;
     if(expression.type==='Identifier')return expression.name;
+    // Only inert comma prefixes forward the final operand's same reference.
+    if(expression.type==='SequenceExpression') {
+      const value=inertSequenceValue(expression);
+      return value?resolvingDependency(value):false;
+    }
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
        expression.property.type==='Literal'&&
@@ -957,6 +983,29 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        typeof parent.left.value==='string') {
       inChecks.push(parent);
       continue;
+    }
+    if(parent.type==='SequenceExpression' && key==='expressions' &&
+       inertSequenceValue(parent)===node) {
+      const declaration=parents.get(parent);
+      // Do not accept call arguments, assignments, exported values or
+      // any other contexts whose result could escape untracked.
+      if(declaration?.type==='VariableDeclarator'&&
+         declaration.init===parent&&declaration.id.type==='Identifier'&&
+         aliases.has(declaration.id.name)&&
+         parents.get(declaration)?.kind==='const')continue;
+      // A whole inert comma expression passed to a verified local helper
+      // forwards the same owner reference into that helper's proven formal.
+      // The existing callsite inventory independently rejects escaping,
+      // mutation, reflection and unproved foreign arguments.
+      if(declaration?.type==='CallExpression'&&
+         declaration.callee.type==='Identifier') {
+        const index=declaration.arguments.indexOf(parent);
+        const fn=functions.get(declaration.callee.name);
+        if(index>=0&&fn&&
+           (fn.external&&(index===fn.forwardIndex||index===fn.consumerIndex)||
+             fn.params[index]?.type==='Identifier'&&
+             aliases.has(fn.params[index].name)))continue;
+      }
     }
     if (parent.type === 'MemberExpression' && key === 'object') {
       const property = parent.computed ?
