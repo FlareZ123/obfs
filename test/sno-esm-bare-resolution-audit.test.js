@@ -347,7 +347,9 @@ test('ESM audit refuses --no-addons when the helper would resolve the wrong cond
     ].join('\n');
     for(const {description,flags,options} of [
       {description:'direct argv',flags:['--no-addons'],options:''},
-      {description:'inherited NODE_OPTIONS',flags:[],options:'--no-addons'}
+      {description:'inherited NODE_OPTIONS',flags:[],options:'--no-addons'},
+      {description:'quoted NODE_OPTIONS',flags:[],options:'"--no-addons"'},
+      {description:'split quoted NODE_OPTIONS',flags:[],options:'--no"-"addons'}
     ]) {
       const child=spawnSync(process.execPath,[...flags,'-e',script],{
         encoding:'utf8',timeout:30000,env:{...process.env,NODE_OPTIONS:options}
