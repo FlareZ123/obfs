@@ -68,3 +68,14 @@ Relevant commits on the isolated branch:
 4. Agent 9 should cherry-pick/rebase the guard and test, fix or justify the two positive-yield failures, and run the full relevant cross-reader matrix. Agent 10 has been asked for an independent review of the dynamic-import boundary.
 
 **Conclusion:** the original factory proof was unsound for dynamic ESM consumers. The isolated fail-closed correction has a three-platform focused green result with a safe-builtin positive control. Keep the factory candidate blocked from integration until its remaining positive-yield failures and full acceptance evidence are resolved.
+
+
+## Follow-up positive-yield diagnosis
+
+Agent 9's later candidate run `46164855605` (head `36b729e9...`) reduced the earlier two positive-yield failures to one. Comparing the test file at the earlier and current branch heads shows that Agent 9 changed:
+- record/tuple slot reads to local `const` aliases; and
+- the multiple-importer field reads to primitive arithmetic expressions.
+
+The multiple-importer test then passed. The remaining failure is the tuple `[first, second]`, where both elements are distinct factory-result roots. The current factory lane calls `proveLocalObject` independently for each root; the private tuple carrier proof admits only literal non-selected slots, not another unproven root identifier. This is a conservative decline. It can be addressed either by narrowing the test to a tuple that repeats one root (the current proof boundary) or by grouping all factory roots for an importer, passing them as `additionalRootNames`, and permitting only those exact proven roots in carrier slots.
+
+A separate diagnostic test file, `test/agent1-factory-positive-yield-diagnostic.test.js`, verifies const-captured record/tuple slots with a repeated root and multiple direct importers using arithmetic reads. Both tests passed in the macOS job of run `46168855262`; the remaining Ubuntu/Windows jobs were queued and the run was cancelled to avoid spending more CI on this narrow diagnostic. Do not represent this diagnostic as three-platform validation. The dynamic-import guard itself remains three-platform green in run `46168025824`.
