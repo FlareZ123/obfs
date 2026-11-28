@@ -219,6 +219,79 @@ function hasWeakMapPrototypeExposure(ast) {
     ));
   }
   /**
+   * Extract may-values of a static member read from local records, arrays,
+   * aliases, recorded writes and the result of Object.values on a record.
+   * Unknown computed keys conservatively consider every candidate field.
+   * This is a deliberately bounded local may-analysis, not a JS evaluator.
+   * @param {AstNode|null|undefined} expression
+   * @param {string|null} key
+   * @param {Set<string>} [seen=new Set()]
+   * @returns {AstNode[]}
+   */
+  function constructorMemberValues(expression,key,seen=new Set()) {
+    if(!expression)return [];
+    if(expression.type==='Identifier') {
+      const name=expression.name;
+      if(seen.has(name))return [];
+      const next=new Set(seen);
+      next.add(name);
+      const values=[];
+      for(const assigned of constructorBindingExpressions.get(name)??[])
+        values.push(...constructorMemberValues(assigned,key,next));
+      const writes=constructorMemberWrites.get(name);
+      if(writes) {
+        for(const [writtenKey,nodes] of writes)
+          if(key===null||key===writtenKey)values.push(...nodes);
+      }
+      return values;
+    }
+    if(expression.type==='ObjectExpression') {
+      const values=[];
+      for(const property of expression.properties??[]) {
+        if(property.type==='SpreadElement') {
+          values.push(...constructorMemberValues(property.argument,key,seen));
+          continue;
+        }
+        if(property.type!=='Property')continue;
+        const field=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(key===null||field===null||field===key)
+          values.push(property.value);
+      }
+      return values;
+    }
+    if(expression.type==='ArrayExpression') {
+      const index=key===null?NaN:Number(key);
+      if(Number.isInteger(index)&&index>=0&&index<expression.elements.length)
+        return expression.elements[index]?[expression.elements[index]]:[];
+      return key===null?expression.elements.filter(Boolean):[];
+    }
+    if(expression.type==='MemberExpression') {
+      const bases=constructorMemberValues(expression.object,memberKey(expression),seen);
+      return bases.flatMap(base=>constructorMemberValues(base,key,seen));
+    }
+    if(expression.type==='CallExpression'&&expression.callee.type==='MemberExpression'&&
+       memberKey(expression.callee)==='values'&&
+       isNamespace(expression.callee.object,objectNamespaces)&&
+       expression.arguments.length>=1) {
+      const values=constructorMemberValues(expression.arguments[0],null,seen);
+      const index=key===null?NaN:Number(key);
+      if(Number.isInteger(index)&&index>=0&&index<values.length)
+        return [values[index]];
+      return key===null?values:[];
+    }
+    if(expression.type==='ConditionalExpression')
+      return [
+        ...constructorMemberValues(expression.consequent,key,seen),
+        ...constructorMemberValues(expression.alternate,key,seen)
+      ];
+    if(expression.type==='AssignmentExpression')
+      return constructorMemberValues(expression.right,key,seen);
+    if(expression.type==='SequenceExpression')
+      return constructorMemberValues(expression.expressions.at(-1),key,seen);
+    return [];
+  }
+  /**
    * Track direct WeakMap constructors and a bounded set of native-compatible
    * constructor recoveries: Function#bind, Reflect.get, global property data
    * descriptors, and transparent Proxy constructors. A user-replaced builtin
@@ -227,9 +300,16 @@ function hasWeakMapPrototypeExposure(ast) {
    * @param {AstNode|null|undefined} node
    * @returns {boolean}
    */
-  function isWeakMapConstructor(node) {
+  function isWeakMapConstructor(node,seen=new Set()) {
     if(!node)return false;
-    if(node.type==='Identifier')return weakMapConstructors.has(node.name);
+    if(node.type==='Identifier') {
+      if(weakMapConstructors.has(node.name))return true;
+      if(seen.has(node.name))return false;
+      const next=new Set(seen);
+      next.add(node.name);
+      return (constructorBindingExpressions.get(node.name)??[])
+        .some(value=>isWeakMapConstructor(value,next));
+    }
     if(node.type==='MemberExpression') {
       if(isGlobalRoot(node.object)&&memberKey(node)==='WeakMap')return true;
       if(memberKey(node)==='value'&&
@@ -239,18 +319,18 @@ function hasWeakMapPrototypeExposure(ast) {
          isNamespace(node.object.callee.object,objectNamespaces)&&
          isGlobalRoot(node.object.arguments[0])&&
          staticString(node.object.arguments[1])==='WeakMap')return true;
+      const values=constructorMemberValues(node.object,memberKey(node),seen);
+      if(values.some(value=>isWeakMapConstructor(value,seen)))return true;
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
       if(memberKey(node.callee)==='bind'&&
-         isWeakMapConstructor(node.callee.object))return true;
+         isWeakMapConstructor(node.callee.object,seen))return true;
       if(memberKey(node.callee)==='get'&&
          isNamespace(node.callee.object,reflectNamespaces)&&
          isGlobalRoot(node.arguments[0])&&
          staticString(node.arguments[1])==='WeakMap')return true;
-      // Function.prototype.bind.call(WeakMap, null) also returns a
-      // constructor with the WeakMap internal [[Construct]] behavior.
       if(memberKey(node.callee)==='call'&&node.arguments.length>=1&&
-         isWeakMapConstructor(node.arguments[0])) {
+         isWeakMapConstructor(node.arguments[0],seen)) {
         const bindMember=node.callee.object;
         if(bindMember.type==='MemberExpression'&&memberKey(bindMember)==='bind'&&
            bindMember.object.type==='MemberExpression'&&
@@ -263,13 +343,18 @@ function hasWeakMapPrototypeExposure(ast) {
         }
       }
     }
-    // A transparent constructor Proxy delegates native construction. A
-    // trapped proxy may still return a WeakMap and must be treated as such.
     if(node.type==='NewExpression'&&node.arguments.length>=2&&
        (node.callee.type==='Identifier'&&node.callee.name==='Proxy'||
         node.callee.type==='MemberExpression'&&
         isGlobalRoot(node.callee.object)&&memberKey(node.callee)==='Proxy')&&
-       isWeakMapConstructor(node.arguments[0]))return true;
+       isWeakMapConstructor(node.arguments[0],seen))return true;
+    if(node.type==='ConditionalExpression')
+      return isWeakMapConstructor(node.consequent,seen)||
+        isWeakMapConstructor(node.alternate,seen);
+    if(node.type==='SequenceExpression')
+      return isWeakMapConstructor(node.expressions.at(-1),seen);
+    if(node.type==='AssignmentExpression')
+      return isWeakMapConstructor(node.right,seen);
     return false;
   }
   /**
