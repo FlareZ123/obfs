@@ -211,14 +211,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
+ * @param {Set<string>} [importedCssEscapeMethods] Proven native CSS.escape ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set(),importedCssEscapeMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size) {
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -538,9 +539,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // exposes its exact Function#toString text in the escaped identifier.
   // Keep CSS namespaces distinct from the unrelated global escape() builtin.
   const cssNamespaces=new Set(['CSS']);
-  const cssEscapeAliases=new Set();
+  const cssEscapeAliases=new Set(importedCssEscapeMethods);
   /** @type {Map<string,Set<string>>} */
   const cssEscapeObjectKeys=new Map();
+  // ESM namespace imports carry proven exported native-method names as
+  // dotted proof tokens, identical to the URL static-method convention.
+  for(const alias of importedCssEscapeMethods) {
+    const dot=alias.indexOf('.');
+    if(dot<=0||dot===alias.length-1)continue;
+    const receiver=alias.slice(0,dot),method=alias.slice(dot+1);
+    let keys=cssEscapeObjectKeys.get(receiver);
+    if(!keys){keys=new Set();cssEscapeObjectKeys.set(receiver,keys);}
+    keys.add(method);
+  }
   const nodeBufferNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
@@ -3519,7 +3530,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
      !importedFunctionArrays.size&&!importedPrimitives.size&&
-     !importedUrlStaticMethods.size)
+     !importedUrlStaticMethods.size&&!importedCssEscapeMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
