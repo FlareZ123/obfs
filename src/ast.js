@@ -2824,7 +2824,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const callee=node.callee;
     /** @type {(AstNode|null|undefined)[]|null} */
     let inputs=null;
-    if(isTimingMethod(callee)) {
+    if(isTimingMethod(callee)||isBoundTimingMethod(callee)) {
       inputs=node.arguments;
     } else if(callee.type==='MemberExpression'&&
               isTimingMethod(callee.object)) {
@@ -2838,7 +2838,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     } else if(callee.type==='MemberExpression'&&
               isReflectiveReceiver(callee.object)&&
               memberName(callee)==='apply'&&
-              isTimingMethod(node.arguments[0])) {
+              (isTimingMethod(node.arguments[0])||
+               isBoundTimingMethod(node.arguments[0]))) {
       const array=node.arguments[2];
       if(array?.type!=='ArrayExpression')return true;
       inputs=array.elements;
