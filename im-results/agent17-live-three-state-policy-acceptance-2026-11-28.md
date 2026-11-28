@@ -1,6 +1,6 @@
 # Agent 17: live three-state policy acceptance and post-shutdown clone verification
 
-**Status:** focused acceptance passed on Ubuntu and Windows; actual hostile Chromium step passed on Ubuntu.  
+**Status:** focused research-harness validation passed on Ubuntu and Windows; actual hostile Chromium step passed on Ubuntu. This is not product-candidate acceptance.  
 **Branch:** agent17/sco-three-state-live-policy-acceptance-20261128  
 **Validated head for run 46185164570:** cb3f122f10fb85f8d7c317b525240f3e74de41d7
 **Current branch head (follow-up validation pending):** 9f7f9a12eea81d9945fe5be014100d9f26185d8b  
