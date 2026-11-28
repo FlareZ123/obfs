@@ -2872,6 +2872,234 @@ function renameCrossFileProperties(files,seed) {
     }
   }
 
+  // A stable exported zero-argument factory can return a fresh private
+  // record to several closed-world importers. Prove every invocation and its
+  // result independently, then apply one key map to the shared factory literal.
+  // This deliberately excludes aliases, namespace/reexport paths, cycles,
+  // optional calls, escapes, reflection and non-literal object construction.
+  if(acyclicImports) {
+    for(const [exporterName,exporter] of modules) {
+      /** @type {{name:string,binding:AstNode,literal:AstNode,props:AstNode[],names:string[]}[]} */
+      const factories=[];
+      for(const statement of exporter.ast.body) {
+        if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+        const declaration=statement.declaration;
+        /** @type {string|null} */
+        let name=null;
+        /** @type {AstNode|null} */
+        let binding=null;
+        /** @type {AstNode|null} */
+        let fn=null;
+        if(declaration?.type==='FunctionDeclaration'&&
+           declaration.id?.type==='Identifier') {
+          name=declaration.id.name;
+          binding=declaration.id;
+          fn=declaration;
+        } else if(declaration?.type==='VariableDeclaration'&&
+                  declaration.kind==='const'&&
+                  declaration.declarations.length===1) {
+          const entry=declaration.declarations[0];
+          if(entry.id.type==='Identifier'&&entry.init&&
+             ['ArrowFunctionExpression','FunctionExpression'].includes(entry.init.type)) {
+            name=entry.id.name;
+            binding=entry.id;
+            fn=entry.init;
+          }
+        }
+        if(name===null||!binding||!fn||exporter.bindings.get(name)!==1||
+           fn.async||fn.generator||fn.params.length!==0)continue;
+        /** @type {AstNode|null} */
+        let literal=null;
+        if(fn.type==='ArrowFunctionExpression'&&fn.body.type==='ObjectExpression') {
+          literal=fn.body;
+        } else if(fn.body.type==='BlockStatement'&&fn.body.body.length===1&&
+                  fn.body.body[0].type==='ReturnStatement'&&
+                  fn.body.body[0].argument?.type==='ObjectExpression') {
+          literal=fn.body.body[0].argument;
+        }
+        if(!literal)continue;
+        let extraReference=false;
+        walk(exporter.ast,node=>{
+          if(node.type==='Identifier'&&node.name===name&&node!==binding)
+            extraReference=true;
+        });
+        if(extraReference)continue;
+        /** @type {AstNode[]} */
+        const props=literal.properties;
+        if(!props.length)continue;
+        /** @type {string[]} */
+        const names=[];
+        const seen=new Set();
+        let safe=true;
+        for(const prop of props) {
+          const propertyName=ownPropertyName(prop);
+          const value=prop.value;
+          const primitive=value?.type==='Literal'&&value.regex===undefined&&
+            (value.value===null||
+             ['string','number','boolean','bigint'].includes(typeof value.value))&&
+            (typeof value.value!=='number'||Number.isFinite(value.value));
+          if(prop.type!=='Property'||prop.method||prop.shorthand||
+             prop.kind!=='init'||prop.computed||propertyName===null||
+             ['__proto__','constructor','prototype'].includes(propertyName)||
+             seen.has(propertyName)||!primitive) {
+            safe=false;
+            break;
+          }
+          seen.add(propertyName);
+          names.push(propertyName);
+        }
+        if(safe)factories.push({name,binding,literal,props,names});
+      }
+
+      for(const factory of factories) {
+        /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
+        const users=[];
+        let failed=false;
+        for(const [importerName,importer] of modules) {
+          /** @type {string[]} */
+          const aliases=[];
+          for(const statement of importer.ast.body) {
+            const source=statement.source;
+            if(!source||source.type!=='Literal'||
+               typeof source.value!=='string')continue;
+            const origin=resolveImport(importerName,source.value);
+            if(origin!==exporterName)continue;
+            if(statement.type==='ExportAllDeclaration') {
+              failed=true;
+              break;
+            }
+            if(statement.type==='ExportNamedDeclaration') {
+              if(statement.specifiers.some((/** @type {AstNode} */ spec)=>
+                spec.type==='ExportSpecifier'&&
+                (spec.local.name??spec.local.value)===factory.name)) {
+                failed=true;
+                break;
+              }
+            }
+            if(statement.type!=='ImportDeclaration')continue;
+            for(const spec of statement.specifiers) {
+              if(spec.type==='ImportNamespaceSpecifier') {
+                failed=true;
+                break;
+              }
+              if(spec.type!=='ImportSpecifier')continue;
+              const exposed=spec.imported.name??spec.imported.value;
+              if(exposed===factory.name) {
+                if(spec.local.type!=='Identifier'||
+                   importer.bindings.get(spec.local.name)!==1) {
+                  failed=true;
+                  break;
+                }
+                aliases.push(spec.local.name);
+              }
+            }
+            if(failed)break;
+          }
+          if(failed)break;
+          for(const alias of aliases) {
+            const callCallees=new Set();
+            /** @type {string[]} */
+            const roots=[];
+            walk(importer.ast,(node,parent)=>{
+              if(node.type!=='VariableDeclarator'||
+                 node.init?.type!=='CallExpression'||
+                 node.init.callee.type!=='Identifier'||
+                 node.init.callee.name!==alias)return;
+              const call=node.init;
+              if(parent?.type!=='VariableDeclaration'||parent.kind!=='const'||
+                 node.id.type!=='Identifier'||
+                 importer.bindings.get(node.id.name)!==1||
+                 call.optional||call.arguments.length!==0) {
+                failed=true;
+                return;
+              }
+              roots.push(node.id.name);
+              callCallees.add(call.callee);
+            });
+            if(failed)break;
+            walk(importer.ast,(node,parent,key)=>{
+              if(node.type!=='Identifier'||node.name!==alias)return;
+              if(parent?.type==='ImportSpecifier'&&
+                 parent.local?.type==='Identifier'&&parent.local.name===alias&&
+                 (key==='local'||key==='imported'))return;
+              if(parent?.type==='CallExpression'&&key==='callee'&&
+                 callCallees.has(node))return;
+              failed=true;
+            });
+            if(failed)break;
+            for(const root of roots) {
+              const proof=proveLocalObject(importer.ast,root,importer.bindings,
+                importedIdentities.get(importerName),new Map(),new Map(),
+                verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
+                allowDirectReflection);
+              if(!proof) {
+                failed=true;
+                break;
+              }
+              users.push({
+                file:importerName,
+                source:/** @type {string} */ (importer.file.code),
+                proof
+              });
+            }
+            if(failed)break;
+          }
+          if(failed)break;
+        }
+        if(failed||!users.length)continue;
+        const ownNames=new Set(factory.names);
+        if(users.some(user=>
+          user.proof.members.some(member=>{
+            const field=user.proof.memberNames.get(member);
+            return typeof field!=='string'||!ownNames.has(field);
+          })||
+          user.proof.patterns.some(property=>
+            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property)))||
+          user.proof.inChecks.some(check=>!ownNames.has(check.left.value))||
+          user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
+        const mapping=new Map();
+        for(const prop of factory.props) {
+          const old=ownPropertyName(prop);
+          const token=createHash('sha256').update(
+            seed+'/'+exporterName+'/'+factory.name+'/'+old).digest('hex').slice(0,12);
+          mapping.set(old,'_p'+token);
+        }
+        if(new Set(mapping.values()).size!==mapping.size)continue;
+        for(const prop of factory.props) {
+          add(exporterName,{
+            start:prop.key.start,
+            end:prop.key.end,
+            text:JSON.stringify(mapping.get(ownPropertyName(prop)))
+          });
+        }
+        for(const user of users) {
+          for(const member of user.proof.members) {
+            const old=user.proof.memberNames.get(member);
+            if(old!==undefined&&mapping.has(old)) {
+              add(user.file,{
+                start:member.property.start,
+                end:member.property.end,
+                text:member.computed?JSON.stringify(mapping.get(old)):mapping.get(old)
+              });
+            }
+          }
+          for(const edit of patternPropertyEdits(
+            user.source,user.proof.patterns,mapping,user.proof.patternNames))add(user.file,edit);
+          for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping))add(user.file,edit);
+          for(const reflection of user.proof.reflections) {
+            const replacement=mapping.get(reflection.property);
+            if(replacement) {
+              add(user.file,{start:reflection.key.start,end:reflection.key.end,
+                text:JSON.stringify(replacement)});
+            }
+          }
+        }
+        objects++;
+        properties+=mapping.size;
+      }
+    }
+  }
+
   // An anonymous default object export, including an already-proved pure
   // single-use factory result, has no local owner binding to escape in its producer.
   // inside its producer. Closed-world direct default imports can therefore use
