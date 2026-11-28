@@ -3037,7 +3037,11 @@ function obfuscateFiles(files, options = {}) {
   // An isolated "const node=document.createElement(...)" proof is invalid
   // if another supplied file can change the function before it executes.
   const sharedDocumentFactoryMutation=hasUnreviewedHtmlExecutableScripts(prepared)||
-    sourceObserverFiles.some(({ast})=>hasNativeDocumentFactoryMutation(ast));
+    sourceObserverFiles.some(({file,ast})=>
+      hasNativeDocumentFactoryMutation(ast) ||
+      hasUnprovedModuleImport(ast,file.path,knownJavaScript) ||
+      file.sourceType==='commonjs'&&
+        hasUnprovedCommonJsRequire(ast,file.path,knownJavaScript));
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
   const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
