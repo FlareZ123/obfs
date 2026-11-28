@@ -33,19 +33,32 @@ const FACTS=new Set([
  * A missing edge can make its answer unsound for code transformation.
  * Queries fail closed until solve() has completed and after any graph mutation.
  * An interrupted, capped solve must not expose partial negative reachability.
+ * Internals and witnesses are encapsulated: callers cannot mutate proof state
+ * behind the solver's mutation hooks, and unknown graph queries fail closed.
  */
 class CapabilityFlowGraph {
+  /** @type {Map<string,FlowEdge[]>} */
+  #edges;
+  /** @type {Map<string,Set<CapabilityFact>>} */
+  #initial;
+  /** @type {Map<string,Set<CapabilityFact>>} */
+  #reached;
+  /** @type {Map<string,Map<CapabilityFact,FlowEdge|null>>} */
+  #predecessors;
+  /** @type {boolean} */
+  #solutionValid;
+
   constructor(){
     /** @type {Map<string,FlowEdge[]>} */
-    this.edges=new Map();
+    this.#edges=new Map();
     /** @type {Map<string,Set<CapabilityFact>>} */
-    this.initial=new Map();
+    this.#initial=new Map();
     /** @type {Map<string,Set<CapabilityFact>>} */
-    this.reached=new Map();
+    this.#reached=new Map();
     /** @type {Map<string,Map<CapabilityFact,FlowEdge|null>>} */
-    this.predecessors=new Map();
+    this.#predecessors=new Map();
     /** True only after a complete successful solve of the current graph. */
-    this.solutionValid=false;
+    this.#solutionValid=false;
     /** @type {{nodes:number,edges:number,propagations:number,facts:number}} */
     this.stats={nodes:0,edges:0,propagations:0,facts:0};
   }
@@ -56,9 +69,9 @@ class CapabilityFlowGraph {
    */
   addNode(id){
     if(typeof id!=='string'||id.length===0)throw new TypeError('Nonempty node ID required');
-    if(!this.edges.has(id)){
-      this.edges.set(id,[]);
-      this.solutionValid=false;
+    if(!this.#edges.has(id)){
+      this.#edges.set(id,[]);
+      this.#solutionValid=false;
     }
   }
 
@@ -76,8 +89,8 @@ class CapabilityFlowGraph {
     this.addNode(to);
     /** @type {FlowEdge} */
     const edge={from,to,kind};
-    this.edges.get(from)?.push(edge);
-    this.solutionValid=false;
+    this.#edges.get(from)?.push(edge);
+    this.#solutionValid=false;
   }
 
   /**
@@ -88,10 +101,10 @@ class CapabilityFlowGraph {
   seed(at,fact){
     if(!FACTS.has(fact))throw new TypeError('Unknown capability fact: '+fact);
     this.addNode(at);
-    const set=this.initial.get(at)??new Set();
+    const set=this.#initial.get(at)??new Set();
     set.add(fact);
-    this.initial.set(at,set);
-    this.solutionValid=false;
+    this.#initial.set(at,set);
+    this.#solutionValid=false;
   }
 
   /**
@@ -108,42 +121,42 @@ class CapabilityFlowGraph {
 
     // Failed bounded solves must never expose a partial fixed point as a
     // valid negative result. A fresh successful solve is required.
-    this.solutionValid=false;
-    this.reached=new Map();
-    this.predecessors=new Map();
+    this.#solutionValid=false;
+    this.#reached=new Map();
+    this.#predecessors=new Map();
     /** @type {PendingFact[]} */
     const queue=[];
-    for(const [at,facts] of this.initial)for(const fact of facts) {
+    for(const [at,facts] of this.#initial)for(const fact of facts) {
       queue.push({node:at,fact});
-      this.reached.set(at,new Set([...(this.reached.get(at)??[]),fact]));
-      const pred=this.predecessors.get(at)??new Map();
+      this.#reached.set(at,new Set([...(this.#reached.get(at)??[]),fact]));
+      const pred=this.#predecessors.get(at)??new Map();
       pred.set(fact,null);
-      this.predecessors.set(at,pred);
+      this.#predecessors.set(at,pred);
     }
     let propagations=0;
     for(let head=0;head<queue.length;head++){
       const event=queue[head];
-      for(const edge of this.edges.get(event.node)??[]) {
+      for(const edge of this.#edges.get(event.node)??[]) {
         propagations++;
         if(propagations>maxSteps)
           throw new RangeError('May-flow step limit exceeded; increase or conservatively refuse rewrite');
-        const found=this.reached.get(edge.to)??new Set();
+        const found=this.#reached.get(edge.to)??new Set();
         if(found.has(event.fact))continue;
         found.add(event.fact);
-        this.reached.set(edge.to,found);
-        const pred=this.predecessors.get(edge.to)??new Map();
+        this.#reached.set(edge.to,found);
+        const pred=this.#predecessors.get(edge.to)??new Map();
         pred.set(event.fact,edge);
-        this.predecessors.set(edge.to,pred);
+        this.#predecessors.set(edge.to,pred);
         queue.push({node:edge.to,fact:event.fact});
       }
     }
     this.stats={
-      nodes:this.edges.size,
-      edges:[...this.edges.values()].reduce((sum,row)=>sum+row.length,0),
+      nodes:this.#edges.size,
+      edges:[...this.#edges.values()].reduce((sum,row)=>sum+row.length,0),
       propagations,
       facts:queue.length
     };
-    this.solutionValid=true;
+    this.#solutionValid=true;
     return {...this.stats};
   }
 
@@ -153,9 +166,11 @@ class CapabilityFlowGraph {
    * @returns {boolean}
    */
   has(at,fact){
-    if(!this.solutionValid)
+    if(!this.#solutionValid)
       throw new Error('Capability graph changed or solve() did not complete');
-    return this.reached.get(at)?.has(fact)??false;
+    if(!FACTS.has(fact))throw new TypeError('Unknown capability fact: '+fact);
+    if(!this.#edges.has(at))throw new ReferenceError('Unknown graph node: '+at);
+    return this.#reached.get(at)?.has(fact)??false;
   }
 
   /**
@@ -175,8 +190,8 @@ class CapabilityFlowGraph {
     while(true){
       if(seen.has(current))throw new Error('Invalid fixed-point predecessor cycle');
       seen.add(current);
-      const edge=this.predecessors.get(current)?.get(fact)??null;
-      steps.push({at:current,fact,via:edge});
+      const edge=this.#predecessors.get(current)?.get(fact)??null;
+      steps.push({at:current,fact,via:edge===null?null:{...edge}});
       if(edge===null)break;
       current=edge.from;
     }
@@ -184,4 +199,5 @@ class CapabilityFlowGraph {
   }
 }
 
-module.exports={CapabilityFlowGraph,FACTS};
+// Public enumeration is a copy; altering it cannot change proof validation.
+module.exports={CapabilityFlowGraph,FACTS:new Set(FACTS)};
