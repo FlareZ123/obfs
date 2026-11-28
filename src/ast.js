@@ -553,6 +553,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // JSON.parse and JSON.rawJSON call ToString on their text input.
   // Their SyntaxError.message can reveal a function's original source.
   const jsonNamespaces=new Set(['JSON']);
+  // CSS.escape takes a Web IDL CSSOMString and serializes an identifier.
+  // Passing a function exposes Function#toString, including exact source.
+  const cssNamespaces=new Set(['CSS']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
   const boundRegExpConstructors=new Set();
@@ -706,6 +709,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isGlobal(node.object) && memberName(node)==='JSON'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isCssNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      cssNamespaces.has(node.name) || node.type==='MemberExpression' &&
+      isGlobal(node.object) && memberName(node)==='CSS'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeBufferNamespace(node) {
     return Boolean(node && (node.type==='Identifier' &&
       nodeBufferNamespaces.has(node.name) || isRequireCall(node) &&
@@ -721,6 +730,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
       name==='for' && isSymbolConstructor(node.object) ||
+      name==='escape' && isCssNamespace(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
   }
@@ -1010,6 +1020,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
+        if(isCssNamespace(value))changed=add(cssNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
@@ -1441,6 +1452,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isCssNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name===null || name==='escape')
+            changed=add(coercers,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property' || property.value.type!=='Identifier')continue;
@@ -1448,6 +1469,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
           if(name==='JSON')changed=add(jsonNamespaces,property.value.name)||changed;
+          if(name==='CSS')changed=add(cssNamespaces,property.value.name)||changed;
           if(name==='structuredClone')changed=add(cloneFunctions,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
