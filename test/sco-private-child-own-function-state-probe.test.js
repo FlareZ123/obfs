@@ -91,6 +91,45 @@ test('standalone SCO retains direct stateless private function calls',()=>{
   },safe));
 });
 
+test('SCO private child preserves immutable private function name and arity reads',()=>{
+  const {parse}=require('../src/ast');
+  const {assertNoSharedChildFunctionIdentity}=require('../src/sco-private-child-function-identity');
+  const positives=[
+    'const fn=(v)=>v;export function next(){return fn["name"].length;}',
+    'const fn=(v)=>v;export function next(){return fn.length;}'
+  ];
+  for(const source of positives){
+    assert.doesNotThrow(
+      ()=>assertNoSharedChildFunctionIdentity('private/next.mjs',parse(source,'module')),
+      source);
+    const alternate={...options(),privateModuleSources:[{
+      path:'private/next.mjs',code:source
+    }]};
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',sourceType:'module',code:selectedCode
+    },alternate),source);
+  }
+});
+
+test('SCO private child declines mutable or escaped function metadata',()=>{
+  const {parse}=require('../src/ast');
+  const {assertNoSharedChildFunctionIdentity}=require('../src/sco-private-child-function-identity');
+  const negatives=[
+    'const fn=()=>42;export function next(){fn.name="x";return 7;}',
+    'const fn=()=>42;export function next(){return delete fn.name;}',
+    'const fn=()=>42;export function next(){return fn.name.toString();}',
+    'const fn=()=>42;export function next(){return fn.name.length.toString();}',
+    'const fn=()=>42;export function next(){return Reflect.get(fn,"name");}',
+    'export const fn=()=>42;export function next(){return fn.name;}',
+    'const fn=()=>42;export {fn};export function next(){return fn.name;}'
+  ];
+  for(const source of negatives){
+    assert.throws(
+      ()=>assertNoSharedChildFunctionIdentity('private/next.mjs',parse(source,'module')),
+      /escapes a shared function identity/u,source);
+  }
+});
+
 test('SCO private child self-property graph composer refuses shared function identity',()=>{
   assert.throws(graph,/private dependency escapes a shared function identity/u);
   console.log('SCO_CHILD_FUNCTION_STATE_PROBE graph composer refuses the same private dependency');
