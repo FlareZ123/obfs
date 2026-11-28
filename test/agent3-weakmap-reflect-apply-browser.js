@@ -32,7 +32,7 @@ const storageSource=[
   '  localStorage.setItem("storage-prototype-override",inspect);',
   '  return {value:inspect(),independent:independent()};',
   '}'
-].join('\\n');
+].join('\n');
 
 const entrySource=[
   "import './mutate.mjs';",
