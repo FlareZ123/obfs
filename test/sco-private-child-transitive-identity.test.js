@@ -83,6 +83,41 @@ test('standalone SCO permits transitive primitive private import arithmetic',()=
   assert.doesNotThrow(()=>standalone(child,'export const salt=41;'));
 });
 
+test('SCO rejects named default function-expression own-state through reexport',()=>{
+  const bridge='export {default as run} from "./b.mjs";';
+  const unsafe='export default (function inner(){'+
+    'inner.count=(inner.count??0)+1;return inner.count;});';
+  assert.throws(()=>standalone(bridge,unsafe),
+    /escapes a shared function identity/u);
+  const safe='export default (function inner(){return 42;});';
+  assert.doesNotThrow(()=>standalone(bridge,safe));
+  assert.doesNotThrow(()=>standalone(bridge,'export default ()=>42;'));
+});
+
+test('native independent ESM trees isolate named default function-expression state',
+  {timeout:15000},async()=>{
+    const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-default-expression-'));
+    const bridge='export {default as run} from "./b.mjs";';
+    const unsafe='export default (function inner(){'+
+      'inner.count=(inner.count??0)+1;return inner.count;});';
+    try{
+      for(const name of ['client-a','client-b','server']){
+        await atomicWrite(path.join(tmp,name,'mixed.mjs'),rootCode);
+        await atomicWrite(path.join(tmp,name,'private/a.mjs'),bridge);
+        await atomicWrite(path.join(tmp,name,'private/b.mjs'),unsafe);
+      }
+      const modules=await Promise.all(['client-a','client-b','server'].map(name=>
+        import(pathToFileURL(path.join(tmp,name,'mixed.mjs')).href)));
+      const observed=[
+        await modules[0].secret(),await modules[1].secret(),
+        await modules[2].secret(),await modules[2].secret()
+      ];
+      assert.deepEqual(observed,[1,1,1,2]);
+    }finally{
+      await fs.rm(tmp,{recursive:true,force:true});
+    }
+  });
+
 test('native independent ESM trees isolate transitive function property mutations',
   {timeout:15000},async()=>{
     const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-transitive-function-state-'));
