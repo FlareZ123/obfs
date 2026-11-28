@@ -104,6 +104,118 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Prove one intentionally narrow ESM cross-file native Node result.
+ *
+ * A one-statement, parameter-free, immutable export that returns
+ * document.createElement('builtintag') provides a native Node, not a
+ * callable DOMString operand. The producer must contain no imports, helper
+ * statements, local document shadowing or mutable function binding. The
+ * importing binding must have a unique lexical declaration. A separate
+ * all-file native-document mutation scan must veto this proof before use.
+ *
+ * This is native-host conditional compatibility evidence, not security
+ * against a hostile browser preloader or arbitrary hidden import effects.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedNativeNodeFactories(files) {
+  const modules=new Map(files.filter(file=>
+    file.sourceType==='module'&&typeof file.code==='string').map(file=>[
+      file.path,parse(/** @type {string} */(file.code),'module')
+    ]));
+  /** @type {Map<string,Set<string>>} */
+  const exported=new Map();
+  /**
+   * @param {import('./ast').AstNode|null|undefined} fn
+   * @returns {boolean}
+   */
+  function pureNodeFactory(fn) {
+    if(!fn||!['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression'].includes(fn.type)||
+      fn.async||fn.generator||fn.params.length!==0)return false;
+    const body=fn.body?.type==='BlockStatement'?
+      fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement'?
+        fn.body.body[0].argument:null:fn.body;
+    return Boolean(body?.type==='CallExpression'&&!body.optional&&
+      body.arguments.length===1&&
+      body.arguments[0].type==='Literal'&&
+      typeof body.arguments[0].value==='string'&&
+      /^[a-z][a-z0-9]*$/u.test(body.arguments[0].value)&&
+      body.callee.type==='MemberExpression'&&!body.callee.optional&&
+      !body.callee.computed&&
+      body.callee.object.type==='Identifier'&&
+      body.callee.object.name==='document'&&
+      body.callee.property.type==='Identifier'&&
+      body.callee.property.name==='createElement');
+  }
+  for(const [filename,ast] of modules) {
+    // Any other top-level execution or module side effect can invalidate the
+    // native factory independently of this exported function's return.
+    if(collectBindings(ast).has('document')||
+       ast.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+         statement.type!=='ExportNamedDeclaration'||Boolean(statement.source)||
+         !statement.declaration))continue;
+    const bindings=collectBindings(ast);
+    const names=new Set();
+    for(const statement of ast.body) {
+      const decl=statement.declaration;
+      /** @type {string|null} */
+      let name=null;
+      /** @type {import('./ast').AstNode|null} */
+      let fn=null;
+      if(decl.type==='FunctionDeclaration'&&decl.id?.type==='Identifier'){
+        name=decl.id.name;fn=decl;
+      }else if(decl.type==='VariableDeclaration'&&decl.kind==='const'&&
+               decl.declarations.length===1&&
+               decl.declarations[0].id.type==='Identifier') {
+        name=decl.declarations[0].id.name;
+        fn=decl.declarations[0].init??null;
+      }
+      if(!name||bindings.get(name)!==1||!pureNodeFactory(fn))continue;
+      // Function declarations are assignable ESM locals. A second reference
+      // in this pure producer can rebind it, unlike a direct const export.
+      let reused=false;
+      if(decl.type==='FunctionDeclaration'){
+        walk(ast,node=>{
+          if(node.type==='Identifier'&&node.name===name&&node!==decl.id)
+            reused=true;
+        });
+      }
+      if(!reused)names.add(name);
+    }
+    if(names.size)exported.set(filename,names);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,ast] of modules){
+    const bindingCounts=collectBindings(ast);
+    for(const statement of ast.body) {
+      if(statement.type!=='ImportDeclaration'||typeof statement.source.value!=='string')
+        continue;
+      const specifier=statement.source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\]/u.test(specifier)||specifier.includes('//')||
+         hasUrlPathnameNormalizationHazard(specifier)||
+         hasTerminalUrlDotSegment(specifier))continue;
+      const donor=path.posix.normalize(
+        path.posix.join(path.posix.dirname(filename),specifier));
+      const names=exported.get(donor);
+      if(!names)continue;
+      for(const entry of statement.specifiers??[]) {
+        if(entry.type!=='ImportSpecifier'||entry.local?.type!=='Identifier'||
+           bindingCounts.get(entry.local.name)!==1)continue;
+        const external=entry.imported.name??entry.imported.value;
+        if(typeof external!=='string'||!names.has(external))continue;
+        const local=imported.get(filename)??new Set();
+        local.add(entry.local.name);
+        imported.set(filename,local);
+      }
+    }
+  }
+  return imported;
+}
+
+/**
  * Find a source-visible function crossing native DOMString setters when the
  * setter receiver is a DOM object or factory *imported* from another source
  * file. A per-file analysis cannot reconstruct the imported receiver's native
@@ -3038,6 +3150,9 @@ function obfuscateFiles(files, options = {}) {
   // if another supplied file can change the function before it executes.
   const sharedDocumentFactoryMutation=sourceObserverFiles.some(({ast})=>
     hasNativeDocumentFactoryMutation(ast));
+  const importedNativeNodeFactories=options.closedWorld&&
+    !sharedDocumentFactoryMutation?
+    collectVerifiedImportedNativeNodeFactories(prepared):new Map();
   const sharedCommonJsStorageSourceObserver=
     hasCommonJsStorageFactorySourceSink(prepared);
   const importedDomStringSourceObserver=hasImportedDomStringSourceSink(prepared);
@@ -3052,7 +3167,7 @@ function obfuscateFiles(files, options = {}) {
       importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
       importedUrlStaticProof.get(file.path),
       importedStorageMethodAliases.get(file.path),sharedWeakMapPrototypeExposure,
-      sharedDocumentFactoryMutation);
+      sharedDocumentFactoryMutation,importedNativeNodeFactories.get(file.path));
     if(distributed||functionSource)remoteSourceObserver=true;
     if(functionSource)hostLockSourceObserver=true;
     if(remoteSourceObserver&&(!allowedHosts?.length||hostLockSourceObserver))break;
