@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {MIMEType}=require('node:util');
+const {MIMEType,TextDecoder}=require('node:util');
 const {safePath}=require('./core');
 const {createPathInventory,registerFilePath}=require('./portable-paths');
 const {assertNoSourceMapDisclosure}=require('./source-maps');
@@ -24,6 +24,8 @@ const JAVASCRIPT_MIME=new Set([
 ]);
 
 /** Recognized opaque MIME types under a required nosniff response. */
+const UTF8_DECODER=new TextDecoder('utf-8',{fatal:true});
+
 const OPAQUE_MIME=new Set([
   'application/octet-stream','application/json','text/plain',
   'image/png','image/jpeg','image/gif','image/webp',
@@ -45,6 +47,15 @@ function auditByDeliveredMime(file) {
     essence==='text/html'||essence==='text/css';
   const xml=essence==='application/xml'||essence==='text/xml'||
     essence==='application/xhtml+xml'||essence==='image/svg+xml';
+  // Never silently replace malformed source bytes before checking the code
+  // that the browser or Node will consume. Byte-exact approval alone does not
+  // establish the parser's UTF-8 interpretation of those bytes.
+  if(scriptOrText||xml) {
+    try { UTF8_DECODER.decode(file.bytes); }
+    catch(error) {
+      throw new TypeError('Executable response is not valid UTF-8: '+file.path);
+    }
+  }
   // Classic-script decoding can fall back to the embedding document's
   // encoding; HTML/CSS have their own sniffing and @charset mechanisms.
   // Require a real UTF-8 header before trusting our UTF-8 source scanners.
@@ -155,6 +166,11 @@ async function verifyPublishedDeployment(origin,files,approved) {
       throw new TypeError('Invalid published sourceType: '+path);
     }
     const original=file.code;
+    // Buffer.from(string) silently replaces raw unpaired UTF-16 surrogates.
+    // Reject that change of source identity before hashing/publishing bytes.
+    if(typeof original==='string'&&/[\uD800-\uDFFF]/u.test(original)) {
+      throw new TypeError('Published text contains a raw unpaired surrogate: '+path);
+    }
     if(typeof original!=='string'&&!Buffer.isBuffer(original)) {
       throw new TypeError('Published file must have byte or string content: '+path);
     }
