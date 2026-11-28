@@ -32,3 +32,35 @@ Finish corrected clock source-pinned red and same-clock donor refusal; inspect e
 ## 12:44 UTC revision: exact cross-policy result
 
 The previous passage's first red-fixture clock caveat remains essential to interpret its original logs. **Only the second**, equal-clock source pin `09ddcec...` proves both weak issuance and strong acceptance; its expected red test assertion is deliberately kept unfixed as a reproducible adversarial baseline. The hardened memory fingerprint donor refuses B at construction under a mismatched origin or UV policy. Official [WebAuthn Level 3 assertion verification](https://www.w3.org/TR/2026/REC-webauthn-3-20260825/) requires an RP to validate `topOrigin` when present; this narrow SCO helper has no iframe admission policy, so the newly added guard rejects any signed `topOrigin`, with a genuine signed negative proof awaiting CI. Do not extrapolate protocol correctness to software-key provenance, same-account bearer relaying, full-session compute or adversarial code secrecy.
+
+
+## 12:56 UTC revision: independent security-performance axes
+
+The following are **independent** assessment dimensions, not additive scores:
+
+| Axis from PRIMARY OBJECTIVE | Evidence here | Bounded conclusion |
+| --- | --- | --- |
+| Resistance to static source reconstruction | No client-secret distribution policy changed by this review | **No new static-resistance claim**; only the SCO server-held private code architecture can keep those bytes off the client |
+| Dynamic analysis/instrumentation or online extraction | Existing browser same-account stolen-bearer relay and Agent20 dense chosen-input oracle remain viable | **No improvement to authorized oracle cloning**; a verified WebAuthn ceremony is not proof that an authorized user will not instrument or relay its session |
+| Unauthorized modification / integrity-check bypass | Strong/weak policy state-mixing red at `09ddcec` and fingerprint refusal green at `8f56d9b` | Incompatible trusted SCO gate configurations sharing one state are rejected at creation; this is **not** a client JS integrity mechanism |
+| Execution outside explicitly authorized environment | Signed P-256 origin/UV verifier, server-side auth state, top-frame refusal | Opt-in server can decline requests without trusted WebAuthn credential/authorized origin; cannot prevent a stolen legitimate bearer or authorized target from acting as oracle |
+| Performance/compatibility | SQLite two-OS `e7c731` green; admission `8f56d9b` green; topOrigin signed red `00b5add` [CI 46145954259](https://github.com/FlareZ123/obfs/actions/runs/46145954259) and guarded green `0699de7` [CI 46146000269](https://github.com/FlareZ123/obfs/actions/runs/46146000269) **both two OS**; expiry first exact-source `8ba1bce` [CI 46145708467](https://github.com/FlareZ123/obfs/actions/runs/46145708467) **two-OS green** | **No full-session 2.5x evidence**; credential ceremony, HTTP and protected code unmetered together. Compatibility remains limited to explicit tests and no-iframe policy |
+
+### Expiry fast-path correctness condition and first CPU receipt
+
+For each map, let `e1,...,en` be expiry times in insertion order. The implementation's `ordered` flag remains true only if **all** insertions since the map last emptied were finite and nondecreasing in expiration; any out-of-order or nonfinite value permanently forces original linear-scan fallback until empty. Map deletion preserves nondecreasing order. When ordered, for finite `now`, a scan may delete the maximal prefix with `ei<=now`; if it encounters `ej>now`, every subsequent `ek>=ej>now`, so no later rows are expired. Thus prefix-only and original full-map scans yield the **same surviving keys and values**, including when rows are consumed, revoked, and later added. The fallback is literally the original scan and cannot produce a new expiry outcome. This is a simple algorithmic invariant, not a claim of novel mathematical obfuscation research.
+
+At exact `8ba1bcec65d25d11174b458c7d424ab93d9b0c98`, [CI 46145708467](https://github.com/FlareZ123/obfs/actions/runs/46145708467) completed focused differential tests and strict JSDoc **GREEN on both Windows and Ubuntu**. Its five alternating order 1,536 live-challenge + 1,536 live-session housekeeping CPU samples (microseconds, not HTTP/application operations) were:
+
+- Ubuntu linear `[75635,73177,58617,42095,58335]`, ordered `[9470,14550,1064,690,1356]`, medians 58,617 versus 1,356 µs (about **43.23x isolated speedup** on this one runner/workload).
+- Windows linear `[78000,31000,62000,32000,31000]`, ordered `[16000,0,0,0,0]`, median optimized zero due CPU clock quantization. **Ratio is undefined** on that host and must not be described as infinite speedup or a Windows CPU estimate.
+
+A refined five-pair high-resolution wall receipt and an opposite sparse single-live-row control are on later test source `22bc735a280412b5b24c04045ef2bb0ba55f1264`; its source-pinned CI is pending. An out-of-order expiry sequence deliberately falls back to O(n) per purge, not a new worst-case asymptotic guarantee. Optional memory performance changes remain separate from security-admission changes until the broad suite is audited.
+
+### Additional pending API contract checks
+
+Even with a mandatory store `assertConfiguration` method, an **asynchronous** custom adapter returning a Promise can still have its policy assertion, challenge persistence, or principal revocation treated as completed before the returned Promise resolves. A separate red-first test source `cd20dac7116e0ffffbb04fcff92c1e15b3b86b4d` and fail-closed strict `void` result guard source `606c07025f776dceb3e50ef3c97299efc8241ba8` are under CI; these changes are **not** part of the currently focused-green integrated donor. A faulty custom adapter that returns undefined without actually committing cannot be detected by a caller; the application still owns its atomic durable-state contract.
+
+Likewise, distinct trusted services can share exactly the same rpId/origin/UV/capacity fingerprint yet disagree on what `principal='accountA'` means or which credential registry is authoritative. A same-policy, different-key tenant confusion witness is queued as `36ba414c740963a6d40575005a7666d677e80df1`. The current fingerprint **does not** establish credential-registry or tenant equivalence. Applications must dedicate independent stores (or use an explicitly trusted global principal namespace and identical credential registry/CAS policy), and must not treat the fingerprint as proof of arbitrary cross-application authority.
+
+The complete Node/SQLite/Chromium source-pinned integrated acceptance workflow `manual-sco-webauthn-assertion.yml` was added for future reviewers; [run 46146068058](https://github.com/FlareZ123/obfs/actions/runs/46146068058) remained queued at this revision. No updated full-stack green is asserted.
