@@ -2331,6 +2331,22 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
   // immutable. Ambiguous lexical shadows may cause refusal, never admission.
   for(const module of modules.values()) {
     const maybePrimitives=new Set();
+    const primitiveReturningFunctions=new Set(
+      boxedPrimitiveReturnExports.get(module.file.path)??[]);
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||
+         typeof statement.source?.value!=='string')continue;
+      const origin=resolveImport(module.file.path,statement.source.value);
+      const exported=origin?boxedPrimitiveReturnExports.get(origin):null;
+      if(!exported)continue;
+      for(const specifier of statement.specifiers) {
+        if(specifier.type!=='ImportSpecifier')continue;
+        const name=specifier.imported.name??specifier.imported.value;
+        if(typeof name==='string'&&exported.has(name)&&
+           specifier.local.type==='Identifier')
+          primitiveReturningFunctions.add(specifier.local.name);
+      }
+    }
     /** @param {AstNode|null|undefined} value @returns {boolean} */
     function mayBeBoxedPrimitive(value) {
       if(!value)return false;
@@ -2340,7 +2356,8 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
       if(value.type==='Identifier')return maybePrimitives.has(value.name);
       if(value.type==='UnaryExpression')return true;
       if(value.type==='CallExpression'&&value.callee.type==='Identifier'&&
-         ['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name))
+         (['Symbol','String','Number','Boolean','BigInt'].includes(value.callee.name)||
+          primitiveReturningFunctions.has(value.callee.name)))
         return true;
       if(value.type==='MemberExpression'&&value.object.type==='Identifier'&&
          value.object.name==='Symbol'&&!value.optional) {
@@ -2405,6 +2422,13 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
         node.type==='AssignmentExpression'?node.right:null;
       if(pattern&&['ObjectPattern','ArrayPattern'].includes(pattern.type)&&
          mayBeBoxedPrimitive(value))exposed=true;
+      if(node.type==='ForInStatement') {
+        const head=node.left;
+        if(head.type==='ObjectPattern'||head.type==='ArrayPattern'||
+           head.type==='VariableDeclaration'&&head.declarations.some(
+             (/** @type {AstNode} */ entry)=>['ObjectPattern','ArrayPattern'].includes(entry.id.type)))
+          exposed=true;
+      }
       // Direct reads and method dispatch also box primitive receivers. A
       // hostile getter can return Function even without any destructuring,
       // then re-enter an apparently closed ESM module graph.
@@ -2412,6 +2436,38 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
          !provablyOwnStringRead(node))exposed=true;
     });
     if(exposed)return {files,objects:0,properties:0};
+  }
+  // A named ESM export can return a for-in property key (always a primitive
+  // String) even when the consuming file does not spell the for-in loop.
+  // Track this bounded, source-visible producer before checking consumers;
+  // an imported invocation may then be boxed for a hostile accessor read.
+  /** @type {Map<string,Set<string>>} */
+  const boxedPrimitiveReturnExports=new Map();
+  for(const [filename,module] of modules) {
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      const fn=statement.type==='ExportNamedDeclaration'?
+        statement.declaration:null;
+      if(fn?.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier')continue;
+      const loopKeys=new Set();
+      walk(fn.body,node=>{
+        if(node.type!=='ForInStatement'||node.left.type!=='VariableDeclaration')return;
+        for(const declaration of node.left.declarations??[]) {
+          if(declaration.id.type==='Identifier')loopKeys.add(declaration.id.name);
+        }
+      });
+      let returnsPrimitive=false;
+      walk(fn.body,node=>{
+        if(node.type!=='ReturnStatement'||!node.argument)return;
+        const value=node.argument;
+        if(value.type==='Identifier'&&loopKeys.has(value.name)||
+           value.type==='Literal'&&value.value!==null&&
+             ['number','string','boolean','bigint'].includes(typeof value.value)||
+           value.type==='TemplateLiteral')returnsPrimitive=true;
+      });
+      if(returnsPrimitive)exported.add(fn.id.name);
+    }
+    boxedPrimitiveReturnExports.set(filename,exported);
   }
   // String-selector metadata has already been verified across the static ESM
   // graph. Use it during native-pattern admission to avoid refusing known
