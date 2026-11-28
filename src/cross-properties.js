@@ -3360,8 +3360,10 @@ function renameCrossFileProperties(files,seed,allowBoundFunctionTargets=false) {
             const field=user.proof.memberNames.get(member);
             return typeof field!=='string'||!ownNames.has(field);
           })||
-          user.proof.patterns.some(property=>
-            !ownNames.has(user.proof.patternNames.get(property)??ownPropertyName(property)))||
+          user.proof.patterns.some(property=>{
+            const name=user.proof.patternNames.get(property)??ownPropertyName(property);
+            return typeof name!=='string'||!ownNames.has(name);
+          })||
           user.proof.inChecks.some(check=>!ownNames.has(check.left.value))||
           user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
         const mapping=new Map();
