@@ -121,14 +121,28 @@ function exposesPrivateFunctionText(ast){
         carriesFunction(node.object)){
       exposed=true;return;
     }
-    if(node.type==='CallExpression'){
-      if(node.callee.type==='Identifier'&&node.callee.name==='String'&&
-          carriesFunction(node.arguments[0])){
+    if(node.type==='CallExpression'||node.type==='NewExpression'){
+      // These built-ins coerce a function to its exact source string, even if
+      // they return an encoded string or a wrapper. A char-at-a-time numeric
+      // oracle is covered separately below.
+      if(node.callee.type==='Identifier'&&
+          ['String','encodeURI','encodeURIComponent','escape','RegExp'].includes(
+            node.callee.name)&&carriesFunction(node.arguments[0])){
         exposed=true;return;
       }
       const method=member(node.callee);
       if(['join','toString','toLocaleString'].includes(method??'')&&
           carriesFunctionArray(node.callee.object)){
+        exposed=true;return;
+      }
+      // String.prototype.charCodeAt.call(fn,index), for example, can leak
+      // every UTF-16 code unit numerically through an authorized RPC even
+      // though no source text appears in an individual JSON response.
+      if(['call','apply'].includes(method??'')&&
+          member(node.callee.object?.object)==='prototype'&&
+          node.callee.object.object.object?.type==='Identifier'&&
+          node.callee.object.object.object.name==='String'&&
+          carriesFunction(node.arguments[0])){
         exposed=true;return;
       }
       // Function.prototype.toString.call(fn), with literal or computed key.
