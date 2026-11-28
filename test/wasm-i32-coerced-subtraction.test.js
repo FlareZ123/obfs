@@ -196,6 +196,32 @@ test('seeded nested subtractive bitvector grammar preserves native and independe
     typedComparisons:comparisons,fuzzSeed:'0x14f3b627'}));
 });
 
+
+test('all three core mode selections fail closed for uncoerced subtraction',()=>{
+  const unsafe='function f(a,b){return a-b;}module.exports=f;';
+  const safe='function f(a,b){return (a-b)|0;}module.exports=f;';
+  for(const mode of /** @type {('coo'|'sco'|'sno')[]} */ (['coo','sco','sno'])) {
+    const options={
+      mode,seed:'wasm-sub-three-mode-'+mode,
+      strings:false,properties:false,identifiers:false,
+      experimentalWasmI32:{'kernel.cjs':['f']}
+    };
+    assert.throws(()=>obfuscateFiles([
+      {path:'kernel.cjs',sourceType:'commonjs',code:unsafe}
+    ],options),/Wasm i32 declined 1 explicitly selected function/u);
+    const output=obfuscateFiles([
+      {path:'kernel.cjs',sourceType:'commonjs',code:safe}
+    ],options);
+    assert.equal(output.files[0].metrics.wasmI32Functions,1,mode);
+    const original=load(safe);
+    const generated=load(String(output.files[0].code));
+    for(const a of boundary)for(const b of boundary) {
+      assert.ok(Object.is(original(a,b),generated(a,b)),
+        mode+' typed signed Int32 output mismatch');
+    }
+  }
+});
+
 test('non-Int32 Number inputs remain outside the explicit backend contract',()=>{
   const source='function f(a,b){return (a-b)|0;}module.exports=f;';
   const result=lowerWasmI32Functions(source,'commonjs',{
