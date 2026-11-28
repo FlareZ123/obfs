@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const {obfuscateFiles}=require('../src/core');
+const {parse,observesDistributedSource}=require('../src/ast');
 const {proveSourceObserverIslands}=require('../src/source-observer-islands');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
@@ -59,4 +60,55 @@ test('independent primitive island still performs a real local property rewrite'
     assert.ok(emitted.metrics.properties>=1,mode+': no actual rewrite yield');
     assert.ok(!emitted.code.includes('privateField'),mode+': original field remains');
   }
+});
+
+
+for(const root of ['top','parent','opener']) {
+  test('default graph source observer flags browser WindowProxy root '+root,()=>{
+    const files=graph(root);
+    const entry=files[1];
+    assert.equal(observesDistributedSource(parse(String(entry.code),'module')),true,
+      'WindowProxy provides an ambient DOM source-observation capability');
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+      const output=obfuscateFiles(files,{
+        mode,seed:'agent5-sri-default-'+root,
+        closedWorld:true,strings:false,identifiers:false
+      });
+      const emitted=output.files.find(file=>file.path==='leaf.mjs');
+      assert.equal(emitted?.metrics.properties,0,
+        mode+': must preserve selected module bytes under browser WindowProxy access');
+    }
+  });
+}
+
+test('default graph conservatively recognizes active Document HTML parser SRI',()=>{
+  const files=graph('top').map(file=>file.path==='entry.mjs'?{
+    ...file,code:String(file.code).replace("const host=top;\nconst doc=host['document'];","const doc=document;")
+  }:file);
+  const entry=files[1];
+  assert.equal(observesDistributedSource(parse(String(entry.code),'module')),true);
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'agent5-sri-document-parser',
+    closedWorld:true,strings:false,identifiers:false
+  });
+  assert.equal(output.files.find(file=>file.path==='leaf.mjs')?.metrics.properties,0);
+});
+
+test('proven benign active Document insertAdjacentHTML retains default rewrite yield',()=>{
+  const files=[
+    leaf,
+    {path:'entry.mjs',sourceType:'module',code:[
+      "import {leaf} from './leaf.mjs';",
+      'void leaf();',
+      "document.body.insertAdjacentHTML('beforeend','<p>hello</p>');"
+    ].join('\n')}
+  ];
+  const entry=files[1];
+  assert.equal(observesDistributedSource(parse(String(entry.code),'module')),false);
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'agent5-benign-html-parser',
+    closedWorld:true,strings:false,identifiers:false
+  });
+  assert.ok((output.files.find(file=>file.path==='leaf.mjs')?.metrics.properties??0)>=1,
+    'non-integrity static HTML must not suppress unrelated private property rewrites');
 });
