@@ -4567,7 +4567,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             domDatasetFactories.add(name);changedDom=true;
           }
           if(returned.type==='Identifier') {
-            const index=(implementation.params??[]).findIndex(param=>
+            const index=(implementation.params??[]).findIndex((/** @type {AstNode} */ param)=>
               param.type==='Identifier'&&param.name===returned.name);
             if(index>=0) {
               const existing=domForwarders.get(name)??new Set();
