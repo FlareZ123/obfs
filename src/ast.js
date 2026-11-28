@@ -5025,7 +5025,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /**
    * A uniquely bound, unexported local `document` can be an ordinary record
    * rather than the browser's Web IDL Document. Only certify a fresh
-   * null-prototype or own-title-data literal whose binding is only the LHS of
+   * null-prototype or own-title-data literal record whose binding is only the LHS of
    * standalone simple .title assignments. Unlike an ordinary {} object, it
    * cannot inherit an ambient title setter. Any escape, reflection, alias,
    * read, computed key, dynamic scope, or nested shadow fails closed.
@@ -5065,19 +5065,31 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(firstExecutable!==declarationStatement||
        declarationStatement.declarations.length!==1)return false;
     const init=binding.init;
-    if(init?.type!=='ObjectExpression'||init.properties.length!==1)return false;
-    const own=init.properties[0];
-    if(own.type!=='Property'||own.computed||own.method||
-       own.shorthand||own.kind!=='init'||own.value?.type!=='Literal')return false;
-    const ownName=own.key?.type==='Identifier'?own.key.name:
-      own.key?.type==='Literal'?own.key.value:null;
-    // The legacy __proto__:null literal owns no inherited setter. A literal
-    // title data field is likewise guaranteed writable and shadows any
-    // hostile Object.prototype.title accessor without consulting it.
-    const nullPrototype=ownName==='__proto__'&&own.value.value===null;
-    const ownTitleData=ownName==='title'&&own.value.regex===undefined&&
-      (own.value.value===null||['string','number','boolean','bigint'].
-        includes(typeof own.value.value));
+    if(init?.type!=='ObjectExpression'||init.properties.length===0)return false;
+    let nullPrototype=false;
+    let ownTitleData=false;
+    // Check the *entire* record. A computed key or spread can execute a
+    // user-defined coercion/getter before the binding is initialized, while
+    // an accessor method can observe a later assignment. Only inert literal
+    // primitive fields or the special __proto__:null grammar are certified.
+    for(const own of init.properties) {
+      if(own.type!=='Property'||own.computed||own.method||own.shorthand||
+         own.kind!=='init'||own.value?.type!=='Literal'||
+         own.value.regex!==undefined)return false;
+      const name=own.key?.type==='Identifier'?own.key.name:
+        own.key?.type==='Literal'?own.key.value:null;
+      if(typeof name!=='string')return false;
+      const value=own.value.value;
+      if(value!==null && !['string','number','boolean','bigint'].
+        includes(typeof value))return false;
+      if(name==='__proto__') {
+        if(value!==null)return false;
+        nullPrototype=true;
+      }
+      if(name==='title')ownTitleData=true;
+    }
+    // Either a null prototype prevents an inherited setter, or an own
+    // writable data property named title shadows even a hostile setter.
     if(!nullPrototype&&!ownTitleData)return false;
     let safe=true;
     walk(ast,(node,parent,key,ancestors)=>{
