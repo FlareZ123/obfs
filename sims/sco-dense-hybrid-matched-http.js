@@ -5,7 +5,7 @@ const http=require('node:http');
 const {createHash}=require('node:crypto');
 const {Worker}=require('node:worker_threads');
 const esbuild=require('esbuild');
-const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=
+const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=
   require('../src');
 const {makeRng,makeRivestPermutation,makeLinearTransform,applyLinear,u32}=
   require('./compatible-permutation-linear-sandwich-blackbox');
@@ -15,7 +15,7 @@ const TOKEN='authorized-dense-hybrid-matched-source';
 /**
  * Recreate the exact source-private coefficients of the seeded Rivest
  * degree-three permutation, using primitive literal declarations so the
- * conservative SCO selected-export analyzer can admit it.
+ * server-only SCO graph can keep all of them on the trusted server.
  *
  * @param {number} seed
  * @returns {number[]}
@@ -75,7 +75,7 @@ function fixture() {
     '  return (obfsPrivateApply(outer,obfsPrivatePoly(z))^',
     '    OBFS_PRIVATE_OUT_OFFSET)>>>0;',
     '}',
-    'export function publicIdentity(input){return input>>>0;}'
+    'function publicIdentity(input){return input>>>0;}'
   ].join('\n');
   return {seed,secret,target:oracle(secret),oracle,source};
 }
@@ -191,10 +191,10 @@ async function executeArm(arm,sample) {
   let publicCode='';
   try {
     if(arm==='sco'){
-      const selected=partitionScoSelectedAsyncExports({
+      const selected=partitionScoAsyncModule({
         path:'dense.mjs',sourceType:'module',code:sample.source
       },{seed:'sco-dense-hybrid-matched-20261123',
-        privateNames:['protectedDenseRivest']});
+        serverOnlyInitialization:true});
       const methods=bindScoModuleExports(selected,original);
       /** @type {Record<string,(...args:any[])=>unknown|Promise<unknown>>} */
       const remote=Object.create(null);
