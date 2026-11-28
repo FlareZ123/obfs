@@ -187,6 +187,9 @@ test('SCO private graph declines exact private function-source disclosure while 
     'export async function reveal(){return String(reveal);}',
     'export async function reveal(){const alias=reveal;return alias.toString();}',
     'export async function reveal(){return [reveal].join();}',
+    'export async function reveal(i){return String.prototype.charCodeAt.call(reveal,i);}',
+    'export async function reveal(){return encodeURIComponent(reveal);}',
+    'export async function reveal(){return new String(reveal);}',
     'function hidden(){return 873;};export async function reveal(){return hidden.toString();}'
   ];
   for(const code of exposed){
@@ -194,6 +197,14 @@ test('SCO private graph declines exact private function-source disclosure while 
       seed:'function-source-disclosure',exposedPaths:['api.mjs']
     }),/private function source/u,code);
   }
+  // Imported function bodies are also server-private, even if selected
+  // exports only return their primitive code units to authorized clients.
+  assert.throws(()=>partitionScoAsyncGraph([
+    {path:'api.mjs',
+      code:'import {hidden} from "./secret.mjs";export async function reveal(i){return String.prototype.charCodeAt.call(hidden,i);}'},
+    {path:'secret.mjs',code:'export function hidden(){return "PRIVATE_IMPORTED_SOURCE_789";}'}
+  ],{seed:'function-source-disclosure',exposedPaths:['api.mjs']}),
+  /private function source/u);
   const safe=[
     'export async function score(x){return x*7+2;}',
     'export async function scalar(){return (42).toString(16);}',
