@@ -187,6 +187,9 @@ test('sibling Element/DocumentFragment insertion method replacement invalidates 
     'node.onclick=function privateCallback(){const secretLocal=71;return secretLocal;};'+
     'document.head.append(node);';
   const patches=[
+    'Element.prototype.append=globalThis.customAppend;',
+    'document.head.append=globalThis.customAppend;',
+    'Reflect.set(Element.prototype,"append",globalThis.customAppend);',
     'Element.prototype.append=function observe(node){return String(node.onclick);};',
     'const p=Element.prototype;p.replaceChildren=function observe(node){return String(node.onclick);};',
     'DocumentFragment.prototype.prepend=function observe(node){return String(node.onclick);};',
