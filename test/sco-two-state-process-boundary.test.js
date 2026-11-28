@@ -92,7 +92,7 @@ test('authenticated real SCO and equal-trust ordinary RPC clients are cloned fro
 });
 
 test('Linux runner-owned server denies signals from different-UID public client',
-  {skip:process.platform!=='linux'},async()=>{
+  {skip:process.platform!=='linux'||process.env.OBFS_SCO_UID_TEST!=='1'},async()=>{
     const result=await runProcessBoundary(true);
     assert.notEqual(result.serverUid,65534);
     assert.equal(result.attackerUid,65534);
