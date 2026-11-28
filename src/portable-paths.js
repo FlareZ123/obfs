@@ -104,7 +104,7 @@ function safePath(file) {
   // spelling like ".."+RLO may alias parent/dot or an empty name on certain
   // volumes. Reject these rather than depending on platform kernel patches.
   // Do not echo the raw character in an error: bidi controls can spoof logs.
-  if (/\\p{Default_Ignorable_Code_Point}/u.test(file)) {
+  if (/\p{Default_Ignorable_Code_Point}/u.test(file)) {
     throw new TypeError('Default-ignorable Unicode filename: refused portable path');
   }
   for (const segment of file.split('/')) {
