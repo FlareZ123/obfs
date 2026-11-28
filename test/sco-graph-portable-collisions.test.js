@@ -57,7 +57,8 @@ const collisions=[
   {kind:'NFC',a:'caf\u00e9.mjs',b:'cafe\u0301.mjs'},
   {kind:'Greek equal-uppercase',a:'\u03a3.mjs',b:'\u03c2.mjs'},
   {kind:'ancestor directory',a:'PRIVATE/a.mjs',b:'private/b.mjs'},
-  {kind:'file/directory',a:'bundle.mjs',b:'bundle.mjs/dependency.mjs'}
+  {kind:'file/directory',a:'bundle.mjs',b:'bundle.mjs/dependency.mjs'},
+  {kind:'reverse file/directory',a:'bundle.mjs/entry.mjs',b:'bundle.mjs'}
 ];
 
 for(const {kind,a,b} of collisions){
