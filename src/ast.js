@@ -4474,6 +4474,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const domElementNames=new Set();
   const domStyleNames=new Set();
   const domDatasetNames=new Set();
+  const domRangeNames=new Set();
   const domElementFactories=new Set();
   const domStyleFactories=new Set();
   const domDatasetFactories=new Set();
@@ -4528,6 +4529,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='Identifier'&&domStyleNames.has(node.name) ||
       node.type==='MemberExpression'&&memberName(node)==='style'&&
       isNativeDomElement(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeDomRange(node) {
+    return Boolean(node && (node.type==='Identifier'&&domRangeNames.has(node.name)||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+      isNativeDocument(node.callee.object)&&
+      memberName(node.callee)==='createRange'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNativeDomDataset(node) {
@@ -4631,6 +4639,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isNativeDomDataset(value)&&!domDatasetNames.has(name)) {
         domDatasetNames.add(name);changedDom=true;
+      }
+      if(isNativeDomRange(value)&&!domRangeNames.has(name)) {
+        domRangeNames.add(name);changedDom=true;
       }
     });
   }while(changedDom);
@@ -5858,7 +5869,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           attribute===null ||
           ['textContent','innerText','innerHTML','outerHTML',
            'nodeValue','data','id','className','title','slot','dir',
-           'lang','ariaLabel'].includes(attribute))
+           'lang','ariaLabel','href','src','action','formAction','value',
+           'placeholder','alt','name','role','download','srcdoc','poster',
+           'integrity','referrerPolicy','rel','type','target','media',
+           'hreflang','accept','srcset','sizes','text','label','ping',
+           'nonce','autocapitalize','autocomplete','contentEditable',
+           'spellcheck','inputMode','accessKey','enterKeyHint'].includes(attribute))
         ||isNativeDocument(owner) &&
           ['cookie','title','domain'].includes(attribute??'')
       ) || unsafeKey && (isNativeDomDataset(owner)||isNativeDomElement(owner)))
@@ -5869,7 +5885,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const method=memberName(node.callee);
       if(isNativeDomElement(owner) &&
          (['setAttribute','setAttributeNS','insertAdjacentText',
-           'insertAdjacentHTML'].includes(method??'') ||
+           'insertAdjacentHTML','append','prepend','replaceChildren',
+           'before','after','replaceWith'].includes(method??'') ||
            node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
@@ -5878,12 +5895,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           node.callee.computed&&method===null) &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
+      if(isNativeDomRange(owner)&&method==='createContextualFragment'&&
+         node.arguments.some((/** @type {AstNode} */ argument)=>
+           !isDefinitelyPrimitive(argument)))observed=true;
       if(isNativeDocument(owner) &&
          ['createTextNode','createComment','querySelector','getElementById',
           'createElement','createElementNS'].includes(method??'') &&
          node.arguments.some((/** @type {AstNode} */ argument)=>
            !isDefinitelyPrimitive(argument))) observed=true;
     }
+    if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+       ['Text','Option'].includes(node.callee.name)&&
+       node.arguments.some((/** @type {AstNode} */ argument)=>
+         !isDefinitelyPrimitive(argument)))observed=true;
     // Web Storage's indexed/named property setter is a separate Web IDL
     // DOMString coercion sink: Storage.prototype.setItem may be replaced
     // without affecting localStorage.someKey = callable. A computed key can
