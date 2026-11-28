@@ -143,19 +143,62 @@ test('SCO child accepts inert module string directives and stateless functions',
   ));
 });
 
-test('SCO child audit retains stateless default-exported arrow functions',()=>{
-  const code=[
-    'import next from "./private/next.mjs";',
-    'export async function secret(){return next();}',
-    'export function publicValue(){return 1;}'
-  ].join('\n');
-  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports({
-    path:'mixed.mjs',sourceType:'module',code
-  },{
-    seed:'sco-private-default-arrow-20261128',
-    privateNames:['secret'],privateModuleImports:['./private/next.mjs'],
-    privateModuleSources:[{path:'private/next.mjs',code:'export default ()=>42;'}]
-  }));
+test('SCO child audit retains unobserved default arrow and a named stateless helper',()=>{
+  assert.doesNotThrow(()=>compile(
+    'export default ()=>42;export function next(){return 42;}'
+  ));
+});
+test('SCO child proof declines primitive operations that throw at module initialization',()=>{
+  /** @type {[string,string][]} */
+  const cases=[
+    ['in operator','1 in 2'],
+    ['instanceof operator','1 instanceof 2'],
+    ['BigInt unary plus','+1n'],
+    ['mixed BigInt addition','1n+1'],
+    ['BigInt zero division','1n/0n'],
+    ['BigInt negative power','1n**-1n']
+  ];
+  const {parse}=require('../src/ast');
+  const {assertNoSharedChildFunctionIdentity}=require('../src/sco-private-child-function-identity');
+  for(const [label,expression] of cases){
+    const source='const impossible='+expression+
+      ';export function next(){return 42;}';
+    assert.throws(
+      ()=>assertNoSharedChildFunctionIdentity('private/next.mjs',parse(source,'module')),
+      /unproved module initializer state/u,label);
+    assert.throws(()=>compile(source),TypeError,label);
+  }
+  assert.doesNotThrow(()=>compile(
+    'const offset=40+2;export function next(){return offset;}'
+  ));
+});
+
+test('native ESM imports reject definitely throwing private initializers',{
+  timeout:15000
+},async()=>{
+  /** @type {[string,string][]} */
+  const expressions=[
+    ['1 in 2','TypeError'],
+    ['1 instanceof 2','TypeError'],
+    ['+1n','TypeError'],
+    ['1n+1','TypeError'],
+    ['1n/0n','RangeError'],
+    ['1n**-1n','RangeError']
+  ];
+  const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-child-throw-init-'));
+  try{
+    for(let index=0;index<expressions.length;index++){
+      const [expression,expected]=expressions[index];
+      const filename=path.join(tmp,'throw-'+index+'.mjs');
+      await atomicWrite(filename,'const impossible='+expression+
+        ';export function next(){return 42;}');
+      await assert.rejects(()=>import(pathToFileURL(filename).href),
+        /** @param {unknown} error */
+        error=>error instanceof Error&&error.name===expected,expression);
+    }
+  }finally{
+    await fs.rm(tmp,{recursive:true,force:true});
+  }
 });
 
 test('SCO standalone child retains constant primitive top-level data',()=>{
