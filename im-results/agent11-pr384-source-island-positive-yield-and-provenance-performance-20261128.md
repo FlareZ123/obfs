@@ -46,3 +46,38 @@ This is a finite compiler-performance improvement (negative cases about 26% / 33
 Check exact-head red/green source island CI, consolidate the **property-only** exception, then source-pin a fresh full Node22 Linux/Windows/Chromium/SCO/SNO/strict JSDoc and correct runtime-budget acceptance record. In particular preserve `source-observer-islands-backend-boundary` negative controls and all prior boxed primitive/ForIn precision controls. If original seven yield failures vanish, that is an engineering improvement; it does **not** undo the independently negative static/dynamic clone and >2.5× results for the frozen strong-obfuscation claim.
 
 Related first report: `im-results/agent11-pr384-host-boxed-primitive-and-crossfile-provenance-20261128.md`.
+
+
+## Exact-head consolidated full suite and unavoidable hostile-host locale contradiction
+
+The property-only source-island correction plus boxed-primitive/ForIn provenance guard and dependency worklist was run at **exact** `d78b381d316988bddb7e4e1349c8e24b11bd22ab`, [full run 46119786974](https://github.com/FlareZ123/obfs/actions/runs/46119786974). Node22 Ubuntu: **5,808 tests, 5,780 pass, 3 reported fail, 25 skip**. Node22 Windows: **5,808 tests, 5,770 pass, 3 reported fail, 35 skip**. These are two mode-specific failures (COO and SNO) plus their parent aggregation, *all within* `test/external-instance-prototype-source.test.js`'s `proven primitive toLocaleString keeps independent protected field rewrites`. No previous seven source-island test names remain among the failing cases. This is a **RED full gate**; do not promote consolidated candidate as release-compatible.
+
+The challenged positive case obtains `const nativeNumber=7` then calls `nativeNumber.toLocaleString("en-US")` and requires a private cross-file property rewrite elsewhere. The conservative `mayBeBoxedPrimitive` member guard refuses that rewrite because host-owned `Number.prototype.toLocaleString` can be replaced with a method that imports and introspects the supposedly closed `owner.mjs` graph. This is not only theoretical: exact source-only hostile-host test `test/primitive-tolocalestring-host-dynamic-import.test.js` at `ec87e780c391cecfcb98b9e6e6f51bc02e7fd020`, [frozen red 46120769409](https://github.com/FlareZ123/obfs/actions/runs/46120769409), causes **three actual native/emitted key-shape mismatches** across COO/SCO/SNO on Ubuntu, Windows and macOS. It preloads a replacement `Number.prototype.toLocaleString` returning `import(fileURL(owner.mjs)).then(m=>Object.keys(m.owner))`, and the input awaits that result. The same source-pinned test on the guarded candidate `ababbd64be3df7e47348aab3d77e8a90033dc072` [green 46120766130](https://github.com/FlareZ123/obfs/actions/runs/46120766130) preserves native/emitted behavior and refuses cross-file rewriting in all three modes.
+
+**Decision requirement:** under the user-specified attacker-controlled host/JS runtime assumptions, weakening the receiver guard merely to satisfy the positive `toLocaleString` yield test would reintroduce a reproduced correctness failure. Keep current RED full gate explicit; do not silently change the old positive assertion. An admission owner must decide whether to narrow the threat model (e.g. prove intrinsic immutability) or accept loss of this one rewrite. Our evidence favors retaining conservative safety under hostile hosts.
+
+## Source-observer compiler hotspot and bidirectional provenance experiment
+
+The 768 reversed-alias benchmark `test/boxed-primitive-cpu-profile.test.js` uses a separate Node22 V8 `--cpu-prof` subprocess (fixed `seed:'profile-768'`, `properties:true`, `closedWorld:true`) to profile **obfuscator compilation**, not emitted execution. Source-pinned baseline at `c189eb8664dc10ac0fbe6cafbcec0df73e0db753` [CI 46120214234](https://github.com/FlareZ123/obfs/actions/runs/46120214234) shows the majority of sampled CPU in `src/ast.js:37`'s recursive `walk.go` and callback at `src/ast.js:3432` inside a large native/source-coercion alias fixed-point repeated full AST walk. The prior property-specific worklist patch does **not** fix this second, independent bottleneck.
+
+An isolated candidate `agent11/bidirectional-source-observer-20261128` replaces this fixedpoint's source-order-only `do{walk(ast,...)}while(changed)` with an AST inventory built once plus forward/backward monotone propagation sweeps. The individual node addition rules are otherwise unchanged, and the original per-node callback body contains no `.delete`, `.clear`, `.splice`, or list sorting. This is a **bounded engineering rationale** for approaching the same closure, not a formal proof of equivalence for every executable JavaScript case. The optimized `src/ast.js` change is `393c97be9b56d5a4ac39d9d1f8dab35e56d109bf`; exact CPU experiment [CI 46120503880](https://github.com/FlareZ123/obfs/actions/runs/46120503880) at `c2f3769f1be58766d8e199754051f725a54e5531` passed all three OS with the same one private property rewrite:
+
+| Runner | Baseline compile ms | Optimized compile ms | Reduction |
+| --- | ---: | ---: | ---: |
+| Ubuntu | 6,395.659 | 346.407 | 94.6% |
+| Windows | 8,887.173 | 742.876 | 91.6% |
+| macOS | 9,468.293 | 576.139 | 93.9% |
+
+A focused aggregation of the original source-island suite, backend-boundary gate and primitive-host suites `test/ast-source-bidir-smoke.test.js` passed on all three OS in [CI 46120544030](https://github.com/FlareZ123/obfs/actions/runs/46120544030), head `e7948a5384ab158fc31e6b6ed57c4f5937188234`. The wrapper is **test-only**, not suitable as part of a full-suite production patch. A clean combined branch `agent11/consolidated-fast-observer-20261128` at `26ac0ef3ab4dbf22ecc3671a94186bdb9cc31175` contains the optimization, all earlier provenance/local-island corrections, and the live alias test; an exact-head [full run 46120807806](https://github.com/FlareZ123/obfs/actions/runs/46120807806) was dispatched and is pending at this report checkpoint. Do not infer its outcome.
+
+## Corrected compiler stage-split ablation
+
+Initial benchmark `98c2482ef2d7644fa8b35b88d861e8cbd564d4ae` [CI 46120072985](https://github.com/FlareZ123/obfs/actions/runs/46120072985) confounded `properties:false` with `closedWorld:false`. Corrected ablation `4b64bef1002c624fbe87bf9967eb41be22ab29da` [CI 46120382694](https://github.com/FlareZ123/obfs/actions/runs/46120382694) holds each factor separately: `disabledOpen` (`properties:false,closedWorld:false`), `disabledClosed` (`properties:false,closedWorld:true`), `localOnly` (`properties:true,closedWorld:false`), and `closedWorld` (`properties:true,closedWorld:true`). At the 512-alias median (3 repeats, same suite and CI runner, milliseconds):
+
+| OS | disabledOpen | disabledClosed | localOnly | closedWorld |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 1,631.6 | 1,680.3 | 1,628.1 | 4,870.5 |
+| Windows | 1,759.9 | 1,777.0 | 1,760.6 | 5,283.2 |
+| macOS | 1,139.4 | 1,495.9 | 1,390.6 | 4,406.8 |
+
+The substantial base cost persists even with properties disabled, and the cross-file proof makes total compile cost about 3× the comparable closed-world-but-properties-disabled case. This benchmark **does not** measure emitted runtime or absolute 2.5× admissibility. The source-observer bidirectional patch targets this persistent base cost and is evaluated independently with a same-graph V8 profile.
