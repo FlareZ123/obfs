@@ -91,10 +91,10 @@ test('authenticated real SCO and equal-trust ordinary RPC clients are cloned fro
   assert.notEqual(result.attackerPid,result.serverPid);
 });
 
-test('Linux privileged server denies signals from different-UID public client',
-  {skip:process.platform!=='linux'||process.getuid?.()!==0},async()=>{
+test('Linux runner-owned server denies signals from different-UID public client',
+  {skip:process.platform!=='linux'},async()=>{
     const result=await runProcessBoundary(true);
-    assert.equal(result.serverUid,0);
+    assert.notEqual(result.serverUid,65534);
     assert.equal(result.attackerUid,65534);
     assert.equal(result.signalPermissionDenied,true);
     assert.equal(result.exact,true);
