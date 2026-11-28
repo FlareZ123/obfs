@@ -136,6 +136,25 @@ test('tampered signed data, noncanonical encodings and non-P-256 keys reject',as
   }
 });
 
+test('private PEM credentials are not silently treated as registered public keys',async()=>{
+  for(const type of ['pkcs8','sec1']){
+    const h=harness();
+    const record=h.records.get(h.credentialId);
+    assert.ok(record);
+    record.publicKey=h.privateKey.export({format:'pem',type:/** @type {'pkcs8'|'sec1'} */(type)}).toString();
+    const challenge=h.admission.issueChallenge('accountA','loginA');
+    assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,false,type);
+    assert.equal(h.updates,0,type);
+  }
+  const h=harness();
+  const record=h.records.get(h.credentialId);
+  assert.ok(record);
+  record.publicKey=h.publicKey.export({format:'pem',type:'spki'}).toString();
+  const challenge=h.admission.issueChallenge('accountA','loginA');
+  assert.equal((await h.admission.verifyAssertion(assertion(h,challenge))).ok,true,
+    'Legitimate SPKI PEM public keys must remain accepted');
+});
+
 test('challenge consumption is synchronous across 16 simultaneous assertion attempts',async()=>{
   const h=harness();
   const challenge=h.admission.issueChallenge('accountA','loginA');
