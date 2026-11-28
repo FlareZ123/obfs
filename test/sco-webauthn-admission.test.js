@@ -335,3 +335,24 @@ test('mutating config callbacks cannot replace snapshotted credential policy aft
   const issued=gate.issueChallenge('accountA','loginA');
   assert.equal((await gate.verifyAssertion(assertion(fixture,issued))).ok,false);
 });
+
+test('valid signatures over unsupported authenticator extensions/flags are declined',async()=>{
+  for(const flags of [0x07,0x25,0x45,0x85]){
+    const h=harness();
+    const issued=h.admission.issueChallenge('accountA','loginA');
+    assert.equal((await h.admission.verifyAssertion(assertion(h,issued,{flags}))).ok,false,
+      'reserved or unsupported authenticator flag '+flags.toString(16));
+    assert.equal(h.updates,0);
+  }
+  const h=harness();
+  const issued=h.admission.issueChallenge('accountA','loginA');
+  const packet=assertion(h,issued);
+  const extraData=Buffer.concat([Buffer.from(packet.authenticatorData,'base64url'),Buffer.from([0])]);
+  const client=Buffer.from(packet.clientDataJSON,'base64url');
+  packet.authenticatorData=extraData.toString('base64url');
+  packet.signature=sign('sha256',Buffer.concat([
+    extraData,createHash('sha256').update(client).digest()
+  ]),h.privateKey).toString('base64url');
+  assert.equal((await h.admission.verifyAssertion(packet)).ok,false);
+  assert.equal(h.updates,0);
+});
