@@ -30,7 +30,25 @@ function graph(variant) {
   ].join('');
   const poison='document.createElement=function nativeLookingFactory(){'+
     'return function inspect(){const privateLocal=29;return privateLocal;};};';
-  const host='<html><head></head><body>'+
+  /** @type {SourceFile[]} */
+  const out=[
+    {path:'client.js',sourceType:'script',code:original},
+    {path:'bootstrap.js',sourceType:'script',code:source}
+  ];
+  if(variant==='replaced')out.push({path:'poison.js',sourceType:'script',code:poison});
+  return out;
+}
+
+/**
+ * The host reporter intentionally sits outside the files given to the
+ * obfuscator. Inline scripts are otherwise rejected by the HTML asset
+ * preflight, and must not be smuggled through the output inventory.
+ *
+ * @param {'native'|'replaced'|'integrity'} variant
+ * @returns {string}
+ */
+function page(variant) {
+  return '<html><head></head><body>'+
     '<pre id="result"></pre>'+
     (variant==='replaced'?'<script src="./poison.js"></script>':'')+
     '<script src="./bootstrap.js"></script>'+
@@ -39,14 +57,7 @@ function graph(variant) {
     'observed:document.head.lastChild?.textContent??""};'+
     'document.getElementById("result").textContent=btoa(JSON.stringify(result));'+
     '});</script></body></html>';
-  /** @type {SourceFile[]} */
-  const out=[
-    {path:'client.js',sourceType:'script',code:original},
-    {path:'bootstrap.js',sourceType:'script',code:source}
-  ];
-  if(variant==='replaced')out.push({path:'poison.js',sourceType:'script',code:poison});
-  out.push({path:'index.html',sourceType:'asset',code:Buffer.from(host)});
-  return out;
+
 }
 
 /** @returns {Promise<void>} */
@@ -74,6 +85,7 @@ async function main() {
     ])) {
       for(const file of source)files.set('/'+variant+'/'+type+'/'+file.path,
         /** @type {string|Buffer} */ (file.code));
+      files.set('/'+variant+'/'+type+'/index.html',page(variant));
     }
   }
   const server=http.createServer((request,response)=>{
