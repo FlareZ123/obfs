@@ -50,6 +50,21 @@ test('SCO standalone child rejects exported mutable var lexical cell',()=>{
   ),/unproved shared module lexical state/u);
 });
 
+test('SCO standalone child refuses mutable const record shared between clients',()=>{
+  const source='const state={count:0};export function next(){return ++state.count;}';
+  assert.throws(()=>compile(source),/unproved shared module object state/u);
+  assert.throws(()=>graph(source),/unproved module-level mutable state/u);
+});
+
+test('SCO standalone child refuses private top-level array and RegExp state',()=>{
+  for(const source of [
+    'const history=[];export function next(){return history.push(1);}',
+    'const matcher=/a/g;export function next(){return matcher.test("a");}'
+  ]){
+    assert.throws(()=>compile(source),/unproved shared module object state/u);
+  }
+});
+
 test('SCO standalone child retains constant primitive top-level data',()=>{
   assert.doesNotThrow(()=>compile(
     'const offset=41;export function next(){return offset+1;}'
