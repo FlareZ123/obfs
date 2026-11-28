@@ -1,13 +1,14 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
 const {test}=require('node:test');
 const fs=require('node:fs/promises');
 const http=require('node:http');
 const os=require('node:os');
 const path=require('node:path');
 const {spawn}=require('node:child_process');
-const {pathToFileURL}=require('node:url');
+const {transformSync}=require('esbuild');
 const {createScoHandler,partitionScoAsyncModule,bindScoModuleExports}=
   require('../src');
 const {atomicWrite}=require('../src/atomic');
@@ -17,6 +18,11 @@ const {observableStateClasses}=
   require('../sims/sco-mealy-refinement');
 
 const MODEL_COUNT=46656;
+
+/** @param {string|Buffer} value @returns {string} */
+function sha256(value){
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
 
 /**
  * Decode the exact base-six table index used by the exhaustive corpus.
@@ -75,11 +81,11 @@ function close(server){
 /**
  * @param {{next:number[][],output:number[][]}} secret
  * @param {number} index
- * @param {string} directory
  * @returns {Promise<{server:http.Server,origin:string,method:string,
- *   getState:()=>number,publicSource:string,canary:string}>}
+ *   getState:()=>number,publicSource:string,canary:string,
+ *   privateModuleSha256:string,publicSourceSha256:string}>}
  */
-async function startSco(secret,index,directory){
+async function startSco(secret,index){
   const canary='private-three-state-canary-'+index;
   const source=[
     'const model='+JSON.stringify(secret)+';',
@@ -91,19 +97,19 @@ async function startSco(secret,index,directory){
     'return model.output[old][symbol];',
     '}'
   ].join('\n');
-  const privatePath=path.join(directory,'private-'+index+'.mjs');
-  await atomicWrite(privatePath,source);
+  const privateModuleSha256=sha256(source);
   const partition=partitionScoAsyncModule({
     path:'client.mjs',sourceType:'module',code:source
   },{seed:'agent11-three-state-live-'+index,serverOnlyInitialization:true});
-  const privateModule=await import(pathToFileURL(privatePath).href);
+  // Keep the private module in the server process; do not materialize its source on disk.
+  const privateModuleUrl='data:text/javascript;base64,'+Buffer.from(source).toString('base64');
+  const privateModule=await import(privateModuleUrl);
   /** @type {Record<string,(...args:any[])=>unknown|Promise<unknown>>} */
   const remoteMethods={...bindScoModuleExports(partition,privateModule)};
   const method=partition.methodNames.step;
   const original=remoteMethods[method];
   if(typeof original!=='function')throw new Error('Missing bound private step');
   let state=0;
-  /** @param {number} symbol @returns {Promise<unknown>} */
   /** @param {number} symbol @returns {Promise<unknown>} */
   remoteMethods[method]=async symbol=>{
     const value=await original(symbol);
@@ -128,17 +134,35 @@ async function startSco(secret,index,directory){
     'private transition table absent from public client');
   assert.ok(publicSource.includes(method),'remote method identifier is public');
   assert.ok(publicSource.includes('/obfs/rpc'),'RPC endpoint is public');
-  return {server,origin,method,getState:()=>state,publicSource,canary};
+  const publicSourceSha256=sha256(publicSource);
+  return {
+    server,origin,method,getState:()=>state,publicSource,canary,
+    privateModuleSha256,publicSourceSha256
+  };
 }
-
 /**
- * Matched ordinary JSON-RPC transport with identical hidden state and policy.
+ * Matched ordinary minified JSON-RPC control with identical hidden state,
+ * method contract, credential, endpoint, and public-client route.
  * @param {{next:number[][],output:number[][]}} secret
- * @returns {Promise<{server:http.Server,origin:string,method:string,getState:()=>number}>}
+ * @returns {Promise<{server:http.Server,origin:string,method:string,
+ *   getState:()=>number,publicSource:string,publicSourceSha256:string,
+ *   serverCodeSha256:string}>}
  */
 async function startOrdinary(secret){
   let state=0;
+  const ordinaryClientSource=transformSync(
+    'export async function step(symbol){const response=await fetch("/obfs/rpc",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({method:"step",args:[symbol]})});const payload=await response.json();if(!response.ok||payload?.ok!==true)throw Error("RPC failed");return payload.value}',
+    {format:'esm',minify:true,target:'es2022'}
+  ).code;
   const server=http.createServer(async(request,response)=>{
+    if(request.method==='GET'&&request.url==='/obfs/client.mjs'){
+      response.writeHead(200,{
+        'content-type':'application/javascript; charset=utf-8',
+        'cache-control':'no-store'
+      });
+      response.end(ordinaryClientSource);
+      return;
+    }
     if(request.method!=='POST'||request.url!=='/obfs/rpc'){
       response.writeHead(404);response.end();return;
     }
@@ -167,21 +191,34 @@ async function startOrdinary(secret){
     response.end(JSON.stringify({ok:true,value:output}));
   });
   const origin=await listen(server);
-  return {server,origin,method:'step',getState:()=>state};
+  const response=await fetch(origin+'/obfs/client.mjs');
+  assert.equal(response.status,200,'ordinary minified public client is served');
+  const publicSource=await response.text();
+  assert.ok(publicSource.includes('step'),'ordinary method name is public');
+  assert.ok(publicSource.includes('/obfs/rpc'),'ordinary RPC endpoint is public');
+  return {
+    server,origin,method:'step',getState:()=>state,publicSource,
+    publicSourceSha256:sha256(publicSource),
+    serverCodeSha256:sha256(startOrdinary.toString())
+  };
 }
-
 /**
  * The attacker runs in a separate Node process and receives only a public
  * policy DAG, RPC origin, and public method name.
  * @param {string} origin
  * @param {string} method
  * @param {string} policyPath
- * @returns {{queries:number,inputs:number[],outputs:number[],terminalClass:number}}
+ * @returns {Promise<{queries:number,inputs:number[],outputs:number[],terminalClass:number,
+ *   transcript:{input:number,method:string,status:number,ok:boolean,output:unknown}[],
+ *   policySha256:string,clientSha256:string,heldoutInputs:number[],heldoutOutputs:number[]}>}
  */
 function runAttacker(origin,method,policyPath){
   const script=path.join(__dirname,'..','sims','sco-three-state-policy-attacker.js');
   return new Promise((resolve,reject)=>{
+    // The child starts in the public-artifact directory, not the repository root.
+    // This is process separation, not an OS sandbox; see the report for the boundary.
     const child=spawn(process.execPath,[script,origin,method,policyPath],{
+      cwd:path.dirname(policyPath),
       stdio:['ignore','pipe','pipe']
     });
     let stdout='';
@@ -203,33 +240,67 @@ function runAttacker(origin,method,policyPath){
 }
 
 /**
- * Check the policy's observed trace against the hidden server state retained
- * only by the parent/test process.
- * @param {{queries:number,inputs:number[],outputs:number[],terminalClass:number}} attack
+ * Check the complete live trace against the hidden state retained only by the
+ * parent/test process. This is called after the corresponding HTTP server is
+ * closed, so no held-out request can be answered by the live service.
+ * @param {{queries:number,inputs:number[],outputs:number[],terminalClass:number,
+ *   transcript:{input:number,method:string,status:number,ok:boolean,output:unknown}[],
+ *   policySha256:string,clientSha256:string,heldoutInputs:number[],heldoutOutputs:number[]}} attack
  * @param {{next:number[][],output:number[][]}} secret
  * @param {number} modelIndex
  * @param {Uint16Array} classes
  * @param {()=>number} getServerState
+ * @param {string} policyHash
+ * @param {string} clientHash
  * @returns {number}
  */
-function verifyAttack(attack,secret,modelIndex,classes,getServerState){
+function verifyAttack(attack,secret,modelIndex,classes,getServerState,policyHash,clientHash){
   assert.equal(attack.queries,attack.inputs.length);
   assert.equal(attack.outputs.length,attack.inputs.length);
+  assert.equal(attack.transcript.length,attack.queries);
   assert.ok(attack.queries<=24);
+  assert.equal(attack.policySha256,policyHash,'attacker used the pinned public policy');
+  assert.equal(attack.clientSha256,clientHash,'attacker fetched the pinned public client');
   let state=0;
   for(let i=0;i<attack.inputs.length;i++){
     const input=attack.inputs[i];
     assert.ok(input===0||input===1);
     assert.equal(attack.outputs[i],secret.output[state][input],
       'public RPC output must match the hidden Mealy table');
+    const row=attack.transcript[i];
+    assert.equal(row.input,input);
+    assert.equal(row.status,200);
+    assert.equal(row.ok,true);
+    assert.equal(row.output,attack.outputs[i]);
     state=secret.next[state][input];
   }
   assert.equal(getServerState(),state,'server and independent hidden-state tracker agree');
   assert.equal(attack.terminalClass,classes[modelIndex*3+state],
     'the attacker terminal class equals the actual hidden future-behavior class');
+  assert.equal(attack.heldoutInputs.length,64);
+  assert.equal(attack.heldoutOutputs.length,64);
   return state;
 }
 
+/**
+ * Verify the attacker's predicted continuation only after its server has
+ * shut down. The hidden model is used solely by the evaluator.
+ * @param {{heldoutInputs:number[],heldoutOutputs:number[]}} attack
+ * @param {{next:number[][],output:number[][]}} secret
+ * @param {number} finalState
+ * @returns {{inputs:number[],predictedOutputs:number[],actualOutputs:number[],exact:true}}
+ */
+function verifyHeldout(attack,secret,finalState){
+  const actualOutputs=outputTrace(secret,finalState,attack.heldoutInputs);
+  assert.deepEqual(attack.heldoutOutputs,actualOutputs,
+    'public behavior quotient predicts the hidden machine after server shutdown');
+  return {
+    inputs:attack.heldoutInputs,
+    predictedOutputs:attack.heldoutOutputs,
+    actualOutputs,
+    exact:true
+  };
+}
 /**
  * Simulate a public policy against a finite machine without consulting the
  * hidden source during the decision process.
@@ -330,16 +401,26 @@ test('24-call policy identifies selected sources through process-separated SCO a
   assert.equal(result.policyNodes,13329);
   assert.ok(result.policy);
   assert.ok(result.classes);
+  assert.ok(result.classOutput);
+  assert.ok(result.classNext);
   assert.equal(result.rootPolicyNode,0);
   const policyPath=path.join(os.tmpdir(),'obfs-three-state-policy-'+process.pid+'.json');
   const policy={
     root:result.rootPolicyNode,
-    nodes:result.policy.map(node=>({input:node.input,children:node.children}))
+    nodes:result.policy.map(node=>({input:node.input,children:node.children})),
+    classOutput:Array.from(result.classOutput),
+    classNext:Array.from(result.classNext)
   };
-  await atomicWrite(policyPath,JSON.stringify(policy));
+  const policyJson=JSON.stringify(policy);
+  const policyHash=sha256(policyJson);
+  await atomicWrite(policyPath,policyJson);
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-three-state-live-'));
   const models=[0,1,12345,23456,46655];
-  /** @type {{model:number,transport:string,queries:number,terminalClass:number,finalState:number}[]} */
+  /** @type {{model:number,transport:string,queries:number,terminalClass:number,finalState:number,
+   * inputs:number[],outputs:number[],transcript:{input:number,method:string,status:number,ok:boolean,output:unknown}[],
+   * policySha256:string,serverCodeSha256:string,publicClientSha256:string,
+   * heldout:{inputs:number[],predictedOutputs:number[],actualOutputs:number[],exact:true,
+   *   verifiedAfterServerShutdown:true}}[]} */
   const receipts=[];
   try{
     for(const modelIndex of models){
@@ -353,100 +434,171 @@ test('24-call policy identifies selected sources through process-separated SCO a
         );
       }
 
-      const sco=await startSco(secret,modelIndex,directory);
+      const sco=await startSco(secret,modelIndex);
+      /** @type {Awaited<ReturnType<typeof runAttacker>>} */
+      let scoAttack;
       try{
-        const attack=await runAttacker(sco.origin,sco.method,policyPath);
-        const finalState=verifyAttack(attack,secret,modelIndex,classes,sco.getState);
-        receipts.push({model:modelIndex,transport:'generated-sco-http',
-          queries:attack.queries,terminalClass:attack.terminalClass,finalState});
+        scoAttack=await runAttacker(sco.origin,sco.method,policyPath);
       }finally{await close(sco.server);}
+      const scoFinalState=verifyAttack(
+        scoAttack,secret,modelIndex,result.classes,sco.getState,policyHash,sco.publicSourceSha256
+      );
+      const scoHeldout=verifyHeldout(scoAttack,secret,scoFinalState);
+      receipts.push({
+        model:modelIndex,transport:'generated-sco-http',
+        queries:scoAttack.queries,inputs:scoAttack.inputs,outputs:scoAttack.outputs,
+        transcript:scoAttack.transcript,terminalClass:scoAttack.terminalClass,
+        finalState:scoFinalState,policySha256:policyHash,
+        serverCodeSha256:sco.privateModuleSha256,
+        publicClientSha256:sco.publicSourceSha256,
+        heldout:{...scoHeldout,verifiedAfterServerShutdown:true}
+      });
 
       const ordinary=await startOrdinary(secret);
+      /** @type {Awaited<ReturnType<typeof runAttacker>>} */
+      let ordinaryAttack;
       try{
-        const attack=await runAttacker(ordinary.origin,ordinary.method,policyPath);
-        const finalState=verifyAttack(attack,secret,modelIndex,classes,ordinary.getState);
-        receipts.push({model:modelIndex,transport:'matched-ordinary-rpc',
-          queries:attack.queries,terminalClass:attack.terminalClass,finalState});
+        ordinaryAttack=await runAttacker(ordinary.origin,ordinary.method,policyPath);
       }finally{await close(ordinary.server);}
+      const ordinaryFinalState=verifyAttack(
+        ordinaryAttack,secret,modelIndex,result.classes,ordinary.getState,policyHash,ordinary.publicSourceSha256
+      );
+      const ordinaryHeldout=verifyHeldout(ordinaryAttack,secret,ordinaryFinalState);
+      receipts.push({
+        model:modelIndex,transport:'matched-ordinary-minified-rpc',
+        queries:ordinaryAttack.queries,inputs:ordinaryAttack.inputs,outputs:ordinaryAttack.outputs,
+        transcript:ordinaryAttack.transcript,terminalClass:ordinaryAttack.terminalClass,
+        finalState:ordinaryFinalState,policySha256:policyHash,
+        serverCodeSha256:ordinary.serverCodeSha256,
+        publicClientSha256:ordinary.publicSourceSha256,
+        heldout:{...ordinaryHeldout,verifiedAfterServerShutdown:true}
+      });
     }
     for(const modelIndex of models){
       const sco=receipts.find(item=>item.model===modelIndex&&item.transport==='generated-sco-http');
-      const ordinary=receipts.find(item=>item.model===modelIndex&&item.transport==='matched-ordinary-rpc');
+      const ordinary=receipts.find(item=>item.model===modelIndex&&item.transport==='matched-ordinary-minified-rpc');
       assert.ok(sco&&ordinary);
       assert.equal(sco.queries,ordinary.queries);
+      assert.deepEqual(sco.inputs,ordinary.inputs);
+      assert.deepEqual(sco.outputs,ordinary.outputs);
+      assert.deepEqual(sco.transcript.map(row=>({input:row.input,status:row.status,ok:row.ok,output:row.output})),
+        ordinary.transcript.map(row=>({input:row.input,status:row.status,ok:row.ok,output:row.output})));
       assert.equal(sco.terminalClass,ordinary.terminalClass);
       assert.equal(sco.finalState,ordinary.finalState);
+      assert.deepEqual(sco.heldout.predictedOutputs,ordinary.heldout.predictedOutputs);
     }
-    console.log('THREE_STATE_LIVE_POLICY '+JSON.stringify({
-      modelCount:models.length,transports:2,receipts
-    }));
+    // Negative control: preserve a real three-state machine as a reachable
+    // submachine, then unroll the observed policy trace into a fresh path. The
+    // final path state is reached only after the last observed response, so its
+    // future behavior is unconstrained by the transcript.
+    const base={
+      next:[[1,2],[2,0],[0,1]],
+      output:[[0,0],[0,1],[1,0]]
+    };
+    assert.equal(reachableStates(base,0).length,3);
+    assert.equal(new Set(observableStateClasses(base)).size,3);
+    const originalTrace=simulatePolicy(policy.nodes,base);
+    assert.ok(originalTrace.inputs.length<=24);
 
-    // Negative control: the 24-call guarantee is conditional on the <=3-state
-    // prior. Add a fourth reachable state on a transition not queried by the
-    // policy, preserving its entire observed trace but changing future behavior.
-    /** @type {{modelIndex:number,changedState:number,changedInput:number,
-     *   finalState:number,terminalClass:number,suffix:number[],
-     *   originalSuffixOutputs:number[],fourStateSuffixOutputs:number[]}|null} */
-    let fourStateWitness=null;
-    for(let modelIndex=0;modelIndex<MODEL_COUNT&&!fourStateWitness;modelIndex++){
-      const secret=decodeModel(modelIndex);
-      if(reachableStates(secret,0).length!==3)continue;
-      const originalTrace=simulatePolicy(policyNodes,secret);
-      if(originalTrace.inputs.length!==24)continue;
-      for(const state of reachableStates(secret,originalTrace.finalState)){
-        for(let input=0;input<2;input++){
-          if(originalTrace.visited.has(state+':'+input))continue;
-          const oldTarget=secret.next[state][input];
-          const fourState={
-            next:secret.next.map(row=>row.slice()).concat([[3,3]]),
-            output:secret.output.map(row=>row.slice()).concat([[
-              1-secret.output[oldTarget][0],1-secret.output[oldTarget][1]
-            ]])
-          };
-          fourState.next[state][input]=3;
-          assert.equal(reachableStates(fourState,0).length,4,
-            'the added fourth state is reachable from the original initial state');
-          const modifiedTrace=simulatePolicy(policyNodes,fourState);
-          assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
-          assert.deepEqual(modifiedTrace.outputs,originalTrace.outputs);
-          assert.equal(modifiedTrace.terminalClass,originalTrace.terminalClass);
-          assert.equal(originalTrace.terminalClass,
-            classes[modelIndex*3+originalTrace.finalState]);
-          const path=shortestInputPath(secret,originalTrace.finalState,state);
-          assert.ok(path);
-          const suffix=[...path,input,0];
-          const originalSuffixOutputs=outputTrace(secret,originalTrace.finalState,suffix);
-          const fourStateSuffixOutputs=outputTrace(fourState,modifiedTrace.finalState,suffix);
-          assert.notDeepEqual(fourStateSuffixOutputs,originalSuffixOutputs,
-            'the fourth state changes a future output after the policy stops');
-          const combined={
-            next:[
-              ...secret.next.map(row=>row.slice()),
-              ...fourState.next.map(row=>row.map(target=>target===3?6:target+3))
-            ],
-            output:[
-              ...secret.output.map(row=>row.slice()),
-              ...fourState.output.map(row=>row.slice())
-            ]
-          };
-          const combinedClasses=observableStateClasses(combined);
-          assert.notEqual(combinedClasses[originalTrace.finalState],
-            combinedClasses[3+modifiedTrace.finalState],
-            'original and four-state final states have different future behaviors');
-          fourStateWitness={
-            modelIndex,changedState:state,changedInput:input,
-            finalState:originalTrace.finalState,
-            terminalClass:originalTrace.terminalClass,suffix,
-            originalSuffixOutputs,fourStateSuffixOutputs
-          };
-          break;
-        }
-        if(fourStateWitness)break;
-      }
+    const pathStateCount=originalTrace.inputs.length+1;
+    const baseOffset=pathStateCount;
+    /** @type {{next:number[][],output:number[][]}} */
+    const extension={
+      next:Array.from({length:pathStateCount},()=>[baseOffset,baseOffset]),
+      output:Array.from({length:pathStateCount},()=>[0,0])
+    };
+    for(let index=0;index<originalTrace.inputs.length;index++){
+      const input=originalTrace.inputs[index];
+      const unused=1-input;
+      extension.output[index][input]=originalTrace.outputs[index];
+      extension.next[index][input]=index+1;
+      extension.output[index][unused]=0;
+      extension.next[index][unused]=baseOffset;
     }
-    assert.ok(fourStateWitness,
-      'find a reachable four-state extension outside the observed 24-call path');
-    console.log('THREE_STATE_PRIOR_FALSIFIER '+JSON.stringify(fourStateWitness));
+    const extensionFinalState=pathStateCount-1;
+    // 11 is absent from the three base output vectors 00, 01, and 10.
+    extension.output[extensionFinalState]=[1,1];
+    extension.next[extensionFinalState]=[baseOffset,baseOffset];
+
+    // Keep all three distinct base behaviors reachable, and provide a return
+    // edge from the base component to the trace path to make the extension
+    // strongly connected.
+    const baseNext=base.next.map(row=>row.map(target=>baseOffset+target));
+    const baseOutput=base.output.map(row=>row.slice());
+    baseNext[0][0]=0;
+    extension.next.push(...baseNext);
+    extension.output.push(...baseOutput);
+
+    assert.equal(reachableStates(extension,0).length,extension.next.length,
+      'every extension state is reachable from the attack initial state');
+    for(let state=0;state<extension.next.length;state++){
+      assert.equal(reachableStates(extension,state).length,extension.next.length,
+        'the extended machine is strongly connected');
+    }
+    const extensionClasses=observableStateClasses(extension);
+    const extensionBehaviorClasses=new Set(extensionClasses).size;
+    assert.equal(extensionBehaviorClasses,extension.next.length,
+      'every reachable extension state has a distinct future behavior');
+    assert.ok(extensionBehaviorClasses>3,
+      'the reachable extension exceeds the three-state prior');
+
+    const modifiedTrace=simulatePolicy(policy.nodes,extension);
+    assert.deepEqual(modifiedTrace.inputs,originalTrace.inputs);
+    assert.deepEqual(modifiedTrace.outputs,originalTrace.outputs);
+    assert.equal(modifiedTrace.terminalClass,originalTrace.terminalClass);
+    assert.equal(modifiedTrace.finalState,extensionFinalState);
+
+    const distinguishingInput=extension.output[extensionFinalState].findIndex(
+      (value,input)=>value!==base.output[originalTrace.finalState][input]
+    );
+    assert.ok(distinguishingInput===0||distinguishingInput===1);
+    const suffix=[distinguishingInput];
+    const originalSuffixOutputs=outputTrace(base,originalTrace.finalState,suffix);
+    const extensionSuffixOutputs=outputTrace(extension,modifiedTrace.finalState,suffix);
+    assert.notDeepEqual(extensionSuffixOutputs,originalSuffixOutputs,
+      'the same policy transcript is compatible with a different future behavior');
+
+    const combined={
+      next:[
+        ...base.next.map(row=>row.slice()),
+        ...extension.next.map(row=>row.map(target=>target+3))
+      ],
+      output:[
+        ...base.output.map(row=>row.slice()),
+        ...extension.output.map(row=>row.slice())
+      ]
+    };
+    const combinedClasses=observableStateClasses(combined);
+    assert.notEqual(combinedClasses[originalTrace.finalState],
+      combinedClasses[3+modifiedTrace.finalState]);
+
+    const traceExtensionWitness={
+      originalQueries:originalTrace.inputs.length,
+      extensionStateCount:extension.next.length,
+      extensionBehaviorClasses,
+      originalFinalState:originalTrace.finalState,
+      extensionFinalState:modifiedTrace.finalState,
+      terminalClass:originalTrace.terminalClass,
+      suffix,originalSuffixOutputs,extensionSuffixOutputs
+    };
+    console.log('THREE_STATE_PRIOR_FALSIFIER '+JSON.stringify(traceExtensionWitness));
+
+    const receiptPath=path.join(process.cwd(),'artifacts','sco-three-state-live-policy.json');
+    await fs.mkdir(path.dirname(receiptPath),{recursive:true});
+    const receipt={
+      modelCount:models.length,transports:2,policySha256:policyHash,
+      queryBound:24,heldoutLength:64,receipts,
+      priorFalsifier:traceExtensionWitness
+    };
+    await fs.writeFile(receiptPath,JSON.stringify(receipt,null,2));
+    console.log('THREE_STATE_LIVE_POLICY_SUMMARY '+JSON.stringify({
+      modelCount:models.length,transports:2,queryBound:24,
+      receipts:receipts.map(item=>({
+        model:item.model,transport:item.transport,queries:item.queries,
+        terminalClass:item.terminalClass,heldoutVerified:item.heldout.exact
+      })),
+      priorFalsifier:traceExtensionWitness
+    }));
   }finally{
     await fs.rm(directory,{recursive:true,force:true});
     await fs.rm(policyPath,{force:true});

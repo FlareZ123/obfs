@@ -19,7 +19,9 @@ const MODEL_COUNT=46656;
  *     meanQueries:number,histogram:number[]},
  *   policy?:{budget:number,input:number,children:[number,number]}[],
  *   rootPolicyNode?:number,
- *   classes?:Uint16Array
+ *   classes?:Uint16Array,
+ *   classOutput?:Uint8Array,
+ *   classNext?:Uint16Array
  * }} MinimaxResult
  */
 
@@ -310,7 +312,8 @@ function computeThreeStateMinimax(options={}){
     totalMemoEntries,
     sourceReplay,
     ...(options.includePolicy===true?
-      {policy,rootPolicyNode,classes:quotient.classes}: {})
+      {policy,rootPolicyNode,classes:quotient.classes,
+       classOutput:quotient.output,classNext:quotient.next}: {})
   };
 }
 
