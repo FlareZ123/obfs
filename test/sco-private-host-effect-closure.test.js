@@ -132,7 +132,10 @@ test('Private SCO refuses implicit primitive-prototype reads and simple aliases'
     'return String("x").toString();',
     'return new String("x").toString();',
     'const s="x";return s.toString();',
-    'const s="x";const alias=s;return alias.toString();'
+    'const s="x";const alias=s;return alias.toString();',
+    'function consume(value){return value.toString();}const s="x";return consume(s);',
+    'const s="x";const box={value:s};return box.value.toString();',
+    'const s="x";const box=[s];return box[0].toString();'
   ];
   for(const body of sensitive){
     assert.throws(()=>partitionDirect(body),/realm-local prototype/u,body+' / direct');
