@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.metadata
 import hashlib
 import importlib.util
@@ -240,11 +241,21 @@ def preflight(
     canary: str,
     session_token: str,
     method_name: str,
+    archive_public_module: bool = False,
 ):
+    """Check the published surface; optionally preserve its exact UTF-8 bytes.
+
+    The bounded base64 field is for trusted post-run evaluator artifacts only,
+    never for the learner argv/environment or the private server payload.
+    """
+    max_public_bytes = 1024 * 1024
     with urllib.request.urlopen(origin + public_path, timeout=10) as response:
         if response.status != 200:
             raise AssertionError(f"public module returned HTTP {response.status}")
-        public_source = response.read().decode("utf-8")
+        raw_public = response.read(max_public_bytes + 1)
+        if len(raw_public) > max_public_bytes:
+            raise AssertionError("public module exceeds one-MiB evidence archive limit")
+        public_source = raw_public.decode("utf-8", errors="strict")
         set_cookie = response.headers.get("Set-Cookie")
         published_method_name = response.headers.get("X-SCO-Method")
 
@@ -291,16 +302,19 @@ def preflight(
     if reset_status != 404:
         raise AssertionError(f"unexpected reset route status: {reset_status}")
 
-    return {
+    result = {
         "source_disclosed": source_disclosed,
         "session_cookie_issued": session_cookie_issued,
         "session_token_in_public_module": session_token_in_public_module,
         "method_name_published": method_name_published,
-        "source_bytes": len(public_source.encode("utf-8")),
-        "source_sha256": hashlib.sha256(public_source.encode("utf-8")).hexdigest(),
+        "source_bytes": len(raw_public),
+        "source_sha256": hashlib.sha256(raw_public).hexdigest(),
         "unauthorized_status": unauthorized_status,
         "reset_status": reset_status,
     }
+    if archive_public_module:
+        result["public_module_base64"] = base64.b64encode(raw_public).decode("ascii")
+    return result
 
 
 def stop_server(process):
