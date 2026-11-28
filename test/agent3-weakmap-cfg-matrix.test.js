@@ -218,6 +218,10 @@ const cases=[
 ['call-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
 ['call-optional-computed-callee-before-arg','let carrier={instance:{}};const target={m(_v){}};target?.[(carrier.instance={},"m")]((carrier.instance=new WeakMap(),0));','carrier.instance'],
 ['call-sequence-callee-before-arg','let carrier={instance:{}};function target(_v){};(carrier.instance={},target)((carrier.instance=new WeakMap(),0));','carrier.instance'],
+// Native callee-key helper effects run before argument effects. A local
+// one-statement own-slot writer can be recognized as a definite post-state;
+// evaluation-order reversal must not erase the later WeakMap argument write.
+['call-callee-local-definite-clear-before-arg','class Ordinary{} const carrier={instance:new Ordinary()};function clear(){carrier.instance=new Ordinary();}const target={undefined(_arg){}};target[clear()]((carrier.instance=new WeakMap(),0));','carrier.instance'],
 // Class expressions, like class declarations, execute instance field values
 // only when an instance is constructed, not when the class is defined.
 ['class-expression-field-deferred','const carrier={instance:new WeakMap()};const Holder=class{x=(carrier.instance={});};','carrier.instance'],
@@ -258,7 +262,8 @@ for(const [name,setup,access] of cases) {
         'switch-case-try-catch-finally-break-early',
         'try-catch-both-paths-abrupt',
         'switch-return-before-clear','switch-throw-before-clear',
-        'switch-if-return-before-clear','loop-return-before-clear'].includes(name))
+        'switch-if-return-before-clear','loop-return-before-clear',
+        'call-callee-local-definite-clear-before-arg'].includes(name))
       assert.equal(nativeShared,true,'Selector must execute in native Node: '+name);
     if(['switch-benign-nonliteral-selector',
         'try-catch-finally-resumes-positive',
