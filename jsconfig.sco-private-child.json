@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "test/sco-private-child-own-function-state-probe.test.js",
+    "test/sco-private-child-transitive-identity.test.js",
+    "test/sco-selective-private-import-identity.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
