@@ -189,4 +189,4 @@ function isReadOnlyOwnedLiteral(ast,name,init){
   return safe;
 }
 
-module.exports={isReadOnlyOwnedLiteral};
+module.exports={isReadOnlyOwnedLiteral,insideAssignmentTarget};
