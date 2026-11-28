@@ -11,6 +11,9 @@ const SafeTypeError=TypeError;
 const SafeRangeError=RangeError;
 const apply=Reflect.apply;
 const isNumberNaN=Number.isNaN;
+const serializeJSONPrimitive=JSON.stringify;
+const isFiniteNumber=Number.isFinite;
+const isSafeInteger=Number.isSafeInteger;
 const objectIs=Object.is;
 const getPrototypeOf=Object.getPrototypeOf;
 const isExtensible=Object.isExtensible;
@@ -150,4 +153,68 @@ function captureDataCompletion(operation,realm) {
   return {kind,value:snapshotDataGraph(value,realm)};
 }
 
-module.exports={snapshotDataGraph,captureDataCompletion};
+/**
+ * Serialize a snapshot using captured JSON primitive quoting and captured own
+ * descriptors. The tested JavaScript may replace JSON.stringify or install
+ * Object.prototype/Array.prototype.toJSON after this trusted helper loads;
+ * invoking the current global serializer could silently falsify parity.
+ *
+ * Snapshots contain only a tree of ordinary data records/arrays with primitive
+ * leaves, not the original program's objects. Reject accessors, holes, proxy
+ * values, nonfinite untagged numbers, BigInts and unknown prototypes; do not
+ * run user coercion, inherited toJSON or array prototype methods. This is a
+ * test transport, not a general JSON serializer or an execution sandbox.
+ *
+ * @param {unknown} snapshot
+ * @returns {string}
+ */
+function serializeDataSnapshot(snapshot) {
+  let items=0;
+  /** @param {unknown} value @param {number} depth @returns {string} */
+  function encode(value,depth){
+    if(depth>256)throw new SafeRangeError('snapshot serialization depth limit');
+    if(value===null)return 'null';
+    if(typeof value==='string'||typeof value==='boolean')return serializeJSONPrimitive(value);
+    if(typeof value==='number'){
+      if(!isFiniteNumber(value))throw new SafeTypeError('snapshot contains untagged nonfinite number');
+      return serializeJSONPrimitive(value);
+    }
+    if(typeof value!=='object')throw new SafeTypeError('snapshot contains non-JSON value');
+    if(apply(isProxy,types,[value]))throw new SafeTypeError('snapshot contains Proxy');
+    const prototype=getPrototypeOf(value);
+    const array=arrayIsArray(value);
+    if(prototype!==null && prototype!==(array?realmArrayPrototype:realmObjectPrototype))
+      throw new SafeTypeError('snapshot has unsupported prototype');
+    const keys=ownKeys(value);
+    items+=keys.length;
+    if(items>200000)throw new SafeRangeError('snapshot serialization item limit');
+    if(array){
+      const lengthDescriptor=ownDescriptor(value,'length');
+      const length=lengthDescriptor?.value;
+      if(typeof length!=='number'||!isSafeInteger(length)||length<0||
+          length>200000)throw new SafeRangeError('invalid snapshot array length');
+      let out='[';
+      for(let i=0;i<length;i++){
+        const desc=ownDescriptor(value,String(i));
+        if(!desc||!hasOwn(desc,'value'))throw new SafeTypeError('snapshot array contains hole or accessor');
+        if(i)out+=',';
+        out+=encode(desc.value,depth+1);
+      }
+      if(keys.length!==length+1)throw new SafeTypeError('snapshot array has extra keys');
+      return out+']';
+    }
+    let out='{';
+    for(let i=0;i<keys.length;i++){
+      const key=keys[i];
+      if(typeof key!=='string')throw new SafeTypeError('snapshot record has symbol key');
+      const desc=ownDescriptor(value,key);
+      if(!desc||!hasOwn(desc,'value'))throw new SafeTypeError('snapshot record has accessor');
+      if(i)out+=',';
+      out+=serializeJSONPrimitive(key)+':'+encode(desc.value,depth+1);
+    }
+    return out+'}';
+  }
+  return encode(snapshot,0);
+}
+
+module.exports={snapshotDataGraph,captureDataCompletion,serializeDataSnapshot};
