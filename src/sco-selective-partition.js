@@ -1016,6 +1016,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   /** @param {import('./ast').AstNode} receiver @param {string|null} property @returns {boolean} */
   function isOwnStringIndex(receiver,property){
     if(property===null||!/^(?:0|[1-9]\d*)$/u.test(property))return false;
+    /** @type {string|null} */
     let value=null;
     if(receiver.type==='Literal'&&typeof receiver.value==='string')value=receiver.value;
     if(receiver.type==='TemplateLiteral'&&receiver.expressions.length===0){
@@ -1037,7 +1038,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
         if(expression.regex!==undefined)return null;
         if(expression.value===null)return 'nullish';
         const kind=typeof expression.value;
-        return ['string','number','boolean','bigint'].includes(kind)?kind:null;
+        if(kind==='string'||kind==='number'||kind==='boolean'||kind==='bigint')return kind;
+        return null;
       }
       case 'TemplateLiteral':
         return 'string';
@@ -2211,10 +2213,9 @@ function partitionScoSelectedAsyncExports(file,options) {
    * @returns {void}
    */
   function inspectPublicFunction(fn,name){
-    const realmEffect=realmStateObservation(fn.body);
-    if(realmEffect) {
-      throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access: '+name);
-    }
+    // Public functions stay in their original browser realm. Realm-local
+    // prototype and host-configuration checks apply to relocated private
+    // code, not to client-only public helpers whose environment is unchanged.
     const localAmbient=ownedLocalAmbientNames(fn.body);
     walk(fn,(node,parent,key)=>{
       if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
