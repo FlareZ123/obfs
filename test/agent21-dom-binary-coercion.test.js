@@ -111,3 +111,68 @@ test('DOMString binary function coercion preserves native exact source across CO
   assert.deepEqual(mismatches,[],
     'Binary + must not evade exact source-provenance protection');
 });
+
+
+/**
+ * A top-level constant does not prove a same-named formal parameter primitive.
+ * Local callbacks, .call and destructuring can forward an imported callable
+ * into a native DOMString sink without a direct named-identifier call.
+ *
+ * @param {string} statements
+ * @returns {File[]}
+ */
+function shadowedGraph(statements){
+  const files=graph({label:'literal-positive-control',expression:'"literal"'});
+  const observer=files.find(file=>file.path==='observer.mjs');
+  assert.ok(observer);
+  observer.code=observer.code.replace('target.id="literal";',statements);
+  return files;
+}
+
+test('shadowed primitive name and opaque callback routes retain exact imported function source',()=>{
+  const variants=[
+    {label:'direct-named-call',code:'const value=0;function publish(value){target.id=value;}publish(inspect);'},
+    {label:'aliased-named-call',code:'const value=0;function publish(value){target.id=value;}const call=publish;call(inspect);'},
+    {label:'function-call-method',code:'const value=0;function publish(value){target.id=value;}publish.call(undefined,inspect);'},
+    {label:'reflect-apply',code:'const value=0;function publish(value){target.id=value;}Reflect.apply(publish,undefined,[inspect]);'},
+    {label:'for-each-callback',code:'const value=0;function publish(value){target.id=value;}[inspect].forEach(publish);'},
+    {label:'destructured-param',code:'const value=0;function publish({value}){target.id=value;}publish({value:inspect});'},
+    {label:'class-member-call',code:'const value=0;class P{publish(value){target.id=value;}}new P().publish(inspect);'},
+    {label:'arrow-alias-call',code:'const value=0;const publish=(value)=>{target.id=value;};const call=publish;call(inspect);'}
+  ];
+  /** @type {Array<{mode:string,flow:string,sourceParity:boolean,producerRewrites:number,independentRewrites:number}>} */
+  const classifications=[];
+  /** @type {Array<{mode:string,flow:string,nativeSource:string,emittedSource:string,producerRewrites:number}>} */
+  const mismatches=[];
+  for(const variant of variants){
+    const original=shadowedGraph(variant.code);
+    const native=execute(original);
+    assert.equal(native.value,57,variant.label+' native numeric result');
+    assert.equal(native.independent,73,variant.label+' unrelated result');
+    assert.ok(native.source.includes('secretField'),variant.label+' native source control');
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+      const result=obfuscateFiles(original,{
+        mode,seed:'agent21-shadowed-source/'+mode+'/'+variant.label,
+        closedWorld:true,identifiers:false,strings:false,properties:true
+      });
+      const emitted=execute(result.files);
+      const producer=result.files.find(file=>file.path==='logic.mjs');
+      const independent=result.files.find(file=>file.path==='pure.mjs');
+      assert.ok(producer&&independent);
+      assert.equal(emitted.value,57,mode+'/'+variant.label+' result');
+      assert.equal(emitted.independent,73,mode+'/'+variant.label+' independent');
+      classifications.push({
+        mode,flow:variant.label,sourceParity:emitted.source===native.source,
+        producerRewrites:producer.metrics.properties,
+        independentRewrites:independent.metrics.properties
+      });
+      if(emitted.source!==native.source)mismatches.push({
+        mode,flow:variant.label,nativeSource:native.source,emittedSource:emitted.source,
+        producerRewrites:producer.metrics.properties
+      });
+    }
+  }
+  console.log('AGENT21_SHADOWED_SOURCE '+JSON.stringify({classifications,mismatches}));
+  assert.deepEqual(mismatches,[],
+    'A lexically shadowed top-level constant must not suppress source-observer protection');
+});
