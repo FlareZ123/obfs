@@ -81,3 +81,20 @@ test('unresolved import specifiers never manufacture timing provenance',()=>{
   assert.ok(proof);
   assert.ok(!proof.get('clock')?.has('receiver'));
 });
+
+test('one-level object-carried native timing receiver and returning factory are tracked',()=>{
+  const consumer='import {services,makeServices} from "./host.mjs";'+
+    'function inspect(){return 61;}'+
+    'export const source=[services.clock.mark(inspect).name,'+
+      'makeServices().clock.mark(inspect).name];';
+  const files=[
+    file('host.mjs','export const services={clock:performance};'+
+      'export function makeServices(){return {clock:performance};}'),
+    file('consumer.mjs',consumer)
+  ];
+  const proof=collectImportedTimingAliases(files).get('consumer.mjs');
+  assert.ok(proof?.get('services')?.has('receiverHolder:clock'));
+  assert.ok(proof?.get('makeServices')?.has('returnsReceiverHolder:clock'));
+  assert.equal(observed(consumer,proof??new Map()),true);
+  assert.equal(observed(consumer,new Map()),false);
+});
