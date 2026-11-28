@@ -50,6 +50,7 @@ the same release step would defeat that independent trust boundary.
   request-dependent representations through the `Vary` response header,
   except `Vary: Accept-Encoding` because decoded bytes are compared. It
   hashes the response after content decoding against the approved digest.
+- Executable JavaScript, HTML, XML, SVG and CSS response bytes must be valid UTF-8; malformed input is refused instead of being decoded with replacement characters. Raw unpaired UTF-16 surrogates in supplied source strings are refused before lossy Buffer conversion. These are staging input-identity checks, not proof of full browser/server representation agreement.
 - JavaScript MIME on an opaque `sourceType:'asset'` is refused. Published
   `script`, `module` and `commonjs` resources must have recognized
   JavaScript MIME. HTML, CSS and JavaScript sources must declare an explicit
