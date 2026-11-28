@@ -285,7 +285,9 @@ const cases=[
 // Two private syntactic protocol uses do not expose a function object; a
 // global identifier occurrence-count veto would lose safe rename yield.
 ['repeated-call-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.call(null,23);fill.call(null,42);",'carrier.instance'],
-['repeated-apply-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.apply(null,[23]);fill.apply(null,[42]);",'carrier.instance']
+['repeated-apply-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}fill.apply(null,[23]);fill.apply(null,[42]);",'carrier.instance'],
+// A same-spelled inert object field is not a reference to the callable.
+['unrelated-property-spelling-ordinary-yield',"class Ordinary{};let carrier={instance:new Ordinary()};function fill(x=(carrier={instance:new Ordinary()})){}const inert={fill:19};fill.call(null,23);",'carrier.instance']
 ];
 const tail='\nconst nativeSet=nativePrototype.set;\n'+
 'nativePrototype.set=function(key,value){ document.title=value; return Reflect.apply(nativeSet,this,[key,value]); };';
