@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * @typedef {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} ScoSelectedHandlerOptions
+ * @typedef {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'|'batchPreflightRoutes'>} ScoSelectedHandlerOptions
  */
 
 /**
