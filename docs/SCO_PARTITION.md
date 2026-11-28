@@ -428,6 +428,28 @@ live HTTP negative control and tested boundary are recorded in
 [`im-results/sco-graph-postpartition-seal-2026-11-16.md`](../im-results/sco-graph-postpartition-seal-2026-11-16.md).
 
 
+### Portable module path inventory
+
+Both `partitionScoAsyncGraph` and `partitionScoSelectedGraph` now
+admit every public and private module against the **same portable file-tree
+collision policy** used by the underlying output writer. In addition to
+case-insensitive duplicate file paths, they refuse NFC-equivalent Unicode
+spellings, names that collide under either upper- or lowercase mapping,
+ambiguous ancestor-directory spellings, and a file used as a directory.
+The selected graph may list the **same exact path** in multiple audited
+dependencies; the compiler still verifies that repeated source digests
+agree. These checks precede any generated facade publication.
+
+For example, a closed graph must not accept both `Private/api.mjs` and
+`private/secret.mjs`, or both `entry.mjs` and
+`entry.mjs/dependency.mjs`, even if Linux would permit the first pair
+as distinct directory trees. These are **conservative cross-platform
+admission checks**, not a complete proof of all physical filesystem
+aliases, symlink absence, or dynamic module resolution. The server still
+needs an independently reviewed deployment root and digest verification.
+See [the deterministic path-collision regressions](../test/sco-graph-portable-paths.test.js)
+and [the intermediate proof record](../im-results/sco-graph-portable-path-inventory-2026-11-28.md).
+
 ### Dynamic evaluator limitation of the closed graph audit
 
 The graph compiler recognizes canonical static ESM imports and literal
