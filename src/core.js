@@ -114,7 +114,7 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
  * the imported DOM handle is reassigned before the sink; it must never assert
  * source equivalence for unknown exported/host objects.
  *
- * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @param {SourceFile[]} files
  * @returns {boolean}
  */
 function hasImportedDomStringSourceSink(files) {
@@ -3023,4 +3023,5 @@ function obfuscateFiles(files, options = {}) {
   return {files:output,seed,mode,crossFile:{objects:cross.objects,properties:cross.properties}};
 }
 
-module.exports = {obfuscateFiles,safePath};
+// Internal graph-wide source-observer effect is reused by SCO per-file GETs.
+module.exports = {obfuscateFiles,safePath,hasImportedDomStringSourceSink};
