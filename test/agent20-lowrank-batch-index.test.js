@@ -310,4 +310,15 @@ test('32-bit rank-four wrapped shear: shared residual sampling saves 43 calls',(
   assert.equal(stats.cacheHits,14);
   assert.equal(targets.every(y=>sampled.invert(y).newOracleCalls===0),true);
   assert.equal(sampled.stats().totalCalls,53);
+  // The next 16 targets differ in a hidden non-residual coordinate, so they
+  // occupy a genuinely distinct R-coset. One additional coset costs exactly
+  // 16 more unique forward images: 33+4+2*16=69, not 16 fresh setups.
+  const distinctBase=hiddenBase^(1<<10);
+  const moreSecrets=Array.from({length:16},(_,low)=>apply32(inputInverse,
+    (distinctBase^((low<<24)>>>0)^inputBias)>>>0));
+  const moreTargets=moreSecrets.map(oracle);
+  for(let i=0;i<16;i++)
+    assert.equal(sampled.invert(moreTargets[i]).preimage,moreSecrets[i]);
+  assert.equal(sampled.stats().totalCalls,69);
+  assert.equal(moreTargets.every(y=>sampled.invert(y).newOracleCalls===0),true);
 });
