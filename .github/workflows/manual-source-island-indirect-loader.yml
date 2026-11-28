@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies without lock modification
         run: npm install --no-package-lock --ignore-scripts
+      - name: WindowProxy / parser-inserted SRI source-island admission falsifier
+        run: node --test test/agent5-source-island-windowproxy-sri.test.js
       - name: Verify source-island native/generated regression and positive control
         run: node --test test/source-observer-islands.test.js test/source-observer-islands-host-argument.test.js test/source-observer-islands-reflection-gate.test.js test/cross-file-source-byte-reader.test.js
       - name: Native interprocedural helper ownership and ESM differential
