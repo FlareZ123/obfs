@@ -2,6 +2,7 @@
 
 const {createHash,createPublicKey,randomBytes,timingSafeEqual,verify:verifySignature}=require('node:crypto');
 const {domainToASCII}=require('node:url');
+const {isUtf8}=require('node:buffer');
 
 /**
  * A deliberately narrow WebAuthn **assertion** admission gate for trusted SCO
@@ -128,11 +129,14 @@ function createScoWebAuthnAdmission(options){
   const sessions=new Map();
   /** @type {Map<string,number>} */
   const principalVersions=new Map();
+  let lastObservedTime=0;
   /** @returns {number} */
   function clock(){
     const t=now();
-    if(!Number.isSafeInteger(t)||t<0)throw new TypeError('WebAuthn requires a monotonically reasonable millisecond clock');
-    return t;
+    if(!Number.isSafeInteger(t)||t<0)throw new TypeError('WebAuthn requires a valid millisecond clock');
+    // An NTP rollback must not make an already-expired session valid again.
+    lastObservedTime=Math.max(lastObservedTime,t);
+    return lastObservedTime;
   }
   /** @param {number} time */
   function purge(time){
@@ -189,7 +193,7 @@ function createScoWebAuthnAdmission(options){
     const clientBytes=decodeBase64url(assertion.clientDataJSON,16384);
     const authBytes=decodeBase64url(assertion.authenticatorData,16384);
     const signature=decodeBase64url(assertion.signature,1024);
-    if(!credentialBytes||!clientBytes||!authBytes||!signature||authBytes.length<37)return denied;
+    if(!credentialBytes||!clientBytes||!isUtf8(clientBytes)||!authBytes||!signature||authBytes.length<37)return denied;
     let client;
     try{client=JSON.parse(clientBytes.toString('utf8'));}catch{return denied;}
     if(!client || typeof client!=='object' || Array.isArray(client) ||
@@ -214,7 +218,8 @@ function createScoWebAuthnAdmission(options){
     const key=publicEs256Key(record.publicKey);
     if(!key)return denied;
     const signed=Buffer.concat([authBytes,createHash('sha256').update(clientBytes).digest()]);
-    if(!verifySignature('sha256',signed,key,signature))return denied;
+    try{if(!verifySignature('sha256',signed,key,signature))return denied;}
+    catch{return denied;}
     if(clock()>=pending.expiresAt)return denied;
     let committed;
     try{
@@ -247,7 +252,9 @@ function createScoWebAuthnAdmission(options){
   /** @param {string} principal @returns {void} */
   function revokePrincipal(principal){
     // A paused lookup/CAS must never mint a session after revocation.
-    principalVersions.set(principal,(principalVersions.get(principal)??0)+1);
+    const nextVersion=(principalVersions.get(principal)??0)+1;
+    if(!Number.isSafeInteger(nextVersion))throw new RangeError('WebAuthn principal generation exhausted');
+    principalVersions.set(principal,nextVersion);
     for(const [token,session] of sessions)if(session.principal===principal)sessions.delete(token);
     for(const [id,challenge] of challenges)if(challenge.principal===principal)challenges.delete(id);
   }
