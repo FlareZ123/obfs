@@ -4,7 +4,9 @@
 **Branch:** agent17/sco-three-state-live-policy-acceptance-20261128  
 **Head:** cb3f122f10fb85f8d7c317b525240f3e74de41d7  
 **Workflow run:** https://github.com/FlareZ123/obfs/actions/runs/46185164570  
-**Evidence artifact:** artifacts/sco-three-state-live-policy.json, uploaded as an Actions artifact for both matrix platforms.
+**Evidence artifact:** artifacts/sco-three-state-live-policy.json, uploaded for both matrix platforms:
+- Ubuntu artifact sco-three-state-live-policy-ubuntu-latest, SHA-256 53136145bd575608a768b9fc4efa0973eb0087a53bd2db4b8d451c548469f1f7
+- Windows artifact sco-three-state-live-policy-windows-latest, SHA-256 8df316564a037deac3de8a1504f9c4358e473d88a8d30fb7e8911c89976354f5
 
 ## Question
 
