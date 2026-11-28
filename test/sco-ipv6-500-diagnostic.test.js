@@ -7,7 +7,11 @@ const {obfuscateFiles}=require('../src/core');
 const {createScoHandler}=require('../src/sco');
 
 const source='document.getElementById("out").textContent=location.hostname+"|42";';
-const safeSource='globalThis["__obfsWitness"]=location.hostname;';
+// A top-level immutable capture permits the source observer to prove that
+// the same value checked by typeof is the one later coerced by '+'.
+const safeSource='const hostName=location.hostname;'+
+  'document.getElementById("out").textContent='+
+  '(typeof hostName==="string"?hostName:"")+"|42";';
 const input={path:'client.js',sourceType:/** @type {'script'} */('script'),code:source};
 const safeInput={...input,code:safeSource};
 
@@ -105,7 +109,12 @@ test('diagnostic: distinguish source-observer boundaries across isolated browser
     ['dom-lookup-static','document.getElementById("out").textContent="ok";'],
     ['self-location','self.__obfsWitness=location.hostname;'],
     ['global-computed','globalThis["__obfsWitness"]=location.hostname;'],
-    ['element-ref','const e=document.body.firstElementChild;e.textContent="ok";']
+    ['element-ref','const e=document.body.firstElementChild;e.textContent="ok";'],
+    ['dom-captured-typeof','const hostName=location.hostname;'+
+      'document.getElementById("out").textContent='+
+      '(typeof hostName==="string"?hostName:"")+"|42";'],
+    ['dom-repeated-getter','document.getElementById("out").textContent='+
+      '(typeof location.hostname==="string"?location.hostname:"")+"|42";']
   ];
   /** @type {{name:string,sourceObserver:boolean,distributedObserver:boolean,success:boolean,error:string|null}[]} */
   const outcome=[];
@@ -126,4 +135,8 @@ test('diagnostic: distinguish source-observer boundaries across isolated browser
   console.log('IPV6_OBSERVER_MATRIX='+JSON.stringify(outcome));
   assert.equal(outcome[0].success,true,'Minimal scalar source must remain obfuscatable');
   assert.equal(outcome.find(row=>row.name==='dom-lookup')?.success,false);
+  assert.equal(outcome.find(row=>row.name==='dom-captured-typeof')?.success,true,
+    'Single captured host value plus typeof guard should be primitive-proven');
+  assert.equal(outcome.find(row=>row.name==='dom-repeated-getter')?.success,false,
+    'Second ambient read can change value after typeof check');
 });
