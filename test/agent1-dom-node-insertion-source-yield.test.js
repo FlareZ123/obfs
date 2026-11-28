@@ -77,3 +77,28 @@ test('separately distributed classic script may replace native Node factory befo
       'Syntactically native factory call can be shadowed by a preceding sibling '+mode);
   }
 });
+
+
+test('alias, destructuring, prototype and Reflect factory writes all veto sibling provenance',()=>{
+  const body='function(){return function inspect(){const privateLocal=91;return privateLocal;};}';
+  const poisonSources=[
+    'const host=window;host.document.createElement='+body+';',
+    'const {document:d}=globalThis;d.createElement='+body+';',
+    'const d=document;Reflect.set(d,"createElement",'+body+');',
+    'const C=Document;C.prototype.createElement='+body+';',
+    'const d=window.document;Object.defineProperty(d,"createElement",{value:'+body+'});'
+  ];
+  const original='globalThis.nativeNodeVeto="the sibling factory write can alter DOMString coercion";';
+  const loader='const node=document.createElement("script");'+
+    'document.head.append(node);';
+  for(const source of poisonSources) {
+    const output=obfuscateFiles([
+      {path:'client.js',sourceType:'script',code:original},
+      {path:'other.js',sourceType:'script',code:source},
+      {path:'bootstrap.js',sourceType:'script',code:loader}
+    ],{mode:'coo',seed:'agent1-alias-doc-factory-veto/'+source,
+      strings:true,properties:false,identifiers:false});
+    assert.equal(output.files[0].code,original,
+      'Native factory alias can invalidate a Node brand assumption: '+source);
+  }
+});
