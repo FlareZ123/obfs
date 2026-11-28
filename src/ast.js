@@ -2148,6 +2148,26 @@ function hasWeakMapPrototypeExposure(ast,untrustedCallProtocols=new Set()) {
       return;
     }
     if(node.type==='NewExpression') {
+      // Class expressions are *evaluated before* the new arguments. Static
+      // blocks/fields and computed property keys can synchronously install
+      // a WeakMap prototype source hook; instance field initializers can
+      // execute before the constructor finishes. Until a no-user-effects
+      // certificate exists, prefer preserving source over a false-safe rename.
+      if(node.callee.type==='ClassExpression') {
+        /** @param {AstNode|null|undefined} value @returns {boolean} */
+        const inertLiteral=value=>!value||value.type==='Literal'&&
+          (value.value===null||typeof value.value!=='object');
+        for(const element of node.callee.body?.body??[]) {
+          if(element.computed&&!inertLiteral(element.key))exposed=true;
+          if(element.type==='StaticBlock') {
+            if((element.body??[]).some(
+              (/** @type {AstNode} */ statement)=>statement.type!=='EmptyStatement'))
+              exposed=true;
+          } else if(element.type==='PropertyDefinition') {
+            if(!inertLiteral(element.value))exposed=true;
+          } else if(element.type!=='MethodDefinition')exposed=true;
+        }
+      }
       for(const argument of node.arguments??[]) {
         if(carrierMayContainWeakMap(evaluateCarrierValue(argument,environment,thisValue)))
           exposed=true;
