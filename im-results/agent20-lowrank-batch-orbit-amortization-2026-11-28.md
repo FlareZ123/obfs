@@ -79,23 +79,23 @@ The exact focused [Ubuntu/Windows CI run 46087159189](https://github.com/FlareZ1
 
 ## Finite residual-sampling cap: an exact conditional failure tail
 
-The sampled-residual solver uses \`maxSamples = bits + 64\` by default. Although the expectation bound above applies to *uncapped* completion, **a true fixed permutation with independent uniform input samples has an explicit high-probability finite-cap guarantee**. Write \`d = n - rank(M)\`. In the quotient \`V / im(M)\`, every sampled residual \`D(X)\` equals \`F(X) ⊕ c\` modulo \`im(M)\`. Since \`F\` is bijective and \`X\` uniform, these residual quotient classes are independent uniform vectors of \`GF(2)^d\`. The sampled vectors span the quotient precisely when completion succeeds.
+The sampled-residual solver uses `maxSamples = bits + 64` by default. Although the expectation bound above applies to *uncapped* completion, **a true fixed permutation with independent uniform input samples has an explicit high-probability finite-cap guarantee**. Write `d = n - rank(M)`. In the quotient `V / im(M)`, every sampled residual `D(X)` equals `F(X) ⊕ c` modulo `im(M)`. Since `F` is bijective and `X` uniform, these residual quotient classes are independent uniform vectors of `GF(2)^d`. The sampled vectors span the quotient precisely when completion succeeds.
 
-For \`m ≥ d\` independent quotient draws, the *exact* failure probability is
+For `m ≥ d` independent quotient draws, the *exact* failure probability is
 
 \[
 \Pr[S>m]=1-\prod_{j=0}^{d-1}(1-2^{j-m}).
 \]
 
-A union bound over the \`2^d-1\` nonzero linear functionals on this quotient gives
+A union bound over the `2^d-1` nonzero linear functionals on this quotient gives
 
 \[
 \Pr[S>m]\le (2^d-1)2^{-m}<2^{d-m}.
 \]
 
-Thus the actual default finite cap \`m=n+64\` has \`\Pr[\text{sample cap exceeded}]<2^{-64}\` for every valid \`0≤d≤n≤32\`, including the implementation's \`rankBound≤16\`. The event is **not impossible**. This is a *probability about the solver's own unbiased randomness on a genuinely fixed promised permutation*, not a failure bound for malicious nonpermutations, wrong rank promises, stateful authenticated endpoints, attacker-supplied biased samplers or process/environment failures. A user-specified smaller cap is not covered.
+Thus the actual default finite cap `m=n+64` has `\Pr[\text{sample cap exceeded}]<2^{-64}` for every valid `0≤d≤n≤32`, including the implementation's `rankBound≤16`. The event is **not impossible**. This is a *probability about the solver's own unbiased randomness on a genuinely fixed promised permutation*, not a failure bound for malicious nonpermutations, wrong rank promises, stateful authenticated endpoints, attacker-supplied biased samplers or process/environment failures. A user-specified smaller cap is not covered.
 
-For perspective, \`d=4,m=8\` fails with exact probability \`247101376 / 4294967296 ≈ 5.7533%\`; four missing quotient dimensions cannot always be completed in eight draws. The independently enumerating [Node exact-count regression](../test/agent20-residual-cap-tail.test.js) compares the closed form to all small sample sequences for \`d=0..3\`, \`m≤5/6\`, tests that default \`n+64\` bounds remain strictly under \`2^-64\` across \`n=1..32\` and \`d≤min(n,16)\` using BigInt rational arithmetic (no floating-point underflow), and checks the short-cap negative case. Local Node 22.16.0: **3/3 tests passed**; exact two-platform CI is a separate pending validation, not assumed here.
+For perspective, `d=4,m=8` fails with exact probability `247101376 / 4294967296 ≈ 5.7533%`; four missing quotient dimensions cannot always be completed in eight draws. The independently enumerating [Node exact-count regression](../test/agent20-residual-cap-tail.test.js) compares the closed form to all small sample sequences for `d=0..3`, `m≤5/6`, tests that default `n+64` bounds remain strictly under `2^-64` across `n=1..32` and `d≤min(n,16)` using BigInt rational arithmetic (no floating-point underflow), and checks the short-cap negative case. Local Node 22.16.0: **3/3 tests passed**; exact two-platform CI is a separate pending validation, not assumed here.
 
 This is elementary binary-matrix rank counting, **not a new cryptographic theorem or defender protection claim**. It sharpens the original finite-termination caveat without changing the batched inverter's implementation or its reliance on the external low-rank permutation promise.
 
