@@ -8,6 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {snapshotDataGraph}=require('../sims/semantic-data-oracle');
+const {normalizeDistributedFiles}=require('../sims/attacker-token-normalize');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 /** @type {Array<'coo'|'sno'|'sco'>} */
@@ -127,7 +128,7 @@ async function execute(files){
 }
 
 test('96-owner generated real ESM exact-value plus positive/refusal differential',async()=>{
-  /** @type {Array<{seed:number,mode:string,properties:number,candidates:number}>} */
+  /** @type {Array<{seed:number,mode:string,properties:number,recovered:number,candidates:number}>} */
   const reports=[];
   for(const seed of [1,3,11,29]){
     const sample=generated(seed);
@@ -144,8 +145,23 @@ test('96-owner generated real ESM exact-value plus positive/refusal differential
         ': the entire generated mixed-shape ESM data graph must remain exact');
       assert.ok(output.crossFile.properties>=2,
         seed+'/'+mode+': at least one owner must actually be renamed');
+      // A source-only adversary must not receive the original graph, seed,
+      // private name table or compiler internals. Feed only delivered files
+      // into the independent token parser, then execute its public rename.
+      const delivered=output.files.map(file=>{
+        assert.equal(file.sourceType,'module');
+        assert.equal(typeof file.code,'string');
+        return {path:file.path,sourceType:/** @type {const} */('module'),
+          code:/** @type {string} */(file.code)};
+      });
+      const recovered=normalizeDistributedFiles(delivered);
+      assert.ok(recovered.properties>=output.crossFile.properties,
+        seed+'/'+mode+': public-token attacker must remove every generated private-key hash');
+      const cloned=await execute(recovered.files);
+      assert.deepEqual(cloned,native,
+        seed+'/'+mode+': source-only relabel must functionally clone the protected output');
       reports.push({seed,mode,properties:output.crossFile.properties,
-        candidates:sample.candidateFields});
+        recovered:recovered.properties,candidates:sample.candidateFields});
     }
   }
   process.stdout.write('EXACT_GENERATED_ESM '+JSON.stringify(reports)+'\n');
