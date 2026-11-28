@@ -91,6 +91,26 @@ function hasWeakMapPrototypeExposure(ast) {
   const constructorBindingExpressions=new Map();
   /** @type {Map<string,Map<string,AstNode[]>>} */
   const constructorMemberWrites=new Map();
+  /** @type {Map<string,string>} */
+  const constructorAliasParents=new Map();
+  /** @type {Map<string,Map<string,AstNode[]>>} */
+  const constructorComponentWrites=new Map();
+  /** @param {string} name @returns {string} */
+  function constructorAliasRoot(name) {
+    const parent=constructorAliasParents.get(name);
+    if(!parent||parent===name)return name;
+    const root=constructorAliasRoot(parent);
+    constructorAliasParents.set(name,root);
+    return root;
+  }
+  /** @param {string} first @param {string} second @returns {void} */
+  function linkConstructorAliases(first,second) {
+    const left=constructorAliasRoot(first);
+    const right=constructorAliasRoot(second);
+    if(left!==right)constructorAliasParents.set(left,right);
+  }
+  /** @type {Map<string,AstNode[]>} */
+  const constructorLocalFunctionParams=new Map();
   /** @type {Map<string,number>} */
   const weakMapDerivedConstructors=new Map();
   /**
@@ -139,20 +159,46 @@ function hasWeakMapPrototypeExposure(ast) {
     }
     return node.property.type==='Identifier'?node.property.name:null;
   }
-  // Collect local assignments before constructor discovery. Indexing all
-  // source assignments yields a conservative may-constructor summary when
-  // an object field or binding is rewritten along a conditional path.
+  // Pre-index direct local callees for may-alias formal/argument transfers.
+  // Unused function bodies can add only conservative possibilities.
+  walk(ast,node=>{
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      constructorLocalFunctionParams.set(node.id.name,node.params??[]);
+    if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&
+       (node.init?.type==='FunctionExpression'||
+        node.init?.type==='ArrowFunctionExpression'))
+      constructorLocalFunctionParams.set(node.id.name,node.init.params??[]);
+  });
+  // Collect local assignments before constructor discovery. The name-based
+  // alias components union syntactically possible flows, never assume one
+  // assignment is the only feasible runtime predecessor.
   walk(ast,node=>{
     if(node.type==='VariableDeclarator'&&node.id?.type==='Identifier'&&node.init) {
       const values=constructorBindingExpressions.get(node.id.name)??[];
       values.push(node.init);
       constructorBindingExpressions.set(node.id.name,values);
+      if(node.init.type==='Identifier')
+        linkConstructorAliases(node.id.name,node.init.name);
+    }
+    if(node.type==='CallExpression') {
+      const callee=node.callee;
+      const params=callee.type==='Identifier'?
+        constructorLocalFunctionParams.get(callee.name):
+        callee.type==='FunctionExpression'||callee.type==='ArrowFunctionExpression'?
+          callee.params:null;
+      if(params)for(let index=0;index<params.length;index++) {
+        const parameter=params[index],argument=node.arguments[index];
+        if(parameter?.type==='Identifier'&&argument?.type==='Identifier')
+          linkConstructorAliases(parameter.name,argument.name);
+      }
     }
     if(node.type==='AssignmentExpression') {
       if(node.left.type==='Identifier') {
         const values=constructorBindingExpressions.get(node.left.name)??[];
         values.push(node.right);
         constructorBindingExpressions.set(node.left.name,values);
+        if(node.right.type==='Identifier')
+          linkConstructorAliases(node.left.name,node.right.name);
       } else if(node.left.type==='MemberExpression'&&
                 node.left.object.type==='Identifier') {
         const key=memberKey(node.left);
@@ -169,6 +215,22 @@ function hasWeakMapPrototypeExposure(ast) {
       }
     }
   });
+  // Aggregate field writes by may-alias component *after* discovering every
+  // assignment and local-call parameter. A write through a sibling alias or
+  // a direct callee formal can reach the queried root in another branch.
+  for(const [name,fields] of constructorMemberWrites) {
+    const root=constructorAliasRoot(name);
+    let destination=constructorComponentWrites.get(root);
+    if(!destination) {
+      destination=new Map();
+      constructorComponentWrites.set(root,destination);
+    }
+    for(const [key,values] of fields) {
+      const all=destination.get(key)??[];
+      all.push(...values);
+      destination.set(key,all);
+    }
+  }
   /** @type {Set<string>} */
   const knownGlobalConstructorNames=new Set([
     'WeakMap','Map','Set','Object','Reflect','Array','Function','String',
@@ -238,7 +300,7 @@ function hasWeakMapPrototypeExposure(ast) {
       const values=[];
       for(const assigned of constructorBindingExpressions.get(name)??[])
         values.push(...constructorMemberValues(assigned,key,next));
-      const writes=constructorMemberWrites.get(name);
+      const writes=constructorComponentWrites.get(constructorAliasRoot(name));
       if(writes) {
         for(const [writtenKey,nodes] of writes)
           if(key===null||key===writtenKey)values.push(...nodes);
