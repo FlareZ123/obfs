@@ -11,6 +11,7 @@ const {flattenStatementFlow} = require('./statement-flow');
 const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {createScoHandler} = require('./sco');
+const {createScoWebAuthnAdmission} = require('./sco-webauthn-admission');
 const {createScoKeyedIsolation}=require('./rpc-keyed-isolation');
 const {createScoRpcClientSource} = require('./rpc-client');
 const {createScoBatchMethod} = require('./rpc-batch');
@@ -21,4 +22,4 @@ const {verifyScoPrivateSourceDigests}=require('./sco-private-integrity');
 const {partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler} = require('./sco-graph');
 const {partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler} = require('./sco-selected-graph');
 
-module.exports = {assertReviewedOpaqueAssets,lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoSelectedHandler,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,flattenStatementFlow,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler,partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler};
+module.exports = {createScoWebAuthnAdmission,assertReviewedOpaqueAssets,lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoSelectedHandler,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,flattenStatementFlow,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler,partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler};
