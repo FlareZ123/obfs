@@ -284,6 +284,17 @@ const cases=[
 ['member-key-reflect-get-coercion','const carrier={instance:{}};const rec={x:0};const key={toString(){carrier.instance=new WeakMap();return "x";}};Reflect.get(rec,key);','carrier.instance'],
 ['member-key-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};rec["x"]=2;','carrier.instance'],
 ['member-key-reflect-primitive-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:0};Reflect.get(rec,"x");','carrier.instance'],
+// Computed ObjectPattern keys also run ToPropertyKey during Binding
+// Initialization, assignment, parameter entry and catch binding.
+['pattern-key-variable-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};const {[key]:observed}=rec;','carrier.instance'],
+['pattern-key-assignment-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};let observed;({[key]:observed}=rec);','carrier.instance'],
+['pattern-key-function-parameter','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};function consume({[key]:observed}){}consume(rec);','carrier.instance'],
+['pattern-key-forof-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};for(const {[key]:observed} of [rec]){}','carrier.instance'],
+['pattern-key-catch-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};try{throw rec;}catch({[key]:observed}){}','carrier.instance'],
+['pattern-key-rest-binding','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};const {[key]:observed,...rest}=rec;','carrier.instance'],
+['pattern-key-class-static-parameter','const carrier={instance:{}};const rec={x:1};const key={toString(){carrier.instance=new WeakMap();return "x";}};class C{static f({[key]:v}){}}C.f(rec);','carrier.instance'],
+['pattern-key-primitive-variable-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:1};const {["x"]:observed}=rec;','carrier.instance'],
+['pattern-key-primitive-assignment-positive','class Ordinary{}const carrier={instance:new Ordinary()};const rec={x:1};let observed;({["x"]:observed}=rec);','carrier.instance'],
 // An unknown computed local call is intentionally permitted to refuse
 // rewrites; the independent Ordinary control above still checks yield.
 ];
