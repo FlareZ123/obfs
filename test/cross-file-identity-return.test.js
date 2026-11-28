@@ -504,3 +504,16 @@ test('factory proof handles separate direct roots imported under multiple local 
   for(const mode of ['coo','sno','sco'])
     await checkFactory(factory,main,2,mode);
 });
+
+
+test('factory proof refuses property enumeration and serialization observers',async()=>{
+  const factory='export function makeState(){return {secretField:17,otherField:5};}';
+  const main='import {makeState} from "./state.mjs";'+
+    'const first=makeState();'+
+    'const keys=Object.keys(first).sort().join(",");'+
+    'const json=JSON.stringify(first);'+
+    'let enumerated="";for(const key in first)enumerated+=key+",";'+
+    'console.log(keys,json,enumerated);';
+  for(const mode of ['coo','sno','sco'])
+    await checkFactory(factory,main,0,mode);
+});
