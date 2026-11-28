@@ -10,6 +10,7 @@ test('exact-data wire transport ignores subject-patched JSON and inherited toJSO
     shared,shared,Symbol('same'),Symbol('same'),Symbol.for('global'),Symbol.iterator];
   const expected=JSON.stringify(snapshotDataGraph(input));
   const originalJSONStringify=JSON.stringify;
+  const originalString=globalThis.String;
   const originalObjectToJSON=Object.getOwnPropertyDescriptor(Object.prototype,'toJSON');
   const originalArrayToJSON=Object.getOwnPropertyDescriptor(Array.prototype,'toJSON');
   const originalStringToJSON=Object.getOwnPropertyDescriptor(String.prototype,'toJSON');
@@ -24,10 +25,14 @@ test('exact-data wire transport ignores subject-patched JSON and inherited toJSO
     Object.defineProperty(String.prototype,'toJSON',{configurable:true,
       value(){hostileInvocations++;return 'forged-string';}});
     JSON.stringify=()=>{hostileInvocations++;return '"forged-json"';};
+    Reflect.set(globalThis,'String',function SpoofString(){
+      hostileInvocations++;throw Error('String may not be read during trusted serialization');
+    });
     // Snapshot the same original root AFTER installing the hostile inherited
     // methods; a trusted observer must never consult those methods.
     observed=serializeDataSnapshot(snapshotDataGraph(input));
   }finally{
+    Reflect.set(globalThis,'String',originalString);
     JSON.stringify=originalJSONStringify;
     for(const [target,descriptor] of /** @type {Array<[object,PropertyDescriptor|undefined]>} */([
       [Object.prototype,originalObjectToJSON],
