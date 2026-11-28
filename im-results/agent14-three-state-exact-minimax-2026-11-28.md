@@ -59,7 +59,7 @@ The implementation memoizes exact \((B,k)\) states. Each belief is a sorted Uint
 | Terminal policy leaves | 6,628 |
 | Maximum policy path length | 24 |
 
-The local Node 22 run completed in 20.44 seconds with 653,736 KB maximum resident memory. These are local measurements, not a promise about CI runner performance. The search is deterministic and requires no random seed or external dataset.
+The local Node 22 run completed in 20.44 seconds with 653,736 KB maximum resident memory. These are local measurements, not a promise about CI runner performance. The exact test and strict JSDoc check passed in [isolated workflow 46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556) on the corrected source pin. The search is deterministic and requires no random seed or external dataset.
 
 ## Relation to the two-state result and live SCO test
 
@@ -67,7 +67,7 @@ The exact two-state minimax value is nine calls. Extending the source class to a
 
 The companion live process-boundary test selects a three-state source privately, then runs the unchanged two-state learner against both the generated SCO facade and a matched minified ordinary RPC control. It demonstrates a concrete false two-state certificate after seven calls and a next-input divergence. That live test passed on Ubuntu and Windows, including the Linux different-UID and Chromium checks, in [workflow 46166686714](https://github.com/FlareZ123/obfs/actions/runs/46166686714).
 
-The earlier complete 46,656-table census and independent ten-call lower-bound test passed on both operating systems in [workflow 46167535403](https://github.com/FlareZ123/obfs/actions/runs/46167535403). The exact 24-call solver's isolated CI run is [46168854508](https://github.com/FlareZ123/obfs/actions/runs/46168854508), queued at report creation.
+The earlier complete 46,656-table census and independent ten-call lower-bound test passed on both operating systems in [workflow 46167535403](https://github.com/FlareZ123/obfs/actions/runs/46167535403). The first isolated run [46168854508](https://github.com/FlareZ123/obfs/actions/runs/46168854508) exposed a quotient-field wiring error and failed immediately; the corrected source passed the exact solver test and strict JSDoc in [run 46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556).
 
 ## Scope and limitations
 
@@ -80,6 +80,6 @@ It is an attacker-model result, not an obfuscation improvement. It does not show
 - Simulator: sims/sco-three-state-minimax.js
 - Test: test/sco-three-state-minimax.test.js
 - Strict JSDoc project: jsconfig.sco-oracles.json
-- Solver/test source pin: 03f48d6db16521f41dd8cfaa4dbdb7b89fe10703
+- Corrected solver/test source pin: 9c5827f26c1e7504e59e41ee6d58738d4d12a41d
 - Dispatch-workflow source pin: 0434c54cd64632147468ac031f219b798884076d
-- CI: [46168854508](https://github.com/FlareZ123/obfs/actions/runs/46168854508), queued at report creation.
+- CI: [46169254556](https://github.com/FlareZ123/obfs/actions/runs/46169254556), **GREEN** (exact solver test + strict JSDoc).
