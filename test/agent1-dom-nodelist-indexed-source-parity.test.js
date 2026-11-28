@@ -61,7 +61,7 @@ function compile(source,mode) {
 test('non-source-observing private reader still gives a real native rewrite control',()=>{
   const source='const owner={secretField:17};function privateRead(){return owner.secretField;}module.exports=privateRead();';
   const generated=compile(source,'sno');
-  assert.equal(execute(generated.code),execute(source));
+  assert.equal(execute(String(generated.code)),execute(source));
   assert.notEqual(generated.code,source,'unrelated private work must remain transformable');
 });
 
@@ -75,6 +75,7 @@ for(const [name,receiver] of /** @type {const} */ ([
       const generated=compile(source,mode);
       const native=execute(source);
       const emitted=execute(String(generated.code));
+      process.stdout.write('INDEXED_DOM_SOURCE_PROBE '+JSON.stringify({mode,name,metrics:generated.metrics,changed:String(generated.code)!==source})+'\n');
       assert.equal(emitted,native,
         'Native setAttribute String(fn) differs after a source-changing rewrite; mode='+
         mode+' receiver='+receiver+' properties='+generated.metrics.properties+
