@@ -1470,6 +1470,8 @@ function hasWeakMapPrototypeExposure(ast) {
           functionMayReturnWeakMap(property.value);
         value.properties.set(propertyKey,getterMayReturnWeakMap?
           carrierMaybe:evaluateCarrierValue(property.value,environment,thisValue));
+        if(property.kind==='get')value.getters.set(propertyKey,property.value);
+        else if(property.kind!=='set')value.getters.delete(propertyKey);
       }
       return value;
     }
