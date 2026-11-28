@@ -167,7 +167,8 @@ test('seeded 128 layouts of repeated tuple references preserve positive and nega
     const source='const owner={hiddenCount:41,privateDelta:2};'+
       'const arr=['+parts.join(',')+'];'+
       'const a=arr['+first+'],b=arr['+last+'];'+
-      'module.exports=function run(n){return a.hiddenCount*n+b.privateDelta;}';
+      'function privateRun(n){return a.hiddenCount*n+b.privateDelta;}'+
+      'module.exports=function run(n){return privateRun(n);}';
     const before=load(source);
     for(const mode of /** @type {const} */(['sco','coo','sno'])){
       const output=compile(source,mode);
