@@ -322,7 +322,11 @@ function assertDefaultEsmResolverContext() {
   // does not inherit process.execArgv, so its conditional-export selection
   // could otherwise differ from the runtime being audited.
   const unsupported=/^(?:--conditions(?:=.*)?|-C|--no-addons|--preserve-symlinks(?:-main)?|--(?:loader|experimental-loader|import|require)(?:=.*)?|-r)$/u;
-  const nodeOptions=(process.env.NODE_OPTIONS||'').match(/(?:--[^\s]+|-(?:r|C))/gu)||[];
+  // NODE_OPTIONS accepts double-quoted fragments even inside a flag name,
+  // e.g. --no"-"addons. Normalize quotes before screening unsupported
+  // switches so an otherwise hidden resolver mode cannot evade the guard.
+  const nodeOptions=(process.env.NODE_OPTIONS||'').replace(/"/gu,'')
+    .match(/(?:--[^\s]+|-(?:r|C))/gu)||[];
   // Node also accepts an environment variable for symlink-preserving module
   // resolution. The audit canonicalizes its future roots with realpath; if
   // the runtime retains a symlinked importer path, it can instead resolve a
