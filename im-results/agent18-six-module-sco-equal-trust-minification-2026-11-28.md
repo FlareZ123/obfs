@@ -98,7 +98,9 @@ Run:
 ```sh
 npm install --no-package-lock --ignore-scripts
 node examples/application-challenge/sco-build.cjs --check
+node --test test/agent18-equaltrust-control-args.test.js
 node --test test/agent18-application-equal-trust-sco.test.js
+CHROMIUM_BIN=google-chrome node test/agent18-application-equal-trust-browser.cjs  # Linux with installed Chrome
 npx tsc --project jsconfig.agent18-application-equal-trust.json
 ```
 
