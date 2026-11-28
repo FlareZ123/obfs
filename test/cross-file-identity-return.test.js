@@ -44,9 +44,10 @@ async function check(utility,main,renamed) {
  * @param {string} factory
  * @param {string} main
  * @param {number} renamed
+ * @param {'coo'|'sno'|'sco'} [mode]
  * @returns {Promise<void>}
  */
-async function checkFactory(factory,main,renamed) {
+async function checkFactory(factory,main,renamed,mode='coo') {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-exported-factory-'));
   const files=/** @type {import('../src/core').SourceFile[]} */ ([
     {path:'state.mjs',sourceType:'module',code:factory},
@@ -62,7 +63,7 @@ async function checkFactory(factory,main,renamed) {
     }
     const baseline=await execute(files);
     const output=obfuscateFiles(files,{
-      mode:'coo',seed:'cross-file-exported-factory-return',
+      mode,seed:'cross-file-exported-factory-return',
       closedWorld:true,strings:false,identifiers:false
     });
     assert.equal(output.crossFile.properties,renamed);
@@ -168,17 +169,20 @@ test('generator function expression is outside synchronous identity proof',async
 });
 
 
-test('imported exported factories return fresh objects tracked through local identity calls',async()=>{
+test('imported exported factories return fresh objects across all modes and local identity calls',async()=>{
   const main='import {makeState} from "./state.mjs";'+
     'function identity(value){return value;}'+
     'const first=makeState();const second=makeState();'+
     'const carried=identity(first);'+
     'console.log(carried.secretField+second.otherField);';
-  for(const factory of [
+  const factories=[
     'export function makeState(){return {secretField:17,otherField:5};}',
     'export const makeState=()=>({secretField:17,otherField:5});',
     'export const makeState=function(){return {secretField:17,otherField:5};};'
-  ]) await checkFactory(factory,main,2);
+  ];
+  for(const mode of ['coo','sno','sco']) {
+    for(const factory of factories) await checkFactory(factory,main,2,mode);
+  }
 });
 
 
