@@ -28,7 +28,27 @@ const cases=[
   {name:'factory-collection',producer:'export function make(){return document.querySelectorAll("div.locked");}',
     importText:'import {make} from "./state.mjs";const elements=make();',receiver:'elements[0]'},
   {name:'element-children-collection',producer:'export const elements=document.body.children;',
-    importText:'import {elements} from "./state.mjs";',receiver:'elements[0]'}
+    importText:'import {elements} from "./state.mjs";',receiver:'elements[0]'},
+  {name:'local-helper-returns-element',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'function pick(){return elements[0];}',
+    receiver:'pick()'},
+  {name:'local-helper-returns-collection',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'function get(){return elements;}',
+    receiver:'get()[0]'},
+  {name:'local-arrow-returns-element',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'const pick=()=>elements.item(0);',
+    receiver:'pick()'},
+  {name:'identity-forwarder-element',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'function forward(value){return value;}',
+    receiver:'forward(elements[0])'},
+  {name:'identity-forwarder-collection',producer:'export const elements=document.querySelectorAll("div.locked");',
+    importText:'import {elements} from "./state.mjs";'+
+      'function forward(value){return value;}',
+    receiver:'forward(elements)[0]'}
 ];
 
 /** @param {Case} fixture @returns {SourceFile[]} */
