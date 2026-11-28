@@ -79,3 +79,19 @@ Agent 9's later candidate run `46164855605` (head `36b729e9...`) reduced the ear
 The multiple-importer test then passed. The remaining failure is the tuple `[first, second]`, where both elements are distinct factory-result roots. The current factory lane calls `proveLocalObject` independently for each root; the private tuple carrier proof admits only literal non-selected slots, not another unproven root identifier. This is a conservative decline. It can be addressed either by narrowing the test to a tuple that repeats one root (the current proof boundary) or by grouping all factory roots for an importer, passing them as `additionalRootNames`, and permitting only those exact proven roots in carrier slots.
 
 A separate diagnostic test file, `test/agent1-factory-positive-yield-diagnostic.test.js`, verifies const-captured record/tuple slots with a repeated root and multiple direct importers using arithmetic reads. Both tests passed in the macOS job of run `46168855262`; the remaining Ubuntu/Windows jobs were queued and the run was cancelled to avoid spending more CI on this narrow diagnostic. Do not represent this diagnostic as three-platform validation. The dynamic-import guard itself remains three-platform green in run `46168025824`.
+
+
+## Multi-root factory-carrier extension (focused validation)
+
+A second review branch, `agent1/agent9-factory-multiroot-review-20261128`, was created from Agent 9's updated candidate head `36b729e9...`. It extends the factory proof to group every direct result root from the same exact zero-argument factory within one importer. Those names are passed to `proveLocalObject` as additional roots; private record/tuple carriers admit non-literal slots only when they contain one of these proven roots, and every carrier read remains a unique local `const` capture. Carrier declarations are inventoried across all grouped roots. This avoids globally relaxing carrier escape rules.
+
+The branch also carries the dynamic-import graph guard, parity regression, safe `node:os` positive control, and explicit JSDoc narrowing. The combined focused validation [46170090355](https://github.com/FlareZ123/obfs/actions/runs/46170090355) passed on **Windows, Ubuntu and macOS**, including:
+- dynamic-import native/emitted parity;
+- safe builtin positive-yield control;
+- multiple direct importers;
+- distinct factory roots in private record and tuple carriers;
+- strict project, external and paired-budget JSDoc.
+
+Important implementation commits: `cb0bc285b193092783c91fb3985b7978dd595177`, `48b07804c30e3ab0c5ca66a0fc0adfe173cc83b1`, `69ee1ae029c385910250be4d6cccd4361548bd8d`. The full cross-reader workflow [46170345594](https://github.com/FlareZ123/obfs/actions/runs/46170345594) is running; its result must be inspected before treating this as a candidate-level pass.
+
+The patch remains isolated on the review branch and has not been merged into `main`. Even a green full cross-reader run would not establish SCO relay resistance, runtime/static extraction resistance, complete semantic compatibility, or the 2.5× runtime budget.
