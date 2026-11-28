@@ -147,3 +147,52 @@ test('6000 seeded shared-memory admission transitions preserve state and error p
     paired(control,candidate,name,args,'seed=0x8f41d231 step '+i+' method '+name);
   }
 });
+
+/**
+ * Isolated CPU sample for the store housekeeping path. This intentionally
+ * excludes ECDSA, HTTP and total app work; it is not a 2.5x SCO budget proof.
+ * @param {ScoWebAuthnStateStore} store
+ * @param {number} capacity
+ * @returns {number} user+system CPU microseconds
+ */
+function sampleHousekeepingCpu(store,capacity){
+  store.assertConfiguration('c'.repeat(64));
+  const now=1_900_000_000_000;
+  const challenge=Buffer.alloc(32,0x42);
+  const before=process.cpuUsage();
+  for(let i=0;i<capacity;i++){
+    store.insertChallenge('nonce-'+i,'account','login',challenge,now+120_000,
+      now,capacity);
+    assert.equal(store.mintSession('token-'+i,'account',now+120_000,0,
+      now,capacity),true);
+  }
+  const elapsed=process.cpuUsage(before);
+  return elapsed.user+elapsed.system;
+}
+
+test('CPU receipt: full-capacity admission housekeeping versus linear historical control',()=>{
+  /** @type {number[]} */
+  const linearUs=[];
+  /** @type {number[]} */
+  const orderedUs=[];
+  for(let i=0;i<5;i++){
+    // AB/BA alternating order and separate fresh stores for every sample.
+    const arms=i%2===0?['linear','ordered']:['ordered','linear'];
+    for(const arm of arms){
+      const sample=sampleHousekeepingCpu(arm==='linear'?originalStore():
+        createScoWebAuthnMemoryStore(),1536);
+      if(arm==='linear')linearUs.push(sample);
+      else orderedUs.push(sample);
+    }
+  }
+  const median=/** @param {number[]} x */ x=>[...x].sort((a,b)=>a-b)[2];
+  console.log('SCO_WA_MEMORY_EXPIRY_CPU '+JSON.stringify({
+    workload:'1536 active challenges + 1536 active sessions, 5 alternating paired samples',
+    units:'process user+system microseconds, isolated housekeeping only',
+    baseline:linearUs,optimized:orderedUs,
+    baselineMedianUs:median(linearUs),optimizedMedianUs:median(orderedUs),
+    ratio:median(linearUs)/median(orderedUs)
+  }));
+  assert.equal(linearUs.length,5);
+  assert.equal(orderedUs.length,5);
+});
