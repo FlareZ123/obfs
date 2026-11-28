@@ -3427,9 +3427,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(isWebConstructor(expression,urlConstructors,urlNativeNames))
       addWebObjectKey(urlConstructorObjectKeys,receiver,key);
   }
-  do {
-    changed=false;
-    walk(ast,node=>{
+  // The source-observer provenance sets are monotone. One forward scan alone
+  // needs O(n) full-AST rounds for a source-order-reversed alias chain.
+  // Reuse one node inventory and sweep in both source orders. The reverse
+  // sweep only runs when the forward pass adds facts. If it adds nothing new,
+  // all earlier and later dependencies are already at the same fixed point.
+  /** @type {AstNode[]} */
+  const provenanceNodes=[];
+  walk(ast,node=>{provenanceNodes.push(node);});
+  /** @param {AstNode} node @returns {void} */
+  function advanceProvenance(node) {
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
          node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier') {
@@ -3950,8 +3957,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
         }
       }
-    });
-  }while(changed);
+  }
+  let reverseChanged;
+  do {
+    changed=false;
+    for(const node of provenanceNodes)advanceProvenance(node);
+    const forwardChanged=changed;
+    changed=false;
+    if(forwardChanged) {
+      for(let i=provenanceNodes.length-1;i>=0;i--)
+        advanceProvenance(provenanceNodes[i]);
+    }
+    reverseChanged=changed;
+  }while(reverseChanged);
   // A template substitution may preserve a function's native source, but
   // expressions proven primitive cannot contain a function object. Only
   // uniquely declared, immutable const bindings are followed. Names with
