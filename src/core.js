@@ -2745,7 +2745,13 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!fileSourceObserver &&
+    // Only the separately proved primitive ESM leaf can rename local
+    // own-record keys while another file observes source. Unknown ambient
+    // capabilities must fail closed before this carveout is considered.
+    // No identifier, string, symbol, VM or cross-file protection is granted.
+    const allowProvenLocalPropertyIsland=sourceObserverIslands.has(filename)&&
+      !hasPinnedSource&&!esmDomSourceProducers.has(filename);
+    if ((!fileSourceObserver||allowProvenLocalPropertyIsland) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
