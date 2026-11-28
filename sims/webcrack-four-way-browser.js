@@ -34,19 +34,25 @@ async function runBrowserEvidence(){
   /** @type {Map<string,string>} */
   const assets=new Map();
   for(const file of graphs.native)assets.set('/native/'+file.path,file.code);
-  /** @type {Record<string,{inputSha256:string,outputSha256:string}>} */
+  /** @type {Record<string,{inputSha256:string,outputSha256:string,vmSandboxCallCount:number}>} */
   const provenance={};
   for(const variant of /** @type {const} */(['minified','published'])){
     const math=graphs[variant].find(file=>file.path==='math.mjs');
     assert.ok(math,'Missing math dependency: '+variant);
     assert.equal(sha256(math.code),inputs[variant],
       'Frozen source math hash drifted: '+variant);
+    let vmSandboxCallCount=0;
     const code=(await webcrack(math.code,{
-      deobfuscate:true,unminify:true,unpack:false,jsx:false
+      deobfuscate:true,unminify:true,unpack:false,jsx:false,
+      sandbox:async ()=>{
+        vmSandboxCallCount++;
+        throw new Error('No-VM-source-input control disallows runtime decoder evaluation');
+      }
     })).code;
+    assert.equal(vmSandboxCallCount,0,'Webcrack attempted VM evaluation of '+variant);
     assert.equal(sha256(code),outputs[variant],
       'Browser subject differs from the proven Node external-tool bytes');
-    provenance[variant]={inputSha256:sha256(math.code),outputSha256:sha256(code)};
+    provenance[variant]={inputSha256:sha256(math.code),outputSha256:sha256(code),vmSandboxCallCount};
     for(const file of graphs[variant])
       assets.set('/recovered-'+variant+'/'+file.path,
         file.path==='math.mjs'?code:file.code);
